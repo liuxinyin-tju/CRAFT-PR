@@ -1,0 +1,672 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>JSONPathSingleName.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">fastjson2</a> &gt; <a href="index.source.html" class="el_package">com.alibaba.fastjson2</a> &gt; <span class="el_source">JSONPathSingleName.java</span></div><h1>JSONPathSingleName.java</h1><pre class="source lang-java linenums">package com.alibaba.fastjson2;
+
+import com.alibaba.fastjson2.reader.*;
+import com.alibaba.fastjson2.util.IOUtils;
+import com.alibaba.fastjson2.writer.FieldWriter;
+import com.alibaba.fastjson2.writer.ObjectWriter;
+import com.alibaba.fastjson2.writer.ObjectWriterProvider;
+
+import java.util.Collection;
+import java.util.List;
+import java.util.Map;
+import java.util.function.BiFunction;
+
+final class JSONPathSingleName
+        extends JSONPathSingle {
+    final long nameHashCode;
+    final String name;
+
+    public JSONPathSingleName(String path, JSONPathSegmentName segment, Feature... features) {
+<span class="fc" id="L20">        super(segment, path, features);</span>
+<span class="fc" id="L21">        this.name = segment.name;</span>
+<span class="fc" id="L22">        this.nameHashCode = segment.nameHashCode;</span>
+<span class="fc" id="L23">    }</span>
+
+    @Override
+    public Object eval(Object root) {
+        Object value;
+<span class="fc bfc" id="L28" title="All 2 branches covered.">        if (root instanceof Map) {</span>
+<span class="fc" id="L29">            Map map = (Map) root;</span>
+<span class="fc" id="L30">            value = map.get(name);</span>
+<span class="fc bfc" id="L31" title="All 2 branches covered.">            if (value == null) {</span>
+<span class="fc" id="L32">                boolean isNum = IOUtils.isNumber(this.name);</span>
+<span class="fc" id="L33">                Long longValue = null;</span>
+
+<span class="fc bfc" id="L35" title="All 2 branches covered.">                for (Object o : map.entrySet()) {</span>
+<span class="fc" id="L36">                    Map.Entry entry = (Map.Entry) o;</span>
+<span class="fc" id="L37">                    Object entryKey = entry.getKey();</span>
+<span class="pc bpc" id="L38" title="1 of 4 branches missed.">                    if (entryKey instanceof Enum &amp;&amp; ((Enum&lt;?&gt;) entryKey).name().equals(this.name)) {</span>
+<span class="fc" id="L39">                        value = entry.getValue();</span>
+<span class="fc" id="L40">                        break;</span>
+<span class="fc bfc" id="L41" title="All 2 branches covered.">                    } else if (entryKey instanceof Long) {</span>
+<span class="pc bpc" id="L42" title="2 of 4 branches missed.">                        if (longValue == null &amp;&amp; isNum) {</span>
+<span class="fc" id="L43">                            longValue = Long.parseLong(this.name);</span>
+                        }
+<span class="pc bpc" id="L45" title="1 of 2 branches missed.">                        if (entryKey.equals(longValue)) {</span>
+<span class="fc" id="L46">                            value = entry.getValue();</span>
+<span class="fc" id="L47">                            break;</span>
+                        }
+                    }
+<span class="fc" id="L50">                }</span>
+            }
+<span class="fc" id="L52">        } else {</span>
+<span class="fc" id="L53">            ObjectWriter objectWriter = getWriterContext()</span>
+<span class="fc" id="L54">                    .getObjectWriter(</span>
+<span class="fc" id="L55">                            root.getClass()</span>
+                    );
+<span class="pc bpc" id="L57" title="1 of 2 branches missed.">            if (objectWriter == null) {</span>
+<span class="nc" id="L58">                return null;</span>
+            }
+
+<span class="fc" id="L61">            FieldWriter fieldWriter = objectWriter.getFieldWriter(nameHashCode);</span>
+<span class="fc bfc" id="L62" title="All 2 branches covered.">            if (fieldWriter == null) {</span>
+<span class="fc" id="L63">                return null;</span>
+            }
+
+<span class="fc" id="L66">            value = fieldWriter.getFieldValue(root);</span>
+        }
+
+<span class="fc bfc" id="L69" title="All 2 branches covered.">        if ((features &amp; Feature.AlwaysReturnList.mask) != 0) {</span>
+<span class="fc bfc" id="L70" title="All 2 branches covered.">            value = value == null</span>
+                    ? new JSONArray()
+<span class="fc" id="L72">                    : JSONArray.of(value);</span>
+        }
+<span class="fc" id="L74">        return value;</span>
+    }
+
+    @Override
+    public boolean remove(Object root) {
+<span class="fc bfc" id="L79" title="All 2 branches covered.">        if (root == null) {</span>
+<span class="fc" id="L80">            return false;</span>
+        }
+
+<span class="fc bfc" id="L83" title="All 2 branches covered.">        if (root instanceof Map) {</span>
+<span class="pc bpc" id="L84" title="1 of 2 branches missed.">            return ((Map&lt;?, ?&gt;) root).remove(name) != null;</span>
+        }
+
+<span class="fc" id="L87">        ObjectReaderProvider provider = getReaderContext().getProvider();</span>
+
+<span class="fc" id="L89">        ObjectReader objectReader = provider.getObjectReader(root.getClass());</span>
+<span class="pc bpc" id="L90" title="1 of 2 branches missed.">        if (objectReader == null) {</span>
+<span class="nc" id="L91">            return false;</span>
+        }
+
+<span class="fc" id="L94">        FieldReader fieldReader = objectReader.getFieldReader(nameHashCode);</span>
+<span class="fc bfc" id="L95" title="All 2 branches covered.">        if (fieldReader == null) {</span>
+<span class="fc" id="L96">            return false;</span>
+        }
+
+        try {
+<span class="fc" id="L100">            fieldReader.accept(root, null);</span>
+<span class="nc" id="L101">        } catch (Exception ignored) {</span>
+<span class="nc" id="L102">            return false;</span>
+<span class="fc" id="L103">        }</span>
+<span class="fc" id="L104">        return true;</span>
+    }
+
+    @Override
+    public boolean isRef() {
+<span class="fc" id="L109">        return true;</span>
+    }
+
+    @Override
+    public boolean contains(Object root) {
+<span class="fc bfc" id="L114" title="All 2 branches covered.">        if (root instanceof Map) {</span>
+<span class="fc" id="L115">            return ((Map) root).containsKey(name);</span>
+        }
+
+<span class="fc" id="L118">        ObjectWriterProvider provider = getWriterContext().provider;</span>
+
+<span class="fc" id="L120">        ObjectWriter objectWriter = provider.getObjectWriter(root.getClass());</span>
+<span class="pc bpc" id="L121" title="1 of 2 branches missed.">        if (objectWriter == null) {</span>
+<span class="nc" id="L122">            return false;</span>
+        }
+
+<span class="fc" id="L125">        FieldWriter fieldWriter = objectWriter.getFieldWriter(nameHashCode);</span>
+<span class="fc bfc" id="L126" title="All 2 branches covered.">        if (fieldWriter == null) {</span>
+<span class="fc" id="L127">            return false;</span>
+        }
+
+<span class="pc bpc" id="L130" title="1 of 2 branches missed.">        return fieldWriter.getFieldValue(root) != null;</span>
+    }
+
+    @Override
+    public void set(Object rootObject, Object value) {
+<span class="fc bfc" id="L135" title="All 2 branches covered.">        if (rootObject instanceof Map) {</span>
+<span class="fc" id="L136">            Map map = (Map) rootObject;</span>
+<span class="fc" id="L137">            map.put(name, value);</span>
+<span class="fc" id="L138">            return;</span>
+        }
+<span class="fc" id="L140">        ObjectReaderProvider provider = getReaderContext().getProvider();</span>
+<span class="fc" id="L141">        ObjectReader objectReader = provider.getObjectReader(rootObject.getClass());</span>
+<span class="fc" id="L142">        FieldReader fieldReader = objectReader.getFieldReader(nameHashCode);</span>
+
+<span class="fc bfc" id="L144" title="All 2 branches covered.">        if (fieldReader != null) {</span>
+<span class="fc bfc" id="L145" title="All 2 branches covered.">            if (value != null) {</span>
+<span class="fc" id="L146">                Class&lt;?&gt; valueClass = value.getClass();</span>
+<span class="fc" id="L147">                Class fieldClass = fieldReader.fieldClass;</span>
+<span class="fc bfc" id="L148" title="All 2 branches covered.">                if (!fieldReader.supportAcceptType(valueClass)) {</span>
+<span class="fc" id="L149">                    java.util.function.Function typeConvert = provider.getTypeConvert(valueClass, fieldClass);</span>
+<span class="fc bfc" id="L150" title="All 2 branches covered.">                    if (typeConvert != null) {</span>
+<span class="fc" id="L151">                        value = typeConvert.apply(value);</span>
+                    }
+                }
+            }
+<span class="fc" id="L155">            fieldReader.accept(rootObject, value);</span>
+<span class="pc bpc" id="L156" title="1 of 2 branches missed.">        } else if (objectReader instanceof ObjectReaderBean) {</span>
+<span class="fc" id="L157">            objectReader.acceptExtra(rootObject, name, value, 0);</span>
+        }
+<span class="fc" id="L159">    }</span>
+
+    @Override
+    public void set(Object rootObject, Object value, JSONReader.Feature... readerFeatures) {
+<span class="pc bpc" id="L163" title="1 of 2 branches missed.">        if (rootObject instanceof Map) {</span>
+<span class="fc" id="L164">            Map map = (Map) rootObject;</span>
+<span class="fc" id="L165">            Object origin = map.put(name, value);</span>
+<span class="pc bpc" id="L166" title="1 of 2 branches missed.">            if (origin != null) {</span>
+<span class="fc" id="L167">                boolean duplicateKeyValueAsArray = false;</span>
+<span class="fc bfc" id="L168" title="All 2 branches covered.">                for (JSONReader.Feature feature : readerFeatures) {</span>
+<span class="fc bfc" id="L169" title="All 2 branches covered.">                    if (feature == JSONReader.Feature.DuplicateKeyValueAsArray) {</span>
+<span class="fc" id="L170">                        duplicateKeyValueAsArray = true;</span>
+<span class="fc" id="L171">                        break;</span>
+                    }
+                }
+
+<span class="fc bfc" id="L175" title="All 2 branches covered.">                if (duplicateKeyValueAsArray) {</span>
+<span class="pc bpc" id="L176" title="1 of 2 branches missed.">                    if (origin instanceof Collection) {</span>
+<span class="nc" id="L177">                        ((Collection) origin).add(value);</span>
+<span class="nc" id="L178">                        map.put(name, value);</span>
+                    } else {
+<span class="fc" id="L180">                        JSONArray array = JSONArray.of(origin, value);</span>
+<span class="fc" id="L181">                        map.put(name, array);</span>
+                    }
+                }
+            }
+<span class="fc" id="L185">            return;</span>
+        }
+<span class="nc" id="L187">        ObjectReaderProvider provider = getReaderContext().getProvider();</span>
+<span class="nc" id="L188">        ObjectReader objectReader = provider.getObjectReader(rootObject.getClass());</span>
+<span class="nc" id="L189">        FieldReader fieldReader = objectReader.getFieldReader(nameHashCode);</span>
+
+<span class="nc bnc" id="L191" title="All 2 branches missed.">        if (value != null) {</span>
+<span class="nc" id="L192">            Class&lt;?&gt; valueClass = value.getClass();</span>
+<span class="nc" id="L193">            Class fieldClass = fieldReader.fieldClass;</span>
+<span class="nc bnc" id="L194" title="All 2 branches missed.">            if (valueClass != fieldClass) {</span>
+<span class="nc" id="L195">                java.util.function.Function typeConvert = provider.getTypeConvert(valueClass, fieldClass);</span>
+<span class="nc bnc" id="L196" title="All 2 branches missed.">                if (typeConvert != null) {</span>
+<span class="nc" id="L197">                    value = typeConvert.apply(value);</span>
+                }
+            }
+        }
+<span class="nc" id="L201">        fieldReader.accept(rootObject, value);</span>
+<span class="nc" id="L202">    }</span>
+
+    @Override
+    public void setCallback(Object object, BiFunction callback) {
+<span class="fc bfc" id="L206" title="All 2 branches covered.">        if (object instanceof Map) {</span>
+<span class="fc" id="L207">            Map map = (Map) object;</span>
+<span class="fc" id="L208">            Object originValue = map.get(name);</span>
+<span class="pc bpc" id="L209" title="1 of 4 branches missed.">            if (originValue != null || map.containsKey(name)) {</span>
+<span class="fc" id="L210">                map.put(name, callback.apply(map, originValue));</span>
+            }
+<span class="fc" id="L212">            return;</span>
+        }
+
+<span class="fc" id="L215">        Class&lt;?&gt; objectClass = object.getClass();</span>
+
+<span class="pc bpc" id="L217" title="1 of 2 branches missed.">        if (readerContext == null) {</span>
+<span class="fc" id="L218">            readerContext = JSONFactory.createReadContext();</span>
+        }
+<span class="fc" id="L220">        FieldReader fieldReader = readerContext.provider</span>
+<span class="fc" id="L221">                .getObjectReader(objectClass)</span>
+<span class="fc" id="L222">                .getFieldReader(nameHashCode);</span>
+
+<span class="pc bpc" id="L224" title="1 of 2 branches missed.">        if (writerContext == null) {</span>
+<span class="fc" id="L225">            writerContext = JSONFactory.createWriteContext();</span>
+        }
+<span class="fc" id="L227">        FieldWriter fieldWriter = writerContext.provider</span>
+<span class="fc" id="L228">                .getObjectWriter(objectClass)</span>
+<span class="fc" id="L229">                .getFieldWriter(nameHashCode);</span>
+
+<span class="pc bpc" id="L231" title="1 of 4 branches missed.">        if (fieldReader != null &amp;&amp; fieldWriter != null) {</span>
+<span class="fc" id="L232">            Object fieldValue = fieldWriter.getFieldValue(object);</span>
+<span class="fc" id="L233">            Object value = callback.apply(object, fieldValue);</span>
+<span class="fc" id="L234">            fieldReader.accept(object, value);</span>
+        }
+<span class="fc" id="L236">    }</span>
+
+    @Override
+    public void setInt(Object obejct, int value) {
+<span class="fc bfc" id="L240" title="All 2 branches covered.">        if (obejct instanceof Map) {</span>
+<span class="fc" id="L241">            ((Map) obejct).put(name, value);</span>
+<span class="fc" id="L242">            return;</span>
+        }
+<span class="fc" id="L244">        ObjectReaderProvider provider = getReaderContext().getProvider();</span>
+<span class="fc" id="L245">        ObjectReader objectReader = provider.getObjectReader(obejct.getClass());</span>
+<span class="fc" id="L246">        objectReader.setFieldValue(obejct, name, nameHashCode, value);</span>
+<span class="fc" id="L247">    }</span>
+
+    @Override
+    public void setLong(Object object, long value) {
+<span class="fc bfc" id="L251" title="All 2 branches covered.">        if (object instanceof Map) {</span>
+<span class="fc" id="L252">            ((Map) object).put(name, value);</span>
+<span class="fc" id="L253">            return;</span>
+        }
+<span class="fc" id="L255">        ObjectReaderProvider provider = getReaderContext().getProvider();</span>
+<span class="fc" id="L256">        ObjectReader objectReader = provider.getObjectReader(object.getClass());</span>
+<span class="fc" id="L257">        objectReader.setFieldValue(object, name, nameHashCode, value);</span>
+<span class="fc" id="L258">    }</span>
+
+    @Override
+    public Object extract(JSONReader jsonReader) {
+<span class="fc bfc" id="L262" title="All 2 branches covered.">        if (jsonReader.jsonb) {</span>
+<span class="pc bpc" id="L263" title="1 of 2 branches missed.">            if (jsonReader.nextIfObjectStart()) {</span>
+<span class="pc bpc" id="L264" title="1 of 2 branches missed.">                while (!jsonReader.nextIfObjectEnd()) {</span>
+<span class="fc" id="L265">                    long nameHashCode = jsonReader.readFieldNameHashCode();</span>
+<span class="pc bpc" id="L266" title="1 of 2 branches missed.">                    if (nameHashCode == 0) {</span>
+<span class="nc" id="L267">                        continue;</span>
+                    }
+
+<span class="fc bfc" id="L270" title="All 2 branches covered.">                    boolean match = nameHashCode == this.nameHashCode;</span>
+<span class="pc bpc" id="L271" title="2 of 6 branches missed.">                    if (!match &amp;&amp; (!jsonReader.isObject()) &amp;&amp; !jsonReader.isArray()) {</span>
+<span class="fc" id="L272">                        jsonReader.skipValue();</span>
+<span class="fc" id="L273">                        continue;</span>
+                    }
+
+<span class="fc" id="L276">                    return jsonReader.readAny();</span>
+                }
+            }
+
+<span class="nc bnc" id="L280" title="All 2 branches missed.">            if ((features &amp; Feature.AlwaysReturnList.mask) != 0) {</span>
+<span class="nc" id="L281">                return new JSONArray();</span>
+            }
+<span class="nc" id="L283">            return null;</span>
+        }
+
+<span class="pc bpc" id="L286" title="1 of 2 branches missed.">        if (jsonReader.nextIfObjectStart()) {</span>
+<span class="fc bfc" id="L287" title="All 2 branches covered.">            while (!jsonReader.nextIfObjectEnd()) {</span>
+<span class="fc" id="L288">                long nameHashCode = jsonReader.readFieldNameHashCode();</span>
+<span class="fc bfc" id="L289" title="All 2 branches covered.">                boolean match = nameHashCode == this.nameHashCode;</span>
+
+<span class="fc bfc" id="L291" title="All 2 branches covered.">                if (!match) {</span>
+<span class="fc" id="L292">                    jsonReader.skipValue();</span>
+<span class="fc" id="L293">                    continue;</span>
+                }
+
+                Object val;
+<span class="pc bpc" id="L297" title="1 of 7 branches missed.">                switch (jsonReader.ch) {</span>
+                    case '-':
+                    case '+':
+                    case '0':
+                    case '1':
+                    case '2':
+                    case '3':
+                    case '4':
+                    case '5':
+                    case '6':
+                    case '7':
+                    case '8':
+                    case '9':
+<span class="fc" id="L310">                        val = jsonReader.readNumber();</span>
+<span class="fc" id="L311">                        break;</span>
+                    case '[':
+<span class="fc" id="L313">                        val = jsonReader.readArray();</span>
+<span class="fc" id="L314">                        break;</span>
+                    case '{':
+<span class="fc" id="L316">                        val = jsonReader.readObject();</span>
+<span class="fc" id="L317">                        break;</span>
+                    case '&quot;':
+                    case '\'':
+<span class="fc" id="L320">                        val = jsonReader.readString(); //</span>
+<span class="fc" id="L321">                        break;</span>
+                    case 't':
+                    case 'f':
+<span class="fc" id="L324">                        val = jsonReader.readBoolValue();</span>
+<span class="fc" id="L325">                        break;</span>
+                    case 'n':
+<span class="fc" id="L327">                        jsonReader.readNull();</span>
+<span class="fc" id="L328">                        val = null;</span>
+<span class="fc" id="L329">                        break;</span>
+                    default:
+<span class="nc" id="L331">                        throw new JSONException(&quot;TODO : &quot; + jsonReader.ch);</span>
+                }
+
+<span class="fc bfc" id="L334" title="All 2 branches covered.">                if ((features &amp; Feature.AlwaysReturnList.mask) != 0) {</span>
+<span class="pc bpc" id="L335" title="1 of 2 branches missed.">                    if (val == null) {</span>
+<span class="nc" id="L336">                        val = new JSONArray();</span>
+                    } else {
+<span class="fc" id="L338">                        val = JSONArray.of(val);</span>
+                    }
+                }
+
+<span class="fc" id="L342">                return val;</span>
+            }
+        }
+
+<span class="fc bfc" id="L346" title="All 2 branches covered.">        if ((features &amp; Feature.AlwaysReturnList.mask) != 0) {</span>
+<span class="fc" id="L347">            return new JSONArray();</span>
+        }
+<span class="fc" id="L349">        return null;</span>
+    }
+
+    @Override
+    public String extractScalar(JSONReader jsonReader) {
+<span class="pc bpc" id="L354" title="1 of 2 branches missed.">        if (jsonReader.nextIfObjectStart()) {</span>
+            for (; ; ) {
+<span class="pc bpc" id="L356" title="1 of 2 branches missed.">                if (jsonReader.ch == '}') {</span>
+<span class="nc" id="L357">                    jsonReader.next();</span>
+<span class="nc" id="L358">                    break;</span>
+                }
+
+<span class="fc" id="L361">                long nameHashCode = jsonReader.readFieldNameHashCode();</span>
+
+<span class="pc bpc" id="L363" title="1 of 2 branches missed.">                boolean match = nameHashCode == this.nameHashCode;</span>
+<span class="fc" id="L364">                char ch = jsonReader.ch;</span>
+<span class="pc bpc" id="L365" title="5 of 6 branches missed.">                if (!match &amp;&amp; ch != '{' &amp;&amp; ch != '[') {</span>
+<span class="nc" id="L366">                    jsonReader.skipValue();</span>
+<span class="nc" id="L367">                    continue;</span>
+                }
+
+                Object val;
+<span class="pc bpc" id="L371" title="1 of 7 branches missed.">                switch (jsonReader.ch) {</span>
+                    case '-':
+                    case '+':
+                    case '0':
+                    case '1':
+                    case '2':
+                    case '3':
+                    case '4':
+                    case '5':
+                    case '6':
+                    case '7':
+                    case '8':
+                    case '9':
+<span class="fc" id="L384">                        val = jsonReader.readNumber();</span>
+<span class="fc" id="L385">                        break;</span>
+                    case '[':
+<span class="fc" id="L387">                        val = jsonReader.readArray();</span>
+<span class="fc" id="L388">                        break;</span>
+                    case '{':
+<span class="fc" id="L390">                        val = jsonReader.readObject();</span>
+<span class="fc" id="L391">                        break;</span>
+                    case '&quot;':
+                    case '\'':
+<span class="fc" id="L394">                        val = jsonReader.readString(); //</span>
+<span class="fc" id="L395">                        break;</span>
+                    case 't':
+                    case 'f':
+<span class="fc" id="L398">                        val = jsonReader.readBoolValue();</span>
+<span class="fc" id="L399">                        break;</span>
+                    case 'n':
+<span class="fc" id="L401">                        jsonReader.readNull();</span>
+<span class="fc" id="L402">                        val = null;</span>
+<span class="fc" id="L403">                        break;</span>
+                    default:
+<span class="nc" id="L405">                        throw new JSONException(&quot;TODO : &quot; + jsonReader.ch);</span>
+                }
+
+<span class="fc" id="L408">                return JSON.toJSONString(val);</span>
+            }
+        }
+<span class="nc" id="L411">        return null;</span>
+    }
+
+    @Override
+    public long extractInt64Value(JSONReader jsonReader) {
+<span class="pc bpc" id="L416" title="1 of 2 branches missed.">        if (jsonReader.nextIfObjectStart()) {</span>
+            _for:
+            for (; ; ) {
+<span class="pc bpc" id="L419" title="1 of 2 branches missed.">                if (jsonReader.ch == '}') {</span>
+<span class="nc" id="L420">                    jsonReader.wasNull = true;</span>
+<span class="nc" id="L421">                    return 0;</span>
+                }
+
+<span class="fc" id="L424">                long nameHashCode = jsonReader.readFieldNameHashCode();</span>
+
+<span class="pc bpc" id="L426" title="1 of 2 branches missed.">                boolean match = nameHashCode == this.nameHashCode;</span>
+<span class="pc bpc" id="L427" title="1 of 2 branches missed.">                if (!match) {</span>
+<span class="nc" id="L428">                    jsonReader.skipValue();</span>
+<span class="nc" id="L429">                    continue;</span>
+                }
+
+<span class="pc bpc" id="L432" title="4 of 7 branches missed.">                switch (jsonReader.ch) {</span>
+                    case '-':
+                    case '+':
+                    case '0':
+                    case '1':
+                    case '2':
+                    case '3':
+                    case '4':
+                    case '5':
+                    case '6':
+                    case '7':
+                    case '8':
+                    case '9':
+<span class="fc" id="L445">                        return jsonReader.readInt64Value();</span>
+                    case '[':
+                    case '{':
+<span class="nc" id="L448">                        Map object = jsonReader.readObject();</span>
+<span class="nc" id="L449">                        return jsonReader.toLong(object);</span>
+                    case '&quot;':
+                    case '\'':
+<span class="nc" id="L452">                        String str = jsonReader.readString();</span>
+<span class="nc" id="L453">                        return Long.parseLong(str);</span>
+                    case 't':
+                    case 'f':
+<span class="fc" id="L456">                        boolean booleanValue = jsonReader.readBoolValue();</span>
+<span class="fc bfc" id="L457" title="All 2 branches covered.">                        return booleanValue ? 1L : 0L;</span>
+                    case 'n':
+<span class="fc" id="L459">                        jsonReader.readNull();</span>
+<span class="fc" id="L460">                        jsonReader.wasNull = true;</span>
+<span class="fc" id="L461">                        return 0;</span>
+                    case ']':
+<span class="nc" id="L463">                        jsonReader.next();</span>
+<span class="nc" id="L464">                        break _for;</span>
+                    default:
+<span class="nc" id="L466">                        throw new JSONException(&quot;TODO : &quot; + jsonReader.ch);</span>
+                }
+            }
+        }
+
+<span class="nc" id="L471">        jsonReader.wasNull = true;</span>
+<span class="nc" id="L472">        return 0;</span>
+    }
+
+    @Override
+    public int extractInt32Value(JSONReader jsonReader) {
+<span class="pc bpc" id="L477" title="1 of 2 branches missed.">        if (jsonReader.nextIfObjectStart()) {</span>
+            _for:
+            for (; ; ) {
+<span class="pc bpc" id="L480" title="1 of 2 branches missed.">                if (jsonReader.ch == '}') {</span>
+<span class="nc" id="L481">                    jsonReader.wasNull = true;</span>
+<span class="nc" id="L482">                    return 0;</span>
+                }
+
+<span class="fc" id="L485">                long nameHashCode = jsonReader.readFieldNameHashCode();</span>
+
+<span class="pc bpc" id="L487" title="1 of 2 branches missed.">                boolean match = nameHashCode == this.nameHashCode;</span>
+<span class="pc bpc" id="L488" title="1 of 2 branches missed.">                if (!match) {</span>
+<span class="nc" id="L489">                    jsonReader.skipValue();</span>
+<span class="nc" id="L490">                    continue;</span>
+                }
+
+<span class="pc bpc" id="L493" title="3 of 6 branches missed.">                switch (jsonReader.ch) {</span>
+                    case '-':
+                    case '+':
+                    case '0':
+                    case '1':
+                    case '2':
+                    case '3':
+                    case '4':
+                    case '5':
+                    case '6':
+                    case '7':
+                    case '8':
+                    case '9':
+<span class="fc" id="L506">                        return jsonReader.readInt32Value();</span>
+                    case '&quot;':
+                    case '\'':
+<span class="nc" id="L509">                        String str = jsonReader.readString(); //</span>
+<span class="nc" id="L510">                        return Integer.parseInt(str);</span>
+                    case 't':
+                    case 'f':
+<span class="fc" id="L513">                        boolean booleanValue = jsonReader.readBoolValue();</span>
+<span class="fc bfc" id="L514" title="All 2 branches covered.">                        return booleanValue ? 1 : 0;</span>
+                    case 'n':
+<span class="fc" id="L516">                        jsonReader.readNull();</span>
+<span class="fc" id="L517">                        jsonReader.wasNull = true;</span>
+<span class="fc" id="L518">                        return 0;</span>
+                    case ']':
+<span class="nc" id="L520">                        jsonReader.next();</span>
+<span class="nc" id="L521">                        break _for;</span>
+                    default:
+<span class="nc" id="L523">                        throw new JSONException(&quot;TODO : &quot; + jsonReader.ch);</span>
+                }
+            }
+        }
+
+<span class="nc" id="L528">        jsonReader.wasNull = true;</span>
+<span class="nc" id="L529">        return 0;</span>
+    }
+
+    @Override
+    public void extractScalar(JSONReader jsonReader, ValueConsumer consumer) {
+<span class="pc bpc" id="L534" title="1 of 2 branches missed.">        if (jsonReader.nextIfObjectStart()) {</span>
+            _for:
+            for (; ; ) {
+<span class="pc bpc" id="L537" title="1 of 2 branches missed.">                if (jsonReader.ch == '}') {</span>
+<span class="nc" id="L538">                    consumer.acceptNull();</span>
+<span class="nc" id="L539">                    return;</span>
+                }
+
+<span class="fc" id="L542">                long nameHashCode = jsonReader.readFieldNameHashCode();</span>
+
+<span class="fc bfc" id="L544" title="All 2 branches covered.">                boolean match = nameHashCode == this.nameHashCode;</span>
+<span class="fc bfc" id="L545" title="All 2 branches covered.">                if (!match) {</span>
+<span class="fc" id="L546">                    jsonReader.skipValue();</span>
+<span class="fc" id="L547">                    continue;</span>
+                }
+
+<span class="pc bpc" id="L550" title="6 of 8 branches missed.">                switch (jsonReader.ch) {</span>
+                    case '-':
+                    case '+':
+                    case '0':
+                    case '1':
+                    case '2':
+                    case '3':
+                    case '4':
+                    case '5':
+                    case '6':
+                    case '7':
+                    case '8':
+                    case '9': {
+<span class="fc" id="L563">                        jsonReader.readNumber(consumer, false);</span>
+<span class="fc" id="L564">                        return;</span>
+                    }
+                    case '[': {
+<span class="nc" id="L567">                        List array = jsonReader.readArray();</span>
+<span class="nc" id="L568">                        consumer.accept(array);</span>
+<span class="nc" id="L569">                        return;</span>
+                    }
+                    case '{': {
+<span class="nc" id="L572">                        Map object = jsonReader.readObject();</span>
+<span class="nc" id="L573">                        consumer.accept(object);</span>
+<span class="nc" id="L574">                        return;</span>
+                    }
+                    case '&quot;':
+                    case '\'': {
+<span class="fc" id="L578">                        jsonReader.readString(consumer, false);</span>
+<span class="fc" id="L579">                        return;</span>
+                    }
+                    case 't':
+                    case 'f': {
+<span class="nc" id="L583">                        consumer.accept(</span>
+<span class="nc" id="L584">                                jsonReader.readBoolValue()</span>
+                        );
+<span class="nc" id="L586">                        return;</span>
+                    }
+                    case 'n':
+<span class="nc" id="L589">                        jsonReader.readNull();</span>
+<span class="nc" id="L590">                        consumer.acceptNull();</span>
+<span class="nc" id="L591">                        return;</span>
+                    case ']':
+<span class="nc" id="L593">                        jsonReader.next();</span>
+<span class="nc" id="L594">                        break _for;</span>
+                    default:
+<span class="nc" id="L596">                        throw new JSONException(&quot;TODO : &quot; + jsonReader.ch);</span>
+                }
+            }
+        }
+
+<span class="nc" id="L601">        consumer.acceptNull();</span>
+<span class="nc" id="L602">    }</span>
+
+    @Override
+    public void extract(JSONReader jsonReader, ValueConsumer consumer) {
+<span class="pc bpc" id="L606" title="1 of 2 branches missed.">        if (jsonReader.nextIfObjectStart()) {</span>
+            for (; ; ) {
+<span class="pc bpc" id="L608" title="1 of 2 branches missed.">                if (jsonReader.ch == '}') {</span>
+<span class="nc" id="L609">                    consumer.acceptNull();</span>
+<span class="nc" id="L610">                    return;</span>
+                }
+
+<span class="fc" id="L613">                long nameHashCode = jsonReader.readFieldNameHashCode();</span>
+
+<span class="fc bfc" id="L615" title="All 2 branches covered.">                boolean match = nameHashCode == this.nameHashCode;</span>
+<span class="fc bfc" id="L616" title="All 2 branches covered.">                if (!match) {</span>
+<span class="fc" id="L617">                    jsonReader.skipValue();</span>
+<span class="fc" id="L618">                    continue;</span>
+                }
+
+<span class="pc bpc" id="L621" title="1 of 7 branches missed.">                switch (jsonReader.ch) {</span>
+                    case '-':
+                    case '+':
+                    case '0':
+                    case '1':
+                    case '2':
+                    case '3':
+                    case '4':
+                    case '5':
+                    case '6':
+                    case '7':
+                    case '8':
+                    case '9': {
+<span class="fc" id="L634">                        jsonReader.readNumber(consumer, true);</span>
+<span class="fc" id="L635">                        return;</span>
+                    }
+                    case '[': {
+<span class="fc" id="L638">                        List array = jsonReader.readArray();</span>
+<span class="fc" id="L639">                        consumer.accept(array);</span>
+<span class="fc" id="L640">                        return;</span>
+                    }
+                    case '{': {
+<span class="fc" id="L643">                        Map object = jsonReader.readObject();</span>
+<span class="fc" id="L644">                        consumer.accept(object);</span>
+<span class="fc" id="L645">                        return;</span>
+                    }
+                    case '&quot;':
+                    case '\'': {
+<span class="fc" id="L649">                        jsonReader.readString(consumer, true);</span>
+<span class="fc" id="L650">                        return;</span>
+                    }
+                    case 't':
+                    case 'f': {
+<span class="fc" id="L654">                        consumer.accept(</span>
+<span class="fc" id="L655">                                jsonReader.readBoolValue()</span>
+                        );
+<span class="fc" id="L657">                        return;</span>
+                    }
+                    case 'n':
+<span class="fc" id="L660">                        jsonReader.readNull();</span>
+<span class="fc" id="L661">                        consumer.acceptNull();</span>
+<span class="fc" id="L662">                        return;</span>
+                    default:
+<span class="nc" id="L664">                        throw new JSONException(&quot;TODO : &quot; + jsonReader.ch);</span>
+                }
+            }
+        }
+
+<span class="nc" id="L669">        consumer.acceptNull();</span>
+<span class="nc" id="L670">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.8.202204050719</span></div></body></html>

@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ObjectReaderImplLocalDate.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">fastjson2</a> &gt; <a href="index.source.html" class="el_package">com.alibaba.fastjson2.reader</a> &gt; <span class="el_source">ObjectReaderImplLocalDate.java</span></div><h1>ObjectReaderImplLocalDate.java</h1><pre class="source lang-java linenums">package com.alibaba.fastjson2.reader;
+
+import com.alibaba.fastjson2.JSONReader;
+import com.alibaba.fastjson2.codec.DateTimeCodec;
+
+import java.lang.reflect.Type;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.Locale;
+
+class ObjectReaderImplLocalDate
+        extends DateTimeCodec
+        implements ObjectReader {
+<span class="fc" id="L16">    static final ObjectReaderImplLocalDate INSTANCE = new ObjectReaderImplLocalDate(null, null);</span>
+
+    public ObjectReaderImplLocalDate(String format, Locale locale) {
+<span class="fc" id="L19">        super(format, locale);</span>
+<span class="fc" id="L20">    }</span>
+
+    public static ObjectReaderImplLocalDate of(String format, Locale locale) {
+<span class="fc bfc" id="L23" title="All 2 branches covered.">        if (format == null) {</span>
+<span class="fc" id="L24">            return INSTANCE;</span>
+        }
+
+<span class="fc" id="L27">        return new ObjectReaderImplLocalDate(format, locale);</span>
+    }
+
+    @Override
+    public Class getObjectClass() {
+<span class="fc" id="L32">        return LocalDate.class;</span>
+    }
+
+    @Override
+    public Object readJSONBObject(JSONReader jsonReader, Type fieldType, Object fieldName, long features) {
+<span class="fc" id="L37">        return jsonReader.readLocalDate();</span>
+    }
+
+    @Override
+    public Object readObject(JSONReader jsonReader, Type fieldType, Object fieldName, long features) {
+<span class="fc" id="L42">        JSONReader.Context context = jsonReader.getContext();</span>
+
+<span class="fc bfc" id="L44" title="All 2 branches covered.">        if (jsonReader.readIfNull()) {</span>
+<span class="fc" id="L45">            return null;</span>
+        }
+
+<span class="pc bpc" id="L48" title="1 of 8 branches missed.">        if (format == null || yyyyMMddhhmmss19 || formatISO8601 || jsonReader.isNumber()) {</span>
+<span class="fc" id="L49">            return jsonReader.readLocalDate();</span>
+        }
+
+<span class="fc" id="L52">        String str = jsonReader.readString();</span>
+<span class="pc bpc" id="L53" title="1 of 4 branches missed.">        if (str.isEmpty() || &quot;null&quot;.equals(str)) {</span>
+<span class="fc" id="L54">            return null;</span>
+        }
+
+<span class="fc bfc" id="L57" title="All 4 branches covered.">        if (formatMillis || formatUnixTime) {</span>
+<span class="fc" id="L58">            long millis = Long.parseLong(str);</span>
+<span class="fc bfc" id="L59" title="All 2 branches covered.">            if (formatUnixTime) {</span>
+<span class="fc" id="L60">                millis *= 1000L;</span>
+            }
+<span class="fc" id="L62">            Instant instant = Instant.ofEpochMilli(millis);</span>
+<span class="fc" id="L63">            return LocalDateTime.ofInstant(instant, context.getZoneId()).toLocalDate();</span>
+        }
+
+<span class="fc" id="L66">        DateTimeFormatter formatter = getDateFormatter(context.getLocale());</span>
+
+<span class="fc bfc" id="L68" title="All 2 branches covered.">        if (!formatHasHour) {</span>
+<span class="fc" id="L69">            return LocalDate.parse(str, formatter);</span>
+        }
+
+<span class="fc bfc" id="L72" title="All 2 branches covered.">        if (!formatHasDay) {</span>
+<span class="fc" id="L73">            return LocalDate.of(1970, 1, 1);</span>
+        }
+
+<span class="fc" id="L76">        return LocalDateTime</span>
+<span class="fc" id="L77">                .parse(str, formatter)</span>
+<span class="fc" id="L78">                .toLocalDate();</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.8.202204050719</span></div></body></html>

@@ -1,0 +1,241 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ObjectReaderInterface.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">fastjson2</a> &gt; <a href="index.source.html" class="el_package">com.alibaba.fastjson2.reader</a> &gt; <span class="el_source">ObjectReaderInterface.java</span></div><h1>ObjectReaderInterface.java</h1><pre class="source lang-java linenums">package com.alibaba.fastjson2.reader;
+
+import com.alibaba.fastjson2.JSONB;
+import com.alibaba.fastjson2.JSONException;
+import com.alibaba.fastjson2.JSONObject;
+import com.alibaba.fastjson2.JSONReader;
+import com.alibaba.fastjson2.util.TypeUtils;
+
+import java.lang.reflect.Type;
+import java.util.Map;
+import java.util.function.Function;
+import java.util.function.Supplier;
+
+public final class ObjectReaderInterface&lt;T&gt;
+        extends ObjectReaderAdapter&lt;T&gt; {
+    public ObjectReaderInterface(
+            Class objectClass,
+            String typeKey,
+            String typeName,
+            long features,
+            Supplier creator,
+            Function buildFunction,
+            FieldReader[] fieldReaders
+    ) {
+<span class="fc" id="L25">        super(objectClass, typeKey, typeName, features, null, creator, buildFunction, fieldReaders);</span>
+<span class="fc" id="L26">    }</span>
+
+    @Override
+    public T readJSONBObject(JSONReader jsonReader, Type fieldType, Object fieldName, long features) {
+<span class="pc bpc" id="L30" title="1 of 2 branches missed.">        if (jsonReader.nextIfNull()) {</span>
+<span class="nc" id="L31">            return null;</span>
+        }
+
+<span class="fc" id="L34">        ObjectReader autoTypeReader = jsonReader.checkAutoType(this.objectClass, this.typeNameHash, this.features | features);</span>
+<span class="pc bpc" id="L35" title="1 of 4 branches missed.">        if (autoTypeReader != null &amp;&amp; autoTypeReader.getObjectClass() != this.objectClass) {</span>
+<span class="fc" id="L36">            return (T) autoTypeReader.readJSONBObject(jsonReader, fieldType, fieldName, features);</span>
+        }
+
+<span class="pc bpc" id="L39" title="1 of 2 branches missed.">        if (jsonReader.isArray()) {</span>
+<span class="nc bnc" id="L40" title="All 2 branches missed.">            if (jsonReader.isSupportBeanArray()) {</span>
+<span class="nc" id="L41">                return readArrayMappingJSONBObject(jsonReader, fieldType, fieldName, features);</span>
+            } else {
+<span class="nc" id="L43">                throw new JSONException(jsonReader.info(&quot;expect object, but &quot; + JSONB.typeName(jsonReader.getType())));</span>
+            }
+        }
+
+<span class="fc" id="L47">        boolean objectStart = jsonReader.nextIfObjectStart();</span>
+
+<span class="fc" id="L49">        JSONObject jsonObject = new JSONObject();</span>
+        Object object;
+<span class="fc" id="L51">        for (int i = 0; ; ++i) {</span>
+<span class="fc bfc" id="L52" title="All 2 branches covered.">            if (jsonReader.nextIfObjectEnd()) {</span>
+<span class="fc" id="L53">                break;</span>
+            }
+
+<span class="fc" id="L56">            long hash = jsonReader.readFieldNameHashCode();</span>
+<span class="pc bpc" id="L57" title="3 of 4 branches missed.">            if (hash == typeKeyHashCode &amp;&amp; i == 0) {</span>
+<span class="nc" id="L58">                long typeHash = jsonReader.readValueHashCode();</span>
+<span class="nc" id="L59">                JSONReader.Context context = jsonReader.getContext();</span>
+<span class="nc" id="L60">                ObjectReader autoTypeObjectReader = autoType(context, typeHash);</span>
+<span class="nc bnc" id="L61" title="All 2 branches missed.">                if (autoTypeObjectReader == null) {</span>
+<span class="nc" id="L62">                    String typeName = jsonReader.getString();</span>
+<span class="nc" id="L63">                    autoTypeObjectReader = context.getObjectReaderAutoType(typeName, null);</span>
+
+<span class="nc bnc" id="L65" title="All 2 branches missed.">                    if (autoTypeObjectReader == null) {</span>
+<span class="nc" id="L66">                        throw new JSONException(jsonReader.info(&quot;autoType not support : &quot; + typeName));</span>
+                    }
+                }
+
+<span class="nc bnc" id="L70" title="All 2 branches missed.">                if (autoTypeObjectReader == this) {</span>
+<span class="nc" id="L71">                    continue;</span>
+                }
+
+<span class="nc" id="L74">                jsonReader.setTypeRedirect(true);</span>
+<span class="nc" id="L75">                return (T) autoTypeObjectReader.readJSONBObject(jsonReader, fieldType, fieldName, features);</span>
+            }
+
+<span class="pc bpc" id="L78" title="1 of 2 branches missed.">            if (hash == 0) {</span>
+<span class="nc" id="L79">                continue;</span>
+            }
+
+<span class="fc" id="L82">            FieldReader fieldReader = getFieldReader(hash);</span>
+<span class="pc bpc" id="L83" title="3 of 4 branches missed.">            if (fieldReader == null &amp;&amp; jsonReader.isSupportSmartMatch(features | this.features)) {</span>
+<span class="nc" id="L84">                long nameHashCodeLCase = jsonReader.getNameHashCodeLCase();</span>
+<span class="nc" id="L85">                fieldReader = getFieldReaderLCase(nameHashCodeLCase);</span>
+            }
+<span class="pc bpc" id="L87" title="1 of 2 branches missed.">            if (fieldReader == null) {</span>
+<span class="nc" id="L88">                jsonObject.put(jsonReader.getFieldName(), jsonReader.readAny());</span>
+            } else {
+<span class="fc" id="L90">                Object fieldValue = fieldReader.readFieldValue(jsonReader);</span>
+<span class="fc" id="L91">                jsonObject.put(fieldReader.fieldName, fieldValue);</span>
+            }
+        }
+
+<span class="fc" id="L95">        object = TypeUtils.newProxyInstance(objectClass, jsonObject);</span>
+<span class="pc bpc" id="L96" title="1 of 2 branches missed.">        if (schema != null) {</span>
+<span class="nc" id="L97">            schema.assertValidate(object);</span>
+        }
+
+<span class="fc" id="L100">        return (T) object;</span>
+    }
+
+    @Override
+    public T readObject(JSONReader jsonReader, Type fieldType, Object fieldName, long features) {
+<span class="pc bpc" id="L105" title="1 of 2 branches missed.">        if (jsonReader.jsonb) {</span>
+<span class="nc" id="L106">            return readJSONBObject(jsonReader, fieldType, fieldName, features);</span>
+        }
+
+<span class="pc bpc" id="L109" title="1 of 2 branches missed.">        if (jsonReader.nextIfNull()) {</span>
+<span class="nc" id="L110">            jsonReader.nextIfComma();</span>
+<span class="nc" id="L111">            return null;</span>
+        }
+
+<span class="pc bpc" id="L114" title="3 of 4 branches missed.">        if (jsonReader.isArray() &amp;&amp; jsonReader.isSupportBeanArray(getFeatures() | features)) {</span>
+<span class="nc" id="L115">            return readArrayMappingObject(jsonReader, fieldType, fieldName, features);</span>
+        }
+
+        T object;
+<span class="fc" id="L119">        JSONObject jsonObject = new JSONObject();</span>
+<span class="fc" id="L120">        boolean objectStart = jsonReader.nextIfObjectStart();</span>
+<span class="pc bpc" id="L121" title="1 of 2 branches missed.">        if (!objectStart) {</span>
+<span class="nc" id="L122">            char ch = jsonReader.current();</span>
+            // skip for fastjson 1.x compatible
+<span class="nc bnc" id="L124" title="All 4 branches missed.">            if (ch == 't' || ch == 'f') {</span>
+<span class="nc" id="L125">                jsonReader.readBoolValue(); // skip</span>
+<span class="nc" id="L126">                return null;</span>
+            }
+
+<span class="nc bnc" id="L129" title="All 6 branches missed.">            if (ch != '&quot;' &amp;&amp; ch != '\'' &amp;&amp; ch != '}') {</span>
+<span class="nc" id="L130">                throw new JSONException(jsonReader.info());</span>
+            }
+        }
+
+<span class="fc" id="L134">        for (int i = 0; ; i++) {</span>
+<span class="fc bfc" id="L135" title="All 2 branches covered.">            if (jsonReader.nextIfObjectEnd()) {</span>
+<span class="fc" id="L136">                break;</span>
+            }
+
+<span class="fc" id="L139">            JSONReader.Context context = jsonReader.getContext();</span>
+<span class="fc" id="L140">            long features3, hash = jsonReader.readFieldNameHashCode();</span>
+<span class="fc" id="L141">            JSONReader.AutoTypeBeforeHandler autoTypeFilter = context.getContextAutoTypeBeforeHandler();</span>
+<span class="fc bfc" id="L142" title="All 2 branches covered.">            if (i == 0</span>
+<span class="fc bfc" id="L143" title="All 2 branches covered.">                    &amp;&amp; hash == getTypeKeyHash()</span>
+<span class="pc bpc" id="L144" title="3 of 4 branches missed.">                    &amp;&amp; ((((features3 = (features | getFeatures() | context.getFeatures())) &amp; JSONReader.Feature.SupportAutoType.mask) != 0) || autoTypeFilter != null)</span>
+            ) {
+<span class="fc" id="L146">                ObjectReader reader = null;</span>
+
+<span class="fc" id="L148">                long typeHash = jsonReader.readTypeHashCode();</span>
+<span class="pc bpc" id="L149" title="1 of 2 branches missed.">                if (autoTypeFilter != null) {</span>
+<span class="nc" id="L150">                    Class&lt;?&gt; filterClass = autoTypeFilter.apply(typeHash, objectClass, features3);</span>
+<span class="nc bnc" id="L151" title="All 2 branches missed.">                    if (filterClass == null) {</span>
+<span class="nc" id="L152">                        filterClass = autoTypeFilter.apply(jsonReader.getString(), objectClass, features3);</span>
+<span class="nc bnc" id="L153" title="All 2 branches missed.">                        if (filterClass != null) {</span>
+<span class="nc" id="L154">                            reader = context.getObjectReader(filterClass);</span>
+                        }
+                    }
+                }
+
+<span class="pc bpc" id="L159" title="1 of 2 branches missed.">                if (reader == null) {</span>
+<span class="fc" id="L160">                    reader = autoType(context, typeHash);</span>
+                }
+
+<span class="fc" id="L163">                String typeName = null;</span>
+<span class="fc bfc" id="L164" title="All 2 branches covered.">                if (reader == null) {</span>
+<span class="fc" id="L165">                    typeName = jsonReader.getString();</span>
+<span class="fc" id="L166">                    reader = context.getObjectReaderAutoType(</span>
+                            typeName, objectClass, features3
+                    );
+
+<span class="pc bpc" id="L170" title="1 of 2 branches missed.">                    if (reader == null) {</span>
+<span class="nc" id="L171">                        throw new JSONException(jsonReader.info(&quot;No suitable ObjectReader found for&quot; + typeName));</span>
+                    }
+                }
+
+<span class="pc bpc" id="L175" title="1 of 2 branches missed.">                if (reader == this) {</span>
+<span class="nc" id="L176">                    continue;</span>
+                }
+
+<span class="fc" id="L179">                FieldReader fieldReader = reader.getFieldReader(hash);</span>
+<span class="pc bpc" id="L180" title="3 of 4 branches missed.">                if (fieldReader != null &amp;&amp; typeName == null) {</span>
+<span class="nc" id="L181">                    typeName = jsonReader.getString();</span>
+                }
+
+<span class="fc" id="L184">                object = (T) reader.readObject(</span>
+<span class="fc" id="L185">                        jsonReader, null, null, features | getFeatures()</span>
+                );
+
+<span class="pc bpc" id="L188" title="1 of 2 branches missed.">                if (fieldReader != null) {</span>
+<span class="nc" id="L189">                    fieldReader.accept(object, typeName);</span>
+                }
+
+<span class="fc" id="L192">                return object;</span>
+            }
+
+<span class="fc" id="L195">            FieldReader fieldReader = getFieldReader(hash);</span>
+<span class="pc bpc" id="L196" title="3 of 4 branches missed.">            if (fieldReader == null &amp;&amp; jsonReader.isSupportSmartMatch(features | getFeatures())) {</span>
+<span class="nc" id="L197">                long nameHashCodeLCase = jsonReader.getNameHashCodeLCase();</span>
+<span class="nc" id="L198">                fieldReader = getFieldReaderLCase(nameHashCodeLCase);</span>
+            }
+
+<span class="pc bpc" id="L201" title="1 of 2 branches missed.">            if (fieldReader == null) {</span>
+<span class="nc" id="L202">                jsonObject.put(jsonReader.getFieldName(), jsonReader.readAny());</span>
+            } else {
+<span class="fc" id="L204">                Object fieldValue = fieldReader.readFieldValue(jsonReader);</span>
+<span class="fc" id="L205">                jsonObject.put(fieldReader.fieldName, fieldValue);</span>
+            }
+        }
+
+<span class="fc" id="L209">        jsonReader.nextIfComma();</span>
+
+<span class="fc" id="L211">        object = (T) TypeUtils.newProxyInstance(objectClass, jsonObject);</span>
+<span class="fc" id="L212">        Function buildFunction = getBuildFunction();</span>
+<span class="pc bpc" id="L213" title="1 of 2 branches missed.">        if (buildFunction != null) {</span>
+<span class="nc" id="L214">            object = (T) buildFunction.apply(object);</span>
+        }
+
+<span class="pc bpc" id="L217" title="1 of 2 branches missed.">        if (schema != null) {</span>
+<span class="nc" id="L218">            schema.assertValidate(object);</span>
+        }
+
+<span class="fc" id="L221">        return object;</span>
+    }
+
+    @Override
+    public T createInstance(long features) {
+<span class="fc" id="L226">        JSONObject object = new JSONObject();</span>
+<span class="fc" id="L227">        return (T) TypeUtils.newProxyInstance(objectClass, object);</span>
+    }
+
+    @Override
+    public T createInstance(Map map, long features) {
+        JSONObject object;
+<span class="fc bfc" id="L233" title="All 2 branches covered.">        if (map instanceof JSONObject) {</span>
+<span class="fc" id="L234">            object = (JSONObject) map;</span>
+        } else {
+<span class="fc" id="L236">            object = new JSONObject(map);</span>
+        }
+<span class="fc" id="L238">        return (T) TypeUtils.newProxyInstance(objectClass, object);</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.8.202204050719</span></div></body></html>

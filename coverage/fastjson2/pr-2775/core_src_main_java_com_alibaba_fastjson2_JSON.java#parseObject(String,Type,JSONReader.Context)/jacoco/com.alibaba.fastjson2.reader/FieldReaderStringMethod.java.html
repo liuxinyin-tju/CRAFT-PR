@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>FieldReaderStringMethod.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">fastjson2</a> &gt; <a href="index.source.html" class="el_package">com.alibaba.fastjson2.reader</a> &gt; <span class="el_source">FieldReaderStringMethod.java</span></div><h1>FieldReaderStringMethod.java</h1><pre class="source lang-java linenums">package com.alibaba.fastjson2.reader;
+
+import com.alibaba.fastjson2.JSONException;
+import com.alibaba.fastjson2.JSONReader;
+import com.alibaba.fastjson2.schema.JSONSchema;
+
+import java.lang.reflect.Method;
+import java.lang.reflect.Type;
+import java.util.Locale;
+
+final class FieldReaderStringMethod&lt;T&gt;
+        extends FieldReaderObject&lt;T&gt; {
+    final boolean trim;
+
+    FieldReaderStringMethod(
+            String fieldName,
+            Type fieldType,
+            Class fieldClass,
+            int ordinal,
+            long features,
+            String format,
+            Locale locale,
+            String defaultValue,
+            JSONSchema schema,
+            Method setter
+    ) {
+<span class="fc" id="L27">        super(fieldName, fieldType, fieldClass, ordinal, features, format, locale, defaultValue, schema, setter, null, null);</span>
+<span class="fc bfc" id="L28" title="All 4 branches covered.">        trim = &quot;trim&quot;.equals(format) || (features &amp; JSONReader.Feature.TrimString.mask) != 0;</span>
+<span class="fc" id="L29">    }</span>
+
+    @Override
+    public void readFieldValue(JSONReader jsonReader, T object) {
+<span class="fc" id="L33">        String fieldValue = jsonReader.readString();</span>
+<span class="pc bpc" id="L34" title="1 of 4 branches missed.">        if (trim &amp;&amp; fieldValue != null) {</span>
+<span class="fc" id="L35">            fieldValue = fieldValue.trim();</span>
+        }
+
+<span class="fc bfc" id="L38" title="All 2 branches covered.">        if (schema != null) {</span>
+<span class="fc" id="L39">            schema.assertValidate(fieldValue);</span>
+        }
+
+        try {
+<span class="fc" id="L43">            method.invoke(object, fieldValue);</span>
+<span class="nc" id="L44">        } catch (Exception e) {</span>
+<span class="nc" id="L45">            throw new JSONException(jsonReader.info(&quot;set &quot; + fieldName + &quot; error&quot;), e);</span>
+<span class="fc" id="L46">        }</span>
+<span class="fc" id="L47">    }</span>
+
+    @Override
+    public String readFieldValue(JSONReader jsonReader) {
+<span class="fc" id="L51">        String fieldValue = jsonReader.readString();</span>
+<span class="pc bpc" id="L52" title="1 of 4 branches missed.">        if (trim &amp;&amp; fieldValue != null) {</span>
+<span class="fc" id="L53">            fieldValue = fieldValue.trim();</span>
+        }
+<span class="fc" id="L55">        return fieldValue;</span>
+    }
+
+    @Override
+    public void accept(T object, Object value) {
+        String fieldValue;
+<span class="fc bfc" id="L61" title="All 4 branches covered.">        if (value instanceof String || value == null) {</span>
+<span class="fc" id="L62">            fieldValue = (String) value;</span>
+        } else {
+<span class="fc" id="L64">            fieldValue = value.toString();</span>
+        }
+
+<span class="fc bfc" id="L67" title="All 4 branches covered.">        if (trim &amp;&amp; fieldValue != null) {</span>
+<span class="fc" id="L68">            fieldValue = fieldValue.trim();</span>
+        }
+
+<span class="fc bfc" id="L71" title="All 2 branches covered.">        if (schema != null) {</span>
+<span class="nc" id="L72">            schema.assertValidate(fieldValue);</span>
+        }
+
+        try {
+<span class="fc" id="L76">            method.invoke(object, fieldValue);</span>
+<span class="fc" id="L77">        } catch (Exception e) {</span>
+<span class="fc" id="L78">            throw new JSONException(&quot;set &quot; + fieldName + &quot; error&quot;, e);</span>
+<span class="fc" id="L79">        }</span>
+<span class="fc" id="L80">    }</span>
+
+    public boolean supportAcceptType(Class valueClass) {
+<span class="fc" id="L83">        return true;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.8.202204050719</span></div></body></html>

@@ -1,0 +1,1047 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ObjectReaderProvider.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">fastjson2</a> &gt; <a href="index.source.html" class="el_package">com.alibaba.fastjson2.reader</a> &gt; <span class="el_source">ObjectReaderProvider.java</span></div><h1>ObjectReaderProvider.java</h1><pre class="source lang-java linenums">package com.alibaba.fastjson2.reader;
+
+import com.alibaba.fastjson2.*;
+import com.alibaba.fastjson2.JSONReader.AutoTypeBeforeHandler;
+import com.alibaba.fastjson2.codec.BeanInfo;
+import com.alibaba.fastjson2.codec.FieldInfo;
+import com.alibaba.fastjson2.function.FieldBiConsumer;
+import com.alibaba.fastjson2.function.FieldConsumer;
+import com.alibaba.fastjson2.modules.ObjectCodecProvider;
+import com.alibaba.fastjson2.modules.ObjectReaderAnnotationProcessor;
+import com.alibaba.fastjson2.modules.ObjectReaderModule;
+import com.alibaba.fastjson2.support.LambdaMiscCodec;
+import com.alibaba.fastjson2.util.BeanUtils;
+import com.alibaba.fastjson2.util.Fnv;
+import com.alibaba.fastjson2.util.JDKUtils;
+import com.alibaba.fastjson2.util.TypeUtils;
+
+import java.lang.reflect.*;
+import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
+import java.util.function.Function;
+import java.util.function.Supplier;
+
+import static com.alibaba.fastjson2.JSONFactory.*;
+import static com.alibaba.fastjson2.util.Fnv.MAGIC_HASH_CODE;
+import static com.alibaba.fastjson2.util.Fnv.MAGIC_PRIME;
+import static com.alibaba.fastjson2.util.TypeUtils.loadClass;
+
+public class ObjectReaderProvider
+        implements ObjectCodecProvider {
+<span class="fc" id="L34">    static final ClassLoader FASTJSON2_CLASS_LOADER = JSON.class.getClassLoader();</span>
+    public static final boolean SAFE_MODE;
+    static final String[] DENYS;
+    static final String[] AUTO_TYPE_ACCEPT_LIST;
+
+    static AutoTypeBeforeHandler DEFAULT_AUTO_TYPE_BEFORE_HANDLER;
+    static Consumer&lt;Class&gt; DEFAULT_AUTO_TYPE_HANDLER;
+    static boolean DEFAULT_AUTO_TYPE_HANDLER_INIT_ERROR;
+
+    static ObjectReaderCachePair readerCache;
+
+    static class ObjectReaderCachePair {
+        final long hashCode;
+        final ObjectReader reader;
+        volatile int missCount;
+
+<span class="fc" id="L50">        public ObjectReaderCachePair(long hashCode, ObjectReader reader) {</span>
+<span class="fc" id="L51">            this.hashCode = hashCode;</span>
+<span class="fc" id="L52">            this.reader = reader;</span>
+<span class="fc" id="L53">        }</span>
+    }
+
+    static {
+        {
+<span class="fc" id="L58">            String property = System.getProperty(PROPERTY_DENY_PROPERTY);</span>
+<span class="pc bpc" id="L59" title="1 of 2 branches missed.">            if (property == null) {</span>
+<span class="fc" id="L60">                property = JSONFactory.getProperty(PROPERTY_DENY_PROPERTY);</span>
+            }
+<span class="pc bpc" id="L62" title="3 of 4 branches missed.">            if (property != null &amp;&amp; property.length() &gt; 0) {</span>
+<span class="nc" id="L63">                DENYS = property.split(&quot;,&quot;);</span>
+            } else {
+<span class="fc" id="L65">                DENYS = new String[0];</span>
+            }
+        }
+
+        {
+<span class="fc" id="L70">            String property = System.getProperty(PROPERTY_AUTO_TYPE_ACCEPT);</span>
+<span class="pc bpc" id="L71" title="1 of 2 branches missed.">            if (property == null) {</span>
+<span class="fc" id="L72">                property = JSONFactory.getProperty(PROPERTY_AUTO_TYPE_ACCEPT);</span>
+            }
+<span class="pc bpc" id="L74" title="3 of 4 branches missed.">            if (property != null &amp;&amp; property.length() &gt; 0) {</span>
+<span class="nc" id="L75">                AUTO_TYPE_ACCEPT_LIST = property.split(&quot;,&quot;);</span>
+            } else {
+<span class="fc" id="L77">                AUTO_TYPE_ACCEPT_LIST = new String[0];</span>
+            }
+        }
+
+        {
+<span class="fc" id="L82">            String property = System.getProperty(PROPERTY_AUTO_TYPE_BEFORE_HANDLER);</span>
+<span class="pc bpc" id="L83" title="3 of 4 branches missed.">            if (property == null || property.isEmpty()) {</span>
+<span class="fc" id="L84">                property = JSONFactory.getProperty(PROPERTY_AUTO_TYPE_BEFORE_HANDLER);</span>
+            }
+
+<span class="pc bpc" id="L87" title="1 of 2 branches missed.">            if (property != null) {</span>
+<span class="nc" id="L88">                property = property.trim();</span>
+            }
+
+<span class="pc bpc" id="L91" title="3 of 4 branches missed.">            if (property != null &amp;&amp; !property.isEmpty()) {</span>
+<span class="nc" id="L92">                Class handlerClass = TypeUtils.loadClass(property);</span>
+<span class="nc bnc" id="L93" title="All 2 branches missed.">                if (handlerClass != null) {</span>
+                    try {
+<span class="nc" id="L95">                        DEFAULT_AUTO_TYPE_BEFORE_HANDLER = (AutoTypeBeforeHandler) handlerClass.newInstance();</span>
+<span class="nc" id="L96">                    } catch (Exception ignored) {</span>
+<span class="nc" id="L97">                        DEFAULT_AUTO_TYPE_HANDLER_INIT_ERROR = true;</span>
+                        // skip
+<span class="nc" id="L99">                    }</span>
+                }
+            }
+        }
+
+        {
+<span class="fc" id="L105">            String property = System.getProperty(PROPERTY_AUTO_TYPE_HANDLER);</span>
+<span class="pc bpc" id="L106" title="3 of 4 branches missed.">            if (property == null || property.isEmpty()) {</span>
+<span class="fc" id="L107">                property = JSONFactory.getProperty(PROPERTY_AUTO_TYPE_HANDLER);</span>
+            }
+
+<span class="pc bpc" id="L110" title="1 of 2 branches missed.">            if (property != null) {</span>
+<span class="nc" id="L111">                property = property.trim();</span>
+            }
+
+<span class="pc bpc" id="L114" title="3 of 4 branches missed.">            if (property != null &amp;&amp; !property.isEmpty()) {</span>
+<span class="nc" id="L115">                Class handlerClass = TypeUtils.loadClass(property);</span>
+<span class="nc bnc" id="L116" title="All 2 branches missed.">                if (handlerClass != null) {</span>
+                    try {
+<span class="nc" id="L118">                        DEFAULT_AUTO_TYPE_HANDLER = (Consumer&lt;Class&gt;) handlerClass.newInstance();</span>
+<span class="nc" id="L119">                    } catch (Exception ignored) {</span>
+<span class="nc" id="L120">                        DEFAULT_AUTO_TYPE_HANDLER_INIT_ERROR = true;</span>
+                        // skip
+<span class="nc" id="L122">                    }</span>
+                }
+            }
+        }
+
+        {
+<span class="fc" id="L128">            String property = System.getProperty(&quot;fastjson.parser.safeMode&quot;);</span>
+<span class="pc bpc" id="L129" title="3 of 4 branches missed.">            if (property == null || property.isEmpty()) {</span>
+<span class="fc" id="L130">                property = JSONFactory.getProperty(&quot;fastjson.parser.safeMode&quot;);</span>
+            }
+
+<span class="pc bpc" id="L133" title="3 of 4 branches missed.">            if (property == null || property.isEmpty()) {</span>
+<span class="fc" id="L134">                property = System.getProperty(&quot;fastjson2.parser.safeMode&quot;);</span>
+            }
+<span class="pc bpc" id="L136" title="3 of 4 branches missed.">            if (property == null || property.isEmpty()) {</span>
+<span class="fc" id="L137">                property = JSONFactory.getProperty(&quot;fastjson2.parser.safeMode&quot;);</span>
+            }
+
+<span class="pc bpc" id="L140" title="1 of 2 branches missed.">            if (property != null) {</span>
+<span class="nc" id="L141">                property = property.trim();</span>
+            }
+
+<span class="fc" id="L144">            SAFE_MODE = &quot;true&quot;.equals(property);</span>
+        }
+<span class="fc" id="L146">    }</span>
+
+<span class="fc" id="L148">    final ConcurrentMap&lt;Type, ObjectReader&gt; cache = new ConcurrentHashMap&lt;&gt;();</span>
+<span class="fc" id="L149">    final ConcurrentMap&lt;Type, ObjectReader&gt; cacheFieldBased = new ConcurrentHashMap&lt;&gt;();</span>
+<span class="fc" id="L150">    final ConcurrentMap&lt;Integer, ConcurrentHashMap&lt;Long, ObjectReader&gt;&gt; tclHashCaches = new ConcurrentHashMap&lt;&gt;();</span>
+<span class="fc" id="L151">    final ConcurrentMap&lt;Long, ObjectReader&gt; hashCache = new ConcurrentHashMap&lt;&gt;();</span>
+<span class="fc" id="L152">    final ConcurrentMap&lt;Class, Class&gt; mixInCache = new ConcurrentHashMap&lt;&gt;();</span>
+
+<span class="fc" id="L154">    final LRUAutoTypeCache autoTypeList = new LRUAutoTypeCache(1024);</span>
+
+<span class="fc" id="L156">    private final ConcurrentMap&lt;Type, Map&lt;Type, Function&gt;&gt; typeConverts = new ConcurrentHashMap&lt;&gt;();</span>
+
+    final ObjectReaderCreator creator;
+<span class="fc" id="L159">    final List&lt;ObjectReaderModule&gt; modules = new ArrayList&lt;&gt;();</span>
+
+<span class="fc" id="L161">    boolean disableReferenceDetect = JSONFactory.isDisableReferenceDetect();</span>
+<span class="fc" id="L162">    boolean disableArrayMapping = JSONFactory.isDisableArrayMapping();</span>
+<span class="fc" id="L163">    boolean disableJSONB = JSONFactory.isDisableJSONB();</span>
+<span class="fc" id="L164">    boolean disableAutoType = JSONFactory.isDisableAutoType();</span>
+<span class="fc" id="L165">    boolean disableSmartMatch = JSONFactory.isDisableSmartMatch();</span>
+
+    private long[] acceptHashCodes;
+
+<span class="fc" id="L169">    private AutoTypeBeforeHandler autoTypeBeforeHandler = DEFAULT_AUTO_TYPE_BEFORE_HANDLER;</span>
+<span class="fc" id="L170">    private Consumer&lt;Class&gt; autoTypeHandler = DEFAULT_AUTO_TYPE_HANDLER;</span>
+    PropertyNamingStrategy namingStrategy;
+
+    {
+        long[] hashCodes;
+<span class="pc bpc" id="L175" title="2 of 4 branches missed.">        if (AUTO_TYPE_ACCEPT_LIST == null) {</span>
+<span class="nc" id="L176">            hashCodes = new long[1];</span>
+        } else {
+<span class="fc" id="L178">            hashCodes = new long[AUTO_TYPE_ACCEPT_LIST.length + 1];</span>
+<span class="pc bpc" id="L179" title="2 of 4 branches missed.">            for (int i = 0; i &lt; AUTO_TYPE_ACCEPT_LIST.length; i++) {</span>
+<span class="nc" id="L180">                hashCodes[i] = Fnv.hashCode64(AUTO_TYPE_ACCEPT_LIST[i]);</span>
+            }
+        }
+
+<span class="fc" id="L184">        hashCodes[hashCodes.length - 1] = -6293031534589903644L;</span>
+
+<span class="fc" id="L186">        Arrays.sort(hashCodes);</span>
+<span class="fc" id="L187">        acceptHashCodes = hashCodes;</span>
+
+<span class="fc" id="L189">        hashCache.put(ObjectArrayReader.TYPE_HASH_CODE, ObjectArrayReader.INSTANCE);</span>
+<span class="fc" id="L190">        final long STRING_CLASS_NAME_HASH = -4834614249632438472L; // Fnv.hashCode64(String.class.getName());</span>
+<span class="fc" id="L191">        hashCache.put(STRING_CLASS_NAME_HASH, ObjectReaderImplString.INSTANCE);</span>
+<span class="fc" id="L192">        hashCache.put(Fnv.hashCode64(TypeUtils.getTypeName(HashMap.class)), ObjectReaderImplMap.INSTANCE);</span>
+    }
+
+    public void registerIfAbsent(long hashCode, ObjectReader objectReader) {
+<span class="fc" id="L196">        ClassLoader tcl = Thread.currentThread().getContextClassLoader();</span>
+<span class="fc bfc" id="L197" title="All 4 branches covered.">        if (tcl != null &amp;&amp; tcl != JSON.class.getClassLoader()) {</span>
+<span class="fc" id="L198">            int tclHash = System.identityHashCode(tcl);</span>
+<span class="fc" id="L199">            ConcurrentHashMap&lt;Long, ObjectReader&gt; tclHashCache = tclHashCaches.get(tclHash);</span>
+<span class="fc bfc" id="L200" title="All 2 branches covered.">            if (tclHashCache == null) {</span>
+<span class="fc" id="L201">                tclHashCaches.putIfAbsent(tclHash, new ConcurrentHashMap&lt;&gt;());</span>
+<span class="fc" id="L202">                tclHashCache = tclHashCaches.get(tclHash);</span>
+            }
+
+<span class="fc" id="L205">            tclHashCache.putIfAbsent(hashCode, objectReader);</span>
+        }
+
+<span class="fc" id="L208">        hashCache.putIfAbsent(hashCode, objectReader);</span>
+<span class="fc" id="L209">    }</span>
+
+    public void addAutoTypeAccept(String name) {
+<span class="pc bpc" id="L212" title="2 of 4 branches missed.">        if (name != null &amp;&amp; name.length() != 0) {</span>
+<span class="fc" id="L213">            long hash = Fnv.hashCode64(name);</span>
+<span class="pc bpc" id="L214" title="1 of 2 branches missed.">            if (Arrays.binarySearch(this.acceptHashCodes, hash) &lt; 0) {</span>
+<span class="fc" id="L215">                long[] hashCodes = new long[this.acceptHashCodes.length + 1];</span>
+<span class="fc" id="L216">                hashCodes[hashCodes.length - 1] = hash;</span>
+<span class="fc" id="L217">                System.arraycopy(this.acceptHashCodes, 0, hashCodes, 0, this.acceptHashCodes.length);</span>
+<span class="fc" id="L218">                Arrays.sort(hashCodes);</span>
+<span class="fc" id="L219">                this.acceptHashCodes = hashCodes;</span>
+            }
+        }
+<span class="fc" id="L222">    }</span>
+
+    @Deprecated
+    public void addAutoTypeDeny(String name) {
+<span class="nc" id="L226">    }</span>
+
+    public Consumer&lt;Class&gt; getAutoTypeHandler() {
+<span class="fc" id="L229">        return autoTypeHandler;</span>
+    }
+
+    public void setAutoTypeHandler(Consumer&lt;Class&gt; autoTypeHandler) {
+<span class="fc" id="L233">        this.autoTypeHandler = autoTypeHandler;</span>
+<span class="fc" id="L234">    }</span>
+
+    public Class getMixIn(Class target) {
+<span class="fc" id="L237">        return mixInCache.get(target);</span>
+    }
+
+    public void cleanupMixIn() {
+<span class="nc" id="L241">        mixInCache.clear();</span>
+<span class="nc" id="L242">    }</span>
+
+    public void mixIn(Class target, Class mixinSource) {
+<span class="fc bfc" id="L245" title="All 2 branches covered.">        if (mixinSource == null) {</span>
+<span class="fc" id="L246">            mixInCache.remove(target);</span>
+        } else {
+<span class="fc" id="L248">            mixInCache.put(target, mixinSource);</span>
+        }
+<span class="fc" id="L250">        cache.remove(target);</span>
+<span class="fc" id="L251">        cacheFieldBased.remove(target);</span>
+<span class="fc" id="L252">    }</span>
+
+    public void registerSeeAlsoSubType(Class subTypeClass) {
+<span class="nc" id="L255">        registerSeeAlsoSubType(subTypeClass, null);</span>
+<span class="nc" id="L256">    }</span>
+
+    public void registerSeeAlsoSubType(Class subTypeClass, String subTypeClassName) {
+<span class="fc" id="L259">        Class superClass = subTypeClass.getSuperclass();</span>
+<span class="pc bpc" id="L260" title="1 of 2 branches missed.">        if (superClass == null) {</span>
+<span class="nc" id="L261">            throw new JSONException(&quot;superclass is null&quot;);</span>
+        }
+
+<span class="fc" id="L264">        ObjectReader objectReader = getObjectReader(superClass);</span>
+<span class="pc bpc" id="L265" title="1 of 2 branches missed.">        if (objectReader instanceof ObjectReaderSeeAlso) {</span>
+<span class="fc" id="L266">            ObjectReaderSeeAlso readerSeeAlso = (ObjectReaderSeeAlso) objectReader;</span>
+<span class="fc" id="L267">            ObjectReaderSeeAlso readerSeeAlsoNew = readerSeeAlso.addSubType(subTypeClass, subTypeClassName);</span>
+<span class="pc bpc" id="L268" title="1 of 2 branches missed.">            if (readerSeeAlsoNew != readerSeeAlso) {</span>
+<span class="pc bpc" id="L269" title="1 of 2 branches missed.">                if (cache.containsKey(superClass)) {</span>
+<span class="fc" id="L270">                    cache.put(superClass, readerSeeAlsoNew);</span>
+                } else {
+<span class="nc" id="L272">                    cacheFieldBased.put(subTypeClass, readerSeeAlsoNew);</span>
+                }
+            }
+        }
+<span class="fc" id="L276">    }</span>
+
+    public ObjectReader register(Type type, ObjectReader objectReader, boolean fieldBased) {
+<span class="fc bfc" id="L279" title="All 2 branches covered.">        ConcurrentMap&lt;Type, ObjectReader&gt; cache = fieldBased ? this.cacheFieldBased : this.cache;</span>
+<span class="fc bfc" id="L280" title="All 2 branches covered.">        if (objectReader == null) {</span>
+<span class="fc" id="L281">            return cache.remove(type);</span>
+        }
+
+<span class="fc" id="L284">        return cache.put(type, objectReader);</span>
+    }
+
+    public ObjectReader register(Type type, ObjectReader objectReader) {
+<span class="fc" id="L288">        return register(type, objectReader, false);</span>
+    }
+
+    public ObjectReader registerIfAbsent(Type type, ObjectReader objectReader) {
+<span class="fc" id="L292">        return registerIfAbsent(type, objectReader, false);</span>
+    }
+
+    public ObjectReader registerIfAbsent(Type type, ObjectReader objectReader, boolean fieldBased) {
+<span class="fc bfc" id="L296" title="All 2 branches covered.">        ConcurrentMap&lt;Type, ObjectReader&gt; cache = fieldBased ? this.cacheFieldBased : this.cache;</span>
+<span class="fc" id="L297">        return cache.putIfAbsent(type, objectReader);</span>
+    }
+
+    public ObjectReader unregisterObjectReader(Type type) {
+<span class="fc" id="L301">        return unregisterObjectReader(type, false);</span>
+    }
+
+    public ObjectReader unregisterObjectReader(Type type, boolean fieldBased) {
+<span class="fc bfc" id="L305" title="All 2 branches covered.">        ConcurrentMap&lt;Type, ObjectReader&gt; cache = fieldBased ? this.cacheFieldBased : this.cache;</span>
+<span class="fc" id="L306">        return cache.remove(type);</span>
+    }
+
+    public boolean unregisterObjectReader(Type type, ObjectReader reader) {
+<span class="fc" id="L310">        return unregisterObjectReader(type, reader, false);</span>
+    }
+
+    public boolean unregisterObjectReader(Type type, ObjectReader reader, boolean fieldBased) {
+<span class="fc bfc" id="L314" title="All 2 branches covered.">        ConcurrentMap&lt;Type, ObjectReader&gt; cache = fieldBased ? this.cacheFieldBased : this.cache;</span>
+<span class="fc" id="L315">        return cache.remove(type, reader);</span>
+    }
+
+    public boolean register(ObjectReaderModule module) {
+<span class="fc bfc" id="L319" title="All 2 branches covered.">        for (int i = modules.size() - 1; i &gt;= 0; i--) {</span>
+<span class="fc bfc" id="L320" title="All 2 branches covered.">            if (modules.get(i) == module) {</span>
+<span class="fc" id="L321">                return false;</span>
+            }
+        }
+
+<span class="fc" id="L325">        module.init(this);</span>
+
+<span class="fc" id="L327">        modules.add(0, module);</span>
+<span class="fc" id="L328">        return true;</span>
+    }
+
+    public boolean unregister(ObjectReaderModule module) {
+<span class="fc" id="L332">        return modules.remove(module);</span>
+    }
+
+    public void cleanup(Class objectClass) {
+<span class="fc" id="L336">        mixInCache.remove(objectClass);</span>
+<span class="fc" id="L337">        cache.remove(objectClass);</span>
+<span class="fc" id="L338">        cacheFieldBased.remove(objectClass);</span>
+<span class="fc bfc" id="L339" title="All 2 branches covered.">        for (ConcurrentHashMap&lt;Long, ObjectReader&gt; tlc : tclHashCaches.values()) {</span>
+<span class="fc bfc" id="L340" title="All 2 branches covered.">            for (Iterator&lt;Map.Entry&lt;Long, ObjectReader&gt;&gt; it = tlc.entrySet().iterator(); it.hasNext(); ) {</span>
+<span class="fc" id="L341">                Map.Entry&lt;Long, ObjectReader&gt; entry = it.next();</span>
+<span class="fc" id="L342">                ObjectReader reader = entry.getValue();</span>
+<span class="pc bpc" id="L343" title="1 of 2 branches missed.">                if (reader.getObjectClass() == objectClass) {</span>
+<span class="nc" id="L344">                    it.remove();</span>
+                }
+<span class="fc" id="L346">            }</span>
+<span class="fc" id="L347">        }</span>
+<span class="fc" id="L348">        BeanUtils.cleanupCache(objectClass);</span>
+<span class="fc" id="L349">    }</span>
+
+    static boolean match(Type objectType, ObjectReader objectReader, ClassLoader classLoader) {
+<span class="fc" id="L352">        Class&lt;?&gt; objectClass = TypeUtils.getClass(objectType);</span>
+<span class="pc bpc" id="L353" title="1 of 4 branches missed.">        if (objectClass != null &amp;&amp; objectClass.getClassLoader() == classLoader) {</span>
+<span class="fc" id="L354">            return true;</span>
+        }
+
+<span class="fc bfc" id="L357" title="All 2 branches covered.">        if (objectType instanceof ParameterizedType) {</span>
+<span class="fc" id="L358">            ParameterizedType paramType = (ParameterizedType) objectType;</span>
+<span class="fc" id="L359">            Type rawType = paramType.getRawType();</span>
+<span class="fc bfc" id="L360" title="All 2 branches covered.">            if (match(rawType, objectReader, classLoader)) {</span>
+<span class="fc" id="L361">                return true;</span>
+            }
+
+<span class="fc bfc" id="L364" title="All 2 branches covered.">            for (Type argType : paramType.getActualTypeArguments()) {</span>
+<span class="fc bfc" id="L365" title="All 2 branches covered.">                if (match(argType, objectReader, classLoader)) {</span>
+<span class="fc" id="L366">                    return true;</span>
+                }
+            }
+        }
+
+<span class="fc bfc" id="L371" title="All 2 branches covered.">        if (objectReader instanceof ObjectReaderImplMapTyped) {</span>
+<span class="fc" id="L372">            ObjectReaderImplMapTyped mapTyped = (ObjectReaderImplMapTyped) objectReader;</span>
+<span class="fc" id="L373">            Class valueClass = mapTyped.valueClass;</span>
+<span class="pc bpc" id="L374" title="1 of 4 branches missed.">            if (valueClass != null &amp;&amp; valueClass.getClassLoader() == classLoader) {</span>
+<span class="fc" id="L375">                return true;</span>
+            }
+<span class="fc" id="L377">            Class keyClass = TypeUtils.getClass(mapTyped.keyType);</span>
+<span class="fc bfc" id="L378" title="All 4 branches covered.">            return keyClass != null &amp;&amp; keyClass.getClassLoader() == classLoader;</span>
+<span class="fc bfc" id="L379" title="All 2 branches covered.">        } else if (objectReader instanceof ObjectReaderImplList) {</span>
+<span class="fc" id="L380">            ObjectReaderImplList list = (ObjectReaderImplList) objectReader;</span>
+<span class="pc bpc" id="L381" title="1 of 4 branches missed.">            return list.itemClass != null &amp;&amp; list.itemClass.getClassLoader() == classLoader;</span>
+<span class="fc bfc" id="L382" title="All 2 branches covered.">        } else if (objectReader instanceof ObjectReaderImplOptional) {</span>
+<span class="fc" id="L383">            Class itemClass = ((ObjectReaderImplOptional) objectReader).itemClass;</span>
+<span class="fc bfc" id="L384" title="All 4 branches covered.">            return itemClass != null &amp;&amp; itemClass.getClassLoader() == classLoader;</span>
+<span class="fc bfc" id="L385" title="All 2 branches covered.">        } else if (objectReader instanceof ObjectReaderAdapter) {</span>
+<span class="fc" id="L386">            FieldReader[] fieldReaders = ((ObjectReaderAdapter&lt;?&gt;) objectReader).fieldReaders;</span>
+<span class="fc bfc" id="L387" title="All 2 branches covered.">            for (FieldReader fieldReader : fieldReaders) {</span>
+<span class="pc bpc" id="L388" title="1 of 4 branches missed.">                if (fieldReader.fieldClass != null &amp;&amp; fieldReader.fieldClass.getClassLoader() == classLoader) {</span>
+<span class="nc" id="L389">                    return true;</span>
+                }
+<span class="fc" id="L391">                Type fieldType = fieldReader.fieldType;</span>
+<span class="fc bfc" id="L392" title="All 2 branches covered.">                if (fieldType instanceof ParameterizedType) {</span>
+<span class="fc bfc" id="L393" title="All 2 branches covered.">                    if (match(fieldType, null, classLoader)) {</span>
+<span class="fc" id="L394">                        return true;</span>
+                    }
+                }
+            }
+        }
+
+<span class="fc" id="L400">        return false;</span>
+    }
+
+    public void cleanup(ClassLoader classLoader) {
+<span class="fc" id="L404">        mixInCache.entrySet().removeIf(</span>
+<span class="pc bpc" id="L405" title="1 of 2 branches missed.">                entry -&gt; entry.getKey().getClassLoader() == classLoader</span>
+        );
+
+<span class="fc" id="L408">        cache.entrySet().removeIf(</span>
+<span class="fc" id="L409">                entry -&gt; match(entry.getKey(), entry.getValue(), classLoader)</span>
+        );
+
+<span class="fc" id="L412">        cacheFieldBased.entrySet().removeIf(</span>
+<span class="fc" id="L413">                entry -&gt; match(entry.getKey(), entry.getValue(), classLoader)</span>
+        );
+
+<span class="fc" id="L416">        int tclHash = System.identityHashCode(classLoader);</span>
+<span class="fc" id="L417">        tclHashCaches.remove(tclHash);</span>
+
+<span class="fc" id="L419">        BeanUtils.cleanupCache(classLoader);</span>
+<span class="fc" id="L420">    }</span>
+
+    public ObjectReaderCreator getCreator() {
+<span class="fc" id="L423">        ObjectReaderCreator contextCreator = JSONFactory.getContextReaderCreator();</span>
+<span class="fc bfc" id="L424" title="All 2 branches covered.">        if (contextCreator != null) {</span>
+<span class="fc" id="L425">            return contextCreator;</span>
+        }
+<span class="fc" id="L427">        return this.creator;</span>
+    }
+
+<span class="fc" id="L430">    public ObjectReaderProvider() {</span>
+<span class="fc" id="L431">        ObjectReaderCreator creator = null;</span>
+<span class="pc bpc" id="L432" title="1 of 2 branches missed.">        switch (JSONFactory.CREATOR) {</span>
+            case &quot;reflect&quot;:
+            case &quot;lambda&quot;:
+<span class="nc" id="L435">                creator = ObjectReaderCreator.INSTANCE;</span>
+<span class="nc" id="L436">                break;</span>
+            case &quot;asm&quot;:
+            default:
+                try {
+<span class="pc bpc" id="L440" title="2 of 4 branches missed.">                    if (!JDKUtils.ANDROID &amp;&amp; !JDKUtils.GRAAL) {</span>
+<span class="fc" id="L441">                        creator = ObjectReaderCreatorASM.INSTANCE;</span>
+                    }
+<span class="nc" id="L443">                } catch (Throwable ignored) {</span>
+                    // ignored
+<span class="fc" id="L445">                }</span>
+<span class="pc bpc" id="L446" title="1 of 2 branches missed.">                if (creator == null) {</span>
+<span class="nc" id="L447">                    creator = ObjectReaderCreator.INSTANCE;</span>
+                }
+                break;
+        }
+<span class="fc" id="L451">        this.creator = creator;</span>
+
+<span class="fc" id="L453">        modules.add(new ObjectReaderBaseModule(this));</span>
+<span class="fc" id="L454">        init();</span>
+<span class="fc" id="L455">    }</span>
+
+<span class="fc" id="L457">    public ObjectReaderProvider(ObjectReaderCreator creator) {</span>
+<span class="fc" id="L458">        this.creator = creator;</span>
+<span class="fc" id="L459">        modules.add(new ObjectReaderBaseModule(this));</span>
+<span class="fc" id="L460">        init();</span>
+<span class="fc" id="L461">    }</span>
+
+    void init() {
+<span class="fc bfc" id="L464" title="All 2 branches covered.">        for (ObjectReaderModule module : modules) {</span>
+<span class="fc" id="L465">            module.init(this);</span>
+<span class="fc" id="L466">        }</span>
+<span class="fc" id="L467">    }</span>
+
+    public Function getTypeConvert(Type from, Type to) {
+<span class="fc" id="L470">        Map&lt;Type, Function&gt; map = typeConverts.get(from);</span>
+<span class="fc bfc" id="L471" title="All 2 branches covered.">        if (map == null) {</span>
+<span class="fc" id="L472">            return null;</span>
+        }
+<span class="fc" id="L474">        return map.get(to);</span>
+    }
+
+    public Function registerTypeConvert(Type from, Type to, Function typeConvert) {
+<span class="fc" id="L478">        Map&lt;Type, Function&gt; map = typeConverts.get(from);</span>
+<span class="fc bfc" id="L479" title="All 2 branches covered.">        if (map == null) {</span>
+<span class="fc" id="L480">            typeConverts.putIfAbsent(from, new ConcurrentHashMap&lt;&gt;());</span>
+<span class="fc" id="L481">            map = typeConverts.get(from);</span>
+        }
+<span class="fc" id="L483">        return map.put(to, typeConvert);</span>
+    }
+
+    public ObjectReader getObjectReader(long hashCode) {
+<span class="fc" id="L487">        ObjectReaderCachePair pair = readerCache;</span>
+<span class="fc bfc" id="L488" title="All 2 branches covered.">        if (pair != null) {</span>
+<span class="fc bfc" id="L489" title="All 2 branches covered.">            if (pair.hashCode == hashCode) {</span>
+<span class="fc" id="L490">                return pair.reader;</span>
+            } else {
+<span class="fc bfc" id="L492" title="All 2 branches covered.">                if (pair.missCount++ &gt; 16) {</span>
+<span class="fc" id="L493">                    readerCache = null;</span>
+                }
+            }
+        }
+
+<span class="fc" id="L498">        Long hashCodeObj = hashCode;</span>
+<span class="fc" id="L499">        ObjectReader objectReader = null;</span>
+<span class="fc" id="L500">        ClassLoader tcl = Thread.currentThread().getContextClassLoader();</span>
+<span class="fc bfc" id="L501" title="All 4 branches covered.">        if (tcl != null &amp;&amp; tcl != FASTJSON2_CLASS_LOADER) {</span>
+<span class="fc" id="L502">            int tclHash = System.identityHashCode(tcl);</span>
+<span class="fc" id="L503">            ConcurrentHashMap&lt;Long, ObjectReader&gt; tclHashCache = tclHashCaches.get(tclHash);</span>
+<span class="fc bfc" id="L504" title="All 2 branches covered.">            if (tclHashCache != null) {</span>
+<span class="fc" id="L505">                objectReader = tclHashCache.get(hashCodeObj);</span>
+            }
+        }
+
+<span class="fc bfc" id="L509" title="All 2 branches covered.">        if (objectReader == null) {</span>
+<span class="fc" id="L510">            objectReader = hashCache.get(hashCodeObj);</span>
+        }
+
+<span class="fc bfc" id="L513" title="All 4 branches covered.">        if (objectReader != null &amp;&amp; readerCache == null) {</span>
+<span class="fc" id="L514">            readerCache = new ObjectReaderCachePair(hashCode, objectReader);</span>
+        }
+
+<span class="fc" id="L517">        return objectReader;</span>
+    }
+
+    public ObjectReader getObjectReader(String typeName, Class&lt;?&gt; expectClass, long features) {
+<span class="fc" id="L521">        Class&lt;?&gt; autoTypeClass = checkAutoType(typeName, expectClass, features);</span>
+<span class="fc bfc" id="L522" title="All 2 branches covered.">        if (autoTypeClass == null) {</span>
+<span class="fc" id="L523">            return null;</span>
+        }
+<span class="fc bfc" id="L525" title="All 2 branches covered.">        boolean fieldBased = (features &amp; JSONReader.Feature.FieldBased.mask) != 0;</span>
+<span class="fc" id="L526">        ObjectReader objectReader = getObjectReader(autoTypeClass, fieldBased);</span>
+
+<span class="fc bfc" id="L528" title="All 2 branches covered.">        if (autoTypeClass != expectClass) {</span>
+<span class="fc" id="L529">            registerIfAbsent(Fnv.hashCode64(typeName), objectReader);</span>
+        }
+<span class="fc" id="L531">        return objectReader;</span>
+    }
+
+    final void afterAutoType(String typeName, Class type) {
+<span class="fc bfc" id="L535" title="All 2 branches covered.">        if (autoTypeHandler != null) {</span>
+<span class="fc" id="L536">            autoTypeHandler.accept(type);</span>
+        }
+
+<span class="fc" id="L539">        synchronized (autoTypeList) {</span>
+<span class="fc" id="L540">            autoTypeList.putIfAbsent(typeName, new Date());</span>
+<span class="fc" id="L541">        }</span>
+<span class="fc" id="L542">    }</span>
+
+    public Class&lt;?&gt; checkAutoType(String typeName, Class&lt;?&gt; expectClass, long features) {
+<span class="fc bfc" id="L545" title="All 4 branches covered.">        if (typeName == null || typeName.isEmpty()) {</span>
+<span class="fc" id="L546">            return null;</span>
+        }
+
+<span class="fc bfc" id="L549" title="All 2 branches covered.">        if (autoTypeBeforeHandler != null) {</span>
+<span class="fc" id="L550">            Class&lt;?&gt; resolvedClass = autoTypeBeforeHandler.apply(typeName, expectClass, features);</span>
+<span class="fc bfc" id="L551" title="All 2 branches covered.">            if (resolvedClass != null) {</span>
+<span class="fc" id="L552">                afterAutoType(typeName, resolvedClass);</span>
+<span class="fc" id="L553">                return resolvedClass;</span>
+            }
+        }
+
+<span class="pc bpc" id="L557" title="1 of 2 branches missed.">        if (SAFE_MODE) {</span>
+<span class="nc" id="L558">            return null;</span>
+        }
+
+<span class="fc" id="L561">        int typeNameLength = typeName.length();</span>
+<span class="fc bfc" id="L562" title="All 2 branches covered.">        if (typeNameLength &gt;= 192) {</span>
+<span class="fc" id="L563">            throw new JSONException(&quot;autoType is not support. &quot; + typeName);</span>
+        }
+
+<span class="fc bfc" id="L566" title="All 2 branches covered.">        if (typeName.charAt(0) == '[') {</span>
+<span class="fc" id="L567">            String componentTypeName = typeName.substring(1);</span>
+<span class="fc" id="L568">            checkAutoType(componentTypeName, null, features); // blacklist check for componentType</span>
+        }
+
+<span class="fc bfc" id="L571" title="All 4 branches covered.">        if (expectClass != null &amp;&amp; expectClass.getName().equals(typeName)) {</span>
+<span class="fc" id="L572">            afterAutoType(typeName, expectClass);</span>
+<span class="fc" id="L573">            return expectClass;</span>
+        }
+
+<span class="fc bfc" id="L576" title="All 2 branches covered.">        boolean autoTypeSupport = (features &amp; JSONReader.Feature.SupportAutoType.mask) != 0;</span>
+        Class&lt;?&gt; clazz;
+
+<span class="fc bfc" id="L579" title="All 2 branches covered.">        if (autoTypeSupport) {</span>
+<span class="fc" id="L580">            long hash = MAGIC_HASH_CODE;</span>
+<span class="fc bfc" id="L581" title="All 2 branches covered.">            for (int i = 0; i &lt; typeNameLength; ++i) {</span>
+<span class="fc" id="L582">                char ch = typeName.charAt(i);</span>
+<span class="fc bfc" id="L583" title="All 2 branches covered.">                if (ch == '$') {</span>
+<span class="fc" id="L584">                    ch = '.';</span>
+                }
+<span class="fc" id="L586">                hash ^= ch;</span>
+<span class="fc" id="L587">                hash *= MAGIC_PRIME;</span>
+<span class="fc bfc" id="L588" title="All 2 branches covered.">                if (Arrays.binarySearch(acceptHashCodes, hash) &gt;= 0) {</span>
+<span class="fc" id="L589">                    clazz = loadClass(typeName);</span>
+<span class="pc bpc" id="L590" title="1 of 2 branches missed.">                    if (clazz != null) {</span>
+<span class="pc bpc" id="L591" title="1 of 4 branches missed.">                        if (expectClass != null &amp;&amp; !expectClass.isAssignableFrom(clazz)) {</span>
+<span class="fc" id="L592">                            throw new JSONException(&quot;type not match. &quot; + typeName + &quot; -&gt; &quot; + expectClass.getName());</span>
+                        }
+
+<span class="fc" id="L595">                        afterAutoType(typeName, clazz);</span>
+<span class="fc" id="L596">                        return clazz;</span>
+                    }
+                }
+            }
+        }
+
+<span class="fc bfc" id="L602" title="All 2 branches covered.">        if (!autoTypeSupport) {</span>
+<span class="fc" id="L603">            long hash = MAGIC_HASH_CODE;</span>
+<span class="fc bfc" id="L604" title="All 2 branches covered.">            for (int i = 0; i &lt; typeNameLength; ++i) {</span>
+<span class="fc" id="L605">                char ch = typeName.charAt(i);</span>
+<span class="fc bfc" id="L606" title="All 2 branches covered.">                if (ch == '$') {</span>
+<span class="fc" id="L607">                    ch = '.';</span>
+                }
+<span class="fc" id="L609">                hash ^= ch;</span>
+<span class="fc" id="L610">                hash *= MAGIC_PRIME;</span>
+
+                // white list
+<span class="fc bfc" id="L613" title="All 2 branches covered.">                if (Arrays.binarySearch(acceptHashCodes, hash) &gt;= 0) {</span>
+<span class="fc" id="L614">                    clazz = loadClass(typeName);</span>
+
+<span class="pc bpc" id="L616" title="1 of 6 branches missed.">                    if (clazz != null &amp;&amp; expectClass != null &amp;&amp; !expectClass.isAssignableFrom(clazz)) {</span>
+<span class="fc" id="L617">                        throw new JSONException(&quot;type not match. &quot; + typeName + &quot; -&gt; &quot; + expectClass.getName());</span>
+                    }
+
+<span class="fc" id="L620">                    afterAutoType(typeName, clazz);</span>
+<span class="fc" id="L621">                    return clazz;</span>
+                }
+            }
+        }
+
+<span class="fc bfc" id="L626" title="All 2 branches covered.">        if (!autoTypeSupport) {</span>
+<span class="fc" id="L627">            return null;</span>
+        }
+
+<span class="fc" id="L630">        clazz = TypeUtils.getMapping(typeName);</span>
+
+<span class="fc bfc" id="L632" title="All 2 branches covered.">        if (clazz != null) {</span>
+<span class="fc bfc" id="L633" title="All 6 branches covered.">            if (expectClass != null</span>
+                    &amp;&amp; expectClass != Object.class
+                    &amp;&amp; clazz != java.util.HashMap.class
+<span class="fc bfc" id="L636" title="All 2 branches covered.">                    &amp;&amp; !expectClass.isAssignableFrom(clazz)</span>
+            ) {
+<span class="fc" id="L638">                throw new JSONException(&quot;type not match. &quot; + typeName + &quot; -&gt; &quot; + expectClass.getName());</span>
+            }
+
+<span class="fc" id="L641">            afterAutoType(typeName, clazz);</span>
+<span class="fc" id="L642">            return clazz;</span>
+        }
+
+<span class="fc" id="L645">        clazz = loadClass(typeName);</span>
+
+<span class="fc bfc" id="L647" title="All 2 branches covered.">        if (clazz != null) {</span>
+<span class="pc bpc" id="L648" title="1 of 4 branches missed.">            if (ClassLoader.class.isAssignableFrom(clazz) || JDKUtils.isSQLDataSourceOrRowSet(clazz)) {</span>
+<span class="fc" id="L649">                throw new JSONException(&quot;autoType is not support. &quot; + typeName);</span>
+            }
+
+<span class="fc bfc" id="L652" title="All 2 branches covered.">            if (expectClass != null) {</span>
+<span class="fc bfc" id="L653" title="All 2 branches covered.">                if (expectClass.isAssignableFrom(clazz)) {</span>
+<span class="fc" id="L654">                    afterAutoType(typeName, clazz);</span>
+<span class="fc" id="L655">                    return clazz;</span>
+                } else {
+<span class="fc bfc" id="L657" title="All 2 branches covered.">                    if ((features &amp; JSONReader.Feature.IgnoreAutoTypeNotMatch.mask) != 0) {</span>
+<span class="fc" id="L658">                        return expectClass;</span>
+                    }
+
+<span class="fc" id="L661">                    throw new JSONException(&quot;type not match. &quot; + typeName + &quot; -&gt; &quot; + expectClass.getName());</span>
+                }
+            }
+        }
+
+<span class="fc" id="L666">        afterAutoType(typeName, clazz);</span>
+<span class="fc" id="L667">        return clazz;</span>
+    }
+
+    public List&lt;ObjectReaderModule&gt; getModules() {
+<span class="nc" id="L671">        return modules;</span>
+    }
+
+    public void getBeanInfo(BeanInfo beanInfo, Class objectClass) {
+<span class="fc bfc" id="L675" title="All 2 branches covered.">        for (int i = 0; i &lt; modules.size(); i++) {</span>
+<span class="fc" id="L676">            ObjectReaderModule module = modules.get(i);</span>
+<span class="fc" id="L677">            module.getBeanInfo(beanInfo, objectClass);</span>
+        }
+<span class="fc" id="L679">    }</span>
+
+    public void getFieldInfo(FieldInfo fieldInfo, Class objectClass, Field field) {
+<span class="fc bfc" id="L682" title="All 2 branches covered.">        for (int i = 0; i &lt; modules.size(); i++) {</span>
+<span class="fc" id="L683">            ObjectReaderModule module = modules.get(i);</span>
+<span class="fc" id="L684">            module.getFieldInfo(fieldInfo, objectClass, field);</span>
+        }
+<span class="fc" id="L686">    }</span>
+
+    public void getFieldInfo(
+            FieldInfo fieldInfo,
+            Class objectClass,
+            Constructor constructor,
+            int paramIndex,
+            Parameter parameter
+    ) {
+<span class="fc bfc" id="L695" title="All 2 branches covered.">        for (ObjectReaderModule module : modules) {</span>
+<span class="fc" id="L696">            ObjectReaderAnnotationProcessor annotationProcessor = module.getAnnotationProcessor();</span>
+<span class="pc bpc" id="L697" title="1 of 2 branches missed.">            if (annotationProcessor != null) {</span>
+<span class="fc" id="L698">                annotationProcessor.getFieldInfo(fieldInfo, objectClass, constructor, paramIndex, parameter);</span>
+            }
+<span class="fc" id="L700">        }</span>
+<span class="fc" id="L701">    }</span>
+
+    public void getFieldInfo(
+            FieldInfo fieldInfo,
+            Class objectClass,
+            Method method,
+            int paramIndex,
+            Parameter parameter) {
+<span class="fc bfc" id="L709" title="All 2 branches covered.">        for (ObjectReaderModule module : modules) {</span>
+<span class="fc" id="L710">            ObjectReaderAnnotationProcessor annotationProcessor = module.getAnnotationProcessor();</span>
+<span class="pc bpc" id="L711" title="1 of 2 branches missed.">            if (annotationProcessor != null) {</span>
+<span class="fc" id="L712">                annotationProcessor.getFieldInfo(fieldInfo, objectClass, method, paramIndex, parameter);</span>
+            }
+<span class="fc" id="L714">        }</span>
+<span class="fc" id="L715">    }</span>
+
+    public ObjectReader getObjectReader(Type objectType) {
+<span class="fc" id="L718">        return getObjectReader(objectType, false);</span>
+    }
+
+    public Function&lt;Consumer, ByteArrayValueConsumer&gt; createValueConsumerCreator(
+            Class objectClass,
+            FieldReader[] fieldReaderArray
+    ) {
+<span class="fc" id="L725">        return creator.createByteArrayValueConsumerCreator(objectClass, fieldReaderArray);</span>
+    }
+
+    public Function&lt;Consumer, CharArrayValueConsumer&gt; createCharArrayValueConsumerCreator(
+            Class objectClass,
+            FieldReader[] fieldReaderArray
+    ) {
+<span class="fc" id="L732">        return creator.createCharArrayValueConsumerCreator(objectClass, fieldReaderArray);</span>
+    }
+
+    public ObjectReader getObjectReader(Type objectType, boolean fieldBased) {
+<span class="fc bfc" id="L736" title="All 2 branches covered.">        if (objectType == null) {</span>
+<span class="fc" id="L737">            objectType = Object.class;</span>
+        }
+
+<span class="fc bfc" id="L740" title="All 2 branches covered.">        ObjectReader objectReader = fieldBased</span>
+<span class="fc" id="L741">                ? cacheFieldBased.get(objectType)</span>
+<span class="fc" id="L742">                : cache.get(objectType);</span>
+
+<span class="fc bfc" id="L744" title="All 4 branches covered.">        if (objectReader == null &amp;&amp; objectType instanceof WildcardType) {</span>
+<span class="fc" id="L745">            Type[] upperBounds = ((WildcardType) objectType).getUpperBounds();</span>
+<span class="pc bpc" id="L746" title="1 of 2 branches missed.">            if (upperBounds.length == 1) {</span>
+<span class="fc" id="L747">                Type upperBoundType = upperBounds[0];</span>
+<span class="pc bpc" id="L748" title="1 of 2 branches missed.">                objectReader = fieldBased ? cacheFieldBased.get(upperBoundType) : cache.get(upperBoundType);</span>
+            }
+        }
+
+<span class="fc bfc" id="L752" title="All 2 branches covered.">        return objectReader != null</span>
+                ? objectReader
+<span class="fc" id="L754">                : getObjectReaderInternal(objectType, fieldBased);</span>
+    }
+
+    private ObjectReader getObjectReaderInternal(Type objectType, boolean fieldBased) {
+<span class="fc" id="L758">        ObjectReader objectReader = null;</span>
+
+<span class="fc bfc" id="L760" title="All 2 branches covered.">        for (ObjectReaderModule module : modules) {</span>
+<span class="fc" id="L761">            objectReader = module.getObjectReader(this, objectType);</span>
+<span class="fc bfc" id="L762" title="All 2 branches covered.">            if (objectReader != null) {</span>
+<span class="fc bfc" id="L763" title="All 2 branches covered.">                ObjectReader previous = fieldBased</span>
+<span class="fc" id="L764">                        ? cacheFieldBased.putIfAbsent(objectType, objectReader)</span>
+<span class="fc" id="L765">                        : cache.putIfAbsent(objectType, objectReader);</span>
+
+<span class="pc bpc" id="L767" title="1 of 2 branches missed.">                if (previous != null) {</span>
+<span class="nc" id="L768">                    objectReader = previous;</span>
+                }
+<span class="fc" id="L770">                return objectReader;</span>
+            }
+<span class="fc" id="L772">        }</span>
+
+<span class="fc bfc" id="L774" title="All 2 branches covered.">        if (objectType instanceof TypeVariable) {</span>
+<span class="fc" id="L775">            Type[] bounds = ((TypeVariable&lt;?&gt;) objectType).getBounds();</span>
+<span class="pc bpc" id="L776" title="1 of 2 branches missed.">            if (bounds.length &gt; 0) {</span>
+<span class="fc" id="L777">                Type bound = bounds[0];</span>
+<span class="fc bfc" id="L778" title="All 2 branches covered.">                if (bound instanceof Class) {</span>
+<span class="fc" id="L779">                    ObjectReader boundObjectReader = getObjectReader(bound, fieldBased);</span>
+<span class="pc bpc" id="L780" title="1 of 2 branches missed.">                    if (boundObjectReader != null) {</span>
+<span class="fc" id="L781">                        ObjectReader previous = getPreviousObjectReader(fieldBased, objectType, boundObjectReader);</span>
+<span class="pc bpc" id="L782" title="1 of 2 branches missed.">                        if (previous != null) {</span>
+<span class="nc" id="L783">                            boundObjectReader = previous;</span>
+                        }
+<span class="fc" id="L785">                        return boundObjectReader;</span>
+                    }
+                }
+            }
+        }
+
+<span class="fc bfc" id="L791" title="All 2 branches covered.">        if (objectType instanceof ParameterizedType) {</span>
+<span class="fc" id="L792">            ParameterizedType parameterizedType = (ParameterizedType) objectType;</span>
+<span class="fc" id="L793">            Type rawType = parameterizedType.getRawType();</span>
+<span class="fc" id="L794">            Type[] typeArguments = parameterizedType.getActualTypeArguments();</span>
+<span class="pc bpc" id="L795" title="1 of 2 branches missed.">            if (rawType instanceof Class) {</span>
+<span class="fc" id="L796">                Class rawClass = (Class) rawType;</span>
+
+<span class="fc" id="L798">                boolean generic = false;</span>
+<span class="fc bfc" id="L799" title="All 2 branches covered.">                for (Class clazz = rawClass; clazz != Object.class; clazz = clazz.getSuperclass()) {</span>
+<span class="fc bfc" id="L800" title="All 2 branches covered.">                    if (clazz.getTypeParameters().length &gt; 0) {</span>
+<span class="fc" id="L801">                        generic = true;</span>
+<span class="fc" id="L802">                        break;</span>
+                    }
+                }
+<span class="pc bpc" id="L805" title="1 of 4 branches missed.">                if (typeArguments.length == 0 || !generic) {</span>
+<span class="fc" id="L806">                    ObjectReader rawClassReader = getObjectReader(rawClass, fieldBased);</span>
+<span class="pc bpc" id="L807" title="1 of 2 branches missed.">                    if (rawClassReader != null) {</span>
+<span class="fc" id="L808">                        ObjectReader previous = getPreviousObjectReader(fieldBased, objectType, rawClassReader);</span>
+<span class="pc bpc" id="L809" title="1 of 2 branches missed.">                        if (previous != null) {</span>
+<span class="nc" id="L810">                            rawClassReader = previous;</span>
+                        }
+<span class="fc" id="L812">                        return rawClassReader;</span>
+                    }
+                }
+<span class="fc bfc" id="L815" title="All 4 branches covered.">                if (typeArguments.length == 1 &amp;&amp; ArrayList.class.isAssignableFrom(rawClass)) {</span>
+<span class="fc" id="L816">                    return ObjectReaderImplList.of(objectType, rawClass, 0);</span>
+                }
+            }
+        }
+
+<span class="fc" id="L821">        Class&lt;?&gt; objectClass = TypeUtils.getMapping(objectType);</span>
+
+<span class="fc" id="L823">        String className = objectClass.getName();</span>
+<span class="fc bfc" id="L824" title="All 2 branches covered.">        if (!fieldBased) {</span>
+<span class="fc bfc" id="L825" title="All 2 branches covered.">            if (&quot;com.google.common.collect.ArrayListMultimap&quot;.equals(className)) {</span>
+<span class="fc" id="L826">                objectReader = ObjectReaderImplMap.of(null, objectClass, 0);</span>
+            }
+        }
+
+<span class="fc bfc" id="L830" title="All 2 branches covered.">        if (objectReader == null) {</span>
+<span class="fc" id="L831">            ObjectReaderCreator creator = getCreator();</span>
+<span class="fc" id="L832">            objectReader = creator.createObjectReader(objectClass, objectType, fieldBased, this);</span>
+        }
+
+<span class="fc" id="L835">        ObjectReader previous = getPreviousObjectReader(fieldBased, objectType, objectReader);</span>
+<span class="pc bpc" id="L836" title="1 of 2 branches missed.">        if (previous != null) {</span>
+<span class="nc" id="L837">            objectReader = previous;</span>
+        }
+
+<span class="fc" id="L840">        return objectReader;</span>
+    }
+
+    private ObjectReader getPreviousObjectReader(boolean fieldBased, Type objectType, ObjectReader boundObjectReader) {
+<span class="fc bfc" id="L844" title="All 2 branches covered.">        return fieldBased</span>
+<span class="fc" id="L845">                ? cacheFieldBased.putIfAbsent(objectType, boundObjectReader)</span>
+<span class="fc" id="L846">                : cache.putIfAbsent(objectType, boundObjectReader);</span>
+    }
+
+    public AutoTypeBeforeHandler getAutoTypeBeforeHandler() {
+<span class="fc" id="L850">        return autoTypeBeforeHandler;</span>
+    }
+
+    public Map&lt;String, Date&gt; getAutoTypeList() {
+<span class="fc" id="L854">        return autoTypeList;</span>
+    }
+
+    public void setAutoTypeBeforeHandler(AutoTypeBeforeHandler autoTypeBeforeHandler) {
+<span class="fc" id="L858">        this.autoTypeBeforeHandler = autoTypeBeforeHandler;</span>
+<span class="fc" id="L859">    }</span>
+
+    static class LRUAutoTypeCache
+            extends LinkedHashMap&lt;String, Date&gt; {
+        private final int maxSize;
+
+        public LRUAutoTypeCache(int maxSize) {
+<span class="fc" id="L866">            super(16, 0.75f, false);</span>
+<span class="fc" id="L867">            this.maxSize = maxSize;</span>
+<span class="fc" id="L868">        }</span>
+
+        @Override
+        protected boolean removeEldestEntry(Map.Entry&lt;String, Date&gt; eldest) {
+<span class="pc bpc" id="L872" title="1 of 2 branches missed.">            return this.size() &gt; this.maxSize;</span>
+        }
+    }
+
+    public void getFieldInfo(FieldInfo fieldInfo, Class objectClass, Method method) {
+<span class="fc bfc" id="L877" title="All 2 branches covered.">        for (ObjectReaderModule module : modules) {</span>
+<span class="fc" id="L878">            ObjectReaderAnnotationProcessor annotationProcessor = module.getAnnotationProcessor();</span>
+<span class="pc bpc" id="L879" title="1 of 2 branches missed.">            if (annotationProcessor == null) {</span>
+<span class="nc" id="L880">                continue;</span>
+            }
+<span class="fc" id="L882">            annotationProcessor.getFieldInfo(fieldInfo, objectClass, method);</span>
+<span class="fc" id="L883">        }</span>
+
+<span class="fc bfc" id="L885" title="All 4 branches covered.">        if (fieldInfo.fieldName == null &amp;&amp; fieldInfo.alternateNames == null) {</span>
+<span class="fc" id="L886">            String methodName = method.getName();</span>
+<span class="fc bfc" id="L887" title="All 2 branches covered.">            if (methodName.startsWith(&quot;set&quot;)) {</span>
+<span class="fc" id="L888">                String findName = methodName.substring(3);</span>
+<span class="fc" id="L889">                Field field = BeanUtils.getDeclaredField(objectClass, findName);</span>
+<span class="fc bfc" id="L890" title="All 2 branches covered.">                if (field != null) {</span>
+<span class="fc" id="L891">                    fieldInfo.alternateNames = new String[]{findName};</span>
+                }
+            }
+        }
+<span class="fc" id="L895">    }</span>
+
+    public &lt;T&gt; Supplier&lt;T&gt; createObjectCreator(Class&lt;T&gt; objectClass, long readerFeatures) {
+<span class="pc bpc" id="L898" title="1 of 2 branches missed.">        boolean fieldBased = (readerFeatures &amp; JSONReader.Feature.FieldBased.mask) != 0;</span>
+<span class="pc bpc" id="L899" title="1 of 2 branches missed.">        ObjectReader objectReader = fieldBased</span>
+<span class="pc" id="L900">                ? cacheFieldBased.get(objectClass)</span>
+<span class="fc" id="L901">                : cache.get(objectClass);</span>
+<span class="fc bfc" id="L902" title="All 2 branches covered.">        if (objectReader != null) {</span>
+<span class="fc" id="L903">            return () -&gt; (T) objectReader.createInstance(0);</span>
+        }
+
+<span class="fc" id="L906">        Constructor constructor = BeanUtils.getDefaultConstructor(objectClass, false);</span>
+<span class="pc bpc" id="L907" title="1 of 2 branches missed.">        if (constructor == null) {</span>
+<span class="nc" id="L908">            throw new JSONException(&quot;default constructor not found : &quot; + objectClass.getName());</span>
+        }
+
+<span class="fc" id="L911">        return LambdaMiscCodec.createSupplier(constructor);</span>
+    }
+
+    public FieldReader createFieldReader(Class objectClass, String fieldName, long readerFeatures) {
+<span class="pc bpc" id="L915" title="1 of 2 branches missed.">        boolean fieldBased = (readerFeatures &amp; JSONReader.Feature.FieldBased.mask) != 0;</span>
+
+<span class="pc bpc" id="L917" title="1 of 2 branches missed.">        ObjectReader objectReader = fieldBased</span>
+<span class="pc" id="L918">                ? cacheFieldBased.get(objectClass)</span>
+<span class="fc" id="L919">                : cache.get(objectClass);</span>
+
+<span class="fc bfc" id="L921" title="All 2 branches covered.">        if (objectReader != null) {</span>
+<span class="fc" id="L922">            return objectReader.getFieldReader(fieldName);</span>
+        }
+
+<span class="fc" id="L925">        AtomicReference&lt;Field&gt; fieldRef = new AtomicReference&lt;&gt;();</span>
+<span class="fc" id="L926">        long nameHashLCase = Fnv.hashCode64LCase(fieldName);</span>
+<span class="fc" id="L927">        BeanUtils.fields(objectClass, field -&gt; {</span>
+<span class="fc bfc" id="L928" title="All 2 branches covered.">            if (nameHashLCase == Fnv.hashCode64LCase(field.getName())) {</span>
+<span class="fc" id="L929">                fieldRef.set(field);</span>
+            }
+<span class="fc" id="L931">        });</span>
+
+<span class="fc" id="L933">        Field field = fieldRef.get();</span>
+<span class="fc bfc" id="L934" title="All 2 branches covered.">        if (field != null) {</span>
+<span class="fc" id="L935">            return creator.createFieldReader(fieldName, null, field.getType(), field);</span>
+        }
+
+<span class="fc" id="L938">        AtomicReference&lt;Method&gt; methodRef = new AtomicReference&lt;&gt;();</span>
+<span class="fc" id="L939">        BeanUtils.setters(objectClass, method -&gt; {</span>
+<span class="fc" id="L940">            String setterName = BeanUtils.setterName(method.getName(), PropertyNamingStrategy.CamelCase.name());</span>
+<span class="fc bfc" id="L941" title="All 2 branches covered.">            if (nameHashLCase == Fnv.hashCode64LCase(setterName)) {</span>
+<span class="fc" id="L942">                methodRef.set(method);</span>
+            }
+<span class="fc" id="L944">        });</span>
+
+<span class="fc" id="L946">        Method method = methodRef.get();</span>
+<span class="pc bpc" id="L947" title="1 of 2 branches missed.">        if (method != null) {</span>
+<span class="fc" id="L948">            Class&lt;?&gt;[] params = method.getParameterTypes();</span>
+<span class="fc" id="L949">            Class fieldClass = params[0];</span>
+<span class="fc" id="L950">            return creator.createFieldReaderMethod(objectClass, fieldName, null, fieldClass, fieldClass, method);</span>
+        }
+
+<span class="nc" id="L953">        return null;</span>
+    }
+
+    public &lt;T&gt; ObjectReader&lt;T&gt; createObjectReader(
+            String[] names,
+            Type[] types,
+            Supplier&lt;T&gt; supplier,
+            FieldConsumer&lt;T&gt; c
+    ) {
+<span class="fc" id="L962">        return createObjectReader(names, types, null, supplier, c);</span>
+    }
+
+    public &lt;T&gt; ObjectReader&lt;T&gt; createObjectReader(
+            String[] names,
+            Type[] types,
+            long[] features,
+            Supplier&lt;T&gt; supplier,
+            FieldConsumer&lt;T&gt; c
+    ) {
+<span class="fc" id="L972">        FieldReader[] fieldReaders = new FieldReader[names.length];</span>
+<span class="fc bfc" id="L973" title="All 2 branches covered.">        for (int i = 0; i &lt; names.length; i++) {</span>
+<span class="fc" id="L974">            Type fieldType = types[i];</span>
+<span class="fc" id="L975">            Class fieldClass = TypeUtils.getClass(fieldType);</span>
+<span class="pc bpc" id="L976" title="1 of 4 branches missed.">            long feature = features != null &amp;&amp; i &lt; features.length ? features[i] : 0;</span>
+<span class="fc" id="L977">            fieldReaders[i] = creator.createFieldReader(</span>
+                    names[i],
+                    fieldType,
+                    fieldClass,
+                    feature,
+                    new FieldBiConsumer(i, c)
+            );
+        }
+
+<span class="fc" id="L986">        return creator.createObjectReader(</span>
+                null,
+                supplier,
+                fieldReaders
+        );
+    }
+
+    public boolean isDisableReferenceDetect() {
+<span class="fc" id="L994">        return disableReferenceDetect;</span>
+    }
+
+    public boolean isDisableAutoType() {
+<span class="fc" id="L998">        return disableAutoType;</span>
+    }
+
+    public boolean isDisableJSONB() {
+<span class="fc" id="L1002">        return disableJSONB;</span>
+    }
+
+    public boolean isDisableArrayMapping() {
+<span class="fc" id="L1006">        return disableArrayMapping;</span>
+    }
+
+    public void setDisableReferenceDetect(boolean disableReferenceDetect) {
+<span class="fc" id="L1010">        this.disableReferenceDetect = disableReferenceDetect;</span>
+<span class="fc" id="L1011">    }</span>
+
+    public void setDisableArrayMapping(boolean disableArrayMapping) {
+<span class="fc" id="L1014">        this.disableArrayMapping = disableArrayMapping;</span>
+<span class="fc" id="L1015">    }</span>
+
+    public void setDisableJSONB(boolean disableJSONB) {
+<span class="fc" id="L1018">        this.disableJSONB = disableJSONB;</span>
+<span class="fc" id="L1019">    }</span>
+
+    public void setDisableAutoType(boolean disableAutoType) {
+<span class="fc" id="L1022">        this.disableAutoType = disableAutoType;</span>
+<span class="fc" id="L1023">    }</span>
+
+    public boolean isDisableSmartMatch() {
+<span class="fc" id="L1026">        return disableSmartMatch;</span>
+    }
+
+    public void setDisableSmartMatch(boolean disableSmartMatch) {
+<span class="fc" id="L1030">        this.disableSmartMatch = disableSmartMatch;</span>
+<span class="fc" id="L1031">    }</span>
+
+    /**
+     * @since 2.0.52
+     */
+    public PropertyNamingStrategy getNamingStrategy() {
+<span class="fc" id="L1037">        return namingStrategy;</span>
+    }
+
+    /**
+     * @since 2.0.52
+     */
+    public void setNamingStrategy(PropertyNamingStrategy namingStrategy) {
+<span class="fc" id="L1044">        this.namingStrategy = namingStrategy;</span>
+<span class="fc" id="L1045">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.8.202204050719</span></div></body></html>

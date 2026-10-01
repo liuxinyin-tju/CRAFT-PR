@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ObjectReaderImplNumberArray.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">fastjson2</a> &gt; <a href="index.source.html" class="el_package">com.alibaba.fastjson2.reader</a> &gt; <span class="el_source">ObjectReaderImplNumberArray.java</span></div><h1>ObjectReaderImplNumberArray.java</h1><pre class="source lang-java linenums">package com.alibaba.fastjson2.reader;
+
+import com.alibaba.fastjson2.JSONException;
+import com.alibaba.fastjson2.JSONFactory;
+import com.alibaba.fastjson2.JSONReader;
+
+import java.lang.reflect.Type;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.function.Function;
+
+class ObjectReaderImplNumberArray
+        extends ObjectReaderPrimitive {
+<span class="fc" id="L14">    static final ObjectReaderImplNumberArray INSTANCE = new ObjectReaderImplNumberArray();</span>
+
+    public ObjectReaderImplNumberArray() {
+<span class="fc" id="L17">        super(Number[].class);</span>
+<span class="fc" id="L18">    }</span>
+
+    @Override
+    public Object readObject(JSONReader jsonReader, Type fieldType, Object fieldName, long features) {
+<span class="fc bfc" id="L22" title="All 2 branches covered.">        if (jsonReader.readIfNull()) {</span>
+<span class="fc" id="L23">            return null;</span>
+        }
+
+<span class="pc bpc" id="L26" title="1 of 2 branches missed.">        if (jsonReader.nextIfArrayStart()) {</span>
+<span class="fc" id="L27">            Number[] values = new Number[16];</span>
+<span class="fc" id="L28">            int size = 0;</span>
+<span class="fc bfc" id="L29" title="All 2 branches covered.">            while (!jsonReader.nextIfArrayEnd()) {</span>
+<span class="fc" id="L30">                int minCapacity = size + 1;</span>
+<span class="pc bpc" id="L31" title="1 of 2 branches missed.">                if (minCapacity - values.length &gt; 0) {</span>
+<span class="nc" id="L32">                    int oldCapacity = values.length;</span>
+<span class="nc" id="L33">                    int newCapacity = oldCapacity + (oldCapacity &gt;&gt; 1);</span>
+<span class="nc bnc" id="L34" title="All 2 branches missed.">                    if (newCapacity - minCapacity &lt; 0) {</span>
+<span class="nc" id="L35">                        newCapacity = minCapacity;</span>
+                    }
+
+<span class="nc" id="L38">                    values = Arrays.copyOf(values, newCapacity);</span>
+                }
+
+<span class="fc" id="L41">                values[size++] = jsonReader.readNumber();</span>
+<span class="fc" id="L42">            }</span>
+<span class="fc" id="L43">            jsonReader.nextIfComma();</span>
+
+<span class="fc" id="L45">            return Arrays.copyOf(values, size);</span>
+        }
+
+<span class="nc" id="L48">        throw new JSONException(jsonReader.info(&quot;TODO&quot;));</span>
+    }
+
+    @Override
+    public Object readJSONBObject(JSONReader jsonReader, Type fieldType, Object fieldName, long features) {
+<span class="fc" id="L53">        int entryCnt = jsonReader.startArray();</span>
+<span class="fc bfc" id="L54" title="All 2 branches covered.">        if (entryCnt == -1) {</span>
+<span class="fc" id="L55">            return null;</span>
+        }
+<span class="fc" id="L57">        Number[] array = new Number[entryCnt];</span>
+<span class="fc bfc" id="L58" title="All 2 branches covered.">        for (int i = 0; i &lt; entryCnt; i++) {</span>
+<span class="fc" id="L59">            array[i] = jsonReader.readNumber();</span>
+        }
+<span class="fc" id="L61">        return array;</span>
+    }
+
+    @Override
+    public Object createInstance(Collection collection, long features) {
+<span class="fc" id="L66">        Number[] array = new Number[collection.size()];</span>
+<span class="fc" id="L67">        int i = 0;</span>
+<span class="fc bfc" id="L68" title="All 2 branches covered.">        for (Object item : collection) {</span>
+            Number value;
+<span class="fc bfc" id="L70" title="All 4 branches covered.">            if (item == null || item instanceof Number) {</span>
+<span class="fc" id="L71">                value = (Number) item;</span>
+            } else {
+<span class="fc" id="L73">                Function typeConvert = JSONFactory.getDefaultObjectReaderProvider().getTypeConvert(item.getClass(), Number.class);</span>
+<span class="pc bpc" id="L74" title="1 of 2 branches missed.">                if (typeConvert == null) {</span>
+<span class="nc" id="L75">                    throw new JSONException(&quot;can not cast to Number &quot; + item.getClass());</span>
+                }
+<span class="fc" id="L77">                value = (Number) typeConvert.apply(item);</span>
+            }
+<span class="fc" id="L79">            array[i++] = value;</span>
+<span class="fc" id="L80">        }</span>
+<span class="fc" id="L81">        return array;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.8.202204050719</span></div></body></html>

@@ -1,0 +1,212 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ObjectReaderImplListStr.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">fastjson2</a> &gt; <a href="index.source.html" class="el_package">com.alibaba.fastjson2.reader</a> &gt; <span class="el_source">ObjectReaderImplListStr.java</span></div><h1>ObjectReaderImplListStr.java</h1><pre class="source lang-java linenums">package com.alibaba.fastjson2.reader;
+
+import com.alibaba.fastjson2.JSON;
+import com.alibaba.fastjson2.JSONArray;
+import com.alibaba.fastjson2.JSONException;
+import com.alibaba.fastjson2.JSONReader;
+import com.alibaba.fastjson2.util.GuavaSupport;
+
+import java.lang.reflect.Type;
+import java.util.*;
+import java.util.function.Function;
+
+import static com.alibaba.fastjson2.reader.ObjectReaderImplList.*;
+
+public final class ObjectReaderImplListStr
+        implements ObjectReader {
+    final Class listType;
+    final Class instanceType;
+    Object listSingleton;
+
+<span class="fc" id="L21">    public ObjectReaderImplListStr(Class listType, Class instanceType) {</span>
+<span class="fc" id="L22">        this.listType = listType;</span>
+<span class="fc" id="L23">        this.instanceType = instanceType;</span>
+<span class="fc" id="L24">    }</span>
+
+    @Override
+    public Object createInstance(long features) {
+<span class="fc bfc" id="L28" title="All 2 branches covered.">        if (instanceType == ArrayList.class) {</span>
+<span class="fc" id="L29">            return new ArrayList();</span>
+        }
+
+<span class="fc bfc" id="L32" title="All 2 branches covered.">        if (instanceType == LinkedList.class) {</span>
+<span class="fc" id="L33">            return new LinkedList();</span>
+        }
+
+        try {
+<span class="fc" id="L37">            return instanceType.newInstance();</span>
+<span class="fc" id="L38">        } catch (InstantiationException | IllegalAccessException e) {</span>
+<span class="fc" id="L39">            throw new JSONException(&quot;create list error, type &quot; + instanceType);</span>
+        }
+    }
+
+    @Override
+    public Object createInstance(Collection collection, long features) {
+<span class="fc bfc" id="L45" title="All 2 branches covered.">        if (listType.isInstance(collection)) {</span>
+<span class="fc" id="L46">            boolean typeMatch = true;</span>
+<span class="fc bfc" id="L47" title="All 2 branches covered.">            for (Object item : collection) {</span>
+<span class="fc bfc" id="L48" title="All 2 branches covered.">                if (!(item instanceof String)) {</span>
+<span class="fc" id="L49">                    typeMatch = false;</span>
+<span class="fc" id="L50">                    break;</span>
+                }
+<span class="fc" id="L52">            }</span>
+<span class="fc bfc" id="L53" title="All 2 branches covered.">            if (typeMatch) {</span>
+<span class="fc" id="L54">                return collection;</span>
+            }
+        }
+
+<span class="fc" id="L58">        Collection typedList = (Collection) createInstance(0L);</span>
+<span class="fc bfc" id="L59" title="All 2 branches covered.">        for (Object item : collection) {</span>
+<span class="fc bfc" id="L60" title="All 4 branches covered.">            if (item == null || item instanceof String) {</span>
+<span class="fc" id="L61">                typedList.add(item);</span>
+<span class="fc" id="L62">                continue;</span>
+            }
+<span class="fc" id="L64">            typedList.add(</span>
+<span class="fc" id="L65">                    JSON.toJSONString(item)</span>
+            );
+<span class="fc" id="L67">        }</span>
+<span class="fc" id="L68">        return typedList;</span>
+    }
+
+    @Override
+    public Class getObjectClass() {
+<span class="nc" id="L73">        return listType;</span>
+    }
+
+    @Override
+    public Object readJSONBObject(JSONReader jsonReader, Type fieldType, Object fieldName, long features) {
+<span class="fc" id="L78">        Class instanceType = this.instanceType;</span>
+
+<span class="pc bpc" id="L80" title="1 of 2 branches missed.">        if (jsonReader.nextIfNull()) {</span>
+<span class="nc" id="L81">            return null;</span>
+        }
+
+<span class="fc" id="L84">        ObjectReader objectReader = jsonReader.checkAutoType(this.listType, 0, features);</span>
+<span class="fc bfc" id="L85" title="All 2 branches covered.">        if (objectReader != null) {</span>
+<span class="fc" id="L86">            instanceType = objectReader.getObjectClass();</span>
+        }
+
+<span class="fc bfc" id="L89" title="All 2 branches covered.">        if (instanceType == CLASS_ARRAYS_LIST) {</span>
+<span class="fc" id="L90">            int entryCnt = jsonReader.startArray();</span>
+<span class="fc" id="L91">            String[] array = new String[entryCnt];</span>
+<span class="fc bfc" id="L92" title="All 2 branches covered.">            for (int i = 0; i &lt; entryCnt; ++i) {</span>
+<span class="fc" id="L93">                array[i] = jsonReader.readString();</span>
+            }
+<span class="fc" id="L95">            return Arrays.asList(array);</span>
+        }
+
+<span class="fc" id="L98">        int entryCnt = jsonReader.startArray();</span>
+
+<span class="fc" id="L100">        Function builder = null;</span>
+        Collection list;
+<span class="fc bfc" id="L102" title="All 2 branches covered.">        if (instanceType == ArrayList.class) {</span>
+<span class="pc bpc" id="L103" title="1 of 2 branches missed.">            list = entryCnt &gt; 0 ? new ArrayList(entryCnt) : new ArrayList();</span>
+<span class="pc bpc" id="L104" title="1 of 2 branches missed.">        } else if (instanceType == JSONArray.class) {</span>
+<span class="nc bnc" id="L105" title="All 2 branches missed.">            list = entryCnt &gt; 0 ? new JSONArray(entryCnt) : new JSONArray();</span>
+<span class="fc bfc" id="L106" title="All 2 branches covered.">        } else if (instanceType == CLASS_UNMODIFIABLE_COLLECTION) {</span>
+<span class="fc" id="L107">            list = new ArrayList();</span>
+<span class="fc" id="L108">            builder = (Function&lt;Collection, Collection&gt;) Collections::unmodifiableCollection;</span>
+<span class="pc bpc" id="L109" title="1 of 2 branches missed.">        } else if (instanceType == CLASS_UNMODIFIABLE_LIST) {</span>
+<span class="nc" id="L110">            list = new ArrayList();</span>
+<span class="nc" id="L111">            builder = (Function&lt;List, List&gt;) Collections::unmodifiableList;</span>
+<span class="pc bpc" id="L112" title="1 of 2 branches missed.">        } else if (instanceType == CLASS_UNMODIFIABLE_SET) {</span>
+<span class="nc" id="L113">            list = new LinkedHashSet();</span>
+<span class="nc" id="L114">            builder = (Function&lt;Set, Set&gt;) Collections::unmodifiableSet;</span>
+<span class="pc bpc" id="L115" title="1 of 2 branches missed.">        } else if (instanceType == CLASS_UNMODIFIABLE_SORTED_SET) {</span>
+<span class="nc" id="L116">            list = new TreeSet();</span>
+<span class="nc" id="L117">            builder = (Function&lt;SortedSet, SortedSet&gt;) Collections::unmodifiableSortedSet;</span>
+<span class="pc bpc" id="L118" title="1 of 2 branches missed.">        } else if (instanceType == CLASS_UNMODIFIABLE_NAVIGABLE_SET) {</span>
+<span class="nc" id="L119">            list = new TreeSet();</span>
+<span class="nc" id="L120">            builder = (Function&lt;NavigableSet, NavigableSet&gt;) Collections::unmodifiableNavigableSet;</span>
+<span class="fc bfc" id="L121" title="All 2 branches covered.">        } else if (instanceType == CLASS_SINGLETON) {</span>
+<span class="fc" id="L122">            list = new ArrayList();</span>
+<span class="fc" id="L123">            builder = (Function&lt;Collection, Collection&gt;) ((Collection collection) -&gt; Collections.singleton(collection.iterator().next()));</span>
+<span class="fc bfc" id="L124" title="All 2 branches covered.">        } else if (instanceType == CLASS_SINGLETON_LIST) {</span>
+<span class="fc" id="L125">            list = new ArrayList();</span>
+<span class="fc" id="L126">            builder = (Function&lt;Collection, Collection&gt;) ((Collection collection) -&gt; Collections.singletonList(collection.iterator().next()));</span>
+<span class="pc bpc" id="L127" title="1 of 4 branches missed.">        } else if (instanceType != null &amp;&amp; instanceType != this.listType) {</span>
+<span class="fc" id="L128">            String typeName = instanceType.getTypeName();</span>
+<span class="pc bpc" id="L129" title="4 of 7 branches missed.">            switch (typeName) {</span>
+                case &quot;com.google.common.collect.ImmutableList&quot;:
+<span class="nc" id="L131">                    list = new ArrayList();</span>
+<span class="nc" id="L132">                    builder = GuavaSupport.immutableListConverter();</span>
+<span class="nc" id="L133">                    break;</span>
+                case &quot;com.google.common.collect.ImmutableSet&quot;:
+<span class="nc" id="L135">                    list = new ArrayList();</span>
+<span class="nc" id="L136">                    builder = GuavaSupport.immutableSetConverter();</span>
+<span class="nc" id="L137">                    break;</span>
+                case &quot;com.google.common.collect.Lists$TransformingRandomAccessList&quot;:
+<span class="nc" id="L139">                    list = new ArrayList();</span>
+<span class="nc" id="L140">                    break;</span>
+                case &quot;com.google.common.collect.Lists.TransformingSequentialList&quot;:
+<span class="nc" id="L142">                    list = new LinkedList();</span>
+<span class="nc" id="L143">                    break;</span>
+                case &quot;kotlin.collections.EmptyList&quot;:
+<span class="fc" id="L145">                    list = getKotlinEmptyList(instanceType);</span>
+<span class="fc" id="L146">                    break;</span>
+                case &quot;kotlin.collections.EmptySet&quot;:
+<span class="fc" id="L148">                    list = getKotlinEmptySet(instanceType);</span>
+<span class="fc" id="L149">                    break;</span>
+                default:
+                    try {
+<span class="fc" id="L152">                        list = (Collection) instanceType.newInstance();</span>
+<span class="nc" id="L153">                    } catch (InstantiationException | IllegalAccessException e) {</span>
+<span class="nc" id="L154">                        throw new JSONException(jsonReader.info(&quot;create instance error &quot; + instanceType), e);</span>
+<span class="fc" id="L155">                    }</span>
+                    break;
+            }
+<span class="fc" id="L158">        } else {</span>
+<span class="fc" id="L159">            list = (Collection) createInstance(jsonReader.getContext().getFeatures() | features);</span>
+        }
+
+<span class="fc bfc" id="L162" title="All 2 branches covered.">        for (int i = 0; i &lt; entryCnt; ++i) {</span>
+<span class="fc" id="L163">            list.add(jsonReader.readString());</span>
+        }
+
+<span class="fc bfc" id="L166" title="All 2 branches covered.">        if (builder != null) {</span>
+<span class="fc" id="L167">            list = (Collection) builder.apply(list);</span>
+        }
+
+<span class="fc" id="L170">        return list;</span>
+    }
+
+    @Override
+    public Object readObject(JSONReader jsonReader, Type fieldType, Object fieldName, long features) {
+<span class="pc bpc" id="L175" title="1 of 2 branches missed.">        if (jsonReader.jsonb) {</span>
+<span class="nc" id="L176">            return readJSONBObject(jsonReader, fieldType, fieldName, 0);</span>
+        }
+
+<span class="fc bfc" id="L179" title="All 2 branches covered.">        if (jsonReader.readIfNull()) {</span>
+<span class="fc" id="L180">            return null;</span>
+        }
+
+<span class="fc" id="L183">        boolean set = jsonReader.nextIfSet();</span>
+<span class="fc bfc" id="L184" title="All 2 branches covered.">        Collection list = set</span>
+                ? new HashSet()
+<span class="fc" id="L186">                : (Collection) createInstance(jsonReader.getContext().getFeatures() | features);</span>
+
+<span class="fc" id="L188">        char ch = jsonReader.current();</span>
+<span class="fc bfc" id="L189" title="All 2 branches covered.">        if (ch == '[') {</span>
+<span class="fc" id="L190">            jsonReader.next();</span>
+<span class="fc bfc" id="L191" title="All 2 branches covered.">            while (!jsonReader.nextIfArrayEnd()) {</span>
+<span class="fc" id="L192">                String item = jsonReader.readString();</span>
+<span class="fc bfc" id="L193" title="All 4 branches covered.">                if (item == null &amp;&amp; list instanceof SortedSet) {</span>
+<span class="fc" id="L194">                    continue;</span>
+                }
+<span class="fc" id="L196">                list.add(item);</span>
+<span class="fc" id="L197">            }</span>
+<span class="pc bpc" id="L198" title="2 of 6 branches missed.">        } else if (ch == '&quot;' || ch == '\'' || ch == '{') {</span>
+<span class="fc" id="L199">            String str = jsonReader.readString();</span>
+<span class="pc bpc" id="L200" title="1 of 4 branches missed.">            if (str != null &amp;&amp; !str.isEmpty()) {</span>
+<span class="fc" id="L201">                list.add(str);</span>
+            }
+<span class="fc" id="L203">        } else {</span>
+<span class="nc" id="L204">            throw new JSONException(jsonReader.info());</span>
+        }
+
+<span class="fc" id="L207">        jsonReader.nextIfComma();</span>
+
+<span class="fc" id="L209">        return list;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.8.202204050719</span></div></body></html>

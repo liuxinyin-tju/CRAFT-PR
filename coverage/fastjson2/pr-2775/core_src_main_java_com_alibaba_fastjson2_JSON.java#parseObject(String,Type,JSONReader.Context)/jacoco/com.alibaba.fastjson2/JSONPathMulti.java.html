@@ -1,0 +1,460 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>JSONPathMulti.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">fastjson2</a> &gt; <a href="index.source.html" class="el_package">com.alibaba.fastjson2</a> &gt; <span class="el_source">JSONPathMulti.java</span></div><h1>JSONPathMulti.java</h1><pre class="source lang-java linenums">package com.alibaba.fastjson2;
+
+import com.alibaba.fastjson2.reader.FieldReader;
+import com.alibaba.fastjson2.reader.ObjectReader;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.function.BiFunction;
+
+final class JSONPathMulti
+        extends JSONPath {
+    final List&lt;JSONPathSegment&gt; segments;
+    final boolean ref;
+    final boolean extractSupport;
+
+    JSONPathMulti(String path, List&lt;JSONPathSegment&gt; segments, Feature... features) {
+<span class="fc" id="L18">        super(path, features);</span>
+<span class="fc" id="L19">        this.segments = segments;</span>
+
+<span class="fc" id="L21">        boolean extractSupport = true;</span>
+<span class="fc" id="L22">        boolean ref = true;</span>
+<span class="fc" id="L23">        int size = segments.size();</span>
+<span class="fc bfc" id="L24" title="All 2 branches covered.">        for (int i = 0; i &lt; size - 1; i++) {</span>
+<span class="fc" id="L25">            JSONPathSegment segment = segments.get(i);</span>
+<span class="fc bfc" id="L26" title="All 2 branches covered.">            if (segment instanceof JSONPathSegmentIndex) {</span>
+<span class="pc bpc" id="L27" title="1 of 2 branches missed.">                if (((JSONPathSegmentIndex) segment).index &lt; 0) {</span>
+<span class="nc" id="L28">                    extractSupport = false;</span>
+                }
+                continue;
+            }
+<span class="fc bfc" id="L32" title="All 2 branches covered.">            if (segment instanceof JSONPathSegmentName) {</span>
+<span class="fc" id="L33">                continue;</span>
+            }
+<span class="fc" id="L35">            ref = false;</span>
+<span class="fc bfc" id="L36" title="All 2 branches covered.">            if (i &gt; 0) {</span>
+<span class="fc" id="L37">                JSONPathSegment prev = segments.get(i - 1);</span>
+<span class="pc bpc" id="L38" title="5 of 6 branches missed.">                if (prev instanceof JSONPathSegment.CycleNameSegment &amp;&amp; ((JSONPathSegment.CycleNameSegment) prev).shouldRecursive()</span>
+                        &amp;&amp; segment instanceof JSONPathFilter.NameFilter) {
+<span class="nc" id="L40">                    ((JSONPathFilter.NameFilter) segment).excludeArray();</span>
+                }
+<span class="fc" id="L42">            }</span>
+            break;
+        }
+<span class="fc" id="L45">        this.extractSupport = extractSupport;</span>
+<span class="fc" id="L46">        this.ref = ref;</span>
+<span class="fc" id="L47">    }</span>
+
+    @Override
+    public boolean remove(Object root) {
+<span class="fc" id="L51">        Context context = null;</span>
+
+<span class="fc" id="L53">        int size = segments.size();</span>
+<span class="pc bpc" id="L54" title="1 of 2 branches missed.">        if (size == 0) {</span>
+<span class="nc" id="L55">            return false;</span>
+        }
+
+<span class="pc bpc" id="L58" title="1 of 2 branches missed.">        for (int i = 0; i &lt; size; i++) {</span>
+<span class="fc" id="L59">            JSONPathSegment segment = segments.get(i);</span>
+<span class="fc" id="L60">            JSONPathSegment nextSegment = null;</span>
+<span class="fc" id="L61">            int nextIndex = i + 1;</span>
+<span class="fc bfc" id="L62" title="All 2 branches covered.">            if (nextIndex &lt; size) {</span>
+<span class="fc" id="L63">                nextSegment = segments.get(nextIndex);</span>
+            }
+<span class="fc" id="L65">            context = new Context(this, context, segment, nextSegment, 0);</span>
+<span class="fc bfc" id="L66" title="All 2 branches covered.">            if (i == 0) {</span>
+<span class="fc" id="L67">                context.root = root;</span>
+            }
+
+<span class="fc bfc" id="L70" title="All 2 branches covered.">            if (i == size - 1) {</span>
+<span class="fc" id="L71">                return segment.remove(context);</span>
+            }
+<span class="fc" id="L73">            segment.eval(context);</span>
+
+<span class="pc bpc" id="L75" title="1 of 2 branches missed.">            if (context.value == null) {</span>
+<span class="nc" id="L76">                return false;</span>
+            }
+        }
+
+<span class="nc" id="L80">        return false;</span>
+    }
+
+    @Override
+    public boolean contains(Object root) {
+<span class="fc" id="L85">        Context context = null;</span>
+
+<span class="fc" id="L87">        int size = segments.size();</span>
+<span class="pc bpc" id="L88" title="1 of 2 branches missed.">        if (size == 0) {</span>
+<span class="nc bnc" id="L89" title="All 2 branches missed.">            return root != null;</span>
+        }
+
+<span class="pc bpc" id="L92" title="1 of 2 branches missed.">        for (int i = 0; i &lt; size; i++) {</span>
+<span class="fc" id="L93">            JSONPathSegment segment = segments.get(i);</span>
+<span class="fc" id="L94">            JSONPathSegment nextSegment = null;</span>
+<span class="fc" id="L95">            int nextIndex = i + 1;</span>
+<span class="fc bfc" id="L96" title="All 2 branches covered.">            if (nextIndex &lt; size) {</span>
+<span class="fc" id="L97">                nextSegment = segments.get(nextIndex);</span>
+            }
+<span class="fc" id="L99">            context = new Context(this, context, segment, nextSegment, 0);</span>
+<span class="fc bfc" id="L100" title="All 2 branches covered.">            if (i == 0) {</span>
+<span class="fc" id="L101">                context.root = root;</span>
+            }
+
+<span class="fc bfc" id="L104" title="All 2 branches covered.">            if (i == size - 1) {</span>
+<span class="fc" id="L105">                return segment.contains(context);</span>
+            }
+<span class="fc" id="L107">            segment.eval(context);</span>
+        }
+
+<span class="nc" id="L110">        return false;</span>
+    }
+
+    @Override
+    public boolean endsWithFilter() {
+<span class="fc" id="L115">        int size = segments.size();</span>
+<span class="fc" id="L116">        JSONPathSegment last = segments.get(size - 1);</span>
+<span class="fc" id="L117">        return last instanceof JSONPathFilter;</span>
+    }
+
+    @Override
+    public JSONPath getParent() {
+<span class="fc" id="L122">        int size = segments.size();</span>
+<span class="pc bpc" id="L123" title="1 of 2 branches missed.">        if (size == 0) {</span>
+<span class="nc" id="L124">            return null;</span>
+        }
+
+<span class="pc bpc" id="L127" title="1 of 2 branches missed.">        if (size == 1) {</span>
+<span class="nc" id="L128">            return RootPath.INSTANCE;</span>
+        }
+
+<span class="fc bfc" id="L131" title="All 2 branches covered.">        if (size == 2) {</span>
+<span class="fc" id="L132">            return JSONPathSingle.of(segments.get(0));</span>
+        }
+
+<span class="fc" id="L135">        StringBuilder buf = new StringBuilder();</span>
+<span class="fc" id="L136">        buf.append('$');</span>
+<span class="fc" id="L137">        List&lt;JSONPathSegment&gt; parentSegments = new ArrayList&lt;&gt;(size - 1);</span>
+<span class="fc bfc" id="L138" title="All 2 branches covered.">        for (int i = 0, end = size - 1; i &lt; end; i++) {</span>
+<span class="fc" id="L139">            JSONPathSegment segment = segments.get(i);</span>
+<span class="fc" id="L140">            parentSegments.add(segment);</span>
+<span class="pc bpc" id="L141" title="1 of 6 branches missed.">            boolean array = segment instanceof JSONPathSegmentIndex</span>
+                    || segment instanceof JSONPathSegment.MultiIndexSegment
+                    || segment instanceof JSONPathFilter;
+<span class="fc bfc" id="L144" title="All 2 branches covered.">            if (!array) {</span>
+<span class="fc" id="L145">                buf.append('.');</span>
+            }
+<span class="fc" id="L147">            buf.append(segment);</span>
+        }
+
+<span class="fc" id="L150">        String parentPath = buf.toString();</span>
+<span class="fc bfc" id="L151" title="All 2 branches covered.">        if (size == 3) {</span>
+<span class="fc" id="L152">            new JSONPathTwoSegment(parentPath, segments.get(0), segments.get(1));</span>
+        }
+
+<span class="fc" id="L155">        return new JSONPathMulti(parentPath, parentSegments);</span>
+    }
+
+    @Override
+    public boolean isRef() {
+<span class="fc" id="L160">        return ref;</span>
+    }
+
+    @Override
+    public Object eval(Object root) {
+<span class="fc" id="L165">        Context context = null;</span>
+
+<span class="fc" id="L167">        int size = segments.size();</span>
+<span class="pc bpc" id="L168" title="1 of 2 branches missed.">        if (size == 0) {</span>
+<span class="nc" id="L169">            return root;</span>
+        }
+
+<span class="fc bfc" id="L172" title="All 2 branches covered.">        for (int i = 0; i &lt; size; i++) {</span>
+<span class="fc" id="L173">            JSONPathSegment segment = segments.get(i);</span>
+<span class="fc" id="L174">            JSONPathSegment nextSegment = null;</span>
+<span class="fc" id="L175">            int nextIndex = i + 1;</span>
+<span class="fc bfc" id="L176" title="All 2 branches covered.">            if (nextIndex &lt; size) {</span>
+<span class="fc" id="L177">                nextSegment = segments.get(nextIndex);</span>
+            }
+<span class="fc" id="L179">            context = new Context(this, context, segment, nextSegment, 0);</span>
+<span class="fc bfc" id="L180" title="All 2 branches covered.">            if (i == 0) {</span>
+<span class="fc" id="L181">                context.root = root;</span>
+            }
+
+<span class="fc bfc" id="L184" title="All 2 branches covered.">            if (i &gt; 0) {</span>
+<span class="fc" id="L185">                JSONPathSegment prev = segments.get(i - 1);</span>
+<span class="pc bpc" id="L186" title="1 of 6 branches missed.">                if (prev instanceof JSONPathSegment.CycleNameSegment &amp;&amp; ((JSONPathSegment.CycleNameSegment) prev).shouldRecursive()</span>
+                        &amp;&amp; segment instanceof JSONPathFilter.NameFilter) {
+<span class="fc" id="L188">                    ((JSONPathFilter.NameFilter) segment).excludeArray();</span>
+                }
+            }
+<span class="fc" id="L191">            segment.eval(context);</span>
+        }
+
+<span class="fc" id="L194">        Object contextValue = context.value;</span>
+<span class="fc bfc" id="L195" title="All 2 branches covered.">        if ((context.path.features &amp; Feature.AlwaysReturnList.mask) != 0) {</span>
+<span class="fc bfc" id="L196" title="All 2 branches covered.">            if (contextValue == null) {</span>
+<span class="fc" id="L197">                contextValue = new JSONArray();</span>
+<span class="fc bfc" id="L198" title="All 2 branches covered.">            } else if (!(contextValue instanceof List)) {</span>
+<span class="fc" id="L199">                contextValue = JSONArray.of(contextValue);</span>
+            }
+        }
+<span class="fc" id="L202">        return contextValue;</span>
+    }
+
+    @Override
+    public void set(Object root, Object value) {
+<span class="fc" id="L207">        Context context = null;</span>
+<span class="fc" id="L208">        int size = segments.size();</span>
+<span class="fc bfc" id="L209" title="All 2 branches covered.">        for (int i = 0; i &lt; size - 1; i++) {</span>
+<span class="fc" id="L210">            JSONPathSegment segment = segments.get(i);</span>
+<span class="fc" id="L211">            JSONPathSegment nextSegment = null;</span>
+<span class="fc" id="L212">            int nextIndex = i + 1;</span>
+<span class="pc bpc" id="L213" title="1 of 2 branches missed.">            if (nextIndex &lt; size) {</span>
+<span class="fc" id="L214">                nextSegment = segments.get(nextIndex);</span>
+            }
+<span class="fc" id="L216">            context = new Context(this, context, segment, nextSegment, 0L);</span>
+<span class="fc bfc" id="L217" title="All 2 branches covered.">            if (i == 0) {</span>
+<span class="fc" id="L218">                context.root = root;</span>
+            }
+
+<span class="fc" id="L221">            segment.eval(context);</span>
+<span class="pc bpc" id="L222" title="1 of 4 branches missed.">            if (context.value == null &amp;&amp; nextSegment != null) {</span>
+                Object parentObject;
+<span class="fc bfc" id="L224" title="All 2 branches covered.">                if (i == 0) {</span>
+<span class="fc" id="L225">                    parentObject = root;</span>
+                } else {
+<span class="fc" id="L227">                    parentObject = context.parent.value;</span>
+                }
+
+                Object emptyValue;
+<span class="fc bfc" id="L231" title="All 2 branches covered.">                if (nextSegment instanceof JSONPathSegmentIndex) {</span>
+<span class="fc" id="L232">                    emptyValue = new JSONArray();</span>
+<span class="pc bpc" id="L233" title="1 of 2 branches missed.">                } else if (nextSegment instanceof JSONPathSegmentName) {</span>
+<span class="fc" id="L234">                    Context parentContext = context.parent;</span>
+<span class="fc bfc" id="L235" title="All 2 branches covered.">                    if (parentContext == null) {</span>
+<span class="fc" id="L236">                        parentContext = context;</span>
+                    }
+                    Object bean;
+<span class="fc bfc" id="L239" title="All 2 branches covered.">                    if (parentContext.parent == null) {</span>
+<span class="fc" id="L240">                        bean = parentContext.root;</span>
+                    } else {
+<span class="fc" id="L242">                        bean = parentContext.parent.value;</span>
+                    }
+<span class="fc" id="L244">                    Class itemClass = null;</span>
+<span class="pc bpc" id="L245" title="1 of 4 branches missed.">                    if (bean != null &amp;&amp; parentContext.current instanceof JSONPathSegmentName) {</span>
+<span class="fc" id="L246">                        String name = ((JSONPathSegmentName) parentContext.current).name;</span>
+<span class="fc" id="L247">                        JSONReader.Context readerContext = getReaderContext();</span>
+<span class="fc" id="L248">                        ObjectReader&lt;?&gt; objectReader = readerContext.getObjectReader(bean.getClass());</span>
+<span class="fc" id="L249">                        FieldReader fieldReader = objectReader.getFieldReader(name);</span>
+<span class="fc bfc" id="L250" title="All 2 branches covered.">                        if (fieldReader != null) {</span>
+<span class="fc" id="L251">                            itemClass = fieldReader.getItemClass();</span>
+                        }
+                    }
+<span class="fc bfc" id="L254" title="All 2 branches covered.">                    if (itemClass != null) {</span>
+<span class="fc" id="L255">                        ObjectReader&lt;?&gt; itemReader = readerContext.getObjectReader(itemClass);</span>
+<span class="fc" id="L256">                        emptyValue = itemReader.createInstance(0L);</span>
+<span class="fc" id="L257">                    } else {</span>
+<span class="fc" id="L258">                        emptyValue = new JSONObject();</span>
+                    }
+<span class="fc" id="L260">                } else {</span>
+<span class="nc" id="L261">                    return;</span>
+                }
+<span class="fc" id="L263">                context.value = emptyValue;</span>
+
+<span class="pc bpc" id="L265" title="1 of 4 branches missed.">                if (parentObject instanceof Map &amp;&amp; segment instanceof JSONPathSegmentName) {</span>
+<span class="fc" id="L266">                    ((Map) parentObject).put(((JSONPathSegmentName) segment).name, emptyValue);</span>
+<span class="pc bpc" id="L267" title="1 of 4 branches missed.">                } else if (parentObject instanceof List &amp;&amp; segment instanceof JSONPathSegmentIndex) {</span>
+<span class="fc" id="L268">                    List list = (List) parentObject;</span>
+<span class="fc" id="L269">                    int index = ((JSONPathSegmentIndex) segment).index;</span>
+<span class="pc bpc" id="L270" title="1 of 2 branches missed.">                    if (index &gt;= list.size()) {</span>
+<span class="fc" id="L271">                        int delta = index - list.size();</span>
+<span class="fc bfc" id="L272" title="All 2 branches covered.">                        for (int j = 0; j &lt; delta; j++) {</span>
+<span class="fc" id="L273">                            list.add(null);</span>
+                        }
+<span class="fc" id="L275">                        list.add(emptyValue);</span>
+<span class="fc" id="L276">                    } else {</span>
+<span class="nc" id="L277">                        list.set(index, emptyValue);</span>
+                    }
+<span class="pc bpc" id="L279" title="1 of 2 branches missed.">                } else if (parentObject != null) {</span>
+<span class="fc" id="L280">                    Class&lt;?&gt; parentObjectClass = parentObject.getClass();</span>
+<span class="fc" id="L281">                    JSONReader.Context readerContext = getReaderContext();</span>
+<span class="fc" id="L282">                    ObjectReader&lt;?&gt; objectReader = readerContext.getObjectReader(parentObjectClass);</span>
+<span class="pc bpc" id="L283" title="1 of 2 branches missed.">                    if (segment instanceof JSONPathSegmentName) {</span>
+<span class="fc" id="L284">                        FieldReader fieldReader = objectReader.getFieldReader(((JSONPathSegmentName) segment).nameHashCode);</span>
+<span class="pc bpc" id="L285" title="1 of 2 branches missed.">                        if (fieldReader != null) {</span>
+<span class="fc" id="L286">                            ObjectReader fieldObjectReader = fieldReader.getObjectReader(readerContext);</span>
+<span class="fc" id="L287">                            Object fieldValue = fieldObjectReader.createInstance();</span>
+<span class="fc" id="L288">                            fieldReader.accept(parentObject, fieldValue);</span>
+<span class="fc" id="L289">                            context.value = fieldValue;</span>
+                        }
+                    }
+                }
+            }
+        }
+<span class="fc" id="L295">        context = new Context(this, context, segments.get(0), null, 0L);</span>
+<span class="fc" id="L296">        context.root = root;</span>
+
+<span class="fc" id="L298">        JSONPathSegment segment = segments.get(size - 1);</span>
+<span class="fc" id="L299">        segment.set(context, value);</span>
+<span class="fc" id="L300">    }</span>
+
+    @Override
+    public void set(Object root, Object value, JSONReader.Feature... readerFeatures) {
+<span class="fc" id="L304">        long features = 0;</span>
+<span class="fc bfc" id="L305" title="All 2 branches covered.">        for (JSONReader.Feature feature : readerFeatures) {</span>
+<span class="fc" id="L306">            features |= feature.mask;</span>
+        }
+
+<span class="fc" id="L309">        Context context = null;</span>
+<span class="fc" id="L310">        int size = segments.size();</span>
+<span class="fc bfc" id="L311" title="All 2 branches covered.">        for (int i = 0; i &lt; size - 1; i++) {</span>
+<span class="fc" id="L312">            JSONPathSegment segment = segments.get(i);</span>
+<span class="fc" id="L313">            JSONPathSegment nextSegment = null;</span>
+<span class="fc" id="L314">            int nextIndex = i + 1;</span>
+<span class="pc bpc" id="L315" title="1 of 2 branches missed.">            if (nextIndex &lt; size) {</span>
+<span class="fc" id="L316">                nextSegment = segments.get(nextIndex);</span>
+            }
+<span class="fc" id="L318">            context = new Context(this, context, segment, nextSegment, features);</span>
+<span class="fc bfc" id="L319" title="All 2 branches covered.">            if (i == 0) {</span>
+<span class="fc" id="L320">                context.root = root;</span>
+            }
+
+<span class="fc" id="L323">            segment.eval(context);</span>
+        }
+<span class="fc" id="L325">        context = new Context(this, context, segments.get(0), null, features);</span>
+<span class="fc" id="L326">        context.root = root;</span>
+
+<span class="fc" id="L328">        JSONPathSegment segment = segments.get(size - 1);</span>
+<span class="fc" id="L329">        segment.set(context, value);</span>
+<span class="fc" id="L330">    }</span>
+
+    @Override
+    public void setCallback(Object root, BiFunction callback) {
+<span class="fc" id="L334">        Context context = null;</span>
+<span class="fc" id="L335">        int size = segments.size();</span>
+<span class="fc bfc" id="L336" title="All 2 branches covered.">        for (int i = 0; i &lt; size - 1; i++) {</span>
+<span class="fc" id="L337">            JSONPathSegment segment = segments.get(i);</span>
+<span class="fc" id="L338">            JSONPathSegment nextSegment = null;</span>
+<span class="fc" id="L339">            int nextIndex = i + 1;</span>
+<span class="pc bpc" id="L340" title="1 of 2 branches missed.">            if (nextIndex &lt; size) {</span>
+<span class="fc" id="L341">                nextSegment = segments.get(nextIndex);</span>
+            }
+<span class="fc" id="L343">            context = new Context(this, context, segment, nextSegment, 0);</span>
+<span class="fc bfc" id="L344" title="All 2 branches covered.">            if (i == 0) {</span>
+<span class="fc" id="L345">                context.root = root;</span>
+            }
+
+<span class="fc" id="L348">            segment.eval(context);</span>
+        }
+<span class="fc" id="L350">        context = new Context(this, context, segments.get(0), null, 0);</span>
+<span class="fc" id="L351">        context.root = root;</span>
+
+<span class="fc" id="L353">        JSONPathSegment segment = segments.get(size - 1);</span>
+<span class="fc" id="L354">        segment.setCallback(context, callback);</span>
+<span class="fc" id="L355">    }</span>
+
+    @Override
+    public void setInt(Object rootObject, int value) {
+<span class="fc" id="L359">        set(rootObject, value);</span>
+<span class="fc" id="L360">    }</span>
+
+    @Override
+    public void setLong(Object rootObject, long value) {
+<span class="fc" id="L364">        set(rootObject, value);</span>
+<span class="fc" id="L365">    }</span>
+
+    @Override
+    public Object extract(JSONReader jsonReader) {
+<span class="pc bpc" id="L369" title="1 of 2 branches missed.">        if (jsonReader == null) {</span>
+<span class="nc" id="L370">            return null;</span>
+        }
+
+<span class="fc" id="L373">        int size = segments.size();</span>
+<span class="pc bpc" id="L374" title="1 of 2 branches missed.">        if (size == 0) {</span>
+<span class="nc" id="L375">            return null;</span>
+        }
+
+<span class="pc bpc" id="L378" title="1 of 2 branches missed.">        if (!extractSupport) {</span>
+<span class="nc" id="L379">            Object root = jsonReader.readAny();</span>
+<span class="nc" id="L380">            return eval(root);</span>
+        }
+
+<span class="fc" id="L383">        boolean eval = false;</span>
+<span class="fc" id="L384">        Context context = null;</span>
+<span class="fc bfc" id="L385" title="All 2 branches covered.">        for (int i = 0; i &lt; size; i++) {</span>
+<span class="fc" id="L386">            JSONPathSegment segment = segments.get(i);</span>
+<span class="fc" id="L387">            JSONPathSegment nextSegment = null;</span>
+
+<span class="fc" id="L389">            int nextIndex = i + 1;</span>
+<span class="fc bfc" id="L390" title="All 2 branches covered.">            if (nextIndex &lt; size) {</span>
+<span class="fc" id="L391">                nextSegment = segments.get(nextIndex);</span>
+            }
+
+<span class="fc" id="L394">            context = new Context(this, context, segment, nextSegment, 0);</span>
+<span class="fc bfc" id="L395" title="All 2 branches covered.">            if (eval) {</span>
+<span class="fc" id="L396">                segment.eval(context);</span>
+            } else {
+<span class="fc" id="L398">                segment.accept(jsonReader, context);</span>
+            }
+
+<span class="fc bfc" id="L401" title="All 2 branches covered.">            if (context.eval) {</span>
+<span class="fc" id="L402">                eval = true;</span>
+<span class="fc bfc" id="L403" title="All 2 branches covered.">                if (context.value == null) {</span>
+<span class="fc" id="L404">                    break;</span>
+                }
+            }
+        }
+
+<span class="fc" id="L409">        Object value = context.value;</span>
+<span class="pc bpc" id="L410" title="1 of 2 branches missed.">        if (value instanceof Sequence) {</span>
+<span class="nc" id="L411">            value = ((Sequence) value).values;</span>
+        }
+
+<span class="fc bfc" id="L414" title="All 2 branches covered.">        if ((features &amp; Feature.AlwaysReturnList.mask) != 0) {</span>
+<span class="fc bfc" id="L415" title="All 2 branches covered.">            if (value == null) {</span>
+<span class="fc" id="L416">                value = new JSONArray();</span>
+<span class="fc bfc" id="L417" title="All 2 branches covered.">            } else if (!(value instanceof List)) {</span>
+<span class="fc" id="L418">                value = JSONArray.of(value);</span>
+            }
+        }
+<span class="fc" id="L421">        return value;</span>
+    }
+
+    @Override
+    public String extractScalar(JSONReader jsonReader) {
+<span class="fc" id="L426">        int size = segments.size();</span>
+<span class="pc bpc" id="L427" title="1 of 2 branches missed.">        if (size == 0) {</span>
+<span class="nc" id="L428">            return null;</span>
+        }
+
+<span class="fc" id="L431">        boolean eval = false;</span>
+<span class="fc" id="L432">        Context context = null;</span>
+<span class="fc bfc" id="L433" title="All 2 branches covered.">        for (int i = 0; i &lt; size; i++) {</span>
+<span class="fc" id="L434">            JSONPathSegment segment = segments.get(i);</span>
+<span class="fc" id="L435">            JSONPathSegment nextSegment = null;</span>
+
+<span class="fc" id="L437">            int nextIndex = i + 1;</span>
+<span class="fc bfc" id="L438" title="All 2 branches covered.">            if (nextIndex &lt; size) {</span>
+<span class="fc" id="L439">                nextSegment = segments.get(nextIndex);</span>
+            }
+
+<span class="fc" id="L442">            context = new Context(this, context, segment, nextSegment, 0);</span>
+<span class="pc bpc" id="L443" title="1 of 2 branches missed.">            if (eval) {</span>
+<span class="nc" id="L444">                segment.eval(context);</span>
+            } else {
+<span class="fc" id="L446">                segment.accept(jsonReader, context);</span>
+            }
+
+<span class="pc bpc" id="L449" title="1 of 2 branches missed.">            if (context.eval) {</span>
+<span class="nc" id="L450">                eval = true;</span>
+<span class="nc bnc" id="L451" title="All 2 branches missed.">                if (context.value == null) {</span>
+<span class="nc" id="L452">                    break;</span>
+                }
+            }
+        }
+
+<span class="fc" id="L457">        return JSON.toJSONString(context.value);</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.8.202204050719</span></div></body></html>

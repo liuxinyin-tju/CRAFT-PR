@@ -1,0 +1,157 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ObjectReaderImplInt8Array.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">fastjson2</a> &gt; <a href="index.source.html" class="el_package">com.alibaba.fastjson2.reader</a> &gt; <span class="el_source">ObjectReaderImplInt8Array.java</span></div><h1>ObjectReaderImplInt8Array.java</h1><pre class="source lang-java linenums">package com.alibaba.fastjson2.reader;
+
+import com.alibaba.fastjson2.JSONB;
+import com.alibaba.fastjson2.JSONException;
+import com.alibaba.fastjson2.JSONFactory;
+import com.alibaba.fastjson2.JSONReader;
+import com.alibaba.fastjson2.util.Fnv;
+
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.lang.reflect.Type;
+import java.util.Arrays;
+import java.util.Base64;
+import java.util.Collection;
+import java.util.function.Function;
+import java.util.zip.GZIPInputStream;
+
+class ObjectReaderImplInt8Array
+        extends ObjectReaderPrimitive {
+<span class="fc" id="L21">    static final ObjectReaderImplInt8Array INSTANCE = new ObjectReaderImplInt8Array(null);</span>
+<span class="fc" id="L22">    static final long HASH_TYPE = Fnv.hashCode64(&quot;[Byte&quot;);</span>
+
+    final String format;
+
+    public ObjectReaderImplInt8Array(String format) {
+<span class="fc" id="L27">        super(Byte[].class);</span>
+<span class="fc" id="L28">        this.format = format;</span>
+<span class="fc" id="L29">    }</span>
+
+    @Override
+    public Object readObject(JSONReader jsonReader, Type fieldType, Object fieldName, long features) {
+<span class="pc bpc" id="L33" title="1 of 2 branches missed.">        if (jsonReader.readIfNull()) {</span>
+<span class="nc" id="L34">            return null;</span>
+        }
+
+<span class="fc bfc" id="L37" title="All 2 branches covered.">        if (jsonReader.nextIfArrayStart()) {</span>
+<span class="fc" id="L38">            Byte[] values = new Byte[16];</span>
+<span class="fc" id="L39">            int size = 0;</span>
+<span class="fc bfc" id="L40" title="All 2 branches covered.">            while (!jsonReader.nextIfArrayEnd()) {</span>
+<span class="fc bfc" id="L41" title="All 2 branches covered.">                if (jsonReader.isEnd()) {</span>
+<span class="fc" id="L42">                    throw new JSONException(jsonReader.info(&quot;input end&quot;));</span>
+                }
+
+<span class="fc" id="L45">                int minCapacity = size + 1;</span>
+<span class="fc bfc" id="L46" title="All 2 branches covered.">                if (minCapacity - values.length &gt; 0) {</span>
+<span class="fc" id="L47">                    int oldCapacity = values.length;</span>
+<span class="fc" id="L48">                    int newCapacity = oldCapacity + (oldCapacity &gt;&gt; 1);</span>
+<span class="pc bpc" id="L49" title="1 of 2 branches missed.">                    if (newCapacity - minCapacity &lt; 0) {</span>
+<span class="nc" id="L50">                        newCapacity = minCapacity;</span>
+                    }
+
+<span class="fc" id="L53">                    values = Arrays.copyOf(values, newCapacity);</span>
+                }
+
+<span class="fc" id="L56">                Integer i = jsonReader.readInt32();</span>
+<span class="fc bfc" id="L57" title="All 2 branches covered.">                values[size++] = i == null ? null : i.byteValue();</span>
+<span class="fc" id="L58">            }</span>
+<span class="fc" id="L59">            jsonReader.nextIfComma();</span>
+
+<span class="fc" id="L61">            return Arrays.copyOf(values, size);</span>
+        }
+
+<span class="fc bfc" id="L64" title="All 2 branches covered.">        if (jsonReader.current() == 'x') {</span>
+<span class="fc" id="L65">            return jsonReader.readBinary();</span>
+        }
+
+<span class="pc bpc" id="L68" title="1 of 2 branches missed.">        if (jsonReader.isString()) {</span>
+<span class="fc bfc" id="L69" title="All 2 branches covered.">            if (&quot;hex&quot;.equals(format)) {</span>
+<span class="fc" id="L70">                return jsonReader.readHex();</span>
+            }
+
+<span class="fc" id="L73">            String strVal = jsonReader.readString();</span>
+<span class="fc bfc" id="L74" title="All 2 branches covered.">            if (strVal.isEmpty()) {</span>
+<span class="fc" id="L75">                return null;</span>
+            }
+
+<span class="fc bfc" id="L78" title="All 2 branches covered.">            if (&quot;base64&quot;.equals(format)) {</span>
+<span class="fc" id="L79">                return Base64.getDecoder().decode(strVal);</span>
+            }
+
+<span class="pc bpc" id="L82" title="3 of 4 branches missed.">            if (&quot;gzip,base64&quot;.equals(format) || &quot;gzip&quot;.equals(format)) {</span>
+<span class="fc" id="L83">                byte[] bytes = Base64.getDecoder().decode(strVal);</span>
+
+                GZIPInputStream gzipIn;
+                try {
+<span class="fc" id="L87">                    gzipIn = new GZIPInputStream(new ByteArrayInputStream(bytes));</span>
+
+<span class="fc" id="L89">                    ByteArrayOutputStream byteOut = new ByteArrayOutputStream();</span>
+                    for (; ; ) {
+<span class="fc" id="L91">                        byte[] buf = new byte[1024];</span>
+<span class="fc" id="L92">                        int len = gzipIn.read(buf);</span>
+<span class="fc bfc" id="L93" title="All 2 branches covered.">                        if (len == -1) {</span>
+<span class="fc" id="L94">                            break;</span>
+                        }
+<span class="pc bpc" id="L96" title="1 of 2 branches missed.">                        if (len &gt; 0) {</span>
+<span class="fc" id="L97">                            byteOut.write(buf, 0, len);</span>
+                        }
+<span class="fc" id="L99">                    }</span>
+<span class="fc" id="L100">                    return byteOut.toByteArray();</span>
+<span class="nc" id="L101">                } catch (IOException ex) {</span>
+<span class="nc" id="L102">                    throw new JSONException(jsonReader.info(&quot;unzip bytes error.&quot;), ex);</span>
+                }
+            }
+        }
+
+<span class="nc" id="L107">        throw new JSONException(jsonReader.info(&quot;TODO&quot;));</span>
+    }
+
+    @Override
+    public Object readJSONBObject(JSONReader jsonReader, Type fieldType, Object fieldName, long features) {
+<span class="fc bfc" id="L112" title="All 2 branches covered.">        if (jsonReader.nextIfMatch(JSONB.Constants.BC_TYPED_ANY)) {</span>
+<span class="fc" id="L113">            long typeHashCode = jsonReader.readTypeHashCode();</span>
+<span class="pc bpc" id="L114" title="1 of 2 branches missed.">            if (typeHashCode != HASH_TYPE) {</span>
+<span class="nc" id="L115">                throw new JSONException(&quot;not support autoType : &quot; + jsonReader.getString());</span>
+            }
+        }
+
+<span class="pc bpc" id="L119" title="1 of 4 branches missed.">        if (jsonReader.isString() &amp;&amp; &quot;hex&quot;.equals(format)) {</span>
+<span class="fc" id="L120">            return jsonReader.readHex();</span>
+        }
+
+<span class="fc" id="L123">        int entryCnt = jsonReader.startArray();</span>
+<span class="pc bpc" id="L124" title="1 of 2 branches missed.">        if (entryCnt == -1) {</span>
+<span class="nc" id="L125">            return null;</span>
+        }
+<span class="fc" id="L127">        Byte[] array = new Byte[entryCnt];</span>
+<span class="fc bfc" id="L128" title="All 2 branches covered.">        for (int i = 0; i &lt; entryCnt; i++) {</span>
+<span class="fc" id="L129">            Integer integer = jsonReader.readInt32();</span>
+<span class="fc bfc" id="L130" title="All 2 branches covered.">            array[i] = integer == null ? null : integer.byteValue();</span>
+        }
+<span class="fc" id="L132">        return array;</span>
+    }
+
+    @Override
+    public Object createInstance(Collection collection, long features) {
+<span class="fc" id="L137">        Byte[] array = new Byte[collection.size()];</span>
+<span class="fc" id="L138">        int i = 0;</span>
+<span class="fc bfc" id="L139" title="All 2 branches covered.">        for (Object item : collection) {</span>
+            Byte value;
+<span class="fc bfc" id="L141" title="All 2 branches covered.">            if (item == null) {</span>
+<span class="fc" id="L142">                value = null;</span>
+<span class="fc bfc" id="L143" title="All 2 branches covered.">            } else if (item instanceof Number) {</span>
+<span class="fc" id="L144">                value = ((Number) item).byteValue();</span>
+            } else {
+<span class="fc" id="L146">                Function typeConvert = JSONFactory.getDefaultObjectReaderProvider().getTypeConvert(item.getClass(), Byte.class);</span>
+<span class="pc bpc" id="L147" title="1 of 2 branches missed.">                if (typeConvert == null) {</span>
+<span class="nc" id="L148">                    throw new JSONException(&quot;can not cast to Byte &quot; + item.getClass());</span>
+                }
+<span class="fc" id="L150">                value = (Byte) typeConvert.apply(item);</span>
+            }
+<span class="fc" id="L152">            array[i++] = value;</span>
+<span class="fc" id="L153">        }</span>
+<span class="fc" id="L154">        return array;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.8.202204050719</span></div></body></html>

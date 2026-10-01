@@ -1,0 +1,999 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>FieldWriter.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">fastjson2</a> &gt; <a href="index.source.html" class="el_package">com.alibaba.fastjson2.writer</a> &gt; <span class="el_source">FieldWriter.java</span></div><h1>FieldWriter.java</h1><pre class="source lang-java linenums">package com.alibaba.fastjson2.writer;
+
+import com.alibaba.fastjson2.*;
+import com.alibaba.fastjson2.annotation.JSONField;
+import com.alibaba.fastjson2.codec.FieldInfo;
+import com.alibaba.fastjson2.util.*;
+
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.Serializable;
+import java.lang.reflect.*;
+import java.math.BigDecimal;
+import java.text.DecimalFormat;
+import java.time.*;
+import java.util.*;
+import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
+import java.util.function.Function;
+import java.util.zip.GZIPOutputStream;
+
+import static com.alibaba.fastjson2.JSONWriter.Feature.*;
+import static com.alibaba.fastjson2.util.JDKUtils.UNSAFE;
+import static java.time.temporal.ChronoField.SECOND_OF_DAY;
+import static java.time.temporal.ChronoField.YEAR;
+
+public abstract class FieldWriter&lt;T&gt;
+        implements Comparable {
+    public final String fieldName;
+    public final Type fieldType;
+    public final Class fieldClass;
+    public final long features;
+    public final int ordinal;
+    public final String format;
+    public final Locale locale;
+    public final DecimalFormat decimalFormat;
+    public final String label;
+    public final Field field;
+    public final Method method;
+    protected final long fieldOffset;
+    protected final boolean primitive;
+
+    final long hashCode;
+    final byte[] nameWithColonUTF8;
+    final char[] nameWithColonUTF16;
+    final byte[] nameJSONB;
+    long nameSymbolCache;
+
+    final boolean fieldClassSerializable;
+    final JSONWriter.Path rootParentPath;
+
+    final boolean symbol;
+    final boolean trim;
+    final boolean raw;
+    final boolean managedReference;
+    final boolean backReference;
+
+    transient JSONWriter.Path path;
+    volatile ObjectWriter initObjectWriter;
+    Object defaultValue;
+
+    static final AtomicReferenceFieldUpdater&lt;FieldWriter, ObjectWriter&gt;
+<span class="fc" id="L61">            initObjectWriterUpdater = AtomicReferenceFieldUpdater.newUpdater(</span>
+            FieldWriter.class,
+            ObjectWriter.class,
+            &quot;initObjectWriter&quot;
+    );
+
+    FieldWriter(
+            String name,
+            int ordinal,
+            long features,
+            String format,
+            Locale locale,
+            String label,
+            Type fieldType,
+            Class fieldClass,
+            Field field,
+            Method method
+<span class="fc" id="L78">    ) {</span>
+<span class="pc bpc" id="L79" title="1 of 4 branches missed.">        if (&quot;string&quot;.equals(format) &amp;&amp; fieldClass != String.class) {</span>
+<span class="fc" id="L80">            features |= WriteNonStringValueAsString.mask;</span>
+        }
+
+<span class="fc" id="L83">        this.fieldName = name;</span>
+<span class="fc" id="L84">        this.ordinal = ordinal;</span>
+<span class="fc" id="L85">        this.format = format;</span>
+<span class="fc" id="L86">        this.locale = locale;</span>
+<span class="fc" id="L87">        this.label = label;</span>
+<span class="fc" id="L88">        this.hashCode = Fnv.hashCode64(name);</span>
+<span class="fc" id="L89">        this.features = features;</span>
+<span class="fc" id="L90">        this.fieldType = TypeUtils.intern(fieldType);</span>
+<span class="fc" id="L91">        this.fieldClass = fieldClass;</span>
+<span class="pc bpc" id="L92" title="1 of 6 branches missed.">        this.fieldClassSerializable = fieldClass != null &amp;&amp; (Serializable.class.isAssignableFrom(fieldClass) || !Modifier.isFinal(fieldClass.getModifiers()));</span>
+<span class="fc" id="L93">        this.field = field;</span>
+<span class="fc" id="L94">        this.method = method;</span>
+<span class="fc" id="L95">        this.primitive = fieldClass.isPrimitive();</span>
+
+<span class="fc" id="L97">        this.nameJSONB = JSONB.toBytes(fieldName);</span>
+
+<span class="fc" id="L99">        DecimalFormat decimalFormat = null;</span>
+<span class="fc bfc" id="L100" title="All 22 branches covered.">        if (format != null</span>
+                &amp;&amp; (fieldClass == float.class
+                || fieldClass == float[].class
+                || fieldClass == Float.class
+                || fieldClass == Float[].class
+                || fieldClass == double.class
+                || fieldClass == double[].class
+                || fieldClass == Double.class
+                || fieldClass == Double[].class
+                || fieldClass == BigDecimal.class
+                || fieldClass == BigDecimal[].class)
+        ) {
+<span class="fc" id="L112">            decimalFormat = new DecimalFormat(format);</span>
+        }
+<span class="fc" id="L114">        this.decimalFormat = decimalFormat;</span>
+
+<span class="fc" id="L116">        long fieldOffset = -1L;</span>
+<span class="fc bfc" id="L117" title="All 2 branches covered.">        if (field != null) {</span>
+<span class="fc" id="L118">            fieldOffset = UNSAFE.objectFieldOffset(field);</span>
+        }
+<span class="fc" id="L120">        this.fieldOffset = fieldOffset;</span>
+
+<span class="fc" id="L122">        this.symbol = &quot;symbol&quot;.equals(format);</span>
+<span class="fc" id="L123">        this.trim = &quot;trim&quot;.equals(format);</span>
+<span class="fc bfc" id="L124" title="All 2 branches covered.">        this.raw = (features &amp; FieldInfo.RAW_VALUE_MASK) != 0;</span>
+<span class="fc bfc" id="L125" title="All 2 branches covered.">        this.managedReference = (features &amp; ReferenceDetection.mask) != 0;</span>
+<span class="fc bfc" id="L126" title="All 2 branches covered.">        this.backReference = (features &amp; FieldInfo.BACKR_EFERENCE) != 0;</span>
+<span class="fc" id="L127">        this.rootParentPath = new JSONWriter.Path(JSONWriter.Path.ROOT, name);</span>
+
+<span class="fc" id="L129">        int nameLength = name.length();</span>
+<span class="fc" id="L130">        int utflen = nameLength + 3;</span>
+<span class="fc bfc" id="L131" title="All 2 branches covered.">        for (int i = 0; i &lt; nameLength; ++i) {</span>
+<span class="fc" id="L132">            char c = name.charAt(i);</span>
+<span class="pc bpc" id="L133" title="1 of 4 branches missed.">            if ((c &gt;= 0x0001) &amp;&amp; (c &lt;= 0x007F)) {</span>
+                // skip
+<span class="pc bpc" id="L135" title="1 of 2 branches missed.">            } else if (c &gt; 0x07FF) {</span>
+<span class="fc" id="L136">                utflen += 2;</span>
+            } else {
+<span class="nc" id="L138">                utflen += 1;</span>
+            }
+        }
+
+<span class="fc" id="L142">        byte[] bytes = new byte[utflen];</span>
+<span class="fc" id="L143">        int off = 0;</span>
+<span class="fc" id="L144">        bytes[off++] = '&quot;';</span>
+<span class="fc bfc" id="L145" title="All 2 branches covered.">        for (int i = 0; i &lt; nameLength; ++i) {</span>
+<span class="fc" id="L146">            char c = name.charAt(i);</span>
+<span class="pc bpc" id="L147" title="1 of 4 branches missed.">            if ((c &gt;= 0x0001) &amp;&amp; (c &lt;= 0x007F)) {</span>
+<span class="fc" id="L148">                bytes[off++] = (byte) c;</span>
+<span class="pc bpc" id="L149" title="1 of 2 branches missed.">            } else if (c &gt; 0x07FF) {</span>
+                // 2 bytes, 11 bits
+<span class="fc" id="L151">                bytes[off++] = (byte) (0xE0 | ((c &gt;&gt; 12) &amp; 0x0F));</span>
+<span class="fc" id="L152">                bytes[off++] = (byte) (0x80 | ((c &gt;&gt; 6) &amp; 0x3F));</span>
+<span class="fc" id="L153">                bytes[off++] = (byte) (0x80 | ((c) &amp; 0x3F));</span>
+            } else {
+<span class="nc" id="L155">                bytes[off++] = (byte) (0xC0 | ((c &gt;&gt; 6) &amp; 0x1F));</span>
+<span class="nc" id="L156">                bytes[off++] = (byte) (0x80 | ((c) &amp; 0x3F));</span>
+            }
+        }
+<span class="fc" id="L159">        bytes[off++] = '&quot;';</span>
+<span class="fc" id="L160">        bytes[off] = ':';</span>
+<span class="fc" id="L161">        nameWithColonUTF8 = bytes;</span>
+
+<span class="fc" id="L163">        char[] chars = new char[nameLength + 3];</span>
+<span class="fc" id="L164">        chars[0] = '&quot;';</span>
+<span class="fc" id="L165">        name.getChars(0, name.length(), chars, 1);</span>
+<span class="fc" id="L166">        chars[chars.length - 2] = '&quot;';</span>
+<span class="fc" id="L167">        chars[chars.length - 1] = ':';</span>
+<span class="fc" id="L168">        nameWithColonUTF16 = chars;</span>
+<span class="fc" id="L169">    }</span>
+
+    public boolean isFieldClassSerializable() {
+<span class="fc" id="L172">        return fieldClassSerializable;</span>
+    }
+
+    public boolean isDateFormatMillis() {
+<span class="nc" id="L176">        return false;</span>
+    }
+
+    public boolean isDateFormatISO8601() {
+<span class="nc" id="L180">        return false;</span>
+    }
+
+    public void writeEnumJSONB(JSONWriter jsonWriter, Enum e) {
+<span class="nc" id="L184">        throw new UnsupportedOperationException();</span>
+    }
+
+    public ObjectWriter getInitWriter() {
+<span class="fc" id="L188">        return null;</span>
+    }
+
+    public boolean unwrapped() {
+<span class="fc" id="L192">        return false;</span>
+    }
+
+    public final void writeFieldNameJSONB(JSONWriter jsonWriter) {
+<span class="fc" id="L196">        SymbolTable symbolTable = jsonWriter.symbolTable;</span>
+<span class="pc bpc" id="L197" title="1 of 4 branches missed.">        if (symbolTable != null &amp;&amp; writeFieldNameSymbol(jsonWriter, symbolTable)) {</span>
+<span class="fc" id="L198">            return;</span>
+        }
+<span class="fc" id="L200">        jsonWriter.writeNameRaw(nameJSONB, hashCode);</span>
+<span class="fc" id="L201">    }</span>
+
+    public final void writeFieldName(JSONWriter jsonWriter) {
+<span class="fc bfc" id="L204" title="All 2 branches covered.">        if (jsonWriter.jsonb) {</span>
+<span class="fc" id="L205">            SymbolTable symbolTable = jsonWriter.symbolTable;</span>
+<span class="pc bpc" id="L206" title="3 of 4 branches missed.">            if (symbolTable != null &amp;&amp; writeFieldNameSymbol(jsonWriter, symbolTable)) {</span>
+<span class="nc" id="L207">                return;</span>
+            }
+<span class="fc" id="L209">            jsonWriter.writeNameRaw(nameJSONB, hashCode);</span>
+<span class="fc" id="L210">            return;</span>
+        }
+
+<span class="fc bfc" id="L213" title="All 4 branches covered.">        if (!jsonWriter.useSingleQuote &amp;&amp; (jsonWriter.context.getFeatures() &amp; UnquoteFieldName.mask) == 0) {</span>
+<span class="fc bfc" id="L214" title="All 2 branches covered.">            if (jsonWriter.utf8) {</span>
+<span class="fc" id="L215">                jsonWriter.writeNameRaw(nameWithColonUTF8);</span>
+<span class="fc" id="L216">                return;</span>
+            }
+
+<span class="pc bpc" id="L219" title="1 of 2 branches missed.">            if (jsonWriter.utf16) {</span>
+<span class="fc" id="L220">                jsonWriter.writeNameRaw(nameWithColonUTF16);</span>
+<span class="fc" id="L221">                return;</span>
+            }
+        }
+
+<span class="fc" id="L225">        jsonWriter.writeName(fieldName);</span>
+<span class="fc" id="L226">        jsonWriter.writeColon();</span>
+<span class="fc" id="L227">    }</span>
+
+    private boolean writeFieldNameSymbol(JSONWriter jsonWriter, SymbolTable symbolTable) {
+<span class="fc" id="L230">        int symbolTableIdentity = System.identityHashCode(symbolTable);</span>
+
+        int symbol;
+<span class="fc bfc" id="L233" title="All 2 branches covered.">        if (nameSymbolCache == 0) {</span>
+<span class="fc" id="L234">            symbol = symbolTable.getOrdinalByHashCode(hashCode);</span>
+<span class="fc" id="L235">            nameSymbolCache = ((long) symbol &lt;&lt; 32) | symbolTableIdentity;</span>
+        } else {
+<span class="fc bfc" id="L237" title="All 2 branches covered.">            if ((int) nameSymbolCache == symbolTableIdentity) {</span>
+<span class="fc" id="L238">                symbol = (int) (nameSymbolCache &gt;&gt; 32);</span>
+            } else {
+<span class="fc" id="L240">                symbol = symbolTable.getOrdinalByHashCode(hashCode);</span>
+<span class="fc" id="L241">                nameSymbolCache = ((long) symbol &lt;&lt; 32) | symbolTableIdentity;</span>
+            }
+        }
+
+<span class="pc bpc" id="L245" title="1 of 2 branches missed.">        if (symbol != -1) {</span>
+<span class="fc" id="L246">            jsonWriter.writeSymbol(-symbol);</span>
+<span class="fc" id="L247">            return true;</span>
+        }
+<span class="nc" id="L249">        return false;</span>
+    }
+
+    public final JSONWriter.Path getRootParentPath() {
+<span class="fc" id="L253">        return rootParentPath;</span>
+    }
+
+    public final JSONWriter.Path getPath(JSONWriter.Path parent) {
+<span class="fc bfc" id="L257" title="All 2 branches covered.">        if (path == null) {</span>
+<span class="fc" id="L258">            return path = new JSONWriter.Path(parent, fieldName);</span>
+        }
+
+<span class="fc bfc" id="L261" title="All 2 branches covered.">        if (path.parent == parent) {</span>
+<span class="fc" id="L262">            return path;</span>
+        }
+
+<span class="fc" id="L265">        return new JSONWriter.Path(parent, fieldName);</span>
+    }
+
+    public Type getItemType() {
+<span class="nc" id="L269">        return null;</span>
+    }
+
+    public Class getItemClass() {
+<span class="fc" id="L273">        return null;</span>
+    }
+
+    @Override
+    public String toString() {
+<span class="nc" id="L278">        return fieldName;</span>
+    }
+
+    void setDefaultValue(T object) {
+<span class="fc" id="L282">        Object fieldValue = null;</span>
+
+<span class="fc bfc" id="L284" title="All 2 branches covered.">        if (Iterable.class.isAssignableFrom(fieldClass)</span>
+<span class="fc bfc" id="L285" title="All 2 branches covered.">                || Map.class.isAssignableFrom(fieldClass)</span>
+        ) {
+<span class="fc" id="L287">            return;</span>
+        }
+
+<span class="pc bpc" id="L290" title="1 of 4 branches missed.">        if (field != null &amp;&amp; object != null) {</span>
+            try {
+<span class="fc" id="L292">                field.setAccessible(true);</span>
+<span class="fc" id="L293">                fieldValue = field.get(object);</span>
+<span class="nc" id="L294">            } catch (Throwable ignored) {</span>
+                // ignored
+<span class="fc" id="L296">            }</span>
+        }
+
+<span class="fc bfc" id="L299" title="All 2 branches covered.">        if (fieldValue == null) {</span>
+<span class="fc" id="L300">            return;</span>
+        }
+
+<span class="fc bfc" id="L303" title="All 2 branches covered.">        if (fieldClass == boolean.class) {</span>
+<span class="pc bpc" id="L304" title="1 of 2 branches missed.">            if (fieldValue == Boolean.FALSE) {</span>
+<span class="nc" id="L305">                return;</span>
+            }
+<span class="fc bfc" id="L307" title="All 12 branches covered.">        } else if (fieldClass == byte.class</span>
+                || fieldClass == short.class
+                || fieldClass == int.class
+                || fieldClass == long.class
+                || fieldClass == float.class
+                || fieldClass == double.class
+        ) {
+<span class="fc bfc" id="L314" title="All 2 branches covered.">            if (((Number) fieldValue).doubleValue() == 0) {</span>
+<span class="fc" id="L315">                return;</span>
+            }
+<span class="fc bfc" id="L317" title="All 2 branches covered.">        } else if (fieldClass == char.class) {</span>
+<span class="pc bpc" id="L318" title="1 of 2 branches missed.">            if ((Character) fieldValue == '\0') {</span>
+<span class="fc" id="L319">                return;</span>
+            }
+        }
+
+<span class="fc" id="L323">        defaultValue = fieldValue;</span>
+<span class="fc" id="L324">    }</span>
+
+    public Object getFieldValue(T object) {
+<span class="pc bpc" id="L327" title="1 of 2 branches missed.">        if (object == null) {</span>
+<span class="nc" id="L328">            throw new JSONException(&quot;field.get error, &quot; + fieldName);</span>
+        }
+
+<span class="pc bpc" id="L331" title="1 of 2 branches missed.">        if (field != null) {</span>
+            try {
+                Object value;
+<span class="pc bpc" id="L334" title="1 of 4 branches missed.">                if (fieldOffset != -1 &amp;&amp; !primitive) {</span>
+<span class="fc" id="L335">                    value = UNSAFE.getObject(object, fieldOffset);</span>
+                } else {
+<span class="fc" id="L337">                    value = field.get(object);</span>
+                }
+<span class="fc" id="L339">                return value;</span>
+<span class="nc" id="L340">            } catch (IllegalArgumentException | IllegalAccessException e) {</span>
+<span class="nc" id="L341">                throw new JSONException(&quot;field.get error, &quot; + fieldName, e);</span>
+            }
+        }
+
+<span class="nc" id="L345">        throw new UnsupportedOperationException();</span>
+    }
+
+    @Override
+    public int compareTo(Object o) {
+<span class="fc" id="L350">        FieldWriter other = (FieldWriter) o;</span>
+
+<span class="fc" id="L352">        int thisOrdinal = this.ordinal;</span>
+<span class="fc" id="L353">        int otherOrdinal = other.ordinal;</span>
+<span class="fc bfc" id="L354" title="All 2 branches covered.">        if (thisOrdinal &lt; otherOrdinal) {</span>
+<span class="fc" id="L355">            return -1;</span>
+        }
+<span class="fc bfc" id="L357" title="All 2 branches covered.">        if (thisOrdinal &gt; otherOrdinal) {</span>
+<span class="fc" id="L358">            return 1;</span>
+        }
+
+<span class="fc" id="L361">        int nameCompare = this.fieldName.compareTo(other.fieldName);</span>
+
+<span class="fc bfc" id="L363" title="All 2 branches covered.">        if (nameCompare != 0) {</span>
+<span class="fc" id="L364">            return nameCompare;</span>
+        }
+
+        Member thisMember;
+        Member otherMember;
+<span class="pc bpc" id="L369" title="1 of 6 branches missed.">        if (this.method == null || (this.field != null &amp;&amp; Modifier.isPublic(this.field.getModifiers()))) {</span>
+<span class="fc" id="L370">            thisMember = this.field;</span>
+        } else {
+<span class="fc" id="L372">            thisMember = this.method;</span>
+        }
+<span class="fc bfc" id="L374" title="All 6 branches covered.">        if (other.method == null || (other.field != null &amp;&amp; Modifier.isPublic(other.field.getModifiers()))) {</span>
+<span class="fc" id="L375">            otherMember = other.field;</span>
+        } else {
+<span class="fc" id="L377">            otherMember = other.method;</span>
+        }
+
+<span class="pc bpc" id="L380" title="2 of 4 branches missed.">        if (thisMember != null &amp;&amp; otherMember != null) {</span>
+<span class="fc" id="L381">            Class otherDeclaringClass = otherMember.getDeclaringClass();</span>
+<span class="fc" id="L382">            Class thisDeclaringClass = thisMember.getDeclaringClass();</span>
+<span class="fc bfc" id="L383" title="All 2 branches covered.">            if (thisDeclaringClass != otherDeclaringClass) {</span>
+<span class="pc bpc" id="L384" title="1 of 2 branches missed.">                if (thisDeclaringClass.isAssignableFrom(otherDeclaringClass)) {</span>
+<span class="fc" id="L385">                    return 1;</span>
+<span class="nc bnc" id="L386" title="All 2 branches missed.">                } else if (otherDeclaringClass.isAssignableFrom(thisDeclaringClass)) {</span>
+<span class="nc" id="L387">                    return -1;</span>
+                }
+            }
+
+<span class="fc" id="L391">            JSONField thisField = null;</span>
+<span class="fc" id="L392">            JSONField otherField = null;</span>
+<span class="fc bfc" id="L393" title="All 2 branches covered.">            if (thisMember instanceof Field) {</span>
+<span class="fc" id="L394">                thisField = ((Field) thisMember).getAnnotation(JSONField.class);</span>
+<span class="pc bpc" id="L395" title="1 of 2 branches missed.">            } else if (thisMember instanceof Method) {</span>
+<span class="fc" id="L396">                thisField = ((Method) thisMember).getAnnotation(JSONField.class);</span>
+            }
+<span class="fc bfc" id="L398" title="All 2 branches covered.">            if (otherMember instanceof Field) {</span>
+<span class="fc" id="L399">                otherField = ((Field) otherMember).getAnnotation(JSONField.class);</span>
+<span class="fc bfc" id="L400" title="All 2 branches covered.">            } else if (thisMember instanceof Method) {</span>
+<span class="fc" id="L401">                otherField = ((Method) otherMember).getAnnotation(JSONField.class);</span>
+            }
+
+<span class="pc bpc" id="L404" title="1 of 4 branches missed.">            if (thisField != null &amp;&amp; otherField == null) {</span>
+<span class="nc" id="L405">                return -1;</span>
+            }
+<span class="pc bpc" id="L407" title="1 of 4 branches missed.">            if (thisField == null &amp;&amp; otherField != null) {</span>
+<span class="nc" id="L408">                return 1;</span>
+            }
+        }
+
+<span class="fc bfc" id="L412" title="All 4 branches covered.">        if (thisMember instanceof Field</span>
+                &amp;&amp; otherMember instanceof Method
+<span class="fc bfc" id="L414" title="All 2 branches covered.">                &amp;&amp; ((Field) thisMember).getType() == ((Method) otherMember).getReturnType()</span>
+        ) {
+<span class="fc" id="L416">            return -1;</span>
+        }
+
+<span class="pc bpc" id="L419" title="1 of 4 branches missed.">        if (thisMember instanceof Method</span>
+                &amp;&amp; otherMember instanceof Field
+<span class="nc bnc" id="L421" title="All 2 branches missed.">                &amp;&amp; ((Method) thisMember).getReturnType() == ((Field) otherMember).getType()</span>
+        ) {
+<span class="nc" id="L423">            return 1;</span>
+        }
+
+<span class="fc" id="L426">        Class otherFieldClass = other.fieldClass;</span>
+<span class="fc" id="L427">        Class thisFieldClass = this.fieldClass;</span>
+<span class="pc bpc" id="L428" title="2 of 6 branches missed.">        if (thisFieldClass != otherFieldClass &amp;&amp; thisFieldClass != null &amp;&amp; otherFieldClass != null) {</span>
+<span class="fc bfc" id="L429" title="All 2 branches covered.">            if (thisFieldClass.isAssignableFrom(otherFieldClass)) {</span>
+<span class="fc" id="L430">                return 1;</span>
+<span class="fc bfc" id="L431" title="All 2 branches covered.">            } else if (otherFieldClass.isAssignableFrom(thisFieldClass)) {</span>
+<span class="fc" id="L432">                return -1;</span>
+            }
+        }
+
+<span class="pc bpc" id="L436" title="1 of 4 branches missed.">        if (thisFieldClass == boolean.class &amp;&amp; otherFieldClass != boolean.class) {</span>
+<span class="nc" id="L437">            return 1;</span>
+        }
+
+<span class="pc bpc" id="L440" title="3 of 8 branches missed.">        if (thisFieldClass == Boolean.class</span>
+                &amp;&amp; otherFieldClass == Boolean.class
+                &amp;&amp; thisMember instanceof Method
+                &amp;&amp; otherMember instanceof Method
+        ) {
+<span class="fc" id="L445">            String thisMethodName = thisMember.getName();</span>
+<span class="fc" id="L446">            String otherMethodName = otherMember.getName();</span>
+<span class="pc bpc" id="L447" title="2 of 4 branches missed.">            if (thisMethodName.startsWith(&quot;is&quot;) &amp;&amp; otherMethodName.startsWith(&quot;get&quot;)) {</span>
+<span class="fc" id="L448">                return 1;</span>
+            }
+<span class="nc bnc" id="L450" title="All 4 branches missed.">            if (thisMethodName.startsWith(&quot;get&quot;) &amp;&amp; otherMethodName.startsWith(&quot;is&quot;)) {</span>
+<span class="nc" id="L451">                return -1;</span>
+            }
+        }
+
+<span class="pc bpc" id="L455" title="1 of 4 branches missed.">        if (thisMember instanceof Method &amp;&amp; otherMember instanceof Method) {</span>
+<span class="fc" id="L456">            String thisMethodName = thisMember.getName();</span>
+<span class="fc" id="L457">            String otherMethodName = otherMember.getName();</span>
+<span class="pc bpc" id="L458" title="1 of 2 branches missed.">            if (!thisMethodName.equals(otherMethodName)) {</span>
+<span class="fc" id="L459">                String thisSetterName = BeanUtils.getterName(thisMethodName, null);</span>
+<span class="fc" id="L460">                String otherSetterName = BeanUtils.getterName(otherMethodName, null);</span>
+<span class="pc bpc" id="L461" title="1 of 4 branches missed.">                if (this.fieldName.equals(thisSetterName) &amp;&amp; !other.fieldName.equals(otherSetterName)) {</span>
+<span class="fc" id="L462">                    return 1;</span>
+                }
+<span class="pc bpc" id="L464" title="2 of 4 branches missed.">                if (this.fieldName.equals(otherSetterName) &amp;&amp; !other.fieldName.equals(thisSetterName)) {</span>
+<span class="nc" id="L465">                    return -1;</span>
+                }
+            }
+        }
+
+<span class="pc bpc" id="L470" title="1 of 4 branches missed.">        if (thisFieldClass.isPrimitive() &amp;&amp; !otherFieldClass.isPrimitive()) {</span>
+<span class="nc" id="L471">            return -1;</span>
+        }
+
+<span class="fc bfc" id="L474" title="All 4 branches covered.">        if (!thisFieldClass.isPrimitive() &amp;&amp; otherFieldClass.isPrimitive()) {</span>
+<span class="fc" id="L475">            return 1;</span>
+        }
+
+<span class="pc bpc" id="L478" title="1 of 4 branches missed.">        if (thisFieldClass.getName().startsWith(&quot;java.&quot;) &amp;&amp; !otherFieldClass.getName().startsWith(&quot;java.&quot;)) {</span>
+<span class="nc" id="L479">            return -1;</span>
+        }
+
+<span class="fc bfc" id="L482" title="All 4 branches covered.">        if (!thisFieldClass.getName().startsWith(&quot;java.&quot;) &amp;&amp; otherFieldClass.getName().startsWith(&quot;java.&quot;)) {</span>
+<span class="fc" id="L483">            return 1;</span>
+        }
+
+<span class="fc" id="L486">        return nameCompare;</span>
+    }
+
+    public void writeEnum(JSONWriter jsonWriter, Enum e) {
+<span class="nc" id="L490">        writeFieldName(jsonWriter);</span>
+<span class="nc" id="L491">        jsonWriter.writeEnum(e);</span>
+<span class="nc" id="L492">    }</span>
+
+    public void writeBinary(JSONWriter jsonWriter, byte[] value) {
+<span class="fc bfc" id="L495" title="All 2 branches covered.">        if (value == null) {</span>
+<span class="fc bfc" id="L496" title="All 2 branches covered.">            if (!jsonWriter.isWriteNulls()) {</span>
+<span class="fc" id="L497">                return;</span>
+            }
+<span class="fc" id="L499">            writeFieldName(jsonWriter);</span>
+<span class="fc" id="L500">            jsonWriter.writeArrayNull();</span>
+<span class="fc" id="L501">            return;</span>
+        }
+
+<span class="fc" id="L504">        writeFieldName(jsonWriter);</span>
+<span class="fc bfc" id="L505" title="All 2 branches covered.">        if ((features &amp; WriteNonStringValueAsString.mask) != 0) {</span>
+<span class="fc" id="L506">            jsonWriter.writeString(value);</span>
+<span class="fc bfc" id="L507" title="All 4 branches covered.">        } else if (&quot;base64&quot;.equals(format)</span>
+<span class="fc bfc" id="L508" title="All 2 branches covered.">                || (format == null &amp;&amp; (jsonWriter.getFeatures(this.features) &amp; WriteByteArrayAsBase64.mask) != 0)</span>
+        ) {
+<span class="fc" id="L510">            jsonWriter.writeBase64(value);</span>
+<span class="fc bfc" id="L511" title="All 2 branches covered.">        } else if (&quot;hex&quot;.equals(format)) {</span>
+<span class="fc" id="L512">            jsonWriter.writeHex(value);</span>
+<span class="pc bpc" id="L513" title="1 of 4 branches missed.">        } else if (&quot;gzip,base64&quot;.equals(format) || &quot;gzip&quot;.equals(format)) {</span>
+<span class="fc" id="L514">            GZIPOutputStream gzipOut = null;</span>
+            try {
+<span class="fc" id="L516">                ByteArrayOutputStream byteOut = new ByteArrayOutputStream();</span>
+<span class="pc bpc" id="L517" title="1 of 2 branches missed.">                if (value.length &lt; 512) {</span>
+<span class="nc" id="L518">                    gzipOut = new GZIPOutputStream(byteOut, value.length);</span>
+                } else {
+<span class="fc" id="L520">                    gzipOut = new GZIPOutputStream(byteOut);</span>
+                }
+<span class="fc" id="L522">                gzipOut.write(value);</span>
+<span class="fc" id="L523">                gzipOut.finish();</span>
+<span class="fc" id="L524">                value = byteOut.toByteArray();</span>
+<span class="nc" id="L525">            } catch (IOException ex) {</span>
+<span class="nc" id="L526">                throw new JSONException(&quot;write gzipBytes error&quot;, ex);</span>
+            } finally {
+<span class="fc" id="L528">                IOUtils.close(gzipOut);</span>
+            }
+
+<span class="fc" id="L531">            jsonWriter.writeBase64(value);</span>
+<span class="fc" id="L532">        } else {</span>
+<span class="fc" id="L533">            jsonWriter.writeBinary(value);</span>
+        }
+<span class="fc" id="L535">    }</span>
+
+    public void writeInt16(JSONWriter jsonWriter, short[] value) {
+<span class="fc bfc" id="L538" title="All 4 branches covered.">        if (value == null &amp;&amp; !jsonWriter.isWriteNulls()) {</span>
+<span class="fc" id="L539">            return;</span>
+        }
+
+<span class="fc" id="L542">        writeFieldName(jsonWriter);</span>
+<span class="fc bfc" id="L543" title="All 2 branches covered.">        if ((features &amp; WriteNonStringValueAsString.mask) != 0) {</span>
+<span class="fc" id="L544">            jsonWriter.writeString(value);</span>
+        } else {
+<span class="fc" id="L546">            jsonWriter.writeInt16(value);</span>
+        }
+<span class="fc" id="L548">    }</span>
+
+    public void writeInt32(JSONWriter jsonWriter, int value) {
+<span class="nc" id="L551">        writeFieldName(jsonWriter);</span>
+<span class="nc" id="L552">        jsonWriter.writeInt32(value);</span>
+<span class="nc" id="L553">    }</span>
+
+    public void writeInt64(JSONWriter jsonWriter, long value) {
+<span class="fc" id="L556">        writeFieldName(jsonWriter);</span>
+<span class="pc bpc" id="L557" title="1 of 2 branches missed.">        if ((features &amp; WriteNonStringValueAsString.mask) != 0) {</span>
+<span class="fc" id="L558">            jsonWriter.writeString(Long.toString(value));</span>
+        } else {
+<span class="nc" id="L560">            jsonWriter.writeInt64(value);</span>
+        }
+<span class="fc" id="L562">    }</span>
+
+    public void writeString(JSONWriter jsonWriter, String value) {
+<span class="fc" id="L565">        writeFieldName(jsonWriter);</span>
+
+<span class="pc bpc" id="L567" title="1 of 4 branches missed.">        if (value == null &amp;&amp; (features &amp; (NullAsDefaultValue.mask | WriteNullStringAsEmpty.mask)) != 0) {</span>
+<span class="nc" id="L568">            jsonWriter.writeString(&quot;&quot;);</span>
+<span class="nc" id="L569">            return;</span>
+        }
+
+<span class="pc bpc" id="L572" title="3 of 4 branches missed.">        if (trim &amp;&amp; value != null) {</span>
+<span class="nc" id="L573">            value = value.trim();</span>
+        }
+
+<span class="pc bpc" id="L576" title="3 of 4 branches missed.">        if (symbol &amp;&amp; jsonWriter.jsonb) {</span>
+<span class="nc" id="L577">            jsonWriter.writeSymbol(value);</span>
+        } else {
+<span class="pc bpc" id="L579" title="1 of 2 branches missed.">            if (raw) {</span>
+<span class="nc" id="L580">                jsonWriter.writeRaw(value);</span>
+            } else {
+<span class="fc" id="L582">                jsonWriter.writeString(value);</span>
+            }
+        }
+<span class="fc" id="L585">    }</span>
+
+    public void writeString(JSONWriter jsonWriter, char[] value) {
+<span class="pc bpc" id="L588" title="1 of 4 branches missed.">        if (value == null &amp;&amp; !jsonWriter.isWriteNulls()) {</span>
+<span class="fc" id="L589">            return;</span>
+        }
+
+<span class="fc" id="L592">        writeFieldName(jsonWriter);</span>
+<span class="pc bpc" id="L593" title="1 of 2 branches missed.">        if (value == null) {</span>
+<span class="fc" id="L594">            jsonWriter.writeStringNull();</span>
+<span class="fc" id="L595">            return;</span>
+        }
+
+<span class="nc" id="L598">        jsonWriter.writeString(value, 0, value.length);</span>
+<span class="nc" id="L599">    }</span>
+
+    public void writeFloat(JSONWriter jsonWriter, float value) {
+<span class="fc" id="L602">        writeFieldName(jsonWriter);</span>
+<span class="fc bfc" id="L603" title="All 2 branches covered.">        if (decimalFormat != null) {</span>
+<span class="fc" id="L604">            jsonWriter.writeFloat(value, decimalFormat);</span>
+        } else {
+<span class="fc bfc" id="L606" title="All 2 branches covered.">            if ((features &amp; WriteNonStringValueAsString.mask) != 0) {</span>
+<span class="fc" id="L607">                jsonWriter.writeString(Float.toString(value));</span>
+            } else {
+<span class="fc" id="L609">                jsonWriter.writeFloat(value);</span>
+            }
+        }
+<span class="fc" id="L612">    }</span>
+
+    public void writeDouble(JSONWriter jsonWriter, double value) {
+<span class="fc" id="L615">        writeFieldName(jsonWriter);</span>
+<span class="fc bfc" id="L616" title="All 2 branches covered.">        if (decimalFormat != null) {</span>
+<span class="fc" id="L617">            jsonWriter.writeDouble(value, decimalFormat);</span>
+        } else {
+<span class="fc bfc" id="L619" title="All 2 branches covered.">            boolean writeNonStringValueAsString = (features &amp; JSONWriter.Feature.WriteNonStringValueAsString.mask) != 0;</span>
+<span class="fc bfc" id="L620" title="All 2 branches covered.">            if (writeNonStringValueAsString) {</span>
+<span class="fc" id="L621">                jsonWriter.writeString(Double.toString(value));</span>
+            } else {
+<span class="fc" id="L623">                jsonWriter.writeDouble(value);</span>
+            }
+        }
+<span class="fc" id="L626">    }</span>
+
+    public void writeBool(JSONWriter jsonWriter, boolean value) {
+<span class="nc" id="L629">        throw new UnsupportedOperationException();</span>
+    }
+
+    public void writeBool(JSONWriter jsonWriter, boolean[] value) {
+<span class="fc bfc" id="L633" title="All 4 branches covered.">        if (value == null &amp;&amp; !jsonWriter.isWriteNulls()) {</span>
+<span class="fc" id="L634">            return;</span>
+        }
+
+<span class="fc" id="L637">        writeFieldName(jsonWriter);</span>
+<span class="fc bfc" id="L638" title="All 2 branches covered.">        if ((features &amp; WriteNonStringValueAsString.mask) != 0) {</span>
+<span class="fc" id="L639">            jsonWriter.writeString(value);</span>
+        } else {
+<span class="fc" id="L641">            jsonWriter.writeBool(value);</span>
+        }
+<span class="fc" id="L643">    }</span>
+
+    public void writeFloat(JSONWriter jsonWriter, float[] value) {
+<span class="fc bfc" id="L646" title="All 4 branches covered.">        if (value == null &amp;&amp; !jsonWriter.isWriteNulls()) {</span>
+<span class="fc" id="L647">            return;</span>
+        }
+
+<span class="fc" id="L650">        writeFieldName(jsonWriter);</span>
+<span class="fc bfc" id="L651" title="All 2 branches covered.">        if ((features &amp; WriteNonStringValueAsString.mask) != 0) {</span>
+<span class="fc" id="L652">            jsonWriter.writeString(value);</span>
+        } else {
+<span class="fc" id="L654">            jsonWriter.writeFloat(value);</span>
+        }
+<span class="fc" id="L656">    }</span>
+
+    public void writeDouble(JSONWriter jsonWriter, double[] value) {
+<span class="fc bfc" id="L659" title="All 4 branches covered.">        if (value == null &amp;&amp; !jsonWriter.isWriteNulls()) {</span>
+<span class="fc" id="L660">            return;</span>
+        }
+
+<span class="fc" id="L663">        writeFieldName(jsonWriter);</span>
+<span class="fc bfc" id="L664" title="All 2 branches covered.">        if ((features &amp; WriteNonStringValueAsString.mask) != 0) {</span>
+<span class="fc" id="L665">            jsonWriter.writeString(value);</span>
+        } else {
+<span class="fc" id="L667">            jsonWriter.writeDouble(value);</span>
+        }
+<span class="fc" id="L669">    }</span>
+
+    public void writeDouble(JSONWriter jsonWriter, Double value) {
+<span class="nc bnc" id="L672" title="All 2 branches missed.">        if (value == null) {</span>
+<span class="nc" id="L673">            long features = jsonWriter.getFeatures(this.features);</span>
+<span class="nc bnc" id="L674" title="All 4 branches missed.">            if ((features &amp; JSONWriter.Feature.WriteNulls.mask) != 0</span>
+                    &amp;&amp; (features &amp; JSONWriter.Feature.NotWriteDefaultValue.mask) == 0
+            ) {
+<span class="nc" id="L677">                writeFieldName(jsonWriter);</span>
+<span class="nc" id="L678">                jsonWriter.writeNumberNull();</span>
+            }
+<span class="nc" id="L680">            return;</span>
+        }
+
+<span class="nc" id="L683">        writeFieldName(jsonWriter);</span>
+<span class="nc" id="L684">        jsonWriter.writeDouble(value);</span>
+<span class="nc" id="L685">    }</span>
+
+    public void writeDate(JSONWriter jsonWriter, boolean writeFieldName, Date value) {
+<span class="pc bpc" id="L688" title="1 of 2 branches missed.">        if (value == null) {</span>
+<span class="nc bnc" id="L689" title="All 2 branches missed.">            if (writeFieldName) {</span>
+<span class="nc" id="L690">                writeFieldName(jsonWriter);</span>
+            }
+
+<span class="nc" id="L693">            jsonWriter.writeNull();</span>
+<span class="nc" id="L694">            return;</span>
+        }
+
+<span class="fc" id="L697">        writeDate(jsonWriter, writeFieldName, value.getTime());</span>
+<span class="fc" id="L698">    }</span>
+
+    public void writeDate(JSONWriter jsonWriter, long millis) {
+<span class="nc" id="L701">        writeDate(jsonWriter, true, millis);</span>
+<span class="nc" id="L702">    }</span>
+
+    public void writeDate(JSONWriter jsonWriter, boolean writeFieldName, long millis) {
+<span class="pc bpc" id="L705" title="1 of 2 branches missed.">        if (jsonWriter.jsonb) {</span>
+<span class="nc" id="L706">            jsonWriter.writeMillis(millis);</span>
+<span class="nc" id="L707">            return;</span>
+        }
+
+<span class="fc" id="L710">        final int SECONDS_PER_DAY = 60 * 60 * 24;</span>
+
+<span class="fc" id="L712">        JSONWriter.Context ctx = jsonWriter.context;</span>
+<span class="fc bfc" id="L713" title="All 4 branches covered.">        if (isDateFormatMillis() || ctx.isDateFormatMillis()) {</span>
+<span class="pc bpc" id="L714" title="1 of 2 branches missed.">            if (writeFieldName) {</span>
+<span class="nc" id="L715">                writeFieldName(jsonWriter);</span>
+            }
+<span class="fc" id="L717">            jsonWriter.writeInt64(millis);</span>
+<span class="fc" id="L718">            return;</span>
+        }
+
+<span class="fc" id="L721">        ZoneId zoneId = ctx.getZoneId();</span>
+
+<span class="fc" id="L723">        String dateFormat = ctx.getDateFormat();</span>
+<span class="pc bpc" id="L724" title="1 of 2 branches missed.">        if (dateFormat == null) {</span>
+<span class="fc" id="L725">            Instant instant = Instant.ofEpochMilli(millis);</span>
+<span class="fc" id="L726">            long epochSecond = instant.getEpochSecond();</span>
+<span class="fc" id="L727">            ZoneOffset offset = zoneId</span>
+<span class="fc" id="L728">                    .getRules()</span>
+<span class="fc" id="L729">                    .getOffset(instant);</span>
+
+<span class="fc" id="L731">            long localSecond = epochSecond + offset.getTotalSeconds();</span>
+<span class="fc" id="L732">            long localEpochDay = Math.floorDiv(localSecond, (long) SECONDS_PER_DAY);</span>
+<span class="fc" id="L733">            int secsOfDay = (int) Math.floorMod(localSecond, (long) SECONDS_PER_DAY);</span>
+            int year, month, dayOfMonth;
+            {
+<span class="fc" id="L736">                final int DAYS_PER_CYCLE = 146097;</span>
+<span class="fc" id="L737">                final long DAYS_0000_TO_1970 = (DAYS_PER_CYCLE * 5L) - (30L * 365L + 7L);</span>
+
+<span class="fc" id="L739">                long zeroDay = localEpochDay + DAYS_0000_TO_1970;</span>
+                // find the march-based year
+<span class="fc" id="L741">                zeroDay -= 60;  // adjust to 0000-03-01 so leap day is at end of four year cycle</span>
+<span class="fc" id="L742">                long adjust = 0;</span>
+<span class="pc bpc" id="L743" title="1 of 2 branches missed.">                if (zeroDay &lt; 0) {</span>
+                    // adjust negative years to positive for calculation
+<span class="nc" id="L745">                    long adjustCycles = (zeroDay + 1) / DAYS_PER_CYCLE - 1;</span>
+<span class="nc" id="L746">                    adjust = adjustCycles * 400;</span>
+<span class="nc" id="L747">                    zeroDay += -adjustCycles * DAYS_PER_CYCLE;</span>
+                }
+<span class="fc" id="L749">                long yearEst = (400 * zeroDay + 591) / DAYS_PER_CYCLE;</span>
+<span class="fc" id="L750">                long doyEst = zeroDay - (365 * yearEst + yearEst / 4 - yearEst / 100 + yearEst / 400);</span>
+<span class="pc bpc" id="L751" title="1 of 2 branches missed.">                if (doyEst &lt; 0) {</span>
+                    // fix estimate
+<span class="nc" id="L753">                    yearEst--;</span>
+<span class="nc" id="L754">                    doyEst = zeroDay - (365 * yearEst + yearEst / 4 - yearEst / 100 + yearEst / 400);</span>
+                }
+<span class="fc" id="L756">                yearEst += adjust;  // reset any negative year</span>
+<span class="fc" id="L757">                int marchDoy0 = (int) doyEst;</span>
+
+                // convert march-based values back to january-based
+<span class="fc" id="L760">                int marchMonth0 = (marchDoy0 * 5 + 2) / 153;</span>
+<span class="fc" id="L761">                month = (marchMonth0 + 2) % 12 + 1;</span>
+<span class="fc" id="L762">                dayOfMonth = marchDoy0 - (marchMonth0 * 306 + 5) / 10 + 1;</span>
+<span class="fc" id="L763">                yearEst += marchMonth0 / 10;</span>
+
+                // check year now we are certain it is correct
+<span class="fc" id="L766">                year = YEAR.checkValidIntValue(yearEst);</span>
+            }
+
+            int hour, minute, second;
+            {
+<span class="fc" id="L771">                final int MINUTES_PER_HOUR = 60;</span>
+<span class="fc" id="L772">                final int SECONDS_PER_MINUTE = 60;</span>
+<span class="fc" id="L773">                final int SECONDS_PER_HOUR = SECONDS_PER_MINUTE * MINUTES_PER_HOUR;</span>
+
+<span class="fc" id="L775">                long secondOfDay = secsOfDay;</span>
+<span class="fc" id="L776">                SECOND_OF_DAY.checkValidValue(secondOfDay);</span>
+<span class="fc" id="L777">                int hours = (int) (secondOfDay / SECONDS_PER_HOUR);</span>
+<span class="fc" id="L778">                secondOfDay -= hours * SECONDS_PER_HOUR;</span>
+<span class="fc" id="L779">                int minutes = (int) (secondOfDay / SECONDS_PER_MINUTE);</span>
+<span class="fc" id="L780">                secondOfDay -= minutes * SECONDS_PER_MINUTE;</span>
+
+<span class="fc" id="L782">                hour = hours;</span>
+<span class="fc" id="L783">                minute = minutes;</span>
+<span class="fc" id="L784">                second = (int) secondOfDay;</span>
+            }
+
+<span class="pc bpc" id="L787" title="1 of 2 branches missed.">            if (writeFieldName) {</span>
+<span class="nc" id="L788">                writeFieldName(jsonWriter);</span>
+            }
+<span class="fc" id="L790">            jsonWriter.writeDateTime19(year, month, dayOfMonth, hour, minute, second);</span>
+<span class="fc" id="L791">        } else {</span>
+<span class="nc" id="L792">            ZonedDateTime zdt = ZonedDateTime</span>
+<span class="nc" id="L793">                    .ofInstant(</span>
+<span class="nc" id="L794">                            Instant.ofEpochMilli(millis), zoneId);</span>
+
+<span class="nc bnc" id="L796" title="All 4 branches missed.">            if (isDateFormatISO8601() || ctx.isDateFormatISO8601()) {</span>
+<span class="nc" id="L797">                int year = zdt.getYear();</span>
+<span class="nc" id="L798">                int month = zdt.getMonthValue();</span>
+<span class="nc" id="L799">                int dayOfMonth = zdt.getDayOfMonth();</span>
+<span class="nc" id="L800">                int hour = zdt.getHour();</span>
+<span class="nc" id="L801">                int minute = zdt.getMinute();</span>
+<span class="nc" id="L802">                int second = zdt.getSecond();</span>
+<span class="nc" id="L803">                int milliSeconds = zdt.getNano() / 1000_000;</span>
+<span class="nc" id="L804">                int offsetSeconds = zdt.getOffset().getTotalSeconds();</span>
+<span class="nc" id="L805">                jsonWriter.writeDateTimeISO8601(year, month, dayOfMonth, hour, minute, second, milliSeconds, offsetSeconds, true);</span>
+<span class="nc" id="L806">                return;</span>
+            }
+
+<span class="nc" id="L809">            String str = ctx.getDateFormatter().format(zdt);</span>
+
+<span class="nc bnc" id="L811" title="All 2 branches missed.">            if (writeFieldName) {</span>
+<span class="nc" id="L812">                writeFieldName(jsonWriter);</span>
+            }
+<span class="nc" id="L814">            jsonWriter.writeString(str);</span>
+        }
+<span class="fc" id="L816">    }</span>
+
+    public ObjectWriter getItemWriter(JSONWriter writer, Type itemType) {
+<span class="nc" id="L819">        return writer</span>
+<span class="nc" id="L820">                .getObjectWriter(itemType, null);</span>
+    }
+
+    public abstract void writeValue(JSONWriter jsonWriter, T object);
+
+    public abstract boolean write(JSONWriter jsonWriter, T o);
+
+    public ObjectWriter getObjectWriter(JSONWriter jsonWriter, Class valueClass) {
+<span class="fc bfc" id="L828" title="All 2 branches covered.">        if (valueClass == Float[].class) {</span>
+<span class="pc bpc" id="L829" title="1 of 2 branches missed.">            if (decimalFormat != null) {</span>
+<span class="fc" id="L830">                return new ObjectWriterArrayFinal(Float.class, decimalFormat);</span>
+            } else {
+<span class="nc" id="L832">                return ObjectWriterArrayFinal.FLOAT_ARRAY;</span>
+            }
+        }
+
+<span class="fc bfc" id="L836" title="All 2 branches covered.">        if (valueClass == Double[].class) {</span>
+<span class="pc bpc" id="L837" title="1 of 2 branches missed.">            if (decimalFormat != null) {</span>
+<span class="fc" id="L838">                return new ObjectWriterArrayFinal(Double.class, decimalFormat);</span>
+            } else {
+<span class="nc" id="L840">                return ObjectWriterArrayFinal.DOUBLE_ARRAY;</span>
+            }
+        }
+
+<span class="fc bfc" id="L844" title="All 2 branches covered.">        if (valueClass == BigDecimal[].class) {</span>
+<span class="pc bpc" id="L845" title="1 of 2 branches missed.">            if (decimalFormat != null) {</span>
+<span class="fc" id="L846">                return new ObjectWriterArrayFinal(BigDecimal.class, decimalFormat);</span>
+            } else {
+<span class="nc" id="L848">                return ObjectWriterArrayFinal.DECIMAL_ARRAY;</span>
+            }
+        }
+
+<span class="fc" id="L852">        return jsonWriter.getObjectWriter(valueClass);</span>
+    }
+
+    public void writeListValueJSONB(JSONWriter jsonWriter, List list) {
+<span class="nc" id="L856">        throw new UnsupportedOperationException();</span>
+    }
+
+    public void writeListValue(JSONWriter jsonWriter, List list) {
+<span class="nc" id="L860">        throw new UnsupportedOperationException();</span>
+    }
+
+    public void writeListJSONB(JSONWriter jsonWriter, List list) {
+<span class="nc" id="L864">        throw new UnsupportedOperationException();</span>
+    }
+
+    public void writeList(JSONWriter jsonWriter, List list) {
+<span class="nc" id="L868">        throw new UnsupportedOperationException();</span>
+    }
+
+    public void writeListStr(JSONWriter jsonWriter, boolean writeFieldName, List&lt;String&gt; list) {
+<span class="nc" id="L872">        throw new UnsupportedOperationException();</span>
+    }
+
+    static ObjectWriter getObjectWriter(
+            Type fieldType,
+            Class fieldClass,
+            String format,
+            Locale locale,
+            Class valueClass
+    ) {
+<span class="fc bfc" id="L882" title="All 2 branches covered.">        if (Map.class.isAssignableFrom(valueClass)) {</span>
+<span class="pc bpc" id="L883" title="1 of 2 branches missed.">            if (fieldClass.isAssignableFrom(valueClass)) {</span>
+<span class="fc" id="L884">                return ObjectWriterImplMap.of(fieldType, format, valueClass);</span>
+            } else {
+<span class="nc" id="L886">                return ObjectWriterImplMap.of(valueClass);</span>
+            }
+        } else {
+<span class="fc bfc" id="L889" title="All 2 branches covered.">            if (Calendar.class.isAssignableFrom(valueClass)) {</span>
+<span class="pc bpc" id="L890" title="1 of 4 branches missed.">                if (format == null || format.isEmpty()) {</span>
+<span class="fc" id="L891">                    return ObjectWriterImplCalendar.INSTANCE;</span>
+                }
+<span class="fc" id="L893">                return new ObjectWriterImplCalendar(format, locale);</span>
+            }
+
+<span class="fc bfc" id="L896" title="All 2 branches covered.">            if (ZonedDateTime.class.isAssignableFrom(valueClass)) {</span>
+<span class="pc bpc" id="L897" title="2 of 4 branches missed.">                if (format == null || format.isEmpty()) {</span>
+<span class="nc" id="L898">                    return ObjectWriterImplZonedDateTime.INSTANCE;</span>
+                } else {
+<span class="fc" id="L900">                    return new ObjectWriterImplZonedDateTime(format, locale);</span>
+                }
+            }
+
+<span class="fc bfc" id="L904" title="All 2 branches covered.">            if (OffsetDateTime.class.isAssignableFrom(valueClass)) {</span>
+<span class="pc bpc" id="L905" title="2 of 4 branches missed.">                if (format == null || format.isEmpty()) {</span>
+<span class="nc" id="L906">                    return ObjectWriterImplOffsetDateTime.INSTANCE;</span>
+                } else {
+<span class="fc" id="L908">                    return ObjectWriterImplOffsetDateTime.of(format, locale);</span>
+                }
+            }
+
+<span class="fc bfc" id="L912" title="All 2 branches covered.">            if (LocalDateTime.class.isAssignableFrom(valueClass)) {</span>
+<span class="fc" id="L913">                ObjectWriter objectWriter = JSONFactory.getDefaultObjectWriterProvider().getObjectWriter(LocalDateTime.class);</span>
+<span class="pc bpc" id="L914" title="2 of 4 branches missed.">                if (objectWriter != null &amp;&amp; objectWriter != ObjectWriterImplLocalDateTime.INSTANCE) {</span>
+<span class="nc" id="L915">                    return objectWriter;</span>
+                }
+
+<span class="pc bpc" id="L918" title="1 of 4 branches missed.">                if (format == null || format.isEmpty()) {</span>
+<span class="fc" id="L919">                    return ObjectWriterImplLocalDateTime.INSTANCE;</span>
+                } else {
+<span class="fc" id="L921">                    return new ObjectWriterImplLocalDateTime(format, locale);</span>
+                }
+            }
+
+<span class="fc bfc" id="L925" title="All 2 branches covered.">            if (LocalDate.class.isAssignableFrom(valueClass)) {</span>
+<span class="fc" id="L926">                ObjectWriter objectWriter = JSONFactory.getDefaultObjectWriterProvider().getObjectWriter(LocalDate.class);</span>
+<span class="pc bpc" id="L927" title="2 of 4 branches missed.">                if (objectWriter != null &amp;&amp; objectWriter != ObjectWriterImplLocalDate.INSTANCE) {</span>
+<span class="nc" id="L928">                    return objectWriter;</span>
+                }
+
+<span class="fc" id="L931">                return ObjectWriterImplLocalDate.of(format, locale);</span>
+            }
+
+<span class="fc bfc" id="L934" title="All 2 branches covered.">            if (LocalTime.class.isAssignableFrom(valueClass)) {</span>
+<span class="fc" id="L935">                ObjectWriter objectWriter = JSONFactory.getDefaultObjectWriterProvider().getObjectWriter(LocalTime.class);</span>
+<span class="pc bpc" id="L936" title="2 of 4 branches missed.">                if (objectWriter != null &amp;&amp; objectWriter != ObjectWriterImplLocalTime.INSTANCE) {</span>
+<span class="nc" id="L937">                    return objectWriter;</span>
+                }
+
+<span class="pc bpc" id="L940" title="1 of 4 branches missed.">                if (format == null || format.isEmpty()) {</span>
+<span class="fc" id="L941">                    return ObjectWriterImplLocalTime.INSTANCE;</span>
+                } else {
+<span class="fc" id="L943">                    return new ObjectWriterImplLocalTime(format, locale);</span>
+                }
+            }
+
+<span class="fc bfc" id="L947" title="All 2 branches covered.">            if (Instant.class == valueClass) {</span>
+<span class="pc bpc" id="L948" title="2 of 4 branches missed.">                if (format == null || format.isEmpty()) {</span>
+<span class="nc" id="L949">                    return ObjectWriterImplInstant.INSTANCE;</span>
+                } else {
+<span class="fc" id="L951">                    return new ObjectWriterImplInstant(format, locale);</span>
+                }
+            }
+
+<span class="fc bfc" id="L955" title="All 2 branches covered.">            if (BigDecimal.class == valueClass) {</span>
+<span class="pc bpc" id="L956" title="2 of 4 branches missed.">                if (format == null || format.isEmpty()) {</span>
+<span class="nc" id="L957">                    return ObjectWriterImplBigDecimal.INSTANCE;</span>
+                } else {
+<span class="fc" id="L959">                    return new ObjectWriterImplBigDecimal(new DecimalFormat(format), null);</span>
+                }
+            }
+
+<span class="fc bfc" id="L963" title="All 2 branches covered.">            if (BigDecimal[].class == valueClass) {</span>
+<span class="pc bpc" id="L964" title="2 of 4 branches missed.">                if (format == null || format.isEmpty()) {</span>
+<span class="nc" id="L965">                    return new ObjectWriterArrayFinal(BigDecimal.class, null);</span>
+                } else {
+<span class="fc" id="L967">                    return new ObjectWriterArrayFinal(BigDecimal.class, new DecimalFormat(format));</span>
+                }
+            }
+
+<span class="fc bfc" id="L971" title="All 2 branches covered.">            if (Optional.class == valueClass) {</span>
+<span class="fc" id="L972">                return ObjectWriterImplOptional.of(format, locale);</span>
+            }
+
+<span class="fc" id="L975">            String className = valueClass.getName();</span>
+<span class="fc bfc" id="L976" title="All 6 branches covered.">            switch (className) {</span>
+                case &quot;java.sql.Time&quot;:
+<span class="fc" id="L978">                    return JdbcSupport.createTimeWriter(format);</span>
+                case &quot;java.sql.Date&quot;:
+<span class="fc" id="L980">                    return new ObjectWriterImplDate(format, locale);</span>
+                case &quot;java.sql.Timestamp&quot;:
+<span class="fc" id="L982">                    return JdbcSupport.createTimestampWriter(valueClass, format);</span>
+                case &quot;org.joda.time.LocalDate&quot;:
+<span class="fc" id="L984">                    return JodaSupport.createLocalDateWriter(valueClass, format);</span>
+                case &quot;org.joda.time.LocalDateTime&quot;:
+<span class="fc" id="L986">                    return JodaSupport.createLocalDateTimeWriter(valueClass, format);</span>
+                default:
+                    break;
+            }
+        }
+
+<span class="fc" id="L992">        return null;</span>
+    }
+
+    public Function getFunction() {
+<span class="fc" id="L996">        return null;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.8.202204050719</span></div></body></html>

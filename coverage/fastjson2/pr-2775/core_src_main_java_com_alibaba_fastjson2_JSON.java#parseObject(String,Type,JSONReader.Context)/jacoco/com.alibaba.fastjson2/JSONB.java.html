@@ -1,0 +1,1447 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>JSONB.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">fastjson2</a> &gt; <a href="index.source.html" class="el_package">com.alibaba.fastjson2</a> &gt; <span class="el_source">JSONB.java</span></div><h1>JSONB.java</h1><pre class="source lang-java linenums">package com.alibaba.fastjson2;
+
+import com.alibaba.fastjson2.filter.Filter;
+import com.alibaba.fastjson2.reader.ObjectReader;
+import com.alibaba.fastjson2.reader.ObjectReaderBean;
+import com.alibaba.fastjson2.reader.ObjectReaderProvider;
+import com.alibaba.fastjson2.util.*;
+import com.alibaba.fastjson2.writer.ObjectWriter;
+
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.lang.reflect.Type;
+import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
+import java.util.List;
+
+import static com.alibaba.fastjson2.JSONB.Constants.*;
+import static com.alibaba.fastjson2.JSONFactory.*;
+import static com.alibaba.fastjson2.util.JDKUtils.*;
+
+/**
+ * x90          # type_char int
+ * x91          # binary len_int32 bytes
+ * x92          # type [str] symbol_int32 jsonb
+ * x93          # reference
+ * &lt;p&gt;
+ * x94 - xa3    # array_0 - array_15
+ * xa4          # array len_int32 item*
+ * &lt;p&gt;
+ * xa5          # object_end
+ * xa6          # object_start
+ * &lt;p&gt;
+ * xa7          # local time b0 b1 b2
+ * xa8          # local datetime b0 b1 b2 b3 b4 b5 b6
+ * xa9          # local date b0 b1 b2 b3
+ * xab          # timestamp millis b0 b1 b2 b3 b4 b5 b6 b7
+ * xac          # timestamp seconds b0 b1 b2 b3
+ * xad          # timestamp minutes b0 b1 b2 b3
+ * xae          # timestamp b0 b1 b2 b3 b4 b5 b6 b7 nano_int32
+ * &lt;p&gt;
+ * xaf          # null
+ * xb0          # boolean false
+ * xb1          # boolean true
+ * xb2          # double 0
+ * xb3          # double 1
+ * xb4          # double_long
+ * xb5          # double
+ * xb6          # float_int
+ * xb7          # float
+ * xb8          # decimal_long
+ * xb9          # decimal
+ * xba          # bigint_long
+ * xbb          # bigint
+ * xbc          # short
+ * xbd          # byte
+ * xbe          # long
+ * xbf          # long encoded as 32-bit int
+ * xc0 - xc7    # three-octet compact long (-x40000 to x3ffff)
+ * xc8 - xd7    # two-octet compact long (-x800 to x7ff, xd0 is 0)
+ * xd8 - xef    # one-octet compact long (-x8 to xf, xe0 is 0)
+ * &lt;p&gt;
+ * xf0 - xff    # one-octet compact int
+ * x00 - x2f    # one-octet compact int
+ * &lt;p&gt;
+ * x30 - x3f    # two-octet compact int (-x800 to x7ff)
+ * x40 - x47    # three-octet compact int (-x40000 to x3ffff)
+ * x48          # 32-bit signed integer ('I')
+ * &lt;p&gt;
+ * x49 - x78    # ascii string length 0-47
+ * x79          # ascii-8 string variable-length
+ * x7a          # utf-8 string variable-length
+ * x7b          # utf-16 string variable-length
+ * x7c          # utf-16LE string variable-length
+ * x7d          # utf-16BE string variable-length
+ * x7e          # gb18030 string variable-length
+ * x7f          # symbol
+ */
+public interface JSONB {
+    static void dump(byte[] jsonbBytes) {
+<span class="fc" id="L81">        System.out.println(</span>
+<span class="fc" id="L82">                JSONB.toJSONString(jsonbBytes, true)</span>
+        );
+<span class="fc" id="L84">    }</span>
+
+    static void dump(byte[] jsonbBytes, SymbolTable symbolTable) {
+<span class="fc" id="L87">        JSONBDump dump = new JSONBDump(jsonbBytes, symbolTable, true);</span>
+<span class="fc" id="L88">        String str = dump.toString();</span>
+<span class="fc" id="L89">        System.out.println(str);</span>
+<span class="fc" id="L90">    }</span>
+
+    interface Constants {
+        byte BC_CHAR = -112;                    // 0x90
+        byte BC_BINARY = -111;                  // 0x91
+        byte BC_TYPED_ANY = -110;               // 0x92
+        byte BC_REFERENCE = -109;               // 0x93
+
+        int ARRAY_FIX_LEN = 15;
+        byte BC_ARRAY_FIX_0 = -108;             // 0x94
+        byte BC_ARRAY_FIX_MIN = BC_ARRAY_FIX_0;
+        byte BC_ARRAY_FIX_MAX = BC_ARRAY_FIX_MIN + ARRAY_FIX_LEN; // -105
+        byte BC_ARRAY = -92;                    // 0xa4 len_int32 item*
+
+        byte BC_OBJECT_END = -91;               // 0xa5
+        byte BC_OBJECT = -90;                   // 0xa6
+
+        byte BC_LOCAL_TIME = -89;               // 0xa7 b0 b1 b2 nano_int32
+        byte BC_LOCAL_DATETIME = -88;           // 0xa8 b0 b1 b2 b3 b4 b5 b6 nano_int32
+        byte BC_LOCAL_DATE = -87;               // 0xa9 b0 b1 b2 b3
+        byte BC_TIMESTAMP_WITH_TIMEZONE = -86;  // 0xaa b0 b1 b2 b3 b4 b5 b6 b7 str_zone
+        byte BC_TIMESTAMP_MILLIS = -85;         // 0xab b0 b1 b2 b3 b4 b5 b6 b7
+        byte BC_TIMESTAMP_SECONDS = -84;        // 0xac b0 b1 b2 b3
+        byte BC_TIMESTAMP_MINUTES = -83;        // 0xad b0 b1 b2 b3
+        byte BC_TIMESTAMP = -82;                // 0xae millis_8 + nano_int32
+
+        byte BC_NULL = -81;             // 0xaf
+        byte BC_FALSE = -80;            // 0xb0
+        byte BC_TRUE = -79;             // 0xb1
+        byte BC_DOUBLE_NUM_0 = -78;     // 0xb2
+        byte BC_DOUBLE_NUM_1 = -77;     // 0xb3
+        byte BC_DOUBLE_LONG = -76;      // 0xb4
+        byte BC_DOUBLE = -75;           // 0xb5
+        byte BC_FLOAT_INT = -74;        // 0xb6
+        byte BC_FLOAT = -73;            // 0xb7
+        byte BC_DECIMAL_LONG = -72;     // 0xb8
+        byte BC_DECIMAL = -71;          // 0xb9
+        byte BC_BIGINT_LONG = -70;      // 0xba
+        byte BC_BIGINT = -69;           // 0xbb
+        byte BC_INT16 = -68;            // 0xbc b0 b1
+        byte BC_INT8 = -67;             // 0xbd b0
+        byte BC_INT64 = -66;            // 0xbe b0 b1 b2 b3 b4 b5 b6 b7
+        byte BC_INT64_INT = -65;        // 0xbf b0 b1 b2 b3
+
+        int INT64_SHORT_MIN = -0x40000; // -262144
+        int INT64_SHORT_MAX = 0x3ffff;  // 262143
+
+        int INT64_BYTE_MIN = -0x800;    // -2048
+        int INT64_BYTE_MAX = 0x7ff;     // 2047
+
+        byte BC_INT64_SHORT_MIN = -64;  // 0xc0
+        byte BC_INT64_SHORT_ZERO = -60; //
+        byte BC_INT64_SHORT_MAX = -57;  // 0xc7
+
+        byte BC_INT64_BYTE_MIN = -56;   // 0xc8
+        byte BC_INT64_BYTE_ZERO = -48;
+        byte BC_INT64_BYTE_MAX = -41;   // 0xd7
+
+        byte BC_INT64_NUM_MIN = -40;    // 0xd8 -8
+        byte BC_INT64_NUM_MAX = -17;    // 0xef 15
+
+        int INT64_NUM_LOW_VALUE = -8;  // -8
+        int INT64_NUM_HIGH_VALUE = 15; // 15
+
+        byte BC_INT32_NUM_0 = 0;
+        byte BC_INT32_NUM_1 = 1;
+        byte BC_INT32_NUM_16 = 16;
+
+        byte BC_INT32_NUM_MIN = -16; // 0xf0
+        byte BC_INT32_NUM_MAX = 47;  // 0x2f
+
+        byte BC_INT32_BYTE_MIN = 48;    // 0x30
+        byte BC_INT32_BYTE_ZERO = 56;
+        byte BC_INT32_BYTE_MAX = 63;
+
+        byte BC_INT32_SHORT_MIN = 64; // 0x40
+        byte BC_INT32_SHORT_ZERO = 68;
+        byte BC_INT32_SHORT_MAX = 71; // 0x47
+        byte BC_INT32 = 72; // 0x48
+
+        int INT32_BYTE_MIN = -0x800; // -2048
+        int INT32_BYTE_MAX = 0x7ff;  // 2047
+
+        int INT32_SHORT_MIN = -0x40000; // -262144
+        int INT32_SHORT_MAX = 0x3ffff;  // 262143
+
+        byte BC_STR_ASCII_FIX_0 = 73;
+        byte BC_STR_ASCII_FIX_1 = 74;
+        byte BC_STR_ASCII_FIX_4 = 77;
+        byte BC_STR_ASCII_FIX_5 = 78;
+
+        byte BC_STR_ASCII_FIX_32 = 105;
+        byte BC_STR_ASCII_FIX_36 = 109;
+
+        int STR_ASCII_FIX_LEN = 47;
+
+        byte BC_STR_ASCII_FIX_MIN = 73; // 0x49
+        byte BC_STR_ASCII_FIX_MAX = BC_STR_ASCII_FIX_MIN + STR_ASCII_FIX_LEN; // 120 0x78
+        byte BC_STR_ASCII = 121;
+        byte BC_STR_UTF8 = 122;
+        byte BC_STR_UTF16 = 123;
+        byte BC_STR_UTF16LE = 124;
+        byte BC_STR_UTF16BE = 125;
+        byte BC_STR_GB18030 = 126;
+        byte BC_SYMBOL = 127;
+    }
+
+    static byte[] toBytes(boolean v) {
+<span class="fc bfc" id="L198" title="All 2 branches covered.">        return new byte[]{v ? BC_TRUE : BC_FALSE};</span>
+    }
+
+    static byte[] toBytes(int i) {
+<span class="fc bfc" id="L202" title="All 4 branches covered.">        if (i &gt;= BC_INT32_NUM_MIN &amp;&amp; i &lt;= BC_INT32_NUM_MAX) {</span>
+<span class="fc" id="L203">            return new byte[]{(byte) i};</span>
+        }
+
+<span class="fc" id="L206">        try (JSONWriter jsonWriter = JSONWriter.ofJSONB()) {</span>
+<span class="fc" id="L207">            jsonWriter.writeInt32(i);</span>
+<span class="fc" id="L208">            return jsonWriter.getBytes();</span>
+        }
+    }
+
+    static byte[] toBytes(byte i) {
+<span class="fc" id="L213">        try (JSONWriter jsonWriter = JSONWriter.ofJSONB()) {</span>
+<span class="fc" id="L214">            jsonWriter.writeInt8(i);</span>
+<span class="fc" id="L215">            return jsonWriter.getBytes();</span>
+        }
+    }
+
+    static byte[] toBytes(short i) {
+<span class="fc" id="L220">        try (JSONWriter jsonWriter = JSONWriter.ofJSONB()) {</span>
+<span class="fc" id="L221">            jsonWriter.writeInt16(i);</span>
+<span class="fc" id="L222">            return jsonWriter.getBytes();</span>
+        }
+    }
+
+    static byte[] toBytes(long i) {
+<span class="fc bfc" id="L227" title="All 4 branches covered.">        if (i &gt;= INT64_NUM_LOW_VALUE &amp;&amp; i &lt;= INT64_NUM_HIGH_VALUE) {</span>
+<span class="fc" id="L228">            return new byte[]{</span>
+                    (byte) (BC_INT64_NUM_MIN + (i - INT64_NUM_LOW_VALUE))
+            };
+        }
+
+<span class="fc" id="L233">        try (JSONWriter jsonWriter = JSONWriter.ofJSONB()) {</span>
+<span class="fc" id="L234">            jsonWriter.writeInt64(i);</span>
+<span class="fc" id="L235">            return jsonWriter.getBytes();</span>
+        }
+    }
+
+    static int writeInt(byte[] bytes, int off, int i) {
+<span class="pc bpc" id="L240" title="1 of 4 branches missed.">        if (i &gt;= BC_INT32_NUM_MIN &amp;&amp; i &lt;= BC_INT32_NUM_MAX) {</span>
+<span class="fc" id="L241">            bytes[off] = (byte) i;</span>
+<span class="fc" id="L242">            return 1;</span>
+        }
+
+<span class="pc bpc" id="L245" title="1 of 4 branches missed.">        if (i &gt;= INT32_BYTE_MIN &amp;&amp; i &lt;= INT32_BYTE_MAX) {</span>
+<span class="fc" id="L246">            bytes[off] = (byte) (BC_INT32_BYTE_ZERO + (i &gt;&gt; 8));</span>
+<span class="fc" id="L247">            bytes[off + 1] = (byte) i;</span>
+<span class="fc" id="L248">            return 2;</span>
+        }
+
+<span class="pc bpc" id="L251" title="1 of 4 branches missed.">        if (i &gt;= INT32_SHORT_MIN &amp;&amp; i &lt;= INT32_SHORT_MAX) {</span>
+<span class="fc" id="L252">            bytes[off] = (byte) (BC_INT32_SHORT_ZERO + (i &gt;&gt; 16));</span>
+<span class="fc" id="L253">            bytes[off + 1] = (byte) (i &gt;&gt; 8);</span>
+<span class="fc" id="L254">            bytes[off + 2] = (byte) i;</span>
+<span class="fc" id="L255">            return 3;</span>
+        }
+
+<span class="fc" id="L258">        bytes[off] = BC_INT32;</span>
+<span class="fc" id="L259">        bytes[off + 1] = (byte) (i &gt;&gt;&gt; 24);</span>
+<span class="fc" id="L260">        bytes[off + 2] = (byte) (i &gt;&gt;&gt; 16);</span>
+<span class="fc" id="L261">        bytes[off + 3] = (byte) (i &gt;&gt;&gt; 8);</span>
+<span class="fc" id="L262">        bytes[off + 4] = (byte) i;</span>
+<span class="fc" id="L263">        return 5;</span>
+    }
+
+    /**
+     * @since 2.0.46
+     * @param jsonbBytes
+     * @param context
+     * @return
+     */
+    static Object parse(byte[] jsonbBytes, JSONReader.Context context) {
+<span class="fc" id="L273">        try (JSONReaderJSONB reader = new JSONReaderJSONB(</span>
+                context,
+                jsonbBytes,
+                0,
+                jsonbBytes.length)
+        ) {
+<span class="fc" id="L279">            Object object = reader.readAnyObject();</span>
+<span class="pc bpc" id="L280" title="1 of 2 branches missed.">            if (reader.resolveTasks != null) {</span>
+<span class="nc" id="L281">                reader.handleResolveTasks(object);</span>
+            }
+<span class="fc" id="L283">            return object;</span>
+        }
+    }
+
+    static Object parse(byte[] jsonbBytes, JSONReader.Feature... features) {
+<span class="fc" id="L288">        try (JSONReaderJSONB reader = new JSONReaderJSONB(</span>
+<span class="fc" id="L289">                new JSONReader.Context(getDefaultObjectReaderProvider(), features),</span>
+                jsonbBytes,
+                0,
+                jsonbBytes.length)
+        ) {
+<span class="fc" id="L294">            Object object = reader.readAnyObject();</span>
+<span class="fc bfc" id="L295" title="All 2 branches covered.">            if (reader.resolveTasks != null) {</span>
+<span class="fc" id="L296">                reader.handleResolveTasks(object);</span>
+            }
+<span class="fc" id="L298">            return object;</span>
+        }
+    }
+
+    static Object parse(InputStream in, JSONReader.Context context) {
+<span class="fc" id="L303">        try (JSONReaderJSONB reader = new JSONReaderJSONB(context, in)) {</span>
+<span class="fc" id="L304">            Object object = reader.readAny();</span>
+<span class="pc bpc" id="L305" title="1 of 2 branches missed.">            if (reader.resolveTasks != null) {</span>
+<span class="nc" id="L306">                reader.handleResolveTasks(object);</span>
+            }
+<span class="fc" id="L308">            return object;</span>
+        }
+    }
+
+    static Object parse(byte[] jsonbBytes, SymbolTable symbolTable, JSONReader.Feature... features) {
+<span class="fc" id="L313">        try (JSONReaderJSONB reader = new JSONReaderJSONB(</span>
+<span class="fc" id="L314">                new JSONReader.Context(getDefaultObjectReaderProvider(), symbolTable, features),</span>
+                jsonbBytes,
+                0,
+                jsonbBytes.length)
+        ) {
+<span class="fc" id="L319">            Object object = reader.readAnyObject();</span>
+<span class="pc bpc" id="L320" title="1 of 2 branches missed.">            if (reader.resolveTasks != null) {</span>
+<span class="nc" id="L321">                reader.handleResolveTasks(object);</span>
+            }
+<span class="fc" id="L323">            return object;</span>
+        }
+    }
+
+    static JSONObject parseObject(byte[] jsonbBytes) {
+<span class="fc" id="L328">        try (JSONReaderJSONB reader = new JSONReaderJSONB(</span>
+<span class="fc" id="L329">                new JSONReader.Context(JSONFactory.getDefaultObjectReaderProvider()),</span>
+                jsonbBytes,
+                0,
+                jsonbBytes.length)
+        ) {
+<span class="fc" id="L334">            JSONObject object = (JSONObject) reader.readObject();</span>
+<span class="fc bfc" id="L335" title="All 2 branches covered.">            if (reader.resolveTasks != null) {</span>
+<span class="fc" id="L336">                reader.handleResolveTasks(object);</span>
+            }
+<span class="fc" id="L338">            return object;</span>
+        }
+    }
+
+    static JSONObject parseObject(byte[] jsonbBytes, JSONReader.Feature... features) {
+<span class="fc" id="L343">        try (JSONReaderJSONB reader = new JSONReaderJSONB(</span>
+<span class="fc" id="L344">                new JSONReader.Context(JSONFactory.getDefaultObjectReaderProvider(), features),</span>
+                jsonbBytes,
+                0,
+                jsonbBytes.length)
+        ) {
+<span class="fc" id="L349">            JSONObject object = (JSONObject) reader.readObject();</span>
+<span class="pc bpc" id="L350" title="1 of 2 branches missed.">            if (reader.resolveTasks != null) {</span>
+<span class="nc" id="L351">                reader.handleResolveTasks(object);</span>
+            }
+<span class="fc" id="L353">            return object;</span>
+        }
+    }
+
+    static JSONObject parseObject(InputStream in, JSONReader.Context context) {
+<span class="fc" id="L358">        try (JSONReaderJSONB reader = new JSONReaderJSONB(context, in)) {</span>
+<span class="fc" id="L359">            JSONObject object = (JSONObject) reader.readObject();</span>
+<span class="pc bpc" id="L360" title="1 of 2 branches missed.">            if (reader.resolveTasks != null) {</span>
+<span class="nc" id="L361">                reader.handleResolveTasks(object);</span>
+            }
+<span class="fc" id="L363">            return object;</span>
+        }
+    }
+
+    static JSONArray parseArray(byte[] jsonbBytes) {
+<span class="fc" id="L368">        try (JSONReaderJSONB reader = new JSONReaderJSONB(</span>
+<span class="fc" id="L369">                new JSONReader.Context(JSONFactory.getDefaultObjectReaderProvider()),</span>
+                jsonbBytes,
+                0,
+                jsonbBytes.length)
+        ) {
+<span class="fc" id="L374">            JSONArray array = (JSONArray) reader.readArray();</span>
+<span class="pc bpc" id="L375" title="1 of 2 branches missed.">            if (reader.resolveTasks != null) {</span>
+<span class="nc" id="L376">                reader.handleResolveTasks(array);</span>
+            }
+<span class="fc" id="L378">            return array;</span>
+        }
+    }
+
+    static JSONArray parseArray(InputStream in, JSONReader.Context context) {
+<span class="fc" id="L383">        try (JSONReaderJSONB reader = new JSONReaderJSONB(context, in)) {</span>
+<span class="fc" id="L384">            JSONArray array = (JSONArray) reader.readArray();</span>
+<span class="pc bpc" id="L385" title="1 of 2 branches missed.">            if (reader.resolveTasks != null) {</span>
+<span class="nc" id="L386">                reader.handleResolveTasks(array);</span>
+            }
+<span class="fc" id="L388">            return array;</span>
+        }
+    }
+
+    static &lt;T&gt; List&lt;T&gt; parseArray(byte[] jsonbBytes, Type type) {
+<span class="pc bpc" id="L393" title="2 of 4 branches missed.">        if (jsonbBytes == null || jsonbBytes.length == 0) {</span>
+<span class="nc" id="L394">            return null;</span>
+        }
+
+<span class="fc" id="L397">        Type paramType = new ParameterizedTypeImpl(</span>
+                new Type[]{type}, null, List.class
+        );
+
+<span class="fc" id="L401">        try (JSONReaderJSONB reader = new JSONReaderJSONB(</span>
+<span class="fc" id="L402">                new JSONReader.Context(JSONFactory.getDefaultObjectReaderProvider()),</span>
+                jsonbBytes,
+                0,
+                jsonbBytes.length)
+        ) {
+<span class="fc" id="L407">            List&lt;T&gt; list = reader.read(paramType);</span>
+<span class="pc bpc" id="L408" title="1 of 2 branches missed.">            if (reader.resolveTasks != null) {</span>
+<span class="fc" id="L409">                reader.handleResolveTasks(list);</span>
+            }
+<span class="fc" id="L411">            return list;</span>
+        }
+    }
+
+    static &lt;T&gt; List&lt;T&gt; parseArray(byte[] jsonbBytes, Type type, JSONReader.Feature... features) {
+<span class="fc bfc" id="L416" title="All 4 branches covered.">        if (jsonbBytes == null || jsonbBytes.length == 0) {</span>
+<span class="fc" id="L417">            return null;</span>
+        }
+
+<span class="fc" id="L420">        Type paramType = new ParameterizedTypeImpl(</span>
+                new Type[]{type}, null, List.class
+        );
+
+<span class="fc" id="L424">        try (JSONReaderJSONB reader = new JSONReaderJSONB(</span>
+<span class="fc" id="L425">                new JSONReader.Context(JSONFactory.getDefaultObjectReaderProvider(), features),</span>
+                jsonbBytes,
+                0,
+                jsonbBytes.length)
+        ) {
+<span class="fc" id="L430">            List&lt;T&gt; list = reader.read(paramType);</span>
+<span class="pc bpc" id="L431" title="1 of 2 branches missed.">            if (reader.resolveTasks != null) {</span>
+<span class="nc" id="L432">                reader.handleResolveTasks(list);</span>
+            }
+<span class="fc" id="L434">            return list;</span>
+        }
+    }
+
+    static &lt;T&gt; List&lt;T&gt; parseArray(byte[] jsonbBytes, Type... types) {
+<span class="pc bpc" id="L439" title="2 of 4 branches missed.">        if (jsonbBytes == null || jsonbBytes.length == 0) {</span>
+<span class="nc" id="L440">            return null;</span>
+        }
+
+<span class="fc" id="L443">        try (JSONReaderJSONB reader = new JSONReaderJSONB(</span>
+<span class="fc" id="L444">                new JSONReader.Context(JSONFactory.getDefaultObjectReaderProvider()),</span>
+                jsonbBytes,
+                0,
+                jsonbBytes.length)
+        ) {
+<span class="fc" id="L449">            List&lt;T&gt; list = reader.readList(types);</span>
+<span class="pc bpc" id="L450" title="1 of 2 branches missed.">            if (reader.resolveTasks != null) {</span>
+<span class="nc" id="L451">                reader.handleResolveTasks(list);</span>
+            }
+<span class="fc" id="L453">            return list;</span>
+        }
+    }
+
+    static &lt;T&gt; List&lt;T&gt; parseArray(byte[] jsonbBytes, Type[] types, JSONReader.Feature... features) {
+<span class="pc bpc" id="L458" title="2 of 4 branches missed.">        if (jsonbBytes == null || jsonbBytes.length == 0) {</span>
+<span class="nc" id="L459">            return null;</span>
+        }
+
+<span class="fc" id="L462">        try (JSONReaderJSONB reader = new JSONReaderJSONB(</span>
+<span class="fc" id="L463">                new JSONReader.Context(JSONFactory.getDefaultObjectReaderProvider(), features),</span>
+                jsonbBytes,
+                0, jsonbBytes.length)
+        ) {
+<span class="fc" id="L467">            List&lt;T&gt; list = reader.readList(types);</span>
+<span class="pc bpc" id="L468" title="1 of 2 branches missed.">            if (reader.resolveTasks != null) {</span>
+<span class="nc" id="L469">                reader.handleResolveTasks(list);</span>
+            }
+<span class="fc" id="L471">            return list;</span>
+        }
+    }
+
+    static &lt;T&gt; T parseObject(byte[] jsonbBytes, Class&lt;T&gt; objectClass) {
+<span class="fc" id="L476">        ObjectReaderProvider provider = JSONFactory.getDefaultObjectReaderProvider();</span>
+<span class="fc" id="L477">        try (JSONReaderJSONB jsonReader = new JSONReaderJSONB(</span>
+                new JSONReader.Context(provider),
+                jsonbBytes,
+                0,
+                jsonbBytes.length)
+        ) {
+            Object object;
+<span class="fc bfc" id="L484" title="All 2 branches covered.">            if (objectClass == Object.class) {</span>
+<span class="fc" id="L485">                object = jsonReader.readAny();</span>
+            } else {
+<span class="pc bpc" id="L487" title="1 of 2 branches missed.">                ObjectReader objectReader = provider.getObjectReader(</span>
+                        objectClass,
+                        (defaultReaderFeatures &amp; JSONReader.Feature.FieldBased.mask) != 0
+                );
+<span class="fc" id="L491">                object = objectReader.readJSONBObject(jsonReader, objectClass, null, 0);</span>
+            }
+
+<span class="fc bfc" id="L494" title="All 2 branches covered.">            if (jsonReader.resolveTasks != null) {</span>
+<span class="fc" id="L495">                jsonReader.handleResolveTasks(object);</span>
+            }
+<span class="fc" id="L497">            return (T) object;</span>
+        }
+    }
+
+    static &lt;T&gt; T parseObject(byte[] jsonbBytes, Type objectType) {
+<span class="fc" id="L502">        ObjectReaderProvider provider = JSONFactory.getDefaultObjectReaderProvider();</span>
+<span class="fc" id="L503">        ObjectReader objectReader = provider.getObjectReader(objectType);</span>
+
+<span class="fc" id="L505">        try (JSONReaderJSONB jsonReader = new JSONReaderJSONB(</span>
+                new JSONReader.Context(provider),
+                jsonbBytes,
+                0,
+                jsonbBytes.length)
+        ) {
+<span class="fc" id="L511">            T object = (T) objectReader.readJSONBObject(jsonReader, objectType, null, 0);</span>
+<span class="fc bfc" id="L512" title="All 2 branches covered.">            if (jsonReader.resolveTasks != null) {</span>
+<span class="fc" id="L513">                jsonReader.handleResolveTasks(object);</span>
+            }
+<span class="fc" id="L515">            return object;</span>
+        }
+    }
+
+    static &lt;T&gt; T parseObject(byte[] jsonbBytes, Type... types) {
+<span class="fc" id="L520">        return parseObject(jsonbBytes, new MultiType(types));</span>
+    }
+
+    static &lt;T&gt; T parseObject(byte[] jsonbBytes, Type objectType, SymbolTable symbolTable) {
+<span class="fc" id="L524">        ObjectReaderProvider provider = JSONFactory.getDefaultObjectReaderProvider();</span>
+<span class="fc" id="L525">        ObjectReader objectReader = provider.getObjectReader(objectType);</span>
+
+<span class="fc" id="L527">        try (JSONReaderJSONB reader = new JSONReaderJSONB(</span>
+                new JSONReader.Context(provider, symbolTable),
+                jsonbBytes,
+                0,
+                jsonbBytes.length)
+        ) {
+<span class="fc" id="L533">            T object = (T) objectReader.readJSONBObject(reader, objectType, null, 0);</span>
+<span class="fc bfc" id="L534" title="All 2 branches covered.">            if (reader.resolveTasks != null) {</span>
+<span class="fc" id="L535">                reader.handleResolveTasks(object);</span>
+            }
+<span class="fc" id="L537">            return object;</span>
+        }
+    }
+
+    static &lt;T&gt; T parseObject(
+            byte[] jsonbBytes,
+            Type objectType,
+            SymbolTable symbolTable,
+            JSONReader.Feature... features
+    ) {
+<span class="fc" id="L547">        ObjectReaderProvider provider = JSONFactory.getDefaultObjectReaderProvider();</span>
+<span class="fc" id="L548">        JSONReader.Context context = new JSONReader.Context(provider, symbolTable, features);</span>
+<span class="fc bfc" id="L549" title="All 2 branches covered.">        boolean fieldBased = (context.features &amp; JSONReader.Feature.FieldBased.mask) != 0;</span>
+<span class="fc" id="L550">        ObjectReader objectReader = provider.getObjectReader(objectType, fieldBased);</span>
+
+<span class="fc" id="L552">        try (JSONReaderJSONB reader = new JSONReaderJSONB(</span>
+                context,
+                jsonbBytes,
+                0,
+                jsonbBytes.length)
+        ) {
+<span class="fc" id="L558">            T object = (T) objectReader.readJSONBObject(reader, objectType, null, 0);</span>
+<span class="fc bfc" id="L559" title="All 2 branches covered.">            if (reader.resolveTasks != null) {</span>
+<span class="fc" id="L560">                reader.handleResolveTasks(object);</span>
+            }
+<span class="fc" id="L562">            return object;</span>
+        }
+    }
+
+    static &lt;T&gt; T parseObject(
+            byte[] jsonbBytes,
+            Class&lt;T&gt; objectClass,
+            Filter filter,
+            JSONReader.Feature... features
+    ) {
+<span class="fc" id="L572">        ObjectReaderProvider provider = JSONFactory.getDefaultObjectReaderProvider();</span>
+<span class="fc" id="L573">        JSONReader.Context context = new JSONReader.Context(provider, filter, features);</span>
+
+<span class="fc" id="L575">        try (JSONReaderJSONB jsonReader = new JSONReaderJSONB(</span>
+                context,
+                jsonbBytes,
+                0,
+                jsonbBytes.length)
+        ) {
+<span class="fc bfc" id="L581" title="All 2 branches covered.">            for (int i = 0; i &lt; features.length; i++) {</span>
+<span class="fc" id="L582">                context.features |= features[i].mask;</span>
+            }
+
+            Object object;
+<span class="fc bfc" id="L586" title="All 2 branches covered.">            if (objectClass == Object.class) {</span>
+<span class="fc" id="L587">                object = jsonReader.readAnyObject();</span>
+            } else {
+<span class="fc bfc" id="L589" title="All 2 branches covered.">                boolean fieldBased = (context.features &amp; JSONReader.Feature.FieldBased.mask) != 0;</span>
+<span class="fc" id="L590">                ObjectReader objectReader = provider.getObjectReader(objectClass, fieldBased);</span>
+<span class="fc" id="L591">                object = objectReader.readJSONBObject(jsonReader, objectClass, null, 0);</span>
+            }
+
+<span class="pc bpc" id="L594" title="1 of 2 branches missed.">            if (jsonReader.resolveTasks != null) {</span>
+<span class="nc" id="L595">                jsonReader.handleResolveTasks(object);</span>
+            }
+<span class="fc" id="L597">            return (T) object;</span>
+        }
+    }
+
+    static &lt;T&gt; T parseObject(
+            byte[] jsonbBytes,
+            Type objectType,
+            SymbolTable symbolTable,
+            Filter[] filters,
+            JSONReader.Feature... features) {
+<span class="fc bfc" id="L607" title="All 4 branches covered.">        if (jsonbBytes == null || jsonbBytes.length == 0) {</span>
+<span class="fc" id="L608">            return null;</span>
+        }
+
+<span class="fc" id="L611">        ObjectReaderProvider provider = JSONFactory.getDefaultObjectReaderProvider();</span>
+<span class="fc" id="L612">        JSONReader.Context context = new JSONReader.Context(provider, symbolTable, filters, features);</span>
+
+<span class="fc" id="L614">        try (JSONReaderJSONB jsonReader = new JSONReaderJSONB(</span>
+                context,
+                jsonbBytes,
+                0,
+                jsonbBytes.length)
+        ) {
+<span class="fc bfc" id="L620" title="All 2 branches covered.">            for (int i = 0; i &lt; features.length; i++) {</span>
+<span class="fc" id="L621">                context.features |= features[i].mask;</span>
+            }
+
+            Object object;
+<span class="fc bfc" id="L625" title="All 2 branches covered.">            if (objectType == Object.class) {</span>
+<span class="fc" id="L626">                object = jsonReader.readAnyObject();</span>
+            } else {
+<span class="pc bpc" id="L628" title="1 of 2 branches missed.">                boolean fieldBased = (context.features &amp; JSONReader.Feature.FieldBased.mask) != 0;</span>
+<span class="fc" id="L629">                ObjectReader objectReader = provider.getObjectReader(objectType, fieldBased);</span>
+<span class="fc" id="L630">                object = objectReader.readJSONBObject(jsonReader, objectType, null, 0);</span>
+            }
+
+<span class="pc bpc" id="L633" title="1 of 2 branches missed.">            if (jsonReader.resolveTasks != null) {</span>
+<span class="nc" id="L634">                jsonReader.handleResolveTasks(object);</span>
+            }
+<span class="fc" id="L636">            return (T) object;</span>
+        }
+    }
+
+    /**
+     * @since 2.0.30
+     */
+    static &lt;T&gt; T copy(T object, JSONWriter.Feature... features) {
+<span class="fc" id="L644">        return JSON.copy(object, features);</span>
+    }
+
+    static &lt;T&gt; T parseObject(byte[] jsonbBytes, TypeReference typeReference, JSONReader.Feature... features) {
+<span class="fc" id="L648">        return parseObject(jsonbBytes, typeReference.getType(), features);</span>
+    }
+
+    /**
+     * @since 2.0.30
+     */
+    static &lt;T&gt; T parseObject(
+            InputStream in,
+            Class objectClass,
+            JSONReader.Feature... features
+    ) throws IOException {
+<span class="fc" id="L659">        return parseObject(in, objectClass, JSONFactory.createReadContext(features));</span>
+    }
+
+    /**
+     * @since 2.0.30
+     */
+    static &lt;T&gt; T parseObject(
+            InputStream in,
+            Type objectType,
+            JSONReader.Feature... features
+    ) throws IOException {
+<span class="fc" id="L670">        return parseObject(in, objectType, JSONFactory.createReadContext(features));</span>
+    }
+
+    /**
+     * @since 2.0.30
+     */
+    static &lt;T&gt; T parseObject(
+            InputStream in,
+            Type objectType,
+            JSONReader.Context context
+    ) {
+<span class="fc" id="L681">        try (JSONReaderJSONB jsonReader = new JSONReaderJSONB(context, in)</span>
+        ) {
+            Object object;
+<span class="pc bpc" id="L684" title="1 of 2 branches missed.">            if (objectType == Object.class) {</span>
+<span class="nc" id="L685">                object = jsonReader.readAny();</span>
+            } else {
+<span class="fc" id="L687">                ObjectReader objectReader = context.getObjectReader(objectType);</span>
+<span class="fc" id="L688">                object = objectReader.readJSONBObject(jsonReader, objectType, null, 0);</span>
+            }
+
+<span class="pc bpc" id="L691" title="1 of 2 branches missed.">            if (jsonReader.resolveTasks != null) {</span>
+<span class="nc" id="L692">                jsonReader.handleResolveTasks(object);</span>
+            }
+<span class="fc" id="L694">            return (T) object;</span>
+        }
+    }
+
+    /**
+     * @since 2.0.30
+     */
+    static &lt;T&gt; T parseObject(
+            InputStream in,
+            Class objectClass,
+            JSONReader.Context context
+    ) {
+<span class="fc" id="L706">        try (JSONReaderJSONB jsonReader = new JSONReaderJSONB(context, in)) {</span>
+            Object object;
+<span class="pc bpc" id="L708" title="1 of 2 branches missed.">            if (objectClass == Object.class) {</span>
+<span class="nc" id="L709">                object = jsonReader.readAny();</span>
+            } else {
+<span class="fc" id="L711">                ObjectReader objectReader = context.getObjectReader(objectClass);</span>
+<span class="fc" id="L712">                object = objectReader.readJSONBObject(jsonReader, objectClass, null, 0);</span>
+            }
+
+<span class="pc bpc" id="L715" title="1 of 2 branches missed.">            if (jsonReader.resolveTasks != null) {</span>
+<span class="nc" id="L716">                jsonReader.handleResolveTasks(object);</span>
+            }
+<span class="fc" id="L718">            return (T) object;</span>
+        }
+    }
+
+    static &lt;T&gt; T parseObject(
+            InputStream in,
+            int length,
+            Type objectType,
+            JSONReader.Context context
+    ) throws IOException {
+<span class="fc" id="L728">        int cacheIndex = System.identityHashCode(Thread.currentThread()) &amp; (CACHE_ITEMS.length - 1);</span>
+<span class="fc" id="L729">        final CacheItem cacheItem = CACHE_ITEMS[cacheIndex];</span>
+<span class="fc" id="L730">        byte[] bytes = BYTES_UPDATER.getAndSet(cacheItem, null);</span>
+<span class="pc bpc" id="L731" title="1 of 2 branches missed.">        if (bytes == null) {</span>
+<span class="nc" id="L732">            bytes = new byte[8192];</span>
+        }
+
+        try {
+<span class="pc bpc" id="L736" title="1 of 2 branches missed.">            if (bytes.length &lt; length) {</span>
+<span class="nc" id="L737">                bytes = new byte[length];</span>
+            }
+<span class="fc" id="L739">            int read = in.read(bytes, 0, length);</span>
+<span class="pc bpc" id="L740" title="1 of 2 branches missed.">            if (read != length) {</span>
+<span class="nc" id="L741">                throw new IllegalArgumentException(&quot;deserialize failed. expected read length: &quot; + length + &quot; but actual read: &quot; + read);</span>
+            }
+
+<span class="fc" id="L744">            return parseObject(bytes, 0, length, objectType, context);</span>
+        } finally {
+<span class="fc" id="L746">            BYTES_UPDATER.lazySet(cacheItem, bytes);</span>
+        }
+    }
+
+    static &lt;T&gt; T parseObject(
+            InputStream in,
+            int length,
+            Type objectType,
+            JSONReader.Feature... features
+    ) throws IOException {
+<span class="fc" id="L756">        int cacheIndex = System.identityHashCode(Thread.currentThread()) &amp; (CACHE_ITEMS.length - 1);</span>
+<span class="fc" id="L757">        final CacheItem cacheItem = CACHE_ITEMS[cacheIndex];</span>
+<span class="fc" id="L758">        byte[] bytes = BYTES_UPDATER.getAndSet(cacheItem, null);</span>
+<span class="fc bfc" id="L759" title="All 2 branches covered.">        if (bytes == null) {</span>
+<span class="fc" id="L760">            bytes = new byte[8192];</span>
+        }
+        try {
+<span class="pc bpc" id="L763" title="1 of 2 branches missed.">            if (bytes.length &lt; length) {</span>
+<span class="nc" id="L764">                bytes = new byte[length];</span>
+            }
+<span class="fc" id="L766">            int read = in.read(bytes, 0, length);</span>
+<span class="fc bfc" id="L767" title="All 2 branches covered.">            if (read != length) {</span>
+<span class="fc" id="L768">                throw new IllegalArgumentException(&quot;deserialize failed. expected read length: &quot; + length + &quot; but actual read: &quot; + read);</span>
+            }
+
+<span class="fc" id="L771">            return parseObject(bytes, 0, length, objectType, features);</span>
+        } finally {
+<span class="fc" id="L773">            BYTES_UPDATER.lazySet(cacheItem, bytes);</span>
+        }
+    }
+
+    static &lt;T&gt; T parseObject(byte[] jsonbBytes, Class&lt;T&gt; objectClass, JSONReader.Feature... features) {
+<span class="fc" id="L778">        ObjectReaderProvider provider = JSONFactory.getDefaultObjectReaderProvider();</span>
+<span class="fc" id="L779">        JSONReader.Context context = new JSONReader.Context(provider, features);</span>
+
+<span class="fc" id="L781">        try (JSONReaderJSONB jsonReader = new JSONReaderJSONB(</span>
+                context,
+                jsonbBytes,
+                0,
+                jsonbBytes.length)
+        ) {
+            Object object;
+<span class="fc bfc" id="L788" title="All 2 branches covered.">            if (objectClass == Object.class) {</span>
+<span class="fc" id="L789">                object = jsonReader.readAnyObject();</span>
+            } else {
+<span class="fc bfc" id="L791" title="All 2 branches covered.">                boolean fieldBased = (context.features &amp; JSONReader.Feature.FieldBased.mask) != 0;</span>
+<span class="fc" id="L792">                ObjectReader objectReader = provider.getObjectReader(objectClass, fieldBased);</span>
+<span class="fc bfc" id="L793" title="All 2 branches covered.">                if ((context.features &amp; JSONReader.Feature.SupportArrayToBean.mask) != 0</span>
+<span class="fc bfc" id="L794" title="All 4 branches covered.">                        &amp;&amp; jsonReader.isArray()</span>
+                        &amp;&amp; objectReader instanceof ObjectReaderBean
+                ) {
+<span class="fc" id="L797">                    object = objectReader.readArrayMappingJSONBObject(jsonReader, objectClass, null, 0);</span>
+                } else {
+<span class="fc" id="L799">                    object = objectReader.readJSONBObject(jsonReader, objectClass, null, 0);</span>
+                }
+            }
+
+<span class="fc bfc" id="L803" title="All 2 branches covered.">            if (jsonReader.resolveTasks != null) {</span>
+<span class="fc" id="L804">                jsonReader.handleResolveTasks(object);</span>
+            }
+<span class="fc" id="L806">            return (T) object;</span>
+        }
+    }
+
+    static &lt;T&gt; T parseObject(byte[] jsonbBytes, Class&lt;T&gt; objectClass, JSONReader.Context context) {
+<span class="fc" id="L811">        try (JSONReaderJSONB jsonReader = new JSONReaderJSONB(</span>
+                context,
+                jsonbBytes,
+                0,
+                jsonbBytes.length)
+        ) {
+            Object object;
+<span class="pc bpc" id="L818" title="1 of 2 branches missed.">            if (objectClass == Object.class) {</span>
+<span class="nc" id="L819">                object = jsonReader.readAnyObject();</span>
+            } else {
+<span class="fc bfc" id="L821" title="All 2 branches covered.">                ObjectReader objectReader = context.provider.getObjectReader(</span>
+                        objectClass,
+                        (context.features &amp; JSONReader.Feature.FieldBased.mask) != 0
+                );
+<span class="pc bpc" id="L825" title="1 of 2 branches missed.">                if ((context.features &amp; JSONReader.Feature.SupportArrayToBean.mask) != 0</span>
+<span class="pc bpc" id="L826" title="2 of 4 branches missed.">                        &amp;&amp; jsonReader.isArray()</span>
+                        &amp;&amp; objectReader instanceof ObjectReaderBean
+                ) {
+<span class="fc" id="L829">                    object = objectReader.readArrayMappingJSONBObject(jsonReader, objectClass, null, 0);</span>
+                } else {
+<span class="nc" id="L831">                    object = objectReader.readJSONBObject(jsonReader, objectClass, null, 0);</span>
+                }
+            }
+
+<span class="pc bpc" id="L835" title="1 of 2 branches missed.">            if (jsonReader.resolveTasks != null) {</span>
+<span class="nc" id="L836">                jsonReader.handleResolveTasks(object);</span>
+            }
+<span class="fc" id="L838">            return (T) object;</span>
+        }
+    }
+
+    static &lt;T&gt; T parseObject(byte[] jsonbBytes, Type objectClass, JSONReader.Feature... features) {
+<span class="fc" id="L843">        ObjectReaderProvider provider = JSONFactory.getDefaultObjectReaderProvider();</span>
+<span class="fc" id="L844">        JSONReader.Context context = new JSONReader.Context(provider, features);</span>
+
+<span class="fc bfc" id="L846" title="All 2 branches covered.">        ObjectReader objectReader = provider.getObjectReader(</span>
+                objectClass,
+                (context.features &amp; JSONReader.Feature.FieldBased.mask) != 0
+        );
+
+<span class="fc" id="L851">        try (JSONReaderJSONB reader = new JSONReaderJSONB(</span>
+                context,
+                jsonbBytes,
+                0,
+                jsonbBytes.length)) {
+<span class="fc" id="L856">            T object = (T) objectReader.readJSONBObject(reader, objectClass, null, 0);</span>
+<span class="fc bfc" id="L857" title="All 2 branches covered.">            if (reader.resolveTasks != null) {</span>
+<span class="fc" id="L858">                reader.handleResolveTasks(object);</span>
+            }
+<span class="fc" id="L860">            return object;</span>
+        }
+    }
+
+    static &lt;T&gt; T parseObject(byte[] jsonbBytes, int off, int len, Class&lt;T&gt; objectClass) {
+<span class="fc" id="L865">        ObjectReaderProvider provider = JSONFactory.getDefaultObjectReaderProvider();</span>
+<span class="fc" id="L866">        JSONReader.Context context = new JSONReader.Context(provider);</span>
+<span class="pc bpc" id="L867" title="1 of 2 branches missed.">        boolean fieldBased = (context.features &amp; JSONReader.Feature.FieldBased.mask) != 0;</span>
+<span class="fc" id="L868">        ObjectReader objectReader = provider.getObjectReader(objectClass, fieldBased);</span>
+
+<span class="fc" id="L870">        try (JSONReaderJSONB reader = new JSONReaderJSONB(</span>
+                context,
+                jsonbBytes,
+                off,
+                len)
+        ) {
+<span class="fc" id="L876">            T object = (T) objectReader.readJSONBObject(reader, objectClass, null, 0);</span>
+<span class="fc bfc" id="L877" title="All 2 branches covered.">            if (reader.resolveTasks != null) {</span>
+<span class="fc" id="L878">                reader.handleResolveTasks(object);</span>
+            }
+<span class="fc" id="L880">            return object;</span>
+        }
+    }
+
+    static &lt;T&gt; T parseObject(byte[] jsonbBytes, int off, int len, Type type) {
+<span class="fc" id="L885">        ObjectReaderProvider provider = JSONFactory.getDefaultObjectReaderProvider();</span>
+<span class="fc" id="L886">        JSONReader.Context context = new JSONReader.Context(provider);</span>
+<span class="pc bpc" id="L887" title="1 of 2 branches missed.">        boolean fieldBased = (context.features &amp; JSONReader.Feature.FieldBased.mask) != 0;</span>
+<span class="fc" id="L888">        ObjectReader objectReader = provider.getObjectReader(type, fieldBased);</span>
+
+<span class="fc" id="L890">        try (JSONReaderJSONB reader = new JSONReaderJSONB(</span>
+                context,
+                jsonbBytes,
+                off,
+                len)
+        ) {
+<span class="fc" id="L896">            T object = (T) objectReader.readJSONBObject(reader, type, null, 0);</span>
+<span class="pc bpc" id="L897" title="1 of 2 branches missed.">            if (reader.resolveTasks != null) {</span>
+<span class="nc" id="L898">                reader.handleResolveTasks(object);</span>
+            }
+<span class="fc" id="L900">            return object;</span>
+        }
+    }
+
+    static &lt;T&gt; T parseObject(
+            byte[] jsonbBytes,
+            int off,
+            int len,
+            Class&lt;T&gt; objectClass,
+            JSONReader.Feature... features
+    ) {
+<span class="fc" id="L911">        ObjectReaderProvider provider = JSONFactory.getDefaultObjectReaderProvider();</span>
+<span class="fc" id="L912">        JSONReader.Context context = new JSONReader.Context(provider, features);</span>
+<span class="pc bpc" id="L913" title="1 of 2 branches missed.">        boolean fieldBased = (context.features &amp; JSONReader.Feature.FieldBased.mask) != 0;</span>
+<span class="fc" id="L914">        ObjectReader objectReader = provider.getObjectReader(objectClass, fieldBased);</span>
+
+<span class="fc" id="L916">        try (JSONReaderJSONB reader = new JSONReaderJSONB(</span>
+                context,
+                jsonbBytes,
+                off,
+                len)
+        ) {
+<span class="fc" id="L922">            T object = (T) objectReader.readJSONBObject(reader, objectClass, null, 0);</span>
+<span class="pc bpc" id="L923" title="1 of 2 branches missed.">            if (reader.resolveTasks != null) {</span>
+<span class="fc" id="L924">                reader.handleResolveTasks(object);</span>
+            }
+<span class="fc" id="L926">            return object;</span>
+        }
+    }
+
+    static &lt;T&gt; T parseObject(
+            byte[] jsonbBytes,
+            int off,
+            int len,
+            Type objectType,
+            JSONReader.Context context
+    ) {
+<span class="fc" id="L937">        try (JSONReaderJSONB reader = new JSONReaderJSONB(context, jsonbBytes, off, len)) {</span>
+<span class="pc bpc" id="L938" title="1 of 2 branches missed.">            boolean fieldBased = (context.features &amp; JSONReader.Feature.FieldBased.mask) != 0;</span>
+<span class="fc" id="L939">            ObjectReader objectReader = context.provider.getObjectReader(objectType, fieldBased);</span>
+
+<span class="fc" id="L941">            T object = (T) objectReader.readJSONBObject(reader, objectType, null, 0);</span>
+<span class="pc bpc" id="L942" title="1 of 2 branches missed.">            if (reader.resolveTasks != null) {</span>
+<span class="nc" id="L943">                reader.handleResolveTasks(object);</span>
+            }
+<span class="fc" id="L945">            return object;</span>
+        }
+    }
+
+    static &lt;T&gt; T parseObject(byte[] jsonbBytes, int off, int len, Type objectType, JSONReader.Feature... features) {
+<span class="fc" id="L950">        JSONReader.Context context = createReadContext(features);</span>
+<span class="fc" id="L951">        try (JSONReaderJSONB reader = new JSONReaderJSONB(</span>
+                context,
+                jsonbBytes,
+                off,
+                len)
+        ) {
+<span class="fc" id="L957">            ObjectReader objectReader = reader.getObjectReader(objectType);</span>
+
+<span class="fc" id="L959">            T object = (T) objectReader.readJSONBObject(reader, objectType, null, 0);</span>
+<span class="fc bfc" id="L960" title="All 2 branches covered.">            if (reader.resolveTasks != null) {</span>
+<span class="fc" id="L961">                reader.handleResolveTasks(object);</span>
+            }
+<span class="fc" id="L963">            return object;</span>
+        }
+    }
+
+    static &lt;T&gt; T parseObject(byte[] jsonbBytes, int off, int len, Class&lt;T&gt; objectClass, SymbolTable symbolTable) {
+<span class="fc" id="L968">        JSONReader.Context context = createReadContext(symbolTable);</span>
+<span class="fc" id="L969">        ObjectReader objectReader = context.getObjectReader(objectClass);</span>
+<span class="fc" id="L970">        try (JSONReaderJSONB reader = new JSONReaderJSONB(</span>
+                context,
+                jsonbBytes,
+                off,
+                len)
+        ) {
+<span class="fc" id="L976">            T object = (T) objectReader.readJSONBObject(reader, objectClass, null, 0);</span>
+<span class="pc bpc" id="L977" title="1 of 2 branches missed.">            if (reader.resolveTasks != null) {</span>
+<span class="nc" id="L978">                reader.handleResolveTasks(object);</span>
+            }
+<span class="fc" id="L980">            return object;</span>
+        }
+    }
+
+    static &lt;T&gt; T parseObject(byte[] jsonbBytes, int off, int len, Type objectClass, SymbolTable symbolTable) {
+<span class="fc" id="L985">        JSONReader.Context context = createReadContext(symbolTable);</span>
+<span class="fc" id="L986">        ObjectReader objectReader = context.getObjectReader(objectClass);</span>
+
+<span class="fc" id="L988">        try (JSONReaderJSONB reader = new JSONReaderJSONB(</span>
+                context,
+                jsonbBytes,
+                off,
+                len)
+        ) {
+<span class="fc" id="L994">            T object = (T) objectReader.readJSONBObject(reader, objectClass, null, 0);</span>
+<span class="pc bpc" id="L995" title="1 of 2 branches missed.">            if (reader.resolveTasks != null) {</span>
+<span class="fc" id="L996">                reader.handleResolveTasks(object);</span>
+            }
+<span class="fc" id="L998">            return object;</span>
+        }
+    }
+
+    static &lt;T&gt; T parseObject(
+            byte[] jsonbBytes,
+            int off,
+            int len,
+            Class&lt;T&gt; objectClass,
+            SymbolTable symbolTable,
+            JSONReader.Feature... features
+    ) {
+<span class="fc" id="L1010">        JSONReader.Context context = createReadContext(symbolTable, features);</span>
+<span class="fc" id="L1011">        ObjectReader objectReader = context.getObjectReader(objectClass);</span>
+
+<span class="fc" id="L1013">        try (JSONReaderJSONB reader = new JSONReaderJSONB(</span>
+                context,
+                jsonbBytes,
+                off,
+                len)
+        ) {
+<span class="fc" id="L1019">            T object = (T) objectReader.readJSONBObject(reader, objectClass, null, 0);</span>
+<span class="pc bpc" id="L1020" title="1 of 2 branches missed.">            if (reader.resolveTasks != null) {</span>
+<span class="fc" id="L1021">                reader.handleResolveTasks(object);</span>
+            }
+<span class="fc" id="L1023">            return object;</span>
+        }
+    }
+
+    static &lt;T&gt; T parseObject(
+            byte[] jsonbBytes,
+            int off,
+            int len,
+            Type objectClass,
+            SymbolTable symbolTable,
+            JSONReader.Feature... features
+    ) {
+<span class="fc" id="L1035">        JSONReader.Context context = createReadContext(symbolTable, features);</span>
+<span class="fc" id="L1036">        ObjectReader objectReader = context.getObjectReader(objectClass);</span>
+
+<span class="fc" id="L1038">        try (JSONReaderJSONB reader = new JSONReaderJSONB(</span>
+                context,
+                jsonbBytes,
+                off,
+                len)
+        ) {
+<span class="fc" id="L1044">            T object = (T) objectReader.readJSONBObject(reader, objectClass, null, 0);</span>
+<span class="pc bpc" id="L1045" title="1 of 2 branches missed.">            if (reader.resolveTasks != null) {</span>
+<span class="fc" id="L1046">                reader.handleResolveTasks(object);</span>
+            }
+<span class="fc" id="L1048">            return object;</span>
+        }
+    }
+
+    static byte[] toBytes(String str) {
+<span class="fc bfc" id="L1053" title="All 2 branches covered.">        if (str == null) {</span>
+<span class="fc" id="L1054">            return new byte[]{BC_NULL};</span>
+        }
+
+<span class="pc bpc" id="L1057" title="1 of 2 branches missed.">        if (JVM_VERSION == 8) {</span>
+<span class="fc" id="L1058">            char[] chars = JDKUtils.getCharArray(str);</span>
+<span class="fc" id="L1059">            int strlen = chars.length;</span>
+<span class="fc bfc" id="L1060" title="All 2 branches covered.">            if (strlen &lt;= STR_ASCII_FIX_LEN) {</span>
+<span class="fc" id="L1061">                boolean ascii = true;</span>
+<span class="fc bfc" id="L1062" title="All 2 branches covered.">                for (int i = 0; i &lt; strlen; ++i) {</span>
+<span class="fc bfc" id="L1063" title="All 2 branches covered.">                    if (chars[i] &gt; 0x007F) {</span>
+<span class="fc" id="L1064">                        ascii = false;</span>
+<span class="fc" id="L1065">                        break;</span>
+                    }
+                }
+
+<span class="fc bfc" id="L1069" title="All 2 branches covered.">                if (ascii) {</span>
+<span class="fc" id="L1070">                    byte[] bytes = new byte[chars.length + 1];</span>
+<span class="fc" id="L1071">                    bytes[0] = (byte) (strlen + BC_STR_ASCII_FIX_MIN);</span>
+<span class="fc bfc" id="L1072" title="All 2 branches covered.">                    for (int i = 0; i &lt; strlen; ++i) {</span>
+<span class="fc" id="L1073">                        bytes[i + 1] = (byte) chars[i];</span>
+                    }
+<span class="fc" id="L1075">                    return bytes;</span>
+                }
+            }
+<span class="pc bnc" id="L1078" title="All 2 branches missed.">        } else if (STRING_VALUE != null) {</span>
+<span class="nc" id="L1079">            int coder = STRING_CODER.applyAsInt(str);</span>
+<span class="nc bnc" id="L1080" title="All 2 branches missed.">            if (coder == 0) {</span>
+<span class="nc" id="L1081">                byte[] value = STRING_VALUE.apply(str);</span>
+<span class="nc" id="L1082">                int strlen = value.length;</span>
+<span class="nc bnc" id="L1083" title="All 2 branches missed.">                if (strlen &lt;= STR_ASCII_FIX_LEN) {</span>
+<span class="nc" id="L1084">                    byte[] bytes = new byte[value.length + 1];</span>
+<span class="nc" id="L1085">                    bytes[0] = (byte) (strlen + BC_STR_ASCII_FIX_MIN);</span>
+<span class="nc" id="L1086">                    System.arraycopy(value, 0, bytes, 1, value.length);</span>
+<span class="nc" id="L1087">                    return bytes;</span>
+                }
+            }
+        }
+
+<span class="fc" id="L1092">        try (JSONWriterJSONB writer = new JSONWriterJSONB(</span>
+                new JSONWriter.Context(JSONFactory.defaultObjectWriterProvider),
+                null
+        )) {
+<span class="fc" id="L1096">            writer.writeString(str);</span>
+<span class="fc" id="L1097">            return writer.getBytes();</span>
+        }
+    }
+
+    static byte[] toBytes(String str, Charset charset) {
+<span class="fc bfc" id="L1102" title="All 2 branches covered.">        if (str == null) {</span>
+<span class="fc" id="L1103">            return new byte[]{BC_NULL};</span>
+        }
+
+        final byte type;
+<span class="fc bfc" id="L1107" title="All 2 branches covered.">        if (charset == StandardCharsets.UTF_16) {</span>
+<span class="fc" id="L1108">            type = BC_STR_UTF16;</span>
+<span class="fc bfc" id="L1109" title="All 2 branches covered.">        } else if (charset == StandardCharsets.UTF_16BE) {</span>
+<span class="fc" id="L1110">            type = BC_STR_UTF16BE;</span>
+<span class="fc bfc" id="L1111" title="All 2 branches covered.">        } else if (charset == StandardCharsets.UTF_16LE) {</span>
+<span class="fc" id="L1112">            type = BC_STR_UTF16LE;</span>
+<span class="fc bfc" id="L1113" title="All 2 branches covered.">        } else if (charset == StandardCharsets.UTF_8) {</span>
+<span class="fc" id="L1114">            type = BC_STR_UTF8;</span>
+<span class="pc bpc" id="L1115" title="2 of 4 branches missed.">        } else if (charset == StandardCharsets.US_ASCII || charset == StandardCharsets.ISO_8859_1) {</span>
+<span class="nc" id="L1116">            type = BC_STR_ASCII;</span>
+<span class="pc bpc" id="L1117" title="2 of 4 branches missed.">        } else if (charset != null &amp;&amp; &quot;GB18030&quot;.equals(charset.name())) { // GraalVM support</span>
+<span class="fc" id="L1118">            type = BC_STR_GB18030;</span>
+        } else {
+<span class="nc" id="L1120">            return toBytes(str);</span>
+        }
+
+<span class="fc" id="L1123">        byte[] utf16 = str.getBytes(charset);</span>
+<span class="fc" id="L1124">        int byteslen = 2 + utf16.length;</span>
+<span class="fc bfc" id="L1125" title="All 2 branches covered.">        if (utf16.length &lt;= BC_INT32_NUM_MAX) {</span>
+<span class="fc" id="L1126">            byteslen += 0;</span>
+<span class="fc bfc" id="L1127" title="All 2 branches covered.">        } else if (utf16.length &lt;= INT32_BYTE_MAX) {</span>
+<span class="fc" id="L1128">            byteslen += 1;</span>
+<span class="fc bfc" id="L1129" title="All 2 branches covered.">        } else if (utf16.length &lt;= INT32_SHORT_MAX) {</span>
+<span class="fc" id="L1130">            byteslen += 2;</span>
+        } else {
+<span class="fc" id="L1132">            byteslen += 4;</span>
+        }
+
+<span class="fc" id="L1135">        byte[] bytes = new byte[byteslen];</span>
+<span class="fc" id="L1136">        bytes[0] = type;</span>
+<span class="fc" id="L1137">        int off = 1;</span>
+<span class="fc" id="L1138">        off += writeInt(bytes, off, utf16.length);</span>
+<span class="fc" id="L1139">        System.arraycopy(utf16, 0, bytes, off, utf16.length);</span>
+<span class="fc" id="L1140">        return bytes;</span>
+    }
+
+    static byte[] toBytes(Object object) {
+<span class="fc" id="L1144">        final JSONWriter.Context context = new JSONWriter.Context(defaultObjectWriterProvider);</span>
+<span class="fc" id="L1145">        try (JSONWriterJSONB writer = new JSONWriterJSONB(</span>
+                context,
+                null
+        )) {
+<span class="fc bfc" id="L1149" title="All 2 branches covered.">            if (object == null) {</span>
+<span class="fc" id="L1150">                writer.writeNull();</span>
+            } else {
+<span class="fc" id="L1152">                Class&lt;?&gt; valueClass = object.getClass();</span>
+<span class="pc bpc" id="L1153" title="1 of 2 branches missed.">                boolean fieldBased = (context.features &amp; JSONWriter.Feature.FieldBased.mask) != 0;</span>
+<span class="fc" id="L1154">                ObjectWriter objectWriter = context.provider.getObjectWriter(valueClass, valueClass, fieldBased);</span>
+<span class="fc" id="L1155">                objectWriter.writeJSONB(writer, object, null, null, 0);</span>
+            }
+<span class="fc" id="L1157">            return writer.getBytes();</span>
+        }
+    }
+
+    static byte[] toBytes(Object object, JSONWriter.Context context) {
+<span class="fc bfc" id="L1162" title="All 2 branches covered.">        if (context == null) {</span>
+<span class="fc" id="L1163">            context = JSONFactory.createWriteContext();</span>
+        }
+
+<span class="fc" id="L1166">        try (JSONWriterJSONB writer = new JSONWriterJSONB(context, null)) {</span>
+<span class="fc bfc" id="L1167" title="All 2 branches covered.">            if (object == null) {</span>
+<span class="fc" id="L1168">                writer.writeNull();</span>
+            } else {
+<span class="fc" id="L1170">                writer.rootObject = object;</span>
+<span class="fc" id="L1171">                writer.path = JSONWriter.Path.ROOT;</span>
+
+<span class="pc bpc" id="L1173" title="1 of 2 branches missed.">                boolean fieldBased = (context.features &amp; JSONWriter.Feature.FieldBased.mask) != 0;</span>
+
+<span class="fc" id="L1175">                Class&lt;?&gt; valueClass = object.getClass();</span>
+<span class="fc" id="L1176">                ObjectWriter objectWriter = context.provider.getObjectWriter(valueClass, valueClass, fieldBased);</span>
+<span class="pc bpc" id="L1177" title="1 of 2 branches missed.">                if ((context.features &amp; JSONWriter.Feature.BeanToArray.mask) != 0) {</span>
+<span class="nc" id="L1178">                    objectWriter.writeArrayMappingJSONB(writer, object, null, null, 0);</span>
+                } else {
+<span class="fc" id="L1180">                    objectWriter.writeJSONB(writer, object, null, null, 0);</span>
+                }
+            }
+<span class="fc" id="L1183">            return writer.getBytes();</span>
+        }
+    }
+
+    static byte[] toBytes(Object object, SymbolTable symbolTable) {
+<span class="fc" id="L1188">        JSONWriter.Context context = new JSONWriter.Context(defaultObjectWriterProvider);</span>
+<span class="fc" id="L1189">        try (JSONWriterJSONB writer = new JSONWriterJSONB(</span>
+                context,
+                symbolTable
+        )) {
+<span class="pc bpc" id="L1193" title="1 of 2 branches missed.">            if (object == null) {</span>
+<span class="nc" id="L1194">                writer.writeNull();</span>
+            } else {
+<span class="fc" id="L1196">                writer.setRootObject(object);</span>
+
+<span class="fc" id="L1198">                Class&lt;?&gt; valueClass = object.getClass();</span>
+<span class="fc" id="L1199">                ObjectWriter objectWriter = context.getObjectWriter(valueClass, valueClass);</span>
+<span class="fc" id="L1200">                objectWriter.writeJSONB(writer, object, null, null, 0);</span>
+            }
+<span class="fc" id="L1202">            return writer.getBytes();</span>
+        }
+    }
+
+    static byte[] toBytes(Object object, SymbolTable symbolTable, JSONWriter.Feature... features) {
+<span class="fc" id="L1207">        JSONWriter.Context context = new JSONWriter.Context(defaultObjectWriterProvider, features);</span>
+<span class="fc" id="L1208">        try (JSONWriterJSONB writer = new JSONWriterJSONB(context, symbolTable)) {</span>
+<span class="pc bpc" id="L1209" title="1 of 2 branches missed.">            if (object == null) {</span>
+<span class="nc" id="L1210">                writer.writeNull();</span>
+            } else {
+<span class="fc" id="L1212">                writer.setRootObject(object);</span>
+
+<span class="fc" id="L1214">                Class&lt;?&gt; valueClass = object.getClass();</span>
+
+<span class="pc bpc" id="L1216" title="1 of 2 branches missed.">                boolean fieldBased = (context.features &amp; JSONWriter.Feature.FieldBased.mask) != 0;</span>
+
+<span class="fc" id="L1218">                ObjectWriter objectWriter = context.provider.getObjectWriter(valueClass, valueClass, fieldBased);</span>
+<span class="pc bpc" id="L1219" title="1 of 2 branches missed.">                if ((context.features &amp; JSONWriter.Feature.BeanToArray.mask) != 0) {</span>
+<span class="fc" id="L1220">                    objectWriter.writeArrayMappingJSONB(writer, object, null, null, 0);</span>
+                } else {
+<span class="nc" id="L1222">                    objectWriter.writeJSONB(writer, object, null, null, 0);</span>
+                }
+            }
+<span class="fc" id="L1225">            return writer.getBytes();</span>
+        }
+    }
+
+    static byte[] toBytes(Object object, SymbolTable symbolTable, Filter[] filters, JSONWriter.Feature... features) {
+<span class="fc" id="L1230">        JSONWriter.Context context = new JSONWriter.Context(defaultObjectWriterProvider, features);</span>
+<span class="fc" id="L1231">        context.configFilter(filters);</span>
+
+<span class="fc" id="L1233">        try (JSONWriterJSONB writer = new JSONWriterJSONB(</span>
+                context,
+                symbolTable
+        )) {
+<span class="pc bpc" id="L1237" title="1 of 2 branches missed.">            if (object == null) {</span>
+<span class="nc" id="L1238">                writer.writeNull();</span>
+            } else {
+<span class="fc" id="L1240">                writer.setRootObject(object);</span>
+
+<span class="fc" id="L1242">                Class&lt;?&gt; valueClass = object.getClass();</span>
+
+<span class="pc bpc" id="L1244" title="1 of 2 branches missed.">                boolean fieldBased = (context.features &amp; JSONWriter.Feature.FieldBased.mask) != 0;</span>
+
+<span class="fc" id="L1246">                ObjectWriter objectWriter = context.provider.getObjectWriter(valueClass, valueClass, fieldBased);</span>
+<span class="pc bpc" id="L1247" title="1 of 2 branches missed.">                if ((context.features &amp; JSONWriter.Feature.BeanToArray.mask) != 0) {</span>
+<span class="nc" id="L1248">                    objectWriter.writeArrayMappingJSONB(writer, object, null, null, 0);</span>
+                } else {
+<span class="fc" id="L1250">                    objectWriter.writeJSONB(writer, object, null, null, 0);</span>
+                }
+            }
+<span class="fc" id="L1253">            return writer.getBytes();</span>
+        }
+    }
+
+    static byte[] toBytes(Object object, JSONWriter.Feature... features) {
+<span class="fc" id="L1258">        JSONWriter.Context context = new JSONWriter.Context(defaultObjectWriterProvider, features);</span>
+<span class="fc" id="L1259">        try (JSONWriterJSONB writer = new JSONWriterJSONB(</span>
+                context,
+                null
+        )) {
+<span class="fc bfc" id="L1263" title="All 2 branches covered.">            if (object == null) {</span>
+<span class="fc" id="L1264">                writer.writeNull();</span>
+            } else {
+<span class="fc" id="L1266">                writer.rootObject = object;</span>
+<span class="fc" id="L1267">                writer.path = JSONWriter.Path.ROOT;</span>
+
+<span class="fc bfc" id="L1269" title="All 2 branches covered.">                boolean fieldBased = (context.features &amp; JSONWriter.Feature.FieldBased.mask) != 0;</span>
+
+<span class="fc" id="L1271">                Class&lt;?&gt; valueClass = object.getClass();</span>
+<span class="fc" id="L1272">                ObjectWriter objectWriter = context.provider.getObjectWriter(valueClass, valueClass, fieldBased);</span>
+<span class="fc bfc" id="L1273" title="All 2 branches covered.">                if ((context.features &amp; JSONWriter.Feature.BeanToArray.mask) != 0) {</span>
+<span class="fc" id="L1274">                    objectWriter.writeArrayMappingJSONB(writer, object, null, null, 0);</span>
+                } else {
+<span class="fc" id="L1276">                    objectWriter.writeJSONB(writer, object, null, null, 0);</span>
+                }
+            }
+<span class="fc" id="L1279">            return writer.getBytes();</span>
+        }
+    }
+
+    static SymbolTable symbolTable(String... names) {
+<span class="fc" id="L1284">        return new SymbolTable(names);</span>
+    }
+
+    static String toJSONString(byte[] jsonbBytes) {
+<span class="fc" id="L1288">        return new JSONBDump(jsonbBytes, false)</span>
+<span class="fc" id="L1289">                .toString();</span>
+    }
+
+    /**
+     * @since 2.0.28
+     */
+    static String toJSONString(byte[] jsonbBytes, boolean raw) {
+<span class="fc" id="L1296">        return new JSONBDump(jsonbBytes, raw)</span>
+<span class="fc" id="L1297">                .toString();</span>
+    }
+
+    static String toJSONString(byte[] jsonbBytes, SymbolTable symbolTable) {
+<span class="fc" id="L1301">        return new JSONBDump(jsonbBytes, symbolTable, false)</span>
+<span class="fc" id="L1302">                .toString();</span>
+    }
+
+    static int writeTo(
+            OutputStream out,
+            Object object,
+            JSONWriter.Feature... features
+    ) {
+<span class="fc" id="L1310">        try (JSONWriterJSONB writer = new JSONWriterJSONB(</span>
+                new JSONWriter.Context(JSONFactory.defaultObjectWriterProvider),
+                null)
+        ) {
+<span class="fc" id="L1314">            writer.config(features);</span>
+
+<span class="pc bpc" id="L1316" title="1 of 2 branches missed.">            if (object == null) {</span>
+<span class="nc" id="L1317">                writer.writeNull();</span>
+            } else {
+<span class="fc" id="L1319">                writer.setRootObject(object);</span>
+
+<span class="fc" id="L1321">                Class&lt;?&gt; valueClass = object.getClass();</span>
+<span class="fc" id="L1322">                ObjectWriter objectWriter = writer.getObjectWriter(valueClass, valueClass);</span>
+<span class="fc" id="L1323">                objectWriter.writeJSONB(writer, object, null, null, 0);</span>
+            }
+
+<span class="fc" id="L1326">            return writer.flushTo(out);</span>
+<span class="nc" id="L1327">        } catch (IOException e) {</span>
+<span class="nc" id="L1328">            throw new JSONException(&quot;writeJSONString error&quot;, e);</span>
+        }
+    }
+
+    static byte[] fromJSONString(String str) {
+<span class="fc" id="L1333">        return JSONB.toBytes(JSON.parse(str));</span>
+    }
+
+    static byte[] fromJSONBytes(byte[] jsonUtf8Bytes) {
+<span class="fc" id="L1337">        JSONReader reader = JSONReader.of(jsonUtf8Bytes);</span>
+<span class="fc" id="L1338">        ObjectReader objectReader = reader.getObjectReader(Object.class);</span>
+<span class="fc" id="L1339">        Object object = objectReader.readObject(reader, null, null, 0);</span>
+<span class="fc" id="L1340">        return JSONB.toBytes(object);</span>
+    }
+
+    static String typeName(byte type) {
+<span class="fc bfc" id="L1344" title="All 30 branches covered.">        switch (type) {</span>
+            case BC_OBJECT:
+<span class="fc" id="L1346">                return &quot;OBJECT &quot; + Integer.toString(type);</span>
+            case BC_OBJECT_END:
+<span class="fc" id="L1348">                return &quot;OBJECT_END &quot; + Integer.toString(type);</span>
+            case BC_REFERENCE:
+<span class="fc" id="L1350">                return &quot;REFERENCE &quot; + Integer.toString(type);</span>
+            case BC_SYMBOL:
+<span class="fc" id="L1352">                return &quot;SYMBOL &quot; + Integer.toString(type);</span>
+            case BC_NULL:
+<span class="fc" id="L1354">                return &quot;NULL &quot; + Integer.toString(type);</span>
+            case BC_TRUE:
+<span class="fc" id="L1356">                return &quot;TRUE &quot; + Integer.toString(type);</span>
+            case BC_FALSE:
+<span class="fc" id="L1358">                return &quot;FALSE &quot; + Integer.toString(type);</span>
+            case BC_STR_UTF8:
+<span class="fc" id="L1360">                return &quot;STR_UTF8 &quot; + Integer.toString(type);</span>
+            case BC_STR_UTF16:
+<span class="fc" id="L1362">                return &quot;STR_UTF16 &quot; + Integer.toString(type);</span>
+            case BC_STR_UTF16LE:
+<span class="fc" id="L1364">                return &quot;STR_UTF16LE &quot; + Integer.toString(type);</span>
+            case BC_STR_UTF16BE:
+<span class="fc" id="L1366">                return &quot;STR_UTF16BE &quot; + Integer.toString(type);</span>
+            case BC_INT8:
+<span class="fc" id="L1368">                return &quot;INT8 &quot; + Integer.toString(type);</span>
+            case BC_INT16:
+<span class="fc" id="L1370">                return &quot;INT16 &quot; + Integer.toString(type);</span>
+            case BC_INT32:
+<span class="fc" id="L1372">                return &quot;INT32 &quot; + Integer.toString(type);</span>
+            case BC_INT64:
+            case BC_INT64_INT:
+<span class="fc" id="L1375">                return &quot;INT64 &quot; + Integer.toString(type);</span>
+            case BC_FLOAT:
+            case BC_FLOAT_INT:
+<span class="fc" id="L1378">                return &quot;FLOAT &quot; + Integer.toString(type);</span>
+            case BC_DOUBLE:
+            case BC_DOUBLE_LONG:
+            case BC_DOUBLE_NUM_0:
+            case BC_DOUBLE_NUM_1:
+<span class="fc" id="L1383">                return &quot;DOUBLE &quot; + Integer.toString(type);</span>
+            case BC_BIGINT:
+            case BC_BIGINT_LONG:
+<span class="fc" id="L1386">                return &quot;BIGINT &quot; + Integer.toString(type);</span>
+            case BC_DECIMAL:
+            case BC_DECIMAL_LONG:
+<span class="fc" id="L1389">                return &quot;DECIMAL &quot; + Integer.toString(type);</span>
+            case Constants.BC_LOCAL_TIME:
+<span class="fc" id="L1391">                return &quot;LOCAL_TIME &quot; + Integer.toString(type);</span>
+            case BC_BINARY:
+<span class="fc" id="L1393">                return &quot;BINARY &quot; + Integer.toString(type);</span>
+            case Constants.BC_LOCAL_DATETIME:
+<span class="fc" id="L1395">                return &quot;LOCAL_DATETIME &quot; + Integer.toString(type);</span>
+            case BC_TIMESTAMP:
+<span class="fc" id="L1397">                return &quot;TIMESTAMP &quot; + Integer.toString(type);</span>
+            case BC_TIMESTAMP_MINUTES:
+<span class="fc" id="L1399">                return &quot;TIMESTAMP_MINUTES &quot; + Integer.toString(type);</span>
+            case BC_TIMESTAMP_SECONDS:
+<span class="fc" id="L1401">                return &quot;TIMESTAMP_SECONDS &quot; + Integer.toString(type);</span>
+            case BC_TIMESTAMP_MILLIS:
+<span class="fc" id="L1403">                return &quot;TIMESTAMP_MILLIS &quot; + Integer.toString(type);</span>
+            case BC_TIMESTAMP_WITH_TIMEZONE:
+<span class="fc" id="L1405">                return &quot;TIMESTAMP_WITH_TIMEZONE &quot; + Integer.toString(type);</span>
+            case Constants.BC_LOCAL_DATE:
+<span class="fc" id="L1407">                return &quot;LOCAL_DATE &quot; + Integer.toString(type);</span>
+            case BC_TYPED_ANY:
+<span class="fc" id="L1409">                return &quot;TYPED_ANY &quot; + Integer.toString(type);</span>
+            default:
+<span class="fc bfc" id="L1411" title="All 4 branches covered.">                if (type &gt;= BC_ARRAY_FIX_MIN &amp;&amp; type &lt;= BC_ARRAY) {</span>
+<span class="fc" id="L1412">                    return &quot;ARRAY &quot; + Integer.toString(type);</span>
+                }
+
+<span class="pc bpc" id="L1415" title="1 of 4 branches missed.">                if (type &gt;= BC_STR_ASCII_FIX_MIN &amp;&amp; type &lt;= BC_STR_ASCII) {</span>
+<span class="fc" id="L1416">                    return &quot;STR_ASCII &quot; + Integer.toString(type);</span>
+                }
+
+<span class="fc bfc" id="L1419" title="All 4 branches covered.">                if (type &gt;= BC_INT32_NUM_MIN &amp;&amp; type &lt;= BC_INT32_NUM_MAX) {</span>
+<span class="fc" id="L1420">                    return &quot;INT32 &quot; + Integer.toString(type);</span>
+                }
+
+<span class="fc bfc" id="L1423" title="All 4 branches covered.">                if (type &gt;= BC_INT32_BYTE_MIN &amp;&amp; type &lt;= BC_INT32_BYTE_MAX) {</span>
+<span class="fc" id="L1424">                    return &quot;INT32 &quot; + Integer.toString(type);</span>
+                }
+
+<span class="pc bpc" id="L1427" title="1 of 4 branches missed.">                if (type &gt;= BC_INT32_SHORT_MIN &amp;&amp; type &lt;= BC_INT32_SHORT_MAX) {</span>
+<span class="fc" id="L1428">                    return &quot;INT32 &quot; + Integer.toString(type);</span>
+                }
+
+<span class="pc bpc" id="L1431" title="1 of 4 branches missed.">                if (type &gt;= BC_INT64_NUM_MIN &amp;&amp; type &lt;= BC_INT64_NUM_MAX) {</span>
+<span class="fc" id="L1432">                    return &quot;INT64 &quot; + Integer.toString(type);</span>
+                }
+
+<span class="pc bpc" id="L1435" title="1 of 4 branches missed.">                if (type &gt;= BC_INT64_BYTE_MIN &amp;&amp; type &lt;= BC_INT64_BYTE_MAX) {</span>
+<span class="fc" id="L1436">                    return &quot;INT64 &quot; + Integer.toString(type);</span>
+                }
+
+<span class="pc bpc" id="L1439" title="1 of 4 branches missed.">                if (type &gt;= BC_INT64_SHORT_MIN &amp;&amp; type &lt;= BC_INT64_SHORT_MAX) {</span>
+<span class="fc" id="L1440">                    return &quot;INT64 &quot; + Integer.toString(type);</span>
+                }
+
+<span class="fc" id="L1443">                return Integer.toString(type);</span>
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.8.202204050719</span></div></body></html>

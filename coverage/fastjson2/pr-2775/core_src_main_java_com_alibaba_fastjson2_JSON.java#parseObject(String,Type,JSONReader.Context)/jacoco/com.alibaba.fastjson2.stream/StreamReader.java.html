@@ -1,0 +1,623 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>StreamReader.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">fastjson2</a> &gt; <a href="index.source.html" class="el_package">com.alibaba.fastjson2.stream</a> &gt; <span class="el_source">StreamReader.java</span></div><h1>StreamReader.java</h1><pre class="source lang-java linenums">package com.alibaba.fastjson2.stream;
+
+import com.alibaba.fastjson2.JSONFactory;
+import com.alibaba.fastjson2.annotation.JSONField;
+import com.alibaba.fastjson2.reader.FieldReader;
+import com.alibaba.fastjson2.reader.ObjectReader;
+import com.alibaba.fastjson2.reader.ObjectReaderProvider;
+import com.alibaba.fastjson2.support.csv.CSVReader;
+import com.alibaba.fastjson2.util.DateUtils;
+import com.alibaba.fastjson2.util.JDKUtils;
+import com.alibaba.fastjson2.util.TypeUtils;
+
+import java.io.IOException;
+import java.lang.reflect.Type;
+import java.math.BigDecimal;
+import java.math.BigInteger;
+import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.ZonedDateTime;
+import java.util.*;
+import java.util.function.Consumer;
+import java.util.function.Supplier;
+import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
+
+public abstract class StreamReader&lt;T&gt; {
+    protected static final int SIZE_512K = 1024 * 512;
+    protected long features;
+
+    protected Type[] types;
+    protected ObjectReader[] typeReaders;
+
+    protected Supplier objectCreator;
+    protected FieldReader[] fieldReaders;
+
+    protected int lineSize;
+    protected int rowCount;
+    protected int errorCount;
+
+    protected int lineStart;
+    protected int lineEnd;
+    protected int lineNextStart;
+
+    protected int end;
+    protected int off;
+
+    protected boolean inputEnd;
+<span class="fc" id="L51">    protected boolean lineTerminated = true;</span>
+
+    protected Map&lt;String, ColumnStat&gt; columnStatsMap;
+    protected List&lt;String&gt; columns;
+    protected List&lt;ColumnStat&gt; columnStats;
+    protected int[] mapping;
+
+<span class="fc" id="L58">    public StreamReader() {</span>
+<span class="fc" id="L59">    }</span>
+
+<span class="fc" id="L61">    public StreamReader(Type[] types) {</span>
+<span class="fc" id="L62">        this.types = types;</span>
+
+<span class="fc bfc" id="L64" title="All 2 branches covered.">        if (types.length == 0) {</span>
+<span class="fc" id="L65">            this.typeReaders = new ObjectReader[0];</span>
+<span class="fc" id="L66">            return;</span>
+        }
+
+<span class="fc" id="L69">        ObjectReaderProvider provider = JSONFactory.getDefaultObjectReaderProvider();</span>
+<span class="fc" id="L70">        ObjectReader[] readers = new ObjectReader[types.length];</span>
+<span class="fc bfc" id="L71" title="All 2 branches covered.">        for (int i = 0; i &lt; types.length; i++) {</span>
+<span class="fc" id="L72">            Type type = types[i];</span>
+<span class="pc bpc" id="L73" title="1 of 4 branches missed.">            if (type == String.class || type == Object.class) {</span>
+<span class="fc" id="L74">                readers[i] = null;</span>
+            } else {
+<span class="fc" id="L76">                readers[i] = provider.getObjectReader(type);</span>
+            }
+        }
+<span class="fc" id="L79">        this.typeReaders = readers;</span>
+<span class="fc" id="L80">    }</span>
+//
+//    public StreamReader(ObjectReaderAdapter objectReader) {
+//        this.objectReader = objectReader;
+//        this.fieldReaders = objectReader.getFieldReaders();
+//        this.types = new Type[fieldReaders.length];
+//        for (int i = 0; i &lt; this.fieldReaders.length; i++) {
+//            Type fieldType = this.fieldReaders[i].fieldType;
+//            if (fieldType instanceof Class) {
+//                fieldType = TypeUtils.nonePrimitive((Class) fieldType);
+//            }
+//            this.types[i] = fieldType;
+//        }
+//    }
+
+    protected abstract boolean seekLine() throws IOException;
+
+    public abstract &lt;T&gt; T readLineObject();
+
+<span class="fc" id="L99">    public enum Feature {</span>
+<span class="fc" id="L100">        IgnoreEmptyLine(1),</span>
+<span class="fc" id="L101">        ErrorAsNull(1 &lt;&lt; 1);</span>
+
+        public final long mask;
+
+<span class="fc" id="L105">        Feature(long mask) {</span>
+<span class="fc" id="L106">            this.mask = mask;</span>
+<span class="fc" id="L107">        }</span>
+    }
+
+    public static class ColumnStat {
+        @JSONField(ordinal = -1)
+        public final String name;
+
+        public int values;
+        public int nulls;
+        public int integers;
+        public int doubles;
+        public int numbers;
+        public int dates;
+        public int booleans;
+
+        public int precision;
+        public int scale;
+        public int nonAsciiStrings;
+        public int errors;
+        public int maps;
+        public int arrays;
+
+<span class="fc" id="L129">        public ColumnStat(String name) {</span>
+<span class="fc" id="L130">            this.name = name;</span>
+<span class="fc" id="L131">        }</span>
+
+        public void stat(char[] bytes, int off, int len) {
+<span class="fc" id="L134">            values++;</span>
+
+<span class="fc bfc" id="L136" title="All 2 branches covered.">            if (len == 0) {</span>
+<span class="fc" id="L137">                nulls++;</span>
+<span class="fc" id="L138">                return;</span>
+            }
+
+<span class="fc" id="L141">            int end = off + len;</span>
+<span class="fc" id="L142">            boolean nonAscii = false;</span>
+<span class="fc bfc" id="L143" title="All 2 branches covered.">            for (int i = off; i &lt; end; i++) {</span>
+<span class="fc" id="L144">                char b = bytes[i];</span>
+<span class="fc bfc" id="L145" title="All 2 branches covered.">                if (b &gt; 0x7F) {</span>
+<span class="fc" id="L146">                    nonAscii = true;</span>
+<span class="fc" id="L147">                    break;</span>
+                }
+            }
+
+<span class="fc bfc" id="L151" title="All 2 branches covered.">            if (nonAscii) {</span>
+<span class="fc bfc" id="L152" title="All 2 branches covered.">                if (precision &lt; len) {</span>
+<span class="fc" id="L153">                    precision = len;</span>
+                }
+<span class="fc" id="L155">                nonAsciiStrings++;</span>
+<span class="fc" id="L156">                return;</span>
+            }
+
+<span class="fc" id="L159">            int precision = len;</span>
+<span class="fc bfc" id="L160" title="All 2 branches covered.">            if (TypeUtils.isNumber(bytes, off, len)) {</span>
+<span class="fc" id="L161">                char ch = bytes[off];</span>
+<span class="pc bpc" id="L162" title="1 of 4 branches missed.">                if (ch == '+' || ch == '-') {</span>
+<span class="fc" id="L163">                    precision--;</span>
+                }
+<span class="fc" id="L165">                numbers++;</span>
+<span class="fc bfc" id="L166" title="All 2 branches covered.">                if (TypeUtils.isInteger(bytes, off, len)) {</span>
+<span class="fc" id="L167">                    integers++;</span>
+                } else {
+<span class="fc" id="L169">                    boolean e = false;</span>
+<span class="fc" id="L170">                    int dotIndex = -1;</span>
+<span class="fc bfc" id="L171" title="All 2 branches covered.">                    for (int i = off; i &lt; end; i++) {</span>
+<span class="fc" id="L172">                        char b = bytes[i];</span>
+<span class="fc bfc" id="L173" title="All 2 branches covered.">                        if (b == '.') {</span>
+<span class="fc" id="L174">                            dotIndex = i;</span>
+<span class="pc bpc" id="L175" title="2 of 4 branches missed.">                        } else if (b == 'e' || b == 'E') {</span>
+<span class="nc" id="L176">                            e = true;</span>
+                        }
+                    }
+<span class="pc bpc" id="L179" title="1 of 2 branches missed.">                    if (e) {</span>
+<span class="nc" id="L180">                        doubles++;</span>
+<span class="pc bpc" id="L181" title="1 of 2 branches missed.">                    } else if (dotIndex != -1) {</span>
+<span class="fc" id="L182">                        int scale = end - dotIndex - 1;</span>
+<span class="fc bfc" id="L183" title="All 2 branches covered.">                        if (this.scale &lt; scale) {</span>
+<span class="fc" id="L184">                            this.scale = scale;</span>
+                        }
+<span class="fc" id="L186">                        precision--;</span>
+                    }
+                }
+<span class="fc" id="L189">            } else {</span>
+<span class="fc" id="L190">                boolean checkDate = false;</span>
+<span class="fc" id="L191">                int sub = 0, slash = 0, colon = 0, dot = 0, nums = 0;</span>
+<span class="fc bfc" id="L192" title="All 2 branches covered.">                for (int i = off; i &lt; end; i++) {</span>
+<span class="fc" id="L193">                    char ch = bytes[i];</span>
+<span class="fc bfc" id="L194" title="All 5 branches covered.">                    switch (ch) {</span>
+                        case '-':
+<span class="fc" id="L196">                            sub++;</span>
+<span class="fc" id="L197">                            break;</span>
+                        case '/':
+<span class="fc" id="L199">                            slash++;</span>
+<span class="fc" id="L200">                            break;</span>
+                        case ':':
+<span class="fc" id="L202">                            colon++;</span>
+<span class="fc" id="L203">                            break;</span>
+                        case '.':
+<span class="fc" id="L205">                            dot++;</span>
+<span class="fc" id="L206">                            break;</span>
+                        default:
+<span class="fc bfc" id="L208" title="All 4 branches covered.">                            if (ch &gt;= '0' &amp;&amp; ch &lt;= '9') {</span>
+<span class="fc" id="L209">                                nums++;</span>
+                            }
+                            break;
+                    }
+                }
+
+<span class="fc bfc" id="L215" title="All 6 branches covered.">                if (sub == 2 || slash == 2 || colon == 2) {</span>
+<span class="fc" id="L216">                    checkDate = true;</span>
+                }
+
+<span class="fc bfc" id="L219" title="All 6 branches covered.">                if (checkDate &amp;&amp; (nums &lt; 2 || len &gt; 36)) {</span>
+<span class="fc" id="L220">                    checkDate = false;</span>
+                }
+
+<span class="fc bfc" id="L223" title="All 2 branches covered.">                if (checkDate) {</span>
+                    try {
+<span class="fc" id="L225">                        LocalDateTime ldt = null;</span>
+<span class="pc bpc" id="L226" title="1 of 4 branches missed.">                        switch (len) {</span>
+                            case 8: {
+<span class="fc" id="L228">                                LocalDate localDate = DateUtils.parseLocalDate8(bytes, off);</span>
+<span class="fc" id="L229">                                ldt = localDate.atStartOfDay();</span>
+<span class="fc" id="L230">                                break;</span>
+                            }
+                            case 9: {
+<span class="nc" id="L233">                                LocalDate localDate = DateUtils.parseLocalDate9(bytes, off);</span>
+<span class="nc" id="L234">                                ldt = localDate.atStartOfDay();</span>
+<span class="nc" id="L235">                                break;</span>
+                            }
+                            case 10: {
+<span class="fc" id="L238">                                LocalDate localDate = DateUtils.parseLocalDate10(bytes, off);</span>
+<span class="nc" id="L239">                                ldt = localDate.atStartOfDay();</span>
+<span class="nc" id="L240">                                break;</span>
+                            }
+                            default:
+                                break;
+                        }
+
+<span class="fc bfc" id="L246" title="All 2 branches covered.">                        if (ldt == null) {</span>
+<span class="fc" id="L247">                            String str = new String(bytes, off, len);</span>
+<span class="fc" id="L248">                            ZonedDateTime zdt = DateUtils.parseZonedDateTime(str);</span>
+<span class="pc bpc" id="L249" title="1 of 2 branches missed.">                            if (zdt != null) {</span>
+<span class="fc" id="L250">                                ldt = zdt.toLocalDateTime();</span>
+                            }
+                        }
+<span class="pc bpc" id="L253" title="1 of 2 branches missed.">                        if (ldt != null) {</span>
+<span class="fc" id="L254">                            precision = 0;</span>
+<span class="fc" id="L255">                            dates++;</span>
+                        }
+<span class="fc" id="L257">                        int nanoOfSeconds = ldt.getNano();</span>
+<span class="fc bfc" id="L258" title="All 2 branches covered.">                        if (nanoOfSeconds != 0) {</span>
+<span class="fc bfc" id="L259" title="All 2 branches covered.">                            if (nanoOfSeconds % 100000000 == 0) {</span>
+<span class="fc" id="L260">                                precision = 1;</span>
+<span class="fc bfc" id="L261" title="All 2 branches covered.">                            } else if (nanoOfSeconds % 10000000 == 0) {</span>
+<span class="fc" id="L262">                                precision = 2;</span>
+<span class="fc bfc" id="L263" title="All 2 branches covered.">                            } else if (nanoOfSeconds % 1000000 == 0) {</span>
+<span class="fc" id="L264">                                precision = 3;</span>
+<span class="fc bfc" id="L265" title="All 2 branches covered.">                            } else if (nanoOfSeconds % 100000 == 0) {</span>
+<span class="fc" id="L266">                                precision = 4;</span>
+<span class="fc bfc" id="L267" title="All 2 branches covered.">                            } else if (nanoOfSeconds % 10000 == 0) {</span>
+<span class="fc" id="L268">                                precision = 5;</span>
+<span class="fc bfc" id="L269" title="All 2 branches covered.">                            } else if (nanoOfSeconds % 1000 == 0) {</span>
+<span class="fc" id="L270">                                precision = 6;</span>
+<span class="fc bfc" id="L271" title="All 2 branches covered.">                            } else if (nanoOfSeconds % 100 == 0) {</span>
+<span class="fc" id="L272">                                precision = 7;</span>
+<span class="fc bfc" id="L273" title="All 2 branches covered.">                            } else if (nanoOfSeconds % 10 == 0) {</span>
+<span class="fc" id="L274">                                precision = 8;</span>
+                            } else {
+<span class="fc" id="L276">                                precision = 9;</span>
+                            }
+                        }
+<span class="fc" id="L279">                    } catch (Exception ignored) {</span>
+<span class="fc" id="L280">                        errors++;</span>
+                        // ignored
+<span class="fc" id="L282">                    }</span>
+                }
+            }
+
+<span class="fc bfc" id="L286" title="All 2 branches covered.">            if (this.precision &lt; precision) {</span>
+<span class="fc" id="L287">                this.precision = precision;</span>
+            }
+<span class="fc" id="L289">        }</span>
+
+        public void stat(byte[] bytes, int off, int len, Charset charset) {
+<span class="fc" id="L292">            values++;</span>
+
+<span class="pc bpc" id="L294" title="1 of 2 branches missed.">            if (len == 0) {</span>
+<span class="nc" id="L295">                nulls++;</span>
+<span class="nc" id="L296">                return;</span>
+            }
+
+<span class="fc" id="L299">            int end = off + len;</span>
+<span class="fc" id="L300">            boolean nonAscii = false;</span>
+<span class="fc bfc" id="L301" title="All 2 branches covered.">            for (int i = off; i &lt; end; i++) {</span>
+<span class="fc" id="L302">                byte b = bytes[i];</span>
+<span class="pc bpc" id="L303" title="1 of 2 branches missed.">                if (b &lt; 0) {</span>
+<span class="nc" id="L304">                    nonAscii = true;</span>
+<span class="nc" id="L305">                    break;</span>
+                }
+            }
+
+<span class="pc bpc" id="L309" title="1 of 2 branches missed.">            if (nonAscii) {</span>
+<span class="nc bnc" id="L310" title="All 2 branches missed.">                if (precision &lt; len) {</span>
+<span class="nc" id="L311">                    precision = len;</span>
+                }
+<span class="nc" id="L313">                nonAsciiStrings++;</span>
+<span class="nc" id="L314">                return;</span>
+            }
+
+<span class="fc" id="L317">            int precision = len;</span>
+<span class="fc bfc" id="L318" title="All 2 branches covered.">            if (TypeUtils.isNumber(bytes, off, len)) {</span>
+<span class="fc" id="L319">                char ch = (char) bytes[off];</span>
+<span class="pc bpc" id="L320" title="1 of 4 branches missed.">                if (ch == '+' || ch == '-') {</span>
+<span class="fc" id="L321">                    precision--;</span>
+                }
+<span class="fc" id="L323">                numbers++;</span>
+<span class="fc bfc" id="L324" title="All 2 branches covered.">                if (TypeUtils.isInteger(bytes, off, len)) {</span>
+<span class="fc" id="L325">                    integers++;</span>
+                } else {
+<span class="fc" id="L327">                    boolean e = false;</span>
+<span class="fc" id="L328">                    int dotIndex = -1;</span>
+<span class="fc bfc" id="L329" title="All 2 branches covered.">                    for (int i = off; i &lt; end; i++) {</span>
+<span class="fc" id="L330">                        byte b = bytes[i];</span>
+<span class="fc bfc" id="L331" title="All 2 branches covered.">                        if (b == '.') {</span>
+<span class="fc" id="L332">                            dotIndex = i;</span>
+<span class="pc bpc" id="L333" title="2 of 4 branches missed.">                        } else if (b == 'e' || b == 'E') {</span>
+<span class="nc" id="L334">                            e = true;</span>
+                        }
+                    }
+<span class="pc bpc" id="L337" title="1 of 2 branches missed.">                    if (e) {</span>
+<span class="nc" id="L338">                        doubles++;</span>
+<span class="pc bpc" id="L339" title="1 of 2 branches missed.">                    } else if (dotIndex != -1) {</span>
+<span class="fc" id="L340">                        int scale = end - dotIndex - 1;</span>
+<span class="pc bpc" id="L341" title="1 of 2 branches missed.">                        if (this.scale &lt; scale) {</span>
+<span class="fc" id="L342">                            this.scale = scale;</span>
+                        }
+<span class="fc" id="L344">                        precision--;</span>
+                    }
+                }
+<span class="fc" id="L347">            } else {</span>
+<span class="fc" id="L348">                boolean checkDate = false;</span>
+<span class="fc" id="L349">                int sub = 0, slash = 0, colon = 0, dot = 0, nums = 0;</span>
+<span class="fc bfc" id="L350" title="All 2 branches covered.">                for (int i = off; i &lt; end; i++) {</span>
+<span class="fc" id="L351">                    char ch = (char) bytes[i];</span>
+<span class="fc bfc" id="L352" title="All 5 branches covered.">                    switch (ch) {</span>
+                        case '-':
+<span class="fc" id="L354">                            sub++;</span>
+<span class="fc" id="L355">                            break;</span>
+                        case '/':
+<span class="fc" id="L357">                            slash++;</span>
+<span class="fc" id="L358">                            break;</span>
+                        case ':':
+<span class="fc" id="L360">                            colon++;</span>
+<span class="fc" id="L361">                            break;</span>
+                        case '.':
+<span class="fc" id="L363">                            dot++;</span>
+<span class="fc" id="L364">                            break;</span>
+                        default:
+<span class="fc bfc" id="L366" title="All 4 branches covered.">                            if (ch &gt;= '0' &amp;&amp; ch &lt;= '9') {</span>
+<span class="fc" id="L367">                                nums++;</span>
+                            }
+                            break;
+                    }
+                }
+
+<span class="pc bpc" id="L373" title="1 of 6 branches missed.">                if (sub == 2 || slash == 2 || colon == 2) {</span>
+<span class="fc" id="L374">                    checkDate = true;</span>
+                }
+
+<span class="pc bpc" id="L377" title="2 of 6 branches missed.">                if (checkDate &amp;&amp; (nums &lt; 2 || len &gt; 36)) {</span>
+<span class="nc" id="L378">                    checkDate = false;</span>
+                }
+
+<span class="fc bfc" id="L381" title="All 2 branches covered.">                if (checkDate) {</span>
+                    try {
+<span class="fc" id="L383">                        LocalDateTime ldt = null;</span>
+<span class="pc bpc" id="L384" title="3 of 4 branches missed.">                        switch (len) {</span>
+                            case 8: {
+<span class="nc" id="L386">                                LocalDate localDate = DateUtils.parseLocalDate8(bytes, off);</span>
+<span class="nc" id="L387">                                ldt = localDate.atStartOfDay();</span>
+<span class="nc" id="L388">                                break;</span>
+                            }
+                            case 9: {
+<span class="nc" id="L391">                                LocalDate localDate = DateUtils.parseLocalDate9(bytes, off);</span>
+<span class="nc" id="L392">                                ldt = localDate.atStartOfDay();</span>
+<span class="nc" id="L393">                                break;</span>
+                            }
+                            case 10: {
+<span class="nc" id="L396">                                LocalDate localDate = DateUtils.parseLocalDate10(bytes, off);</span>
+<span class="nc" id="L397">                                ldt = localDate.atStartOfDay();</span>
+<span class="nc" id="L398">                                break;</span>
+                            }
+                            default:
+                                break;
+                        }
+
+<span class="pc bpc" id="L404" title="1 of 2 branches missed.">                        if (ldt == null) {</span>
+<span class="fc" id="L405">                            String str = new String(bytes, off, len, charset);</span>
+<span class="fc" id="L406">                            ZonedDateTime zdt = DateUtils.parseZonedDateTime(str);</span>
+<span class="pc bpc" id="L407" title="1 of 2 branches missed.">                            if (zdt != null) {</span>
+<span class="fc" id="L408">                                ldt = zdt.toLocalDateTime();</span>
+                            }
+                        }
+<span class="pc bpc" id="L411" title="1 of 2 branches missed.">                        if (ldt != null) {</span>
+<span class="fc" id="L412">                            precision = 0;</span>
+<span class="fc" id="L413">                            dates++;</span>
+                        }
+<span class="fc" id="L415">                        int nanoOfSeconds = ldt.getNano();</span>
+<span class="fc bfc" id="L416" title="All 2 branches covered.">                        if (nanoOfSeconds != 0) {</span>
+<span class="fc bfc" id="L417" title="All 2 branches covered.">                            if (nanoOfSeconds % 100000000 == 0) {</span>
+<span class="fc" id="L418">                                precision = 1;</span>
+<span class="fc bfc" id="L419" title="All 2 branches covered.">                            } else if (nanoOfSeconds % 10000000 == 0) {</span>
+<span class="fc" id="L420">                                precision = 2;</span>
+<span class="fc bfc" id="L421" title="All 2 branches covered.">                            } else if (nanoOfSeconds % 1000000 == 0) {</span>
+<span class="fc" id="L422">                                precision = 3;</span>
+<span class="fc bfc" id="L423" title="All 2 branches covered.">                            } else if (nanoOfSeconds % 100000 == 0) {</span>
+<span class="fc" id="L424">                                precision = 4;</span>
+<span class="fc bfc" id="L425" title="All 2 branches covered.">                            } else if (nanoOfSeconds % 10000 == 0) {</span>
+<span class="fc" id="L426">                                precision = 5;</span>
+<span class="fc bfc" id="L427" title="All 2 branches covered.">                            } else if (nanoOfSeconds % 1000 == 0) {</span>
+<span class="fc" id="L428">                                precision = 6;</span>
+<span class="fc bfc" id="L429" title="All 2 branches covered.">                            } else if (nanoOfSeconds % 100 == 0) {</span>
+<span class="fc" id="L430">                                precision = 7;</span>
+<span class="fc bfc" id="L431" title="All 2 branches covered.">                            } else if (nanoOfSeconds % 10 == 0) {</span>
+<span class="fc" id="L432">                                precision = 8;</span>
+                            } else {
+<span class="fc" id="L434">                                precision = 9;</span>
+                            }
+                        }
+<span class="nc" id="L437">                    } catch (Exception ignored) {</span>
+<span class="nc" id="L438">                        errors++;</span>
+                        // ignored
+<span class="fc" id="L440">                    }</span>
+                }
+            }
+
+<span class="fc bfc" id="L444" title="All 2 branches covered.">            if (this.precision &lt; precision) {</span>
+<span class="fc" id="L445">                this.precision = precision;</span>
+            }
+<span class="fc" id="L447">        }</span>
+
+        public void stat(String str) {
+<span class="pc bpc" id="L450" title="1 of 2 branches missed.">            if (JDKUtils.STRING_CODER != null</span>
+<span class="pc bpc" id="L451" title="3 of 4 branches missed.">                    &amp;&amp; JDKUtils.STRING_CODER.applyAsInt(str) == JDKUtils.LATIN1</span>
+                    &amp;&amp; JDKUtils.STRING_VALUE != null
+            ) {
+<span class="nc" id="L454">                byte[] bytes = JDKUtils.STRING_VALUE.apply(str);</span>
+<span class="nc" id="L455">                stat(bytes, 0, bytes.length, StandardCharsets.ISO_8859_1);</span>
+<span class="nc" id="L456">                return;</span>
+            }
+
+<span class="fc" id="L459">            char[] chars = JDKUtils.getCharArray(str);</span>
+<span class="fc" id="L460">            stat(chars, 0, chars.length);</span>
+<span class="fc" id="L461">        }</span>
+
+        public String getInferSQLType() {
+<span class="pc bpc" id="L464" title="1 of 4 branches missed.">            if (nonAsciiStrings &gt; 0 || nulls == values) {</span>
+<span class="fc" id="L465">                return &quot;STRING&quot;;</span>
+            }
+
+<span class="fc bfc" id="L468" title="All 2 branches covered.">            if (values == dates + nulls) {</span>
+<span class="pc bpc" id="L469" title="1 of 2 branches missed.">                if (precision != 0) {</span>
+<span class="nc" id="L470">                    return &quot;TIMESTAMP&quot;;</span>
+                }
+<span class="fc" id="L472">                return &quot;DATETIME&quot;;</span>
+            }
+
+<span class="fc bfc" id="L475" title="All 2 branches covered.">            if (values == integers + nulls) {</span>
+<span class="pc bpc" id="L476" title="1 of 2 branches missed.">                if (precision &lt; 10) {</span>
+<span class="fc" id="L477">                    return &quot;INT&quot;;</span>
+                }
+<span class="nc bnc" id="L479" title="All 2 branches missed.">                if (precision &lt; 20) {</span>
+<span class="nc" id="L480">                    return &quot;BIGINT&quot;;</span>
+                }
+<span class="nc" id="L482">                return &quot;DECIMAL(&quot; + precision + &quot;, 0)&quot;;</span>
+            }
+
+<span class="pc bpc" id="L485" title="1 of 2 branches missed.">            if (values == numbers + nulls) {</span>
+<span class="nc bnc" id="L486" title="All 4 branches missed.">                if (doubles &gt; 0 || scale &gt; 5) {</span>
+<span class="nc" id="L487">                    return &quot;DOUBLE&quot;;</span>
+                }
+
+<span class="nc" id="L490">                int precision = this.precision;</span>
+<span class="nc bnc" id="L491" title="All 2 branches missed.">                if (precision &lt; 19) {</span>
+<span class="nc" id="L492">                    precision = 19;</span>
+                }
+<span class="nc" id="L494">                return &quot;DECIMAL(&quot; + precision + &quot;, &quot; + scale + &quot;)&quot;;</span>
+            }
+
+<span class="fc" id="L497">            return &quot;STRING&quot;;</span>
+        }
+
+        public Type getInferType() {
+<span class="pc bpc" id="L501" title="1 of 4 branches missed.">            if (nonAsciiStrings &gt; 0 || nulls == values) {</span>
+<span class="fc" id="L502">                return String.class;</span>
+            }
+
+<span class="fc bfc" id="L505" title="All 2 branches covered.">            if (values == booleans + nulls) {</span>
+<span class="fc" id="L506">                return Boolean.class;</span>
+            }
+
+<span class="fc bfc" id="L509" title="All 2 branches covered.">            if (values == dates + nulls) {</span>
+<span class="fc bfc" id="L510" title="All 2 branches covered.">                if (precision != 0) {</span>
+<span class="fc" id="L511">                    return Instant.class;</span>
+                }
+<span class="fc" id="L513">                return Date.class;</span>
+            }
+
+<span class="pc bpc" id="L516" title="1 of 2 branches missed.">            if (doubles &gt; 0) {</span>
+<span class="nc" id="L517">                return Double.class;</span>
+            }
+
+<span class="fc bfc" id="L520" title="All 2 branches covered.">            if (values == integers + nulls) {</span>
+<span class="fc bfc" id="L521" title="All 2 branches covered.">                if (precision &lt; 10) {</span>
+<span class="fc" id="L522">                    return Integer.class;</span>
+                }
+<span class="fc bfc" id="L524" title="All 2 branches covered.">                if (precision &lt; 20) {</span>
+<span class="fc" id="L525">                    return Long.class;</span>
+                }
+<span class="fc" id="L527">                return BigInteger.class;</span>
+            }
+
+<span class="fc bfc" id="L530" title="All 2 branches covered.">            if (values == numbers + nulls) {</span>
+<span class="fc" id="L531">                return BigDecimal.class;</span>
+            }
+
+<span class="fc bfc" id="L534" title="All 2 branches covered.">            if (arrays &gt; 0) {</span>
+<span class="fc" id="L535">                return Collection.class;</span>
+            }
+
+<span class="fc bfc" id="L538" title="All 2 branches covered.">            if (maps &gt; 0) {</span>
+<span class="fc" id="L539">                return Map.class;</span>
+            }
+
+<span class="fc" id="L542">            return String.class;</span>
+        }
+    }
+
+    public &lt;T&gt; Stream&lt;T&gt; stream() {
+<span class="fc" id="L547">        return StreamSupport.stream(new StreamReaderSpliterator&lt;&gt;((StreamReader&lt;T&gt;) this), false);</span>
+    }
+
+    public &lt;T&gt; Stream&lt;T&gt; stream(Class&lt;T&gt; clazz) {
+<span class="fc" id="L551">        return StreamSupport.stream(new StreamReaderSpliterator&lt;&gt;((StreamReader&lt;T&gt;) this, clazz), false);</span>
+    }
+
+    protected static class StreamReaderSpliterator&lt;T&gt;
+            implements Spliterator&lt;T&gt; {
+        private final StreamReader&lt;T&gt; streamReader;
+        private Class&lt;T&gt; clazz;
+        private CSVReader csvReader;
+
+<span class="fc" id="L560">        public StreamReaderSpliterator(StreamReader&lt;T&gt; streamReader) {</span>
+<span class="fc" id="L561">            this.streamReader = streamReader;</span>
+<span class="pc bpc" id="L562" title="1 of 2 branches missed.">            if (streamReader instanceof CSVReader) {</span>
+<span class="nc" id="L563">                CSVReader reader = (CSVReader) streamReader;</span>
+<span class="nc bnc" id="L564" title="All 2 branches missed.">                if (!reader.isObjectSupport()) {</span>
+<span class="nc" id="L565">                    csvReader = reader;</span>
+                }
+            }
+<span class="fc" id="L568">        }</span>
+
+<span class="fc" id="L570">        public StreamReaderSpliterator(StreamReader&lt;T&gt; streamReader, Class&lt;T&gt; clazz) {</span>
+<span class="fc" id="L571">            this.streamReader = streamReader;</span>
+<span class="fc" id="L572">            this.clazz = clazz;</span>
+<span class="fc bfc" id="L573" title="All 2 branches covered.">            if (streamReader instanceof CSVReader) {</span>
+<span class="fc" id="L574">                CSVReader reader = (CSVReader) streamReader;</span>
+<span class="pc bpc" id="L575" title="1 of 2 branches missed.">                if (!reader.isObjectSupport()) {</span>
+<span class="fc" id="L576">                    csvReader = reader;</span>
+                }
+            }
+<span class="fc" id="L579">        }</span>
+
+        @Override
+        public boolean tryAdvance(Consumer&lt;? super T&gt; action) {
+<span class="pc bpc" id="L583" title="1 of 2 branches missed.">            if (action == null) {</span>
+<span class="nc" id="L584">                throw new IllegalArgumentException(&quot;action must not be null&quot;);</span>
+            }
+<span class="fc" id="L586">            T object = next();</span>
+<span class="pc bpc" id="L587" title="1 of 4 branches missed.">            if (streamReader.inputEnd || object == null) {</span>
+<span class="fc" id="L588">                return false;</span>
+            } else {
+<span class="fc" id="L590">                action.accept(object);</span>
+<span class="fc" id="L591">                return true;</span>
+            }
+        }
+
+        private T next() {
+<span class="fc bfc" id="L596" title="All 2 branches covered.">            if (csvReader != null) {</span>
+<span class="fc" id="L597">                Object[] objects = csvReader.readLineValues();</span>
+<span class="pc bpc" id="L598" title="1 of 6 branches missed.">                if (clazz != null &amp; !clazz.isAssignableFrom(objects.getClass())) {</span>
+<span class="fc" id="L599">                    throw new ClassCastException(String.format(&quot;%s can not cast to %s&quot;, objects.getClass(), clazz));</span>
+                }
+<span class="fc" id="L601">                return (T) objects;</span>
+            } else {
+<span class="fc" id="L603">                return streamReader.readLineObject();</span>
+            }
+        }
+
+        @Override
+        public Spliterator&lt;T&gt; trySplit() {
+<span class="fc" id="L609">            throw new UnsupportedOperationException(&quot;parallel stream not supported&quot;);</span>
+        }
+
+        @Override
+        public long estimateSize() {
+<span class="pc bpc" id="L614" title="1 of 2 branches missed.">            return streamReader.inputEnd ? 0L : Long.MAX_VALUE;</span>
+        }
+
+        @Override
+        public int characteristics() {
+<span class="fc" id="L619">            return ORDERED + NONNULL + IMMUTABLE;</span>
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.8.202204050719</span></div></body></html>

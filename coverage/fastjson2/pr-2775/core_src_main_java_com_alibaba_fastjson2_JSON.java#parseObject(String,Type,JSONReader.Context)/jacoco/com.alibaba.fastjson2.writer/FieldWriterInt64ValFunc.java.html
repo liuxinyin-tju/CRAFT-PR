@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>FieldWriterInt64ValFunc.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">fastjson2</a> &gt; <a href="index.source.html" class="el_package">com.alibaba.fastjson2.writer</a> &gt; <span class="el_source">FieldWriterInt64ValFunc.java</span></div><h1>FieldWriterInt64ValFunc.java</h1><pre class="source lang-java linenums">package com.alibaba.fastjson2.writer;
+
+import com.alibaba.fastjson2.JSONWriter;
+
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
+import java.util.function.ToLongFunction;
+
+final class FieldWriterInt64ValFunc&lt;T&gt;
+        extends FieldWriterInt64&lt;T&gt; {
+    final ToLongFunction function;
+
+    FieldWriterInt64ValFunc(
+            String fieldName,
+            int ordinal,
+            long features,
+            String format,
+            String label,
+            Field field,
+            Method method,
+            ToLongFunction function
+    ) {
+<span class="fc" id="L23">        super(fieldName, ordinal, features, format, label, long.class, field, method);</span>
+<span class="fc" id="L24">        this.function = function;</span>
+<span class="fc" id="L25">    }</span>
+
+    @Override
+    public Object getFieldValue(T object) {
+<span class="nc" id="L29">        return function.applyAsLong(object);</span>
+    }
+
+    @Override
+    public boolean write(JSONWriter jsonWriter, T object) {
+        long value;
+        try {
+<span class="fc" id="L36">            value = function.applyAsLong(object);</span>
+<span class="fc" id="L37">        } catch (RuntimeException error) {</span>
+<span class="pc bpc" id="L38" title="1 of 2 branches missed.">            if (jsonWriter.isIgnoreErrorGetter()) {</span>
+<span class="fc" id="L39">                return false;</span>
+            }
+<span class="nc" id="L41">            throw error;</span>
+<span class="fc" id="L42">        }</span>
+
+<span class="fc" id="L44">        writeInt64(jsonWriter, value);</span>
+<span class="fc" id="L45">        return true;</span>
+    }
+
+    @Override
+    public void writeValue(JSONWriter jsonWriter, T object) {
+<span class="fc" id="L50">        long value = function.applyAsLong(object);</span>
+<span class="fc" id="L51">        jsonWriter.writeInt64(value);</span>
+<span class="fc" id="L52">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.8.202204050719</span></div></body></html>

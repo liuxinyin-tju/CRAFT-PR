@@ -1,0 +1,334 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>MoneySupport.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">fastjson2</a> &gt; <a href="index.source.html" class="el_package">com.alibaba.fastjson2.support.money</a> &gt; <span class="el_source">MoneySupport.java</span></div><h1>MoneySupport.java</h1><pre class="source lang-java linenums">package com.alibaba.fastjson2.support.money;
+
+import com.alibaba.fastjson2.JSONException;
+import com.alibaba.fastjson2.reader.*;
+import com.alibaba.fastjson2.support.LambdaMiscCodec;
+import com.alibaba.fastjson2.util.JDKUtils;
+import com.alibaba.fastjson2.util.TypeUtils;
+import com.alibaba.fastjson2.writer.*;
+
+import java.lang.invoke.*;
+import java.lang.reflect.Method;
+import java.math.BigDecimal;
+import java.util.Arrays;
+import java.util.Map;
+import java.util.function.BiFunction;
+import java.util.function.Function;
+import java.util.function.Supplier;
+
+import static com.alibaba.fastjson2.util.TypeUtils.*;
+
+<span class="nc" id="L21">public class MoneySupport {</span>
+    static Class CLASS_MONETARY;
+    static Class CLASS_MONETARY_AMOUNT;
+    static Class CLASS_MONETARY_AMOUNT_FACTORY;
+    static Class CLASS_DEFAULT_NUMBER_VALUE;
+    static Class CLASS_NUMBER_VALUE;
+    static Class CLASS_CURRENCY_UNIT;
+
+    static Function&lt;Object, Object&gt; FUNC_CREATE;
+    static Supplier&lt;Object&gt; FUNC_GET_DEFAULT_AMOUNT_FACTORY;
+    static BiFunction&lt;Object, Object, Object&gt; FUNC_SET_CURRENCY;
+    static BiFunction&lt;Object, Object, Number&gt; FUNC_SET_NUMBER;
+    static Function&lt;String, Object&gt; FUNC_GET_CURRENCY;
+    static Function&lt;Object, BigDecimal&gt; FUNC_NUMBER_VALUE;
+
+    public static ObjectReader createCurrencyUnitReader() {
+<span class="pc bpc" id="L37" title="1 of 2 branches missed.">        if (CLASS_MONETARY == null) {</span>
+<span class="fc" id="L38">            CLASS_MONETARY = TypeUtils.loadClass(&quot;javax.money.Monetary&quot;);</span>
+        }
+
+<span class="pc bpc" id="L41" title="1 of 2 branches missed.">        if (CLASS_CURRENCY_UNIT == null) {</span>
+<span class="nc" id="L42">            CLASS_CURRENCY_UNIT = TypeUtils.loadClass(&quot;javax.money.CurrencyUnit&quot;);</span>
+        }
+
+<span class="pc bpc" id="L45" title="1 of 2 branches missed.">        if (FUNC_GET_CURRENCY == null) {</span>
+<span class="fc" id="L46">            MethodHandles.Lookup lookup = JDKUtils.trustedLookup(CLASS_MONETARY);</span>
+            try {
+<span class="fc" id="L48">                MethodHandle methodHandle = lookup.findStatic(</span>
+                        CLASS_MONETARY,
+                        &quot;getCurrency&quot;,
+<span class="fc" id="L51">                        MethodType.methodType(CLASS_CURRENCY_UNIT, String.class, String[].class)</span>
+                );
+
+<span class="fc" id="L54">                CallSite callSite = LambdaMetafactory.metafactory(</span>
+                        lookup,
+                        &quot;apply&quot;,
+                        METHOD_TYPE_BI_FUNCTION,
+                        METHOD_TYPE_OBJECT_OBJECT_OBJECT,
+                        methodHandle,
+<span class="fc" id="L60">                        MethodType.methodType(CLASS_CURRENCY_UNIT, String.class, String[].class)</span>
+                );
+<span class="fc" id="L62">                MethodHandle target = callSite.getTarget();</span>
+<span class="fc" id="L63">                BiFunction&lt;String, String[], Object&gt; biFunctionGetCurrency = (BiFunction&lt;String, String[], Object&gt;) target.invokeExact();</span>
+<span class="fc" id="L64">                FUNC_GET_CURRENCY = s -&gt; biFunctionGetCurrency.apply(s, new String[0]);</span>
+<span class="nc" id="L65">            } catch (Throwable e) {</span>
+<span class="nc" id="L66">                throw new JSONException(&quot;method not found : javax.money.Monetary.getCurrency&quot;, e);</span>
+<span class="fc" id="L67">            }</span>
+        }
+
+<span class="fc" id="L70">        return ObjectReaderImplValue.of(CLASS_CURRENCY_UNIT, String.class, FUNC_GET_CURRENCY);</span>
+    }
+
+    public static ObjectReader createMonetaryAmountReader() {
+<span class="pc bpc" id="L74" title="1 of 2 branches missed.">        if (CLASS_NUMBER_VALUE == null) {</span>
+<span class="fc" id="L75">            CLASS_NUMBER_VALUE = TypeUtils.loadClass(&quot;javax.money.NumberValue&quot;);</span>
+        }
+
+<span class="pc bpc" id="L78" title="1 of 2 branches missed.">        if (CLASS_CURRENCY_UNIT == null) {</span>
+<span class="fc" id="L79">            CLASS_CURRENCY_UNIT = TypeUtils.loadClass(&quot;javax.money.CurrencyUnit&quot;);</span>
+        }
+
+        try {
+<span class="fc" id="L83">            Method factoryMethod = MoneySupport.class.getMethod(&quot;createMonetaryAmount&quot;, Object.class, Object.class);</span>
+<span class="fc" id="L84">            String[] paramNames = {&quot;currency&quot;, &quot;number&quot;};</span>
+<span class="fc" id="L85">            Function&lt;Map&lt;Long, Object&gt;, Object&gt; factoryFunction = ObjectReaderCreator.INSTANCE.createFactoryFunction(factoryMethod, paramNames);</span>
+
+<span class="fc" id="L87">            FieldReader fieldReader0 = ObjectReaderCreator.INSTANCE.createFieldReaderParam(</span>
+                    MoneySupport.class, MoneySupport.class, &quot;currency&quot;, 0, 0, null, CLASS_CURRENCY_UNIT, CLASS_CURRENCY_UNIT, &quot;currency&quot;, null, null, null
+            );
+<span class="fc" id="L90">            FieldReader fieldReader1 = ObjectReaderCreator.INSTANCE.createFieldReaderParam(</span>
+                    MoneySupport.class, MoneySupport.class, &quot;number&quot;, 0, 0, null, CLASS_DEFAULT_NUMBER_VALUE, CLASS_DEFAULT_NUMBER_VALUE, &quot;number&quot;, null, null, null
+            );
+
+<span class="fc" id="L94">            FieldReader[] fieldReaders = {fieldReader0, fieldReader1};</span>
+<span class="fc" id="L95">            return new ObjectReaderNoneDefaultConstructor(</span>
+                    null,
+                    null,
+                    null,
+                    0,
+                    factoryFunction,
+                    null,
+                    paramNames,
+                    fieldReaders,
+                    null,
+                    null,
+                    null
+            );
+<span class="nc" id="L108">        } catch (NoSuchMethodException e) {</span>
+<span class="nc" id="L109">            throw new JSONException(&quot;createMonetaryAmountReader error&quot;, e);</span>
+        }
+    }
+
+    static Method METHOD_NUMBER_VALUE_OF;
+
+    public static ObjectReader createNumberValueReader() {
+<span class="pc bpc" id="L116" title="1 of 2 branches missed.">        if (CLASS_DEFAULT_NUMBER_VALUE == null) {</span>
+<span class="fc" id="L117">            CLASS_DEFAULT_NUMBER_VALUE = TypeUtils.loadClass(&quot;org.javamoney.moneta.spi.DefaultNumberValue&quot;);</span>
+        }
+
+<span class="pc bpc" id="L120" title="1 of 2 branches missed.">        if (METHOD_NUMBER_VALUE_OF == null) {</span>
+            try {
+<span class="fc" id="L122">                METHOD_NUMBER_VALUE_OF = CLASS_DEFAULT_NUMBER_VALUE.getMethod(&quot;of&quot;, Number.class);</span>
+<span class="nc" id="L123">            } catch (NoSuchMethodException e) {</span>
+<span class="nc" id="L124">                throw new JSONException(&quot;method not found : org.javamoney.moneta.spi.DefaultNumberValue.of&quot;, e);</span>
+<span class="fc" id="L125">            }</span>
+        }
+
+<span class="pc bpc" id="L128" title="1 of 2 branches missed.">        if (CLASS_NUMBER_VALUE == null) {</span>
+<span class="fc" id="L129">            CLASS_NUMBER_VALUE = TypeUtils.loadClass(&quot;javax.money.NumberValue&quot;);</span>
+        }
+
+<span class="fc" id="L132">        return ObjectReaderImplValue.of(CLASS_NUMBER_VALUE, BigDecimal.class, METHOD_NUMBER_VALUE_OF);</span>
+    }
+
+    public static ObjectWriter createMonetaryAmountWriter() {
+<span class="pc bpc" id="L136" title="1 of 2 branches missed.">        if (CLASS_MONETARY == null) {</span>
+<span class="nc" id="L137">            CLASS_MONETARY = TypeUtils.loadClass(&quot;javax.money.Monetary&quot;);</span>
+        }
+
+<span class="pc bpc" id="L140" title="1 of 2 branches missed.">        if (CLASS_MONETARY_AMOUNT == null) {</span>
+<span class="nc" id="L141">            CLASS_MONETARY_AMOUNT = TypeUtils.loadClass(&quot;javax.money.MonetaryAmount&quot;);</span>
+        }
+
+<span class="pc bpc" id="L144" title="1 of 2 branches missed.">        if (CLASS_NUMBER_VALUE == null) {</span>
+<span class="nc" id="L145">            CLASS_NUMBER_VALUE = TypeUtils.loadClass(&quot;javax.money.NumberValue&quot;);</span>
+        }
+
+<span class="pc bpc" id="L148" title="1 of 2 branches missed.">        if (CLASS_CURRENCY_UNIT == null) {</span>
+<span class="nc" id="L149">            CLASS_CURRENCY_UNIT = TypeUtils.loadClass(&quot;javax.money.CurrencyUnit&quot;);</span>
+        }
+
+        Function&lt;Object, Object&gt; FUNC_GET_CURRENCY;
+        try {
+<span class="fc" id="L154">            FUNC_GET_CURRENCY = LambdaMiscCodec.createFunction(</span>
+<span class="fc" id="L155">                    CLASS_MONETARY_AMOUNT.getMethod(&quot;getCurrency&quot;)</span>
+            );
+<span class="nc" id="L157">        } catch (Throwable e) {</span>
+<span class="nc" id="L158">            throw new JSONException(&quot;method not found : javax.money.Monetary.getCurrency&quot;, e);</span>
+<span class="fc" id="L159">        }</span>
+
+        Function&lt;Object, Object&gt; FUNC_GET_NUMBER;
+        try {
+<span class="fc" id="L163">            FUNC_GET_NUMBER = LambdaMiscCodec.createFunction(</span>
+<span class="fc" id="L164">                    CLASS_MONETARY_AMOUNT.getMethod(&quot;getNumber&quot;)</span>
+            );
+<span class="nc" id="L166">        } catch (Throwable e) {</span>
+<span class="nc" id="L167">            throw new JSONException(&quot;method not found : javax.money.Monetary.getNumber&quot;, e);</span>
+<span class="fc" id="L168">        }</span>
+
+<span class="fc" id="L170">        FieldWriter fieldWriter0 = ObjectWriterCreator.INSTANCE.createFieldWriter(</span>
+                &quot;currency&quot;,
+                CLASS_CURRENCY_UNIT,
+                CLASS_CURRENCY_UNIT,
+                FUNC_GET_CURRENCY
+        );
+
+<span class="fc" id="L177">        FieldWriter fieldWriter1 = ObjectWriterCreator.INSTANCE.createFieldWriter(</span>
+                &quot;number&quot;,
+                CLASS_NUMBER_VALUE,
+                CLASS_NUMBER_VALUE,
+                FUNC_GET_NUMBER);
+
+<span class="fc" id="L183">        return new ObjectWriterAdapter(CLASS_MONETARY_AMOUNT, null, null, 0, Arrays.asList(fieldWriter0, fieldWriter1));</span>
+    }
+
+    public static ObjectWriter createNumberValueWriter() {
+<span class="fc bfc" id="L187" title="All 2 branches covered.">        if (CLASS_NUMBER_VALUE == null) {</span>
+<span class="fc" id="L188">            CLASS_NUMBER_VALUE = TypeUtils.loadClass(&quot;javax.money.NumberValue&quot;);</span>
+        }
+
+<span class="fc bfc" id="L191" title="All 2 branches covered.">        if (FUNC_NUMBER_VALUE == null) {</span>
+            try {
+<span class="fc" id="L193">                BiFunction&lt;Object, Class, Number&gt; biFunctionNumberValue = LambdaMiscCodec.createBiFunction(</span>
+<span class="fc" id="L194">                        CLASS_NUMBER_VALUE.getMethod(&quot;numberValue&quot;, Class.class)</span>
+                );
+<span class="fc" id="L196">                FUNC_NUMBER_VALUE = o -&gt; (BigDecimal) biFunctionNumberValue.apply(o, BigDecimal.class);</span>
+<span class="nc" id="L197">            } catch (Throwable e) {</span>
+<span class="nc" id="L198">                throw new JSONException(&quot;method not found : javax.money.NumberValue.numberValue&quot;, e);</span>
+<span class="fc" id="L199">            }</span>
+        }
+<span class="fc" id="L201">        return ObjectWriters.ofToBigDecimal(FUNC_NUMBER_VALUE);</span>
+    }
+
+    public static Object createMonetaryAmount(Object currency, Object number) {
+<span class="fc bfc" id="L205" title="All 2 branches covered.">        if (CLASS_NUMBER_VALUE == null) {</span>
+<span class="fc" id="L206">            CLASS_NUMBER_VALUE = TypeUtils.loadClass(&quot;javax.money.NumberValue&quot;);</span>
+        }
+
+<span class="fc bfc" id="L209" title="All 2 branches covered.">        if (CLASS_CURRENCY_UNIT == null) {</span>
+<span class="fc" id="L210">            CLASS_CURRENCY_UNIT = TypeUtils.loadClass(&quot;javax.money.CurrencyUnit&quot;);</span>
+        }
+
+<span class="pc bpc" id="L213" title="1 of 2 branches missed.">        if (CLASS_MONETARY == null) {</span>
+<span class="nc" id="L214">            CLASS_MONETARY = TypeUtils.loadClass(&quot;javax.money.Monetary&quot;);</span>
+        }
+
+<span class="fc bfc" id="L217" title="All 2 branches covered.">        if (CLASS_MONETARY_AMOUNT == null) {</span>
+<span class="fc" id="L218">            CLASS_MONETARY_AMOUNT = TypeUtils.loadClass(&quot;javax.money.MonetaryAmount&quot;);</span>
+        }
+
+<span class="fc bfc" id="L221" title="All 2 branches covered.">        if (CLASS_MONETARY_AMOUNT_FACTORY == null) {</span>
+<span class="fc" id="L222">            CLASS_MONETARY_AMOUNT_FACTORY = TypeUtils.loadClass(&quot;javax.money.MonetaryAmountFactory&quot;);</span>
+        }
+
+<span class="fc bfc" id="L225" title="All 2 branches covered.">        if (FUNC_GET_DEFAULT_AMOUNT_FACTORY == null) {</span>
+<span class="fc" id="L226">            MethodHandles.Lookup lookup = JDKUtils.trustedLookup(CLASS_MONETARY);</span>
+            try {
+<span class="fc" id="L228">                MethodHandle methodHandle = lookup.findStatic(</span>
+                        CLASS_MONETARY,
+                        &quot;getDefaultAmountFactory&quot;,
+<span class="fc" id="L231">                        MethodType.methodType(CLASS_MONETARY_AMOUNT_FACTORY)</span>
+                );
+
+<span class="fc" id="L234">                CallSite callSite = LambdaMetafactory.metafactory(</span>
+                        lookup,
+                        &quot;get&quot;,
+                        METHOD_TYPE_SUPPLIER,
+                        METHOD_TYPE_OBJECT,
+                        methodHandle,
+<span class="fc" id="L240">                        MethodType.methodType(CLASS_MONETARY_AMOUNT_FACTORY)</span>
+                );
+<span class="fc" id="L242">                MethodHandle target = callSite.getTarget();</span>
+<span class="fc" id="L243">                FUNC_GET_DEFAULT_AMOUNT_FACTORY = (Supplier&lt;Object&gt;) target.invokeExact();</span>
+<span class="nc" id="L244">            } catch (Throwable e) {</span>
+<span class="nc" id="L245">                throw new JSONException(&quot;method not found : javax.money.Monetary.getDefaultAmountFactory&quot;, e);</span>
+<span class="fc" id="L246">            }</span>
+        }
+
+<span class="fc bfc" id="L249" title="All 2 branches covered.">        if (FUNC_SET_CURRENCY == null) {</span>
+<span class="fc" id="L250">            MethodHandles.Lookup lookup = JDKUtils.trustedLookup(CLASS_MONETARY_AMOUNT_FACTORY);</span>
+            try {
+<span class="fc" id="L252">                MethodHandle methodHandle = lookup.findVirtual(</span>
+                        CLASS_MONETARY_AMOUNT_FACTORY,
+                        &quot;setCurrency&quot;,
+<span class="fc" id="L255">                        MethodType.methodType(CLASS_MONETARY_AMOUNT_FACTORY, CLASS_CURRENCY_UNIT)</span>
+                );
+
+<span class="fc" id="L258">                CallSite callSite = LambdaMetafactory.metafactory(</span>
+                        lookup,
+                        &quot;apply&quot;,
+                        METHOD_TYPE_BI_FUNCTION,
+                        METHOD_TYPE_OBJECT_OBJECT_OBJECT,
+                        methodHandle,
+<span class="fc" id="L264">                        MethodType.methodType(CLASS_MONETARY_AMOUNT_FACTORY, CLASS_MONETARY_AMOUNT_FACTORY, CLASS_CURRENCY_UNIT)</span>
+                );
+<span class="fc" id="L266">                MethodHandle target = callSite.getTarget();</span>
+<span class="fc" id="L267">                FUNC_SET_CURRENCY = (BiFunction&lt;Object, Object, Object&gt;) target.invokeExact();</span>
+<span class="nc" id="L268">            } catch (Throwable e) {</span>
+<span class="nc" id="L269">                throw new JSONException(&quot;method not found : javax.money.NumberValue.numberValue&quot;, e);</span>
+<span class="fc" id="L270">            }</span>
+        }
+
+<span class="fc bfc" id="L273" title="All 2 branches covered.">        if (FUNC_SET_NUMBER == null) {</span>
+<span class="fc" id="L274">            MethodHandles.Lookup lookup = JDKUtils.trustedLookup(CLASS_MONETARY_AMOUNT_FACTORY);</span>
+            try {
+<span class="fc" id="L276">                MethodHandle methodHandle = lookup.findVirtual(</span>
+                        CLASS_MONETARY_AMOUNT_FACTORY,
+                        &quot;setNumber&quot;,
+<span class="fc" id="L279">                        MethodType.methodType(CLASS_MONETARY_AMOUNT_FACTORY, Number.class)</span>
+                );
+
+<span class="fc" id="L282">                CallSite callSite = LambdaMetafactory.metafactory(</span>
+                        lookup,
+                        &quot;apply&quot;,
+                        METHOD_TYPE_BI_FUNCTION,
+                        METHOD_TYPE_OBJECT_OBJECT_OBJECT,
+                        methodHandle,
+<span class="fc" id="L288">                        MethodType.methodType(CLASS_MONETARY_AMOUNT_FACTORY, CLASS_MONETARY_AMOUNT_FACTORY, Number.class)</span>
+                );
+<span class="fc" id="L290">                MethodHandle target = callSite.getTarget();</span>
+<span class="fc" id="L291">                FUNC_SET_NUMBER = (BiFunction&lt;Object, Object, Number&gt;) target.invokeExact();</span>
+<span class="nc" id="L292">            } catch (Throwable e) {</span>
+<span class="nc" id="L293">                throw new JSONException(&quot;method not found : javax.money.NumberValue.numberValue&quot;, e);</span>
+<span class="fc" id="L294">            }</span>
+        }
+
+<span class="fc bfc" id="L297" title="All 2 branches covered.">        if (FUNC_CREATE == null) {</span>
+<span class="fc" id="L298">            MethodHandles.Lookup lookup = JDKUtils.trustedLookup(CLASS_MONETARY_AMOUNT_FACTORY);</span>
+            try {
+<span class="fc" id="L300">                MethodHandle methodHandle = lookup.findVirtual(</span>
+                        CLASS_MONETARY_AMOUNT_FACTORY,
+                        &quot;create&quot;,
+<span class="fc" id="L303">                        MethodType.methodType(CLASS_MONETARY_AMOUNT)</span>
+                );
+
+<span class="fc" id="L306">                CallSite callSite = LambdaMetafactory.metafactory(</span>
+                        lookup,
+                        &quot;apply&quot;,
+                        METHOD_TYPE_FUNCTION,
+                        METHOD_TYPE_OBJECT_OBJECT,
+                        methodHandle,
+<span class="fc" id="L312">                        MethodType.methodType(CLASS_MONETARY_AMOUNT, CLASS_MONETARY_AMOUNT_FACTORY)</span>
+                );
+<span class="fc" id="L314">                MethodHandle target = callSite.getTarget();</span>
+<span class="fc" id="L315">                FUNC_CREATE = (Function&lt;Object, Object&gt;) target.invokeExact();</span>
+<span class="nc" id="L316">            } catch (Throwable e) {</span>
+<span class="nc" id="L317">                throw new JSONException(&quot;method not found : javax.money.NumberValue.numberValue&quot;, e);</span>
+<span class="fc" id="L318">            }</span>
+        }
+
+<span class="fc" id="L321">        Object factoryObject = FUNC_GET_DEFAULT_AMOUNT_FACTORY.get();</span>
+
+<span class="pc bpc" id="L323" title="1 of 2 branches missed.">        if (currency != null) {</span>
+<span class="fc" id="L324">            FUNC_SET_CURRENCY.apply(factoryObject, currency);</span>
+        }
+
+<span class="pc bpc" id="L327" title="1 of 2 branches missed.">        if (number != null) {</span>
+<span class="fc" id="L328">            FUNC_SET_NUMBER.apply(factoryObject, number);</span>
+        }
+
+<span class="fc" id="L331">        return FUNC_CREATE.apply(factoryObject);</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.8.202204050719</span></div></body></html>

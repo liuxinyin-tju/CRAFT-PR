@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>FieldWriterBigDecimalFunc.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">fastjson2</a> &gt; <a href="index.source.html" class="el_package">com.alibaba.fastjson2.writer</a> &gt; <span class="el_source">FieldWriterBigDecimalFunc.java</span></div><h1>FieldWriterBigDecimalFunc.java</h1><pre class="source lang-java linenums">package com.alibaba.fastjson2.writer;
+
+import com.alibaba.fastjson2.JSONWriter;
+
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
+import java.math.BigDecimal;
+import java.util.function.Function;
+
+final class FieldWriterBigDecimalFunc&lt;T&gt;
+        extends FieldWriter&lt;T&gt; {
+    final Function&lt;T, BigDecimal&gt; function;
+
+    FieldWriterBigDecimalFunc(
+            String fieldName,
+            int ordinal,
+            long features,
+            String format,
+            String label,
+            Field field,
+            Method method,
+            Function&lt;T, BigDecimal&gt; function
+    ) {
+<span class="fc" id="L24">        super(fieldName, ordinal, features, format, null, label, BigDecimal.class, BigDecimal.class, null, method);</span>
+<span class="fc" id="L25">        this.function = function;</span>
+<span class="fc" id="L26">    }</span>
+
+    @Override
+    public Object getFieldValue(T object) {
+<span class="fc" id="L30">        return function.apply(object);</span>
+    }
+
+    @Override
+    public void writeValue(JSONWriter jsonWriter, T object) {
+<span class="fc" id="L35">        BigDecimal value = function.apply(object);</span>
+<span class="fc" id="L36">        jsonWriter.writeDecimal(value, features, decimalFormat);</span>
+<span class="fc" id="L37">    }</span>
+
+    @Override
+    public boolean write(JSONWriter jsonWriter, T object) {
+        BigDecimal value;
+        try {
+<span class="fc" id="L43">            value = function.apply(object);</span>
+<span class="fc" id="L44">        } catch (RuntimeException error) {</span>
+<span class="pc bpc" id="L45" title="1 of 2 branches missed.">            if (jsonWriter.isIgnoreErrorGetter()) {</span>
+<span class="fc" id="L46">                return false;</span>
+            }
+<span class="nc" id="L48">            throw error;</span>
+<span class="fc" id="L49">        }</span>
+
+<span class="fc bfc" id="L51" title="All 2 branches covered.">        if (value == null) {</span>
+<span class="fc" id="L52">            long features = this.features | jsonWriter.getFeatures();</span>
+<span class="fc bfc" id="L53" title="All 2 branches covered.">            if ((features &amp; JSONWriter.Feature.WriteNulls.mask) == 0) {</span>
+<span class="fc" id="L54">                return false;</span>
+            }
+        }
+
+<span class="fc" id="L58">        writeFieldName(jsonWriter);</span>
+<span class="fc" id="L59">        jsonWriter.writeDecimal(value, features, decimalFormat);</span>
+<span class="fc" id="L60">        return true;</span>
+    }
+
+    @Override
+    public Function getFunction() {
+<span class="nc" id="L65">        return function;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.8.202204050719</span></div></body></html>

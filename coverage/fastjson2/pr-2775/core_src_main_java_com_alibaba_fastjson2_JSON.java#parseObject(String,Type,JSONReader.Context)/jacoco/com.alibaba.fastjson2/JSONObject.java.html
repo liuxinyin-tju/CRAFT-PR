@@ -1,0 +1,2057 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>JSONObject.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">fastjson2</a> &gt; <a href="index.source.html" class="el_package">com.alibaba.fastjson2</a> &gt; <span class="el_source">JSONObject.java</span></div><h1>JSONObject.java</h1><pre class="source lang-java linenums">package com.alibaba.fastjson2;
+
+import com.alibaba.fastjson2.annotation.JSONField;
+import com.alibaba.fastjson2.filter.NameFilter;
+import com.alibaba.fastjson2.filter.ValueFilter;
+import com.alibaba.fastjson2.reader.ObjectReader;
+import com.alibaba.fastjson2.reader.ObjectReaderImplEnum;
+import com.alibaba.fastjson2.reader.ObjectReaderProvider;
+import com.alibaba.fastjson2.schema.JSONSchema;
+import com.alibaba.fastjson2.util.*;
+import com.alibaba.fastjson2.writer.ObjectWriter;
+import com.alibaba.fastjson2.writer.ObjectWriterAdapter;
+
+import java.lang.annotation.Annotation;
+import java.lang.invoke.MethodHandle;
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.MethodType;
+import java.lang.reflect.*;
+import java.math.BigDecimal;
+import java.math.BigInteger;
+import java.time.Instant;
+import java.time.temporal.TemporalAccessor;
+import java.util.*;
+import java.util.function.Consumer;
+import java.util.function.Function;
+
+import static com.alibaba.fastjson2.JSONWriter.Feature.*;
+import static com.alibaba.fastjson2.util.BeanUtils.getAnnotations;
+import static com.alibaba.fastjson2.util.JDKUtils.ANDROID;
+import static com.alibaba.fastjson2.util.JDKUtils.GRAAL;
+import static com.alibaba.fastjson2.util.TypeUtils.toBigDecimal;
+
+public class JSONObject
+        extends LinkedHashMap&lt;String, Object&gt;
+        implements InvocationHandler {
+    private static final long serialVersionUID = 1L;
+
+    static ObjectReader&lt;JSONArray&gt; arrayReader;
+<span class="fc" id="L39">    static final long NONE_DIRECT_FEATURES = ReferenceDetection.mask</span>
+            | PrettyFormat.mask
+            | NotWriteEmptyArray.mask
+            | NotWriteDefaultValue.mask;
+
+    /**
+     * default
+     */
+    public JSONObject() {
+<span class="fc" id="L48">        super();</span>
+<span class="fc" id="L49">    }</span>
+
+    /**
+     * @param initialCapacity the initial capacity = (number of elements to store / load factor) + 1
+     * @throws IllegalArgumentException If the initial capacity is negative
+     */
+    public JSONObject(int initialCapacity) {
+<span class="fc" id="L56">        super(initialCapacity);</span>
+<span class="fc" id="L57">    }</span>
+
+    /**
+     * @param initialCapacity the initial capacity = (number of elements to store / load factor) + 1
+     * @param loadFactor the load factor
+     * @throws IllegalArgumentException If the initial capacity is negative or the load factor is negative
+     * @since 2.0.2
+     */
+    public JSONObject(int initialCapacity, float loadFactor) {
+<span class="fc" id="L66">        super(initialCapacity, loadFactor);</span>
+<span class="fc" id="L67">    }</span>
+
+    /**
+     * @param initialCapacity the initial capacity = (number of elements to store / load factor) + 1
+     * @param loadFactor the load factor
+     * @param accessOrder the ordering mode - true for access-order, false for insertion-order
+     * @throws IllegalArgumentException If the initial capacity is negative or the load factor is negative
+     * @since 2.0.2
+     */
+    public JSONObject(int initialCapacity, float loadFactor, boolean accessOrder) {
+<span class="fc" id="L77">        super(initialCapacity, loadFactor, accessOrder);</span>
+<span class="fc" id="L78">    }</span>
+
+    /**
+     * @param map the map whose mappings are to be placed in this map
+     * @throws NullPointerException If the specified map is null
+     */
+    @SuppressWarnings(&quot;unchecked&quot;)
+    public JSONObject(Map map) {
+<span class="fc" id="L86">        super(map);</span>
+<span class="fc" id="L87">    }</span>
+
+    /**
+     * Returns the Object of the associated keys in this {@link JSONObject}.
+     *
+     * @param key the key whose associated value is to be returned
+     */
+    public Object get(String key) {
+<span class="fc" id="L95">        return super.get(key);</span>
+    }
+
+    /**
+     * Returns the Object of the associated keys in this {@link JSONObject}.
+     *
+     * @param key the key whose associated value is to be returned
+     * @since 2.0.2
+     */
+    @Override
+    public Object get(Object key) {
+<span class="pc bpc" id="L106" title="1 of 8 branches missed.">        if (key instanceof Number</span>
+                || key instanceof Character
+                || key instanceof Boolean
+                || key instanceof UUID
+        ) {
+<span class="fc" id="L111">            Object value = super.get(key.toString());</span>
+<span class="fc bfc" id="L112" title="All 2 branches covered.">            if (value != null) {</span>
+<span class="fc" id="L113">                return value;</span>
+            }
+        }
+
+<span class="fc" id="L117">        return super.get(key);</span>
+    }
+
+    public Object getByPath(String jsonPath) {
+<span class="fc" id="L121">        JSONPath path = JSONPath.of(jsonPath);</span>
+<span class="fc bfc" id="L122" title="All 2 branches covered.">        if (path instanceof JSONPathSingleName) {</span>
+<span class="fc" id="L123">            String name = ((JSONPathSingleName) path).name;</span>
+<span class="fc" id="L124">            return get(name);</span>
+        }
+<span class="fc" id="L126">        return path.eval(this);</span>
+    }
+
+    /**
+     * Returns true if this map contains a mapping for the specified key
+     *
+     * @param key the key whose presence in this map is to be tested
+     */
+    public boolean containsKey(String key) {
+<span class="fc" id="L135">        return super.containsKey(key);</span>
+    }
+
+    /**
+     * Returns true if this map contains a mapping for the specified key
+     *
+     * @param key the key whose presence in this map is to be tested
+     */
+    @Override
+    public boolean containsKey(Object key) {
+<span class="fc bfc" id="L145" title="All 8 branches covered.">        if (key instanceof Number</span>
+                || key instanceof Character
+                || key instanceof Boolean
+                || key instanceof UUID
+        ) {
+<span class="pc bpc" id="L150" title="1 of 4 branches missed.">            return super.containsKey(key) || super.containsKey(key.toString());</span>
+        }
+
+<span class="fc" id="L153">        return super.containsKey(key);</span>
+    }
+
+    /**
+     * @param key the key whose associated value is to be returned
+     * @param defaultValue the default mapping of the key
+     */
+    public Object getOrDefault(String key, Object defaultValue) {
+<span class="fc" id="L161">        return super.getOrDefault(key, defaultValue);</span>
+    }
+
+    /**
+     * @param key the key whose associated value is to be returned
+     * @param defaultValue the default mapping of the key
+     * @since 2.0.2
+     */
+    @Override
+    public Object getOrDefault(Object key, Object defaultValue) {
+<span class="pc bpc" id="L171" title="3 of 8 branches missed.">        if (key instanceof Number</span>
+                || key instanceof Character
+                || key instanceof Boolean
+                || key instanceof UUID
+        ) {
+<span class="fc" id="L176">            return super.getOrDefault(</span>
+<span class="fc" id="L177">                    key.toString(), defaultValue</span>
+            );
+        }
+
+<span class="fc" id="L181">        return super.getOrDefault(</span>
+                key, defaultValue
+        );
+    }
+
+    /**
+     * Returns the {@link JSONArray} of the associated keys in this {@link JSONObject}.
+     *
+     * @param key the key whose associated value is to be returned
+     * @return {@link JSONArray} or null
+     */
+    @SuppressWarnings(&quot;unchecked&quot;)
+    public JSONArray getJSONArray(String key) {
+<span class="fc" id="L194">        Object value = super.get(key);</span>
+
+<span class="fc bfc" id="L196" title="All 2 branches covered.">        if (value == null) {</span>
+<span class="fc" id="L197">            return null;</span>
+        }
+
+<span class="fc bfc" id="L200" title="All 2 branches covered.">        if (value instanceof JSONArray) {</span>
+<span class="fc" id="L201">            return (JSONArray) value;</span>
+        }
+
+<span class="fc bfc" id="L204" title="All 2 branches covered.">        if (value instanceof JSONObject) {</span>
+<span class="fc" id="L205">            return JSONArray.of(value);</span>
+        }
+
+<span class="fc bfc" id="L208" title="All 2 branches covered.">        if (value instanceof String) {</span>
+<span class="fc" id="L209">            String str = (String) value;</span>
+
+<span class="fc bfc" id="L211" title="All 4 branches covered.">            if (str.isEmpty() || &quot;null&quot;.equalsIgnoreCase(str)) {</span>
+<span class="fc" id="L212">                return null;</span>
+            }
+
+<span class="fc bfc" id="L215" title="All 2 branches covered.">            if (str.charAt(0) != '[') {</span>
+<span class="fc" id="L216">                return JSONArray.of(str);</span>
+            }
+
+<span class="fc" id="L219">            JSONReader reader = JSONReader.of(str);</span>
+<span class="fc bfc" id="L220" title="All 2 branches covered.">            if (arrayReader == null) {</span>
+<span class="fc" id="L221">                arrayReader = reader.getObjectReader(JSONArray.class);</span>
+            }
+<span class="fc" id="L223">            return arrayReader.readObject(reader, null, null, 0);</span>
+        }
+
+<span class="fc bfc" id="L226" title="All 2 branches covered.">        if (value instanceof Collection) {</span>
+<span class="fc" id="L227">            JSONArray array = new JSONArray((Collection&lt;?&gt;) value);</span>
+<span class="fc" id="L228">            put(key, array);</span>
+<span class="fc" id="L229">            return array;</span>
+        }
+
+<span class="fc bfc" id="L232" title="All 2 branches covered.">        if (value instanceof Object[]) {</span>
+<span class="fc" id="L233">            return JSONArray.of((Object[]) value);</span>
+        }
+
+<span class="fc" id="L236">        Class&lt;?&gt; valueClass = value.getClass();</span>
+<span class="pc bpc" id="L237" title="1 of 2 branches missed.">        if (valueClass.isArray()) {</span>
+<span class="fc" id="L238">            int length = Array.getLength(value);</span>
+<span class="fc" id="L239">            JSONArray jsonArray = new JSONArray(length);</span>
+<span class="fc bfc" id="L240" title="All 2 branches covered.">            for (int i = 0; i &lt; length; i++) {</span>
+<span class="fc" id="L241">                Object item = Array.get(value, i);</span>
+<span class="fc" id="L242">                jsonArray.add(item);</span>
+            }
+<span class="fc" id="L244">            return jsonArray;</span>
+        }
+
+<span class="nc" id="L247">        return null;</span>
+    }
+
+    public &lt;T&gt; List&lt;T&gt; getList(String key, Class&lt;T&gt; itemClass, JSONReader.Feature... features) {
+<span class="fc" id="L251">        JSONArray jsonArray = getJSONArray(key);</span>
+<span class="pc bpc" id="L252" title="1 of 2 branches missed.">        if (jsonArray == null) {</span>
+<span class="nc" id="L253">            return null;</span>
+        }
+<span class="fc" id="L255">        return jsonArray.toList(itemClass, features);</span>
+    }
+
+    /**
+     * Returns the {@link JSONObject} of the associated keys in this {@link JSONObject}.
+     *
+     * @param key the key whose associated value is to be returned
+     * @return {@link JSONObject} or null
+     */
+    @SuppressWarnings({&quot;unchecked&quot;, &quot;rawtypes&quot;})
+    public JSONObject getJSONObject(String key) {
+<span class="fc" id="L266">        Object value = super.get(key);</span>
+
+<span class="fc bfc" id="L268" title="All 2 branches covered.">        if (value == null) {</span>
+<span class="fc" id="L269">            return null;</span>
+        }
+
+<span class="fc bfc" id="L272" title="All 2 branches covered.">        if (value instanceof JSONObject) {</span>
+<span class="fc" id="L273">            return (JSONObject) value;</span>
+        }
+
+<span class="fc bfc" id="L276" title="All 2 branches covered.">        if (value instanceof String) {</span>
+<span class="fc" id="L277">            String str = (String) value;</span>
+
+<span class="fc bfc" id="L279" title="All 4 branches covered.">            if (str.isEmpty() || &quot;null&quot;.equalsIgnoreCase(str)) {</span>
+<span class="fc" id="L280">                return null;</span>
+            }
+
+<span class="fc" id="L283">            JSONReader reader = JSONReader.of(str);</span>
+<span class="fc" id="L284">            return JSONFactory.OBJECT_READER.readObject(reader, null, null, 0);</span>
+        }
+
+<span class="fc bfc" id="L287" title="All 2 branches covered.">        if (value instanceof Map) {</span>
+<span class="fc" id="L288">            JSONObject object = new JSONObject((Map) value);</span>
+<span class="fc" id="L289">            put(key, object);</span>
+<span class="fc" id="L290">            return object;</span>
+        }
+
+<span class="fc" id="L293">        Class valueClass = value.getClass();</span>
+<span class="fc" id="L294">        ObjectWriter objectWriter = JSONFactory.getDefaultObjectWriterProvider().getObjectWriter(valueClass);</span>
+<span class="pc bpc" id="L295" title="1 of 2 branches missed.">        if (objectWriter instanceof ObjectWriterAdapter) {</span>
+<span class="fc" id="L296">            ObjectWriterAdapter writerAdapter = (ObjectWriterAdapter) objectWriter;</span>
+<span class="fc" id="L297">            return writerAdapter.toJSONObject(value);</span>
+        }
+
+<span class="nc" id="L300">        return null;</span>
+    }
+
+    /**
+     * Returns the {@link String} of the associated keys in this {@link JSONObject}.
+     *
+     * @param key the key whose associated value is to be returned
+     * @return {@link String} or null
+     */
+    public String getString(String key) {
+<span class="fc" id="L310">        Object value = super.get(key);</span>
+
+<span class="fc bfc" id="L312" title="All 2 branches covered.">        if (value == null) {</span>
+<span class="fc" id="L313">            return null;</span>
+        }
+
+<span class="fc bfc" id="L316" title="All 2 branches covered.">        if (value instanceof String) {</span>
+<span class="fc" id="L317">            return (String) value;</span>
+        }
+
+<span class="fc bfc" id="L320" title="All 2 branches covered.">        if (value instanceof Date) {</span>
+<span class="fc" id="L321">            long timeMillis = ((Date) value).getTime();</span>
+<span class="fc" id="L322">            return DateUtils.toString(timeMillis, false, DateUtils.DEFAULT_ZONE_ID);</span>
+        }
+
+<span class="fc bfc" id="L325" title="All 12 branches covered.">        if (value instanceof Boolean</span>
+                || value instanceof Character
+                || value instanceof Number
+                || value instanceof UUID
+                || value instanceof Enum
+                || value instanceof TemporalAccessor) {
+<span class="fc" id="L331">            return value.toString();</span>
+        }
+
+<span class="fc" id="L334">        return JSON.toJSONString(value);</span>
+    }
+
+    /**
+     * Returns the {@link Double} of the associated keys in this {@link JSONObject}.
+     *
+     * @param key the key whose associated value is to be returned
+     * @return {@link Double} or null
+     * @throws NumberFormatException If the value of get is {@link String} and it contains no parsable double
+     * @throws JSONException Unsupported type conversion to {@link Double}
+     */
+    public Double getDouble(String key) {
+<span class="fc" id="L346">        Object value = super.get(key);</span>
+
+<span class="fc bfc" id="L348" title="All 2 branches covered.">        if (value == null) {</span>
+<span class="fc" id="L349">            return null;</span>
+        }
+
+<span class="fc bfc" id="L352" title="All 2 branches covered.">        if (value instanceof Double) {</span>
+<span class="fc" id="L353">            return (Double) value;</span>
+        }
+
+<span class="fc bfc" id="L356" title="All 2 branches covered.">        if (value instanceof Number) {</span>
+<span class="fc" id="L357">            return ((Number) value).doubleValue();</span>
+        }
+
+<span class="fc bfc" id="L360" title="All 2 branches covered.">        if (value instanceof String) {</span>
+<span class="fc" id="L361">            String str = (String) value;</span>
+
+<span class="fc bfc" id="L363" title="All 4 branches covered.">            if (str.isEmpty() || &quot;null&quot;.equalsIgnoreCase(str)) {</span>
+<span class="fc" id="L364">                return null;</span>
+            }
+
+<span class="fc" id="L367">            return Double.parseDouble(str);</span>
+        }
+
+<span class="fc" id="L370">        throw new JSONException(&quot;Can not cast '&quot; + value.getClass() + &quot;' to Double&quot;);</span>
+    }
+
+    /**
+     * Returns a double value of the associated keys in this {@link JSONObject}.
+     *
+     * @param key the key whose associated value is to be returned
+     * @return double
+     * @throws NumberFormatException If the value of get is {@link String} and it contains no parsable double
+     * @throws JSONException Unsupported type conversion to double value
+     */
+    public double getDoubleValue(String key) {
+<span class="fc" id="L382">        Object value = super.get(key);</span>
+
+<span class="fc bfc" id="L384" title="All 2 branches covered.">        if (value == null) {</span>
+<span class="fc" id="L385">            return 0D;</span>
+        }
+
+<span class="fc bfc" id="L388" title="All 2 branches covered.">        if (value instanceof Number) {</span>
+<span class="fc" id="L389">            return ((Number) value).doubleValue();</span>
+        }
+
+<span class="fc bfc" id="L392" title="All 2 branches covered.">        if (value instanceof String) {</span>
+<span class="fc" id="L393">            String str = (String) value;</span>
+
+<span class="fc bfc" id="L395" title="All 4 branches covered.">            if (str.isEmpty() || &quot;null&quot;.equalsIgnoreCase(str)) {</span>
+<span class="fc" id="L396">                return 0D;</span>
+            }
+
+<span class="fc" id="L399">            return Double.parseDouble(str);</span>
+        }
+
+<span class="fc" id="L402">        throw new JSONException(&quot;Can not cast '&quot; + value.getClass() + &quot;' to double value&quot;);</span>
+    }
+
+    /**
+     * Returns the {@link Float} of the associated keys in this {@link JSONObject}.
+     *
+     * @param key the key whose associated value is to be returned
+     * @return {@link Float} or null
+     * @throws NumberFormatException If the value of get is {@link String} and it contains no parsable float
+     * @throws JSONException Unsupported type conversion to {@link Float}
+     */
+    public Float getFloat(String key) {
+<span class="fc" id="L414">        Object value = super.get(key);</span>
+
+<span class="fc bfc" id="L416" title="All 2 branches covered.">        if (value == null) {</span>
+<span class="fc" id="L417">            return null;</span>
+        }
+
+<span class="fc bfc" id="L420" title="All 2 branches covered.">        if (value instanceof Float) {</span>
+<span class="fc" id="L421">            return (Float) value;</span>
+        }
+
+<span class="fc bfc" id="L424" title="All 2 branches covered.">        if (value instanceof Number) {</span>
+<span class="fc" id="L425">            return ((Number) value).floatValue();</span>
+        }
+
+<span class="fc bfc" id="L428" title="All 2 branches covered.">        if (value instanceof String) {</span>
+<span class="fc" id="L429">            String str = (String) value;</span>
+
+<span class="fc bfc" id="L431" title="All 4 branches covered.">            if (str.isEmpty() || &quot;null&quot;.equalsIgnoreCase(str)) {</span>
+<span class="fc" id="L432">                return null;</span>
+            }
+
+<span class="fc" id="L435">            return Float.parseFloat(str);</span>
+        }
+
+<span class="fc" id="L438">        throw new JSONException(&quot;Can not cast '&quot; + value.getClass() + &quot;' to Float&quot;);</span>
+    }
+
+    /**
+     * Returns a float value of the associated keys in this {@link JSONObject}.
+     *
+     * @param key the key whose associated value is to be returned
+     * @return float
+     * @throws NumberFormatException If the value of get is {@link String} and it contains no parsable float
+     * @throws JSONException Unsupported type conversion to float value
+     */
+    public float getFloatValue(String key) {
+<span class="fc" id="L450">        Object value = super.get(key);</span>
+
+<span class="fc bfc" id="L452" title="All 2 branches covered.">        if (value == null) {</span>
+<span class="fc" id="L453">            return 0F;</span>
+        }
+
+<span class="fc bfc" id="L456" title="All 2 branches covered.">        if (value instanceof Number) {</span>
+<span class="fc" id="L457">            return ((Number) value).floatValue();</span>
+        }
+
+<span class="fc bfc" id="L460" title="All 2 branches covered.">        if (value instanceof String) {</span>
+<span class="fc" id="L461">            String str = (String) value;</span>
+
+<span class="pc bpc" id="L463" title="1 of 4 branches missed.">            if (str.isEmpty() || &quot;null&quot;.equalsIgnoreCase(str)) {</span>
+<span class="fc" id="L464">                return 0F;</span>
+            }
+
+<span class="fc" id="L467">            return Float.parseFloat(str);</span>
+        }
+
+<span class="fc" id="L470">        throw new JSONException(&quot;Can not cast '&quot; + value.getClass() + &quot;' to float value&quot;);</span>
+    }
+
+    /**
+     * Returns the {@link Long} of the associated keys in this {@link JSONObject}.
+     *
+     * @param key the key whose associated value is to be returned
+     * @return {@link Long} or null
+     * @throws NumberFormatException If the value of get is {@link String} and it contains no parsable long
+     * @throws JSONException Unsupported type conversion to {@link Long}
+     */
+    public Long getLong(String key) {
+<span class="fc" id="L482">        Object value = super.get(key);</span>
+
+<span class="fc bfc" id="L484" title="All 2 branches covered.">        if (value == null) {</span>
+<span class="fc" id="L485">            return null;</span>
+        }
+
+<span class="fc bfc" id="L488" title="All 2 branches covered.">        if (value instanceof Long) {</span>
+<span class="fc" id="L489">            return ((Long) value);</span>
+        }
+
+<span class="fc bfc" id="L492" title="All 2 branches covered.">        if (value instanceof Number) {</span>
+<span class="fc" id="L493">            return ((Number) value).longValue();</span>
+        }
+
+<span class="fc bfc" id="L496" title="All 2 branches covered.">        if (value instanceof String) {</span>
+<span class="fc" id="L497">            String str = (String) value;</span>
+
+<span class="fc bfc" id="L499" title="All 4 branches covered.">            if (str.isEmpty() || &quot;null&quot;.equalsIgnoreCase(str)) {</span>
+<span class="fc" id="L500">                return null;</span>
+            }
+
+<span class="fc bfc" id="L503" title="All 2 branches covered.">            if (str.indexOf('.') != -1) {</span>
+<span class="fc" id="L504">                return (long) Double.parseDouble(str);</span>
+            }
+
+<span class="fc" id="L507">            return Long.parseLong(str);</span>
+        }
+
+<span class="fc" id="L510">        throw new JSONException(&quot;Can not cast '&quot; + value.getClass() + &quot;' to Long&quot;);</span>
+    }
+
+    /**
+     * Returns a long value of the associated keys in this {@link JSONObject}.
+     *
+     * @param key the key whose associated value is to be returned
+     * @return long
+     * @throws NumberFormatException If the value of get is {@link String} and it contains no parsable long
+     * @throws JSONException Unsupported type conversion to long value
+     */
+    public long getLongValue(String key) {
+<span class="fc" id="L522">        Object value = super.get(key);</span>
+
+<span class="fc bfc" id="L524" title="All 2 branches covered.">        if (value == null) {</span>
+<span class="fc" id="L525">            return 0;</span>
+        }
+
+<span class="fc bfc" id="L528" title="All 2 branches covered.">        if (value instanceof Number) {</span>
+<span class="fc" id="L529">            return ((Number) value).longValue();</span>
+        }
+
+<span class="fc bfc" id="L532" title="All 2 branches covered.">        if (value instanceof String) {</span>
+<span class="fc" id="L533">            String str = (String) value;</span>
+
+<span class="fc bfc" id="L535" title="All 4 branches covered.">            if (str.isEmpty() || &quot;null&quot;.equalsIgnoreCase(str)) {</span>
+<span class="fc" id="L536">                return 0;</span>
+            }
+
+<span class="fc bfc" id="L539" title="All 2 branches covered.">            if (str.indexOf('.') != -1) {</span>
+<span class="fc" id="L540">                return (long) Double.parseDouble(str);</span>
+            }
+
+<span class="fc" id="L543">            return Long.parseLong(str);</span>
+        }
+
+<span class="fc" id="L546">        throw new JSONException(&quot;Can not cast '&quot; + value.getClass() + &quot;' to long value&quot;);</span>
+    }
+
+    /**
+     * Returns a long value of the associated keys in this {@link JSONObject}.
+     *
+     * @param key the key whose associated value is to be returned
+     * @param defaultValue the default mapping of the key
+     * @return long
+     * @throws NumberFormatException If the value of get is {@link String} and it contains no parsable long
+     * @throws JSONException Unsupported type conversion to long value
+     */
+    public long getLongValue(String key, long defaultValue) {
+<span class="fc" id="L559">        Object value = super.get(key);</span>
+
+<span class="fc bfc" id="L561" title="All 2 branches covered.">        if (value == null) {</span>
+<span class="fc" id="L562">            return defaultValue;</span>
+        }
+
+<span class="pc bpc" id="L565" title="1 of 2 branches missed.">        if (value instanceof Number) {</span>
+<span class="fc" id="L566">            return ((Number) value).longValue();</span>
+        }
+
+<span class="nc bnc" id="L569" title="All 2 branches missed.">        if (value instanceof String) {</span>
+<span class="nc" id="L570">            String str = (String) value;</span>
+
+<span class="nc bnc" id="L572" title="All 4 branches missed.">            if (str.isEmpty() || &quot;null&quot;.equalsIgnoreCase(str)) {</span>
+<span class="nc" id="L573">                return defaultValue;</span>
+            }
+
+<span class="nc bnc" id="L576" title="All 2 branches missed.">            if (str.indexOf('.') != -1) {</span>
+<span class="nc" id="L577">                return (long) Double.parseDouble(str);</span>
+            }
+
+<span class="nc" id="L580">            return Long.parseLong(str);</span>
+        }
+
+<span class="nc" id="L583">        throw new JSONException(&quot;Can not cast '&quot; + value.getClass() + &quot;' to long value&quot;);</span>
+    }
+
+    /**
+     * Returns the {@link Integer} of the associated keys in this {@link JSONObject}.
+     *
+     * @param key the key whose associated value is to be returned
+     * @return {@link Integer} or null
+     * @throws NumberFormatException If the value of get is {@link String} and it contains no parsable int
+     * @throws JSONException Unsupported type conversion to {@link Integer}
+     */
+    public Integer getInteger(String key) {
+<span class="fc" id="L595">        Object value = super.get(key);</span>
+
+<span class="fc bfc" id="L597" title="All 2 branches covered.">        if (value == null) {</span>
+<span class="fc" id="L598">            return null;</span>
+        }
+
+<span class="fc bfc" id="L601" title="All 2 branches covered.">        if (value instanceof Integer) {</span>
+<span class="fc" id="L602">            return ((Integer) value);</span>
+        }
+
+<span class="fc bfc" id="L605" title="All 2 branches covered.">        if (value instanceof Number) {</span>
+<span class="fc" id="L606">            return ((Number) value).intValue();</span>
+        }
+
+<span class="fc bfc" id="L609" title="All 2 branches covered.">        if (value instanceof String) {</span>
+<span class="fc" id="L610">            String str = (String) value;</span>
+
+<span class="fc bfc" id="L612" title="All 4 branches covered.">            if (str.isEmpty() || &quot;null&quot;.equalsIgnoreCase(str)) {</span>
+<span class="fc" id="L613">                return null;</span>
+            }
+
+<span class="fc bfc" id="L616" title="All 2 branches covered.">            if (str.indexOf('.') != -1) {</span>
+<span class="fc" id="L617">                return (int) Double.parseDouble(str);</span>
+            }
+
+<span class="fc" id="L620">            return Integer.parseInt(str);</span>
+        }
+
+<span class="fc bfc" id="L623" title="All 2 branches covered.">        if (value instanceof Boolean) {</span>
+<span class="pc bpc" id="L624" title="1 of 2 branches missed.">            return (boolean) value ? Integer.valueOf(1) : Integer.valueOf(0);</span>
+        }
+
+<span class="fc" id="L627">        throw new JSONException(&quot;Can not cast '&quot; + value.getClass() + &quot;' to Integer&quot;);</span>
+    }
+
+    /**
+     * Returns an int value of the associated keys in this {@link JSONObject}.
+     *
+     * @param key the key whose associated value is to be returned
+     * @return int
+     * @throws NumberFormatException If the value of get is {@link String} and it contains no parsable int
+     * @throws JSONException Unsupported type conversion to int value
+     */
+    public int getIntValue(String key) {
+<span class="fc" id="L639">        Object value = super.get(key);</span>
+
+<span class="fc bfc" id="L641" title="All 2 branches covered.">        if (value == null) {</span>
+<span class="fc" id="L642">            return 0;</span>
+        }
+
+<span class="fc bfc" id="L645" title="All 2 branches covered.">        if (value instanceof Number) {</span>
+<span class="fc" id="L646">            return ((Number) value).intValue();</span>
+        }
+
+<span class="fc bfc" id="L649" title="All 2 branches covered.">        if (value instanceof String) {</span>
+<span class="fc" id="L650">            String str = (String) value;</span>
+
+<span class="fc bfc" id="L652" title="All 4 branches covered.">            if (str.isEmpty() || &quot;null&quot;.equalsIgnoreCase(str)) {</span>
+<span class="fc" id="L653">                return 0;</span>
+            }
+
+<span class="fc bfc" id="L656" title="All 2 branches covered.">            if (str.indexOf('.') != -1) {</span>
+<span class="fc" id="L657">                return (int) Double.parseDouble(str);</span>
+            }
+
+<span class="fc" id="L660">            return Integer.parseInt(str);</span>
+        }
+
+<span class="fc" id="L663">        throw new JSONException(&quot;Can not cast '&quot; + value.getClass() + &quot;' to int value&quot;);</span>
+    }
+
+    /**
+     * Returns an int value of the associated keys in this {@link JSONObject}.
+     *
+     * @param key the key whose associated value is to be returned
+     * @param defaultValue the default mapping of the key
+     * @return int
+     * @throws NumberFormatException If the value of get is {@link String} and it contains no parsable int
+     * @throws JSONException Unsupported type conversion to int value
+     */
+    public int getIntValue(String key, int defaultValue) {
+<span class="fc" id="L676">        Object value = super.get(key);</span>
+
+<span class="fc bfc" id="L678" title="All 2 branches covered.">        if (value == null) {</span>
+<span class="fc" id="L679">            return defaultValue;</span>
+        }
+
+<span class="fc bfc" id="L682" title="All 2 branches covered.">        if (value instanceof Number) {</span>
+<span class="fc" id="L683">            return ((Number) value).intValue();</span>
+        }
+
+<span class="pc bpc" id="L686" title="1 of 2 branches missed.">        if (value instanceof String) {</span>
+<span class="fc" id="L687">            String str = (String) value;</span>
+
+<span class="pc bpc" id="L689" title="1 of 4 branches missed.">            if (str.isEmpty() || &quot;null&quot;.equalsIgnoreCase(str)) {</span>
+<span class="fc" id="L690">                return defaultValue;</span>
+            }
+
+<span class="fc bfc" id="L693" title="All 2 branches covered.">            if (str.indexOf('.') != -1) {</span>
+<span class="fc" id="L694">                return (int) Double.parseDouble(str);</span>
+            }
+
+<span class="fc" id="L697">            return Integer.parseInt(str);</span>
+        }
+
+<span class="nc" id="L700">        throw new JSONException(&quot;Can not cast '&quot; + value.getClass() + &quot;' to int value&quot;);</span>
+    }
+
+    /**
+     * Returns the {@link Short} of the associated keys in this {@link JSONObject}.
+     *
+     * @param key the key whose associated value is to be returned
+     * @return {@link Short} or null
+     * @throws NumberFormatException If the value of get is {@link String} and it contains no parsable short
+     * @throws JSONException Unsupported type conversion to {@link Short}
+     */
+    public Short getShort(String key) {
+<span class="fc" id="L712">        Object value = super.get(key);</span>
+
+<span class="fc bfc" id="L714" title="All 2 branches covered.">        if (value == null) {</span>
+<span class="fc" id="L715">            return null;</span>
+        }
+
+<span class="fc bfc" id="L718" title="All 2 branches covered.">        if (value instanceof Short) {</span>
+<span class="fc" id="L719">            return (Short) value;</span>
+        }
+
+<span class="fc bfc" id="L722" title="All 2 branches covered.">        if (value instanceof Number) {</span>
+<span class="fc" id="L723">            return ((Number) value).shortValue();</span>
+        }
+
+<span class="fc bfc" id="L726" title="All 2 branches covered.">        if (value instanceof String) {</span>
+<span class="fc" id="L727">            String str = (String) value;</span>
+
+<span class="fc bfc" id="L729" title="All 4 branches covered.">            if (str.isEmpty() || &quot;null&quot;.equalsIgnoreCase(str)) {</span>
+<span class="fc" id="L730">                return null;</span>
+            }
+
+<span class="fc" id="L733">            return Short.parseShort(str);</span>
+        }
+
+<span class="fc" id="L736">        throw new JSONException(&quot;Can not cast '&quot; + value.getClass() + &quot;' to Short&quot;);</span>
+    }
+
+    /**
+     * Returns a short value of the associated keys in this {@link JSONObject}.
+     *
+     * @param key the key whose associated value is to be returned
+     * @return short
+     * @throws NumberFormatException If the value of get is {@link String} and it contains no parsable short
+     * @throws JSONException Unsupported type conversion to short value
+     */
+    public short getShortValue(String key) {
+<span class="fc" id="L748">        Object value = super.get(key);</span>
+
+<span class="fc bfc" id="L750" title="All 2 branches covered.">        if (value == null) {</span>
+<span class="fc" id="L751">            return 0;</span>
+        }
+
+<span class="fc bfc" id="L754" title="All 2 branches covered.">        if (value instanceof Number) {</span>
+<span class="fc" id="L755">            return ((Number) value).shortValue();</span>
+        }
+
+<span class="fc bfc" id="L758" title="All 2 branches covered.">        if (value instanceof String) {</span>
+<span class="fc" id="L759">            String str = (String) value;</span>
+
+<span class="fc bfc" id="L761" title="All 4 branches covered.">            if (str.isEmpty() || &quot;null&quot;.equalsIgnoreCase(str)) {</span>
+<span class="fc" id="L762">                return 0;</span>
+            }
+
+<span class="fc" id="L765">            return Short.parseShort(str);</span>
+        }
+
+<span class="fc" id="L768">        throw new JSONException(&quot;Can not cast '&quot; + value.getClass() + &quot;' to short value&quot;);</span>
+    }
+
+    /**
+     * Returns the {@link Byte} of the associated keys in this {@link JSONObject}.
+     *
+     * @param key the key whose associated value is to be returned
+     * @return {@link Byte} or null
+     * @throws NumberFormatException If the value of get is {@link String} and it contains no parsable byte
+     * @throws JSONException Unsupported type conversion to {@link Byte}
+     */
+    public Byte getByte(String key) {
+<span class="fc" id="L780">        Object value = super.get(key);</span>
+
+<span class="fc bfc" id="L782" title="All 2 branches covered.">        if (value == null) {</span>
+<span class="fc" id="L783">            return null;</span>
+        }
+
+<span class="fc bfc" id="L786" title="All 2 branches covered.">        if (value instanceof Number) {</span>
+<span class="fc" id="L787">            return ((Number) value).byteValue();</span>
+        }
+
+<span class="fc bfc" id="L790" title="All 2 branches covered.">        if (value instanceof String) {</span>
+<span class="fc" id="L791">            String str = (String) value;</span>
+
+<span class="fc bfc" id="L793" title="All 4 branches covered.">            if (str.isEmpty() || &quot;null&quot;.equalsIgnoreCase(str)) {</span>
+<span class="fc" id="L794">                return null;</span>
+            }
+
+<span class="fc" id="L797">            return Byte.parseByte(str);</span>
+        }
+
+<span class="fc" id="L800">        throw new JSONException(&quot;Can not cast '&quot; + value.getClass() + &quot;' to Byte&quot;);</span>
+    }
+
+    /**
+     * Returns a byte value of the associated keys in this {@link JSONObject}.
+     *
+     * @param key the key whose associated value is to be returned
+     * @return byte
+     * @throws NumberFormatException If the value of get is {@link String} and it contains no parsable byte
+     * @throws JSONException Unsupported type conversion to byte value
+     */
+    public byte getByteValue(String key) {
+<span class="fc" id="L812">        Object value = super.get(key);</span>
+
+<span class="fc bfc" id="L814" title="All 2 branches covered.">        if (value == null) {</span>
+<span class="fc" id="L815">            return 0;</span>
+        }
+
+<span class="fc bfc" id="L818" title="All 2 branches covered.">        if (value instanceof Number) {</span>
+<span class="fc" id="L819">            return ((Number) value).byteValue();</span>
+        }
+
+<span class="fc bfc" id="L822" title="All 2 branches covered.">        if (value instanceof String) {</span>
+<span class="fc" id="L823">            String str = (String) value;</span>
+
+<span class="fc bfc" id="L825" title="All 4 branches covered.">            if (str.isEmpty() || &quot;null&quot;.equalsIgnoreCase(str)) {</span>
+<span class="fc" id="L826">                return 0;</span>
+            }
+
+<span class="fc" id="L829">            return Byte.parseByte(str);</span>
+        }
+
+<span class="fc" id="L832">        throw new JSONException(&quot;Can not cast '&quot; + value.getClass() + &quot;' to byte value&quot;);</span>
+    }
+
+    public byte[] getBytes(String key) {
+<span class="fc" id="L836">        Object value = get(key);</span>
+
+<span class="fc bfc" id="L838" title="All 2 branches covered.">        if (value == null) {</span>
+<span class="fc" id="L839">            return null;</span>
+        }
+
+<span class="fc bfc" id="L842" title="All 2 branches covered.">        if (value instanceof byte[]) {</span>
+<span class="fc" id="L843">            return (byte[]) value;</span>
+        }
+<span class="pc bpc" id="L845" title="1 of 2 branches missed.">        if (value instanceof String) {</span>
+<span class="fc" id="L846">            return Base64.getDecoder().decode((String) value);</span>
+        }
+<span class="nc" id="L848">        throw new JSONException(&quot;can not cast to byte[], value : &quot; + value);</span>
+    }
+
+    /**
+     * Returns the {@link Boolean} of the associated keys in this {@link JSONObject}.
+     *
+     * @param key the key whose associated value is to be returned
+     * @return {@link Boolean} or null
+     * @throws JSONException Unsupported type conversion to {@link Boolean}
+     */
+    public Boolean getBoolean(String key) {
+<span class="fc" id="L859">        Object value = super.get(key);</span>
+
+<span class="fc bfc" id="L861" title="All 2 branches covered.">        if (value == null) {</span>
+<span class="fc" id="L862">            return null;</span>
+        }
+
+<span class="fc bfc" id="L865" title="All 2 branches covered.">        if (value instanceof Boolean) {</span>
+<span class="fc" id="L866">            return (Boolean) value;</span>
+        }
+
+<span class="fc bfc" id="L869" title="All 2 branches covered.">        if (value instanceof Number) {</span>
+<span class="pc bpc" id="L870" title="1 of 2 branches missed.">            return ((Number) value).intValue() == 1;</span>
+        }
+
+<span class="fc bfc" id="L873" title="All 2 branches covered.">        if (value instanceof String) {</span>
+<span class="fc" id="L874">            String str = (String) value;</span>
+
+<span class="fc bfc" id="L876" title="All 4 branches covered.">            if (str.isEmpty() || &quot;null&quot;.equalsIgnoreCase(str)) {</span>
+<span class="fc" id="L877">                return null;</span>
+            }
+
+<span class="pc bpc" id="L880" title="1 of 4 branches missed.">            return &quot;true&quot;.equalsIgnoreCase(str) || &quot;1&quot;.equals(str);</span>
+        }
+
+<span class="fc" id="L883">        throw new JSONException(&quot;Can not cast '&quot; + value.getClass() + &quot;' to Boolean&quot;);</span>
+    }
+
+    /**
+     * Returns a boolean value of the associated key in this object.
+     *
+     * @param key the key whose associated value is to be returned
+     * @return boolean
+     * @throws JSONException Unsupported type conversion to boolean value
+     */
+    public boolean getBooleanValue(String key) {
+<span class="fc" id="L894">        Object value = super.get(key);</span>
+
+<span class="fc bfc" id="L896" title="All 2 branches covered.">        if (value == null) {</span>
+<span class="fc" id="L897">            return false;</span>
+        }
+
+<span class="fc bfc" id="L900" title="All 2 branches covered.">        if (value instanceof Boolean) {</span>
+<span class="fc" id="L901">            return (Boolean) value;</span>
+        }
+
+<span class="fc bfc" id="L904" title="All 2 branches covered.">        if (value instanceof Number) {</span>
+<span class="pc bpc" id="L905" title="1 of 2 branches missed.">            return ((Number) value).intValue() == 1;</span>
+        }
+
+<span class="fc bfc" id="L908" title="All 2 branches covered.">        if (value instanceof String) {</span>
+<span class="fc" id="L909">            String str = (String) value;</span>
+<span class="pc bpc" id="L910" title="1 of 4 branches missed.">            return &quot;true&quot;.equalsIgnoreCase(str) || &quot;1&quot;.equals(str);</span>
+        }
+
+<span class="fc" id="L913">        throw new JSONException(&quot;Can not cast '&quot; + value.getClass() + &quot;' to boolean value&quot;);</span>
+    }
+
+    /**
+     * Returns a boolean value of the associated key in this object.
+     *
+     * @param key the key whose associated value is to be returned
+     * @param defaultValue the default mapping of the key
+     * @return boolean
+     * @throws JSONException Unsupported type conversion to boolean value
+     */
+    public boolean getBooleanValue(String key, boolean defaultValue) {
+<span class="fc" id="L925">        Object value = super.get(key);</span>
+
+<span class="fc bfc" id="L927" title="All 2 branches covered.">        if (value == null) {</span>
+<span class="fc" id="L928">            return defaultValue;</span>
+        }
+
+<span class="fc bfc" id="L931" title="All 2 branches covered.">        if (value instanceof Boolean) {</span>
+<span class="fc" id="L932">            return (Boolean) value;</span>
+        }
+
+<span class="fc bfc" id="L935" title="All 2 branches covered.">        if (value instanceof Number) {</span>
+<span class="pc bpc" id="L936" title="1 of 2 branches missed.">            return ((Number) value).intValue() == 1;</span>
+        }
+
+<span class="pc bpc" id="L939" title="1 of 2 branches missed.">        if (value instanceof String) {</span>
+<span class="fc" id="L940">            String str = (String) value;</span>
+<span class="pc bpc" id="L941" title="1 of 4 branches missed.">            return &quot;true&quot;.equalsIgnoreCase(str) || &quot;1&quot;.equals(str);</span>
+        }
+
+<span class="nc" id="L944">        throw new JSONException(&quot;Can not cast '&quot; + value.getClass() + &quot;' to boolean value&quot;);</span>
+    }
+
+    /**
+     * Returns the {@link BigInteger} of the associated keys in this {@link JSONObject}.
+     *
+     * @param key the key whose associated value is to be returned
+     * @return {@link BigInteger} or null
+     * @throws JSONException Unsupported type conversion to {@link BigInteger}
+     * @throws NumberFormatException If the value of get is {@link String} and it is not a valid representation of {@link BigInteger}
+     */
+    public BigInteger getBigInteger(String key) {
+<span class="fc" id="L956">        Object value = super.get(key);</span>
+
+<span class="fc bfc" id="L958" title="All 2 branches covered.">        if (value == null) {</span>
+<span class="fc" id="L959">            return null;</span>
+        }
+
+<span class="fc bfc" id="L962" title="All 2 branches covered.">        if (value instanceof BigInteger) {</span>
+<span class="fc" id="L963">            return (BigInteger) value;</span>
+        }
+
+<span class="fc bfc" id="L966" title="All 2 branches covered.">        if (value instanceof Number) {</span>
+<span class="fc bfc" id="L967" title="All 2 branches covered.">            if (value instanceof BigDecimal) {</span>
+<span class="fc" id="L968">                return ((BigDecimal) value).toBigInteger();</span>
+            }
+
+<span class="fc" id="L971">            long longValue = ((Number) value).longValue();</span>
+<span class="fc" id="L972">            return BigInteger.valueOf(longValue);</span>
+        }
+
+<span class="fc bfc" id="L975" title="All 2 branches covered.">        if (value instanceof String) {</span>
+<span class="fc" id="L976">            String str = (String) value;</span>
+
+<span class="fc bfc" id="L978" title="All 4 branches covered.">            if (str.isEmpty() || &quot;null&quot;.equalsIgnoreCase(str)) {</span>
+<span class="fc" id="L979">                return null;</span>
+            }
+
+<span class="fc" id="L982">            return new BigInteger(str);</span>
+        }
+
+<span class="fc bfc" id="L985" title="All 2 branches covered.">        if (value instanceof Boolean) {</span>
+<span class="pc bpc" id="L986" title="1 of 2 branches missed.">            return (boolean) value ? BigInteger.ONE : BigInteger.ZERO;</span>
+        }
+
+<span class="fc" id="L989">        throw new JSONException(&quot;Can not cast '&quot; + value.getClass() + &quot;' to BigInteger&quot;);</span>
+    }
+
+    /**
+     * Returns the {@link BigDecimal} of the associated keys in this {@link JSONObject}.
+     *
+     * @param key the key whose associated value is to be returned
+     * @return {@link BigDecimal} or null
+     * @throws JSONException Unsupported type conversion to {@link BigDecimal}
+     * @throws NumberFormatException If the value of get is {@link String} and it is not a valid representation of {@link BigDecimal}
+     */
+    public BigDecimal getBigDecimal(String key) {
+<span class="fc" id="L1001">        Object value = super.get(key);</span>
+
+<span class="fc bfc" id="L1003" title="All 2 branches covered.">        if (value == null) {</span>
+<span class="fc" id="L1004">            return null;</span>
+        }
+
+<span class="fc bfc" id="L1007" title="All 2 branches covered.">        if (value instanceof Number) {</span>
+<span class="fc bfc" id="L1008" title="All 2 branches covered.">            if (value instanceof BigDecimal) {</span>
+<span class="fc" id="L1009">                return (BigDecimal) value;</span>
+            }
+
+<span class="fc bfc" id="L1012" title="All 2 branches covered.">            if (value instanceof BigInteger) {</span>
+<span class="fc" id="L1013">                return new BigDecimal((BigInteger) value);</span>
+            }
+
+<span class="fc bfc" id="L1016" title="All 2 branches covered.">            if (value instanceof Float) {</span>
+<span class="fc" id="L1017">                float floatValue = (Float) value;</span>
+<span class="fc" id="L1018">                return toBigDecimal(floatValue);</span>
+            }
+
+<span class="fc bfc" id="L1021" title="All 2 branches covered.">            if (value instanceof Double) {</span>
+<span class="fc" id="L1022">                double doubleValue = (Double) value;</span>
+<span class="fc" id="L1023">                return toBigDecimal(doubleValue);</span>
+            }
+
+<span class="fc" id="L1026">            long longValue = ((Number) value).longValue();</span>
+<span class="fc" id="L1027">            return BigDecimal.valueOf(longValue);</span>
+        }
+
+<span class="fc bfc" id="L1030" title="All 2 branches covered.">        if (value instanceof String) {</span>
+<span class="fc" id="L1031">            String str = (String) value;</span>
+<span class="fc" id="L1032">            return toBigDecimal(str);</span>
+        }
+
+<span class="fc bfc" id="L1035" title="All 2 branches covered.">        if (value instanceof Boolean) {</span>
+<span class="fc bfc" id="L1036" title="All 2 branches covered.">            return (boolean) value ? BigDecimal.ONE : BigDecimal.ZERO;</span>
+        }
+
+<span class="fc" id="L1039">        throw new JSONException(&quot;Can not cast '&quot; + value.getClass() + &quot;' to BigDecimal&quot;);</span>
+    }
+
+    /**
+     * Returns the {@link Date} of the associated keys in this {@link JSONObject}.
+     *
+     * @param key the key whose associated value is to be returned
+     * @return {@link Date} or null
+     */
+    public Date getDate(String key) {
+<span class="fc" id="L1049">        Object value = super.get(key);</span>
+
+<span class="fc bfc" id="L1051" title="All 2 branches covered.">        if (value == null) {</span>
+<span class="fc" id="L1052">            return null;</span>
+        }
+
+<span class="fc bfc" id="L1055" title="All 2 branches covered.">        if (value instanceof Date) {</span>
+<span class="fc" id="L1056">            return (Date) value;</span>
+        }
+
+<span class="fc bfc" id="L1059" title="All 2 branches covered.">        if (value instanceof String) {</span>
+<span class="fc" id="L1060">            return DateUtils.parseDate((String) value);</span>
+        }
+
+<span class="fc bfc" id="L1063" title="All 2 branches covered.">        if (value instanceof Number) {</span>
+<span class="fc" id="L1064">            long millis = ((Number) value).longValue();</span>
+<span class="fc" id="L1065">            return new Date(millis);</span>
+        }
+
+<span class="fc" id="L1068">        return TypeUtils.toDate(value);</span>
+    }
+
+    /**
+     * @since 2.0.27
+     */
+    public Date getDate(String key, Date defaultValue) {
+<span class="fc" id="L1075">        Date date = getDate(key);</span>
+<span class="fc bfc" id="L1076" title="All 2 branches covered.">        if (date == null) {</span>
+<span class="fc" id="L1077">            date = defaultValue;</span>
+        }
+<span class="fc" id="L1079">        return date;</span>
+    }
+
+    /**
+     * Returns the {@link BigInteger} of the associated keys in this {@link JSONObject}.
+     *
+     * @param key the key whose associated value is to be returned
+     * @return {@link BigInteger} or null
+     */
+    public Instant getInstant(String key) {
+<span class="fc" id="L1089">        Object value = super.get(key);</span>
+
+<span class="fc bfc" id="L1091" title="All 2 branches covered.">        if (value == null) {</span>
+<span class="fc" id="L1092">            return null;</span>
+        }
+
+<span class="fc bfc" id="L1095" title="All 2 branches covered.">        if (value instanceof Instant) {</span>
+<span class="fc" id="L1096">            return (Instant) value;</span>
+        }
+
+<span class="fc bfc" id="L1099" title="All 2 branches covered.">        if (value instanceof Number) {</span>
+<span class="fc" id="L1100">            long millis = ((Number) value).longValue();</span>
+<span class="fc bfc" id="L1101" title="All 2 branches covered.">            if (millis == 0) {</span>
+<span class="fc" id="L1102">                return null;</span>
+            }
+<span class="fc" id="L1104">            return Instant.ofEpochMilli(millis);</span>
+        }
+
+<span class="fc" id="L1107">        return TypeUtils.toInstant(value);</span>
+    }
+
+    /**
+     * Serialize to JSON {@link String}
+     *
+     * @return JSON {@link String}
+     */
+    @Override
+    public String toString() {
+<span class="fc" id="L1117">        try (JSONWriter writer = JSONWriter.of()) {</span>
+<span class="fc" id="L1118">            writer.setRootObject(this);</span>
+<span class="fc" id="L1119">            writer.write(this);</span>
+<span class="fc" id="L1120">            return writer.toString();</span>
+        }
+    }
+
+    /**
+     * Serialize to JSON {@link String}
+     *
+     * @param features features to be enabled in serialization
+     * @return JSON {@link String}
+     */
+    public String toString(JSONWriter.Feature... features) {
+<span class="fc" id="L1131">        try (JSONWriter writer = JSONWriter.of(features)) {</span>
+<span class="fc" id="L1132">            writer.setRootObject(this);</span>
+<span class="fc" id="L1133">            writer.write(this);</span>
+<span class="fc" id="L1134">            return writer.toString();</span>
+        }
+    }
+
+    /**
+     * Serialize to JSON {@link String}
+     *
+     * @param features features to be enabled in serialization
+     * @return JSON {@link String}
+     */
+    public String toJSONString(JSONWriter.Feature... features) {
+<span class="fc" id="L1145">        return toString(features);</span>
+    }
+
+    /**
+     * Serialize Java Object to JSON {@link String} with specified {@link JSONReader.Feature}s enabled
+     *
+     * @param object Java Object to be serialized into JSON {@link String}
+     * @param features features to be enabled in serialization
+     * @since 2.0.6
+     */
+    public static String toJSONString(Object object, JSONWriter.Feature... features) {
+<span class="fc" id="L1156">        return JSON.toJSONString(object, features);</span>
+    }
+
+    /**
+     * Serialize to JSONB bytes
+     *
+     * @param features features to be enabled in serialization
+     * @return JSONB bytes
+     */
+    public byte[] toJSONBBytes(JSONWriter.Feature... features) {
+<span class="fc" id="L1166">        try (JSONWriter writer = JSONWriter.ofJSONB(features)) {</span>
+<span class="fc" id="L1167">            writer.setRootObject(this);</span>
+<span class="fc" id="L1168">            writer.write(this);</span>
+<span class="fc" id="L1169">            return writer.getBytes();</span>
+        }
+    }
+
+    /**
+     * @since 2.0.4
+     */
+    public &lt;T&gt; T to(Function&lt;JSONObject, T&gt; function) {
+<span class="fc" id="L1177">        return function.apply(this);</span>
+    }
+
+    /**
+     * Convert this {@link JSONObject} to the specified Object
+     *
+     * &lt;pre&gt;{@code
+     * JSONObject obj = ...
+     * Map&lt;String, User&gt; users = obj.to(new TypeReference&lt;HashMap&lt;String, User&gt;&gt;(){}.getType());
+     * }&lt;/pre&gt;
+     *
+     * @param type specify the {@link Type} to be converted
+     * @param features features to be enabled in parsing
+     * @since 2.0.4
+     */
+    @SuppressWarnings(&quot;unchecked&quot;)
+    public &lt;T&gt; T to(Type type, JSONReader.Feature... features) {
+<span class="fc" id="L1194">        long featuresValue = JSONFactory.defaultReaderFeatures;</span>
+<span class="fc" id="L1195">        boolean fieldBased = false;</span>
+<span class="fc bfc" id="L1196" title="All 2 branches covered.">        for (JSONReader.Feature feature : features) {</span>
+<span class="fc bfc" id="L1197" title="All 2 branches covered.">            if (feature == JSONReader.Feature.FieldBased) {</span>
+<span class="fc" id="L1198">                fieldBased = true;</span>
+            }
+<span class="fc" id="L1200">            featuresValue |= feature.mask;</span>
+        }
+
+<span class="fc bfc" id="L1203" title="All 2 branches covered.">        if (type == String.class) {</span>
+<span class="fc" id="L1204">            return (T) toString();</span>
+        }
+
+<span class="fc" id="L1207">        ObjectReaderProvider provider = JSONFactory.getDefaultObjectReaderProvider();</span>
+<span class="fc" id="L1208">        ObjectReader&lt;T&gt; objectReader = provider.getObjectReader(type, fieldBased);</span>
+<span class="fc" id="L1209">        return objectReader.createInstance(this, featuresValue);</span>
+    }
+
+    /**
+     * Convert this {@link JSONObject} to the specified Object
+     *
+     * &lt;pre&gt;{@code
+     * JSONObject obj = ...
+     * Map&lt;String, User&gt; users = obj.to(new TypeReference&lt;HashMap&lt;String, User&gt;&gt;(){});
+     * }&lt;/pre&gt;
+     *
+     * @param typeReference specify the {@link TypeReference} to be converted
+     * @param features features to be enabled in parsing
+     * @since 2.0.7
+     */
+    public &lt;T&gt; T to(TypeReference&lt;T&gt; typeReference, JSONReader.Feature... features) {
+<span class="fc" id="L1225">        return to(typeReference.getType(), features);</span>
+    }
+
+    /**
+     * Convert this {@link JSONObject} to the specified Object
+     *
+     * &lt;pre&gt;{@code
+     * JSONObject obj = ...
+     * User user = obj.to(User.class);
+     * }&lt;/pre&gt;
+     *
+     * @param clazz specify the {@code Class&lt;T&gt;} to be converted
+     * @param features features to be enabled in parsing
+     * @since 2.0.4
+     */
+    @SuppressWarnings(&quot;unchecked&quot;)
+    public &lt;T&gt; T to(Class&lt;T&gt; clazz, JSONReader.Feature... features) {
+<span class="fc" id="L1242">        long featuresValue = JSONFactory.defaultReaderFeatures | JSONReader.Feature.of(features);</span>
+<span class="fc" id="L1243">        boolean fieldBased = JSONReader.Feature.FieldBased.isEnabled(featuresValue);</span>
+
+<span class="fc bfc" id="L1245" title="All 2 branches covered.">        if (clazz == String.class) {</span>
+<span class="fc" id="L1246">            return (T) toString();</span>
+        }
+
+<span class="pc bpc" id="L1249" title="1 of 2 branches missed.">        if (clazz == JSON.class) {</span>
+<span class="nc" id="L1250">            return (T) this;</span>
+        }
+
+<span class="fc" id="L1253">        ObjectReaderProvider provider = JSONFactory.getDefaultObjectReaderProvider();</span>
+<span class="fc" id="L1254">        ObjectReader&lt;T&gt; objectReader = provider.getObjectReader(clazz, fieldBased);</span>
+<span class="fc" id="L1255">        return objectReader.createInstance(this, featuresValue);</span>
+    }
+
+    public void copyTo(Object object, JSONReader.Feature... features) {
+<span class="fc" id="L1259">        long featuresValue = JSONFactory.defaultReaderFeatures | JSONReader.Feature.of(features);</span>
+<span class="fc" id="L1260">        boolean fieldBased = JSONReader.Feature.FieldBased.isEnabled(featuresValue);</span>
+<span class="fc" id="L1261">        Class clazz = object.getClass();</span>
+<span class="fc" id="L1262">        ObjectReaderProvider provider = JSONFactory.getDefaultObjectReaderProvider();</span>
+<span class="fc" id="L1263">        ObjectReader objectReader = provider.getObjectReader(clazz, fieldBased);</span>
+<span class="fc" id="L1264">        objectReader.accept(object, this, featuresValue);</span>
+<span class="fc" id="L1265">    }</span>
+
+    /**
+     * Convert this {@link JSONObject} to the specified Object
+     *
+     * @param clazz specify the {@code Class&lt;T&gt;} to be converted
+     * @param features features to be enabled in parsing
+     */
+    public &lt;T&gt; T toJavaObject(Class&lt;T&gt; clazz, JSONReader.Feature... features) {
+<span class="fc" id="L1274">        return to(clazz, features);</span>
+    }
+
+    /**
+     * Convert this {@link JSONObject} to the specified Object
+     *
+     * @param type specify the {@link Type} to be converted
+     * @param features features to be enabled in parsing
+     * @deprecated since 2.0.4, please use {@link #to(Type, JSONReader.Feature...)}
+     */
+    public &lt;T&gt; T toJavaObject(Type type, JSONReader.Feature... features) {
+<span class="fc" id="L1285">        return to(type, features);</span>
+    }
+
+    /**
+     * Convert this {@link JSONObject} to the specified Object
+     *
+     * @param typeReference specify the {@link TypeReference} to be converted
+     * @param features features to be enabled in parsing
+     * @deprecated since 2.0.4, please use {@link #to(Type, JSONReader.Feature...)}
+     */
+    public &lt;T&gt; T toJavaObject(TypeReference&lt;T&gt; typeReference, JSONReader.Feature... features) {
+<span class="fc" id="L1296">        return to(typeReference, features);</span>
+    }
+
+    /**
+     * Returns the result of the {@link Type} converter conversion of the associated value in this {@link JSONObject}.
+     * &lt;p&gt;
+     * {@code User user = jsonObject.getObject(&quot;user&quot;, User.class);}
+     *
+     * @param key the key whose associated value is to be returned
+     * @param type specify the {@link Class} to be converted
+     * @return {@code &lt;T&gt;} or null
+     * @throws JSONException If no suitable conversion method is found
+     */
+    @SuppressWarnings({&quot;unchecked&quot;, &quot;rawtypes&quot;})
+    public &lt;T&gt; T getObject(String key, Class&lt;T&gt; type, JSONReader.Feature... features) {
+<span class="fc" id="L1311">        Object value = super.get(key);</span>
+
+<span class="fc bfc" id="L1313" title="All 2 branches covered.">        if (value == null) {</span>
+<span class="fc" id="L1314">            return null;</span>
+        }
+
+<span class="fc bfc" id="L1317" title="All 4 branches covered.">        if (type == Object.class &amp;&amp; features.length == 0) {</span>
+<span class="fc" id="L1318">            return (T) value;</span>
+        }
+
+<span class="fc" id="L1321">        boolean fieldBased = false;</span>
+<span class="fc bfc" id="L1322" title="All 2 branches covered.">        for (JSONReader.Feature feature : features) {</span>
+<span class="fc bfc" id="L1323" title="All 2 branches covered.">            if (feature == JSONReader.Feature.FieldBased) {</span>
+<span class="fc" id="L1324">                fieldBased = true;</span>
+<span class="fc" id="L1325">                break;</span>
+            }
+        }
+
+<span class="fc" id="L1329">        Class&lt;?&gt; valueClass = value.getClass();</span>
+<span class="fc" id="L1330">        ObjectReaderProvider provider = JSONFactory.getDefaultObjectReaderProvider();</span>
+<span class="fc" id="L1331">        Function typeConvert = provider.getTypeConvert(valueClass, type);</span>
+<span class="fc bfc" id="L1332" title="All 2 branches covered.">        if (typeConvert != null) {</span>
+<span class="fc" id="L1333">            return (T) typeConvert.apply(value);</span>
+        }
+
+<span class="fc bfc" id="L1336" title="All 2 branches covered.">        if (value instanceof Map) {</span>
+<span class="fc" id="L1337">            ObjectReader&lt;T&gt; objectReader = provider.getObjectReader(type, fieldBased);</span>
+<span class="fc" id="L1338">            return objectReader.createInstance((Map) value, features);</span>
+        }
+
+<span class="fc bfc" id="L1341" title="All 2 branches covered.">        if (value instanceof Collection) {</span>
+<span class="fc" id="L1342">            ObjectReader&lt;T&gt; objectReader = provider.getObjectReader(type, fieldBased);</span>
+<span class="fc" id="L1343">            return objectReader.createInstance((Collection) value, features);</span>
+        }
+
+<span class="fc" id="L1346">        Class clazz = TypeUtils.getMapping(type);</span>
+<span class="pc bpc" id="L1347" title="1 of 2 branches missed.">        if (clazz.isInstance(value)) {</span>
+<span class="nc" id="L1348">            return (T) value;</span>
+        }
+
+<span class="fc" id="L1351">        ObjectReader objectReader = null;</span>
+
+<span class="fc bfc" id="L1353" title="All 2 branches covered.">        if (value instanceof String) {</span>
+<span class="fc" id="L1354">            String str = (String) value;</span>
+<span class="fc bfc" id="L1355" title="All 4 branches covered.">            if (str.isEmpty() || &quot;null&quot;.equals(str)) {</span>
+<span class="fc" id="L1356">                return null;</span>
+            }
+
+<span class="pc bpc" id="L1359" title="1 of 2 branches missed.">            if (clazz.isEnum()) {</span>
+<span class="nc" id="L1360">                objectReader = provider.getObjectReader(clazz, fieldBased);</span>
+<span class="nc bnc" id="L1361" title="All 2 branches missed.">                if (objectReader instanceof ObjectReaderImplEnum) {</span>
+<span class="nc" id="L1362">                    long hashCode64 = Fnv.hashCode64(str);</span>
+<span class="nc" id="L1363">                    ObjectReaderImplEnum enumReader = (ObjectReaderImplEnum) objectReader;</span>
+<span class="nc" id="L1364">                    return (T) enumReader.getEnumByHashCode(hashCode64);</span>
+                }
+            }
+        }
+
+<span class="fc" id="L1369">        String json = JSON.toJSONString(value);</span>
+<span class="fc" id="L1370">        JSONReader jsonReader = JSONReader.of(json);</span>
+<span class="fc" id="L1371">        jsonReader.context.config(features);</span>
+
+<span class="pc bpc" id="L1373" title="1 of 2 branches missed.">        if (objectReader == null) {</span>
+<span class="fc" id="L1374">            objectReader = provider.getObjectReader(clazz, fieldBased);</span>
+        }
+
+<span class="fc" id="L1377">        T object = (T) objectReader.readObject(jsonReader, null, null, 0L);</span>
+<span class="pc bpc" id="L1378" title="1 of 2 branches missed.">        if (!jsonReader.isEnd()) {</span>
+<span class="nc" id="L1379">            throw new JSONException(&quot;not support input &quot; + json);</span>
+        }
+<span class="fc" id="L1381">        return object;</span>
+    }
+
+    /**
+     * Returns the result of the {@link Type} converter conversion of the associated value in this {@link JSONObject}.
+     * &lt;p&gt;
+     * {@code User user = jsonObject.getObject(&quot;user&quot;, User.class);}
+     *
+     * @param key the key whose associated value is to be returned
+     * @param type specify the {@link Type} to be converted
+     * @param features features to be enabled in parsing
+     * @return {@code &lt;T&gt;} or {@code null}
+     * @throws JSONException If no suitable conversion method is found
+     */
+    @SuppressWarnings({&quot;unchecked&quot;, &quot;rawtypes&quot;})
+    public &lt;T&gt; T getObject(String key, Type type, JSONReader.Feature... features) {
+<span class="fc" id="L1397">        Object value = super.get(key);</span>
+
+<span class="fc bfc" id="L1399" title="All 2 branches covered.">        if (value == null) {</span>
+<span class="fc" id="L1400">            return null;</span>
+        }
+
+<span class="pc bpc" id="L1403" title="1 of 4 branches missed.">        if (type == Object.class &amp;&amp; features.length == 0) {</span>
+<span class="fc" id="L1404">            return (T) value;</span>
+        }
+
+<span class="fc" id="L1407">        boolean fieldBased = false;</span>
+<span class="pc bfc" id="L1408" title="All 2 branches covered.">        for (JSONReader.Feature feature : features) {</span>
+<span class="pc bpc" id="L1409" title="1 of 2 branches missed.">            if (feature == JSONReader.Feature.FieldBased) {</span>
+<span class="fc" id="L1410">                fieldBased = true;</span>
+<span class="fc" id="L1411">                break;</span>
+            }
+        }
+
+<span class="fc" id="L1415">        Class&lt;?&gt; valueClass = value.getClass();</span>
+<span class="fc" id="L1416">        ObjectReaderProvider provider = JSONFactory.getDefaultObjectReaderProvider();</span>
+<span class="fc" id="L1417">        Function typeConvert = provider.getTypeConvert(valueClass, type);</span>
+<span class="fc bfc" id="L1418" title="All 2 branches covered.">        if (typeConvert != null) {</span>
+<span class="fc" id="L1419">            return (T) typeConvert.apply(value);</span>
+        }
+
+<span class="fc bfc" id="L1422" title="All 2 branches covered.">        if (value instanceof Map) {</span>
+<span class="fc" id="L1423">            ObjectReader&lt;T&gt; objectReader = provider.getObjectReader(type, fieldBased);</span>
+<span class="fc" id="L1424">            return objectReader.createInstance((Map) value, features);</span>
+        }
+
+<span class="fc bfc" id="L1427" title="All 2 branches covered.">        if (value instanceof Collection) {</span>
+<span class="fc" id="L1428">            ObjectReader&lt;T&gt; objectReader = provider.getObjectReader(type, fieldBased);</span>
+<span class="fc" id="L1429">            return objectReader.createInstance((Collection) value, features);</span>
+        }
+
+<span class="fc bfc" id="L1432" title="All 2 branches covered.">        if (type instanceof Class) {</span>
+<span class="fc" id="L1433">            Class clazz = (Class) type;</span>
+<span class="pc bpc" id="L1434" title="1 of 2 branches missed.">            if (clazz.isInstance(value)) {</span>
+<span class="nc" id="L1435">                return (T) value;</span>
+            }
+        }
+
+<span class="fc bfc" id="L1439" title="All 2 branches covered.">        if (value instanceof String) {</span>
+<span class="fc" id="L1440">            String str = (String) value;</span>
+<span class="pc bpc" id="L1441" title="1 of 4 branches missed.">            if (str.isEmpty() || &quot;null&quot;.equals(str)) {</span>
+<span class="fc" id="L1442">                return null;</span>
+            }
+        }
+
+<span class="fc" id="L1446">        String json = JSON.toJSONString(value);</span>
+<span class="fc" id="L1447">        JSONReader jsonReader = JSONReader.of(json);</span>
+<span class="fc" id="L1448">        jsonReader.context.config(features);</span>
+
+<span class="fc" id="L1450">        ObjectReader objectReader = provider.getObjectReader(type, fieldBased);</span>
+<span class="fc" id="L1451">        return (T) objectReader.readObject(jsonReader, null, null, 0);</span>
+    }
+
+    /**
+     * Returns the result of the {@link Type} converter conversion of the associated value in this {@link JSONObject}.
+     * &lt;p&gt;
+     * {@code User user = jsonObject.getObject(&quot;user&quot;, User.class);}
+     *
+     * @param key the key whose associated value is to be returned
+     * @param typeReference specify the {@link TypeReference} to be converted
+     * @param features features to be enabled in parsing
+     * @return {@code &lt;T&gt;} or {@code null}
+     * @throws JSONException If no suitable conversion method is found
+     * @since 2.0.3
+     */
+    public &lt;T&gt; T getObject(String key, TypeReference&lt;T&gt; typeReference, JSONReader.Feature... features) {
+<span class="fc" id="L1467">        return getObject(key, typeReference.type, features);</span>
+    }
+
+    /**
+     * @since 2.0.4
+     */
+    public &lt;T&gt; T getObject(String key, Function&lt;JSONObject, T&gt; creator) {
+<span class="fc" id="L1474">        JSONObject object = getJSONObject(key);</span>
+
+<span class="fc bfc" id="L1476" title="All 2 branches covered.">        if (object == null) {</span>
+<span class="fc" id="L1477">            return null;</span>
+        }
+
+<span class="fc" id="L1480">        return creator.apply(object);</span>
+    }
+
+    /**
+     * @param proxy proxy object, currently useless
+     * @param method methods that need reflection
+     * @param args parameters of invoke
+     * @throws UnsupportedOperationException If reflection for this method is not supported
+     * @throws ArrayIndexOutOfBoundsException If the length of args does not match the length of the method parameter
+     */
+    @Override
+    @SuppressWarnings({&quot;rawtypes&quot;, &quot;unchecked&quot;})
+    public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
+<span class="fc" id="L1493">        final String methodName = method.getName();</span>
+<span class="fc" id="L1494">        int parameterCount = method.getParameterCount();</span>
+
+<span class="fc" id="L1496">        Class&lt;?&gt; returnType = method.getReturnType();</span>
+<span class="fc bfc" id="L1497" title="All 2 branches covered.">        if (parameterCount == 1) {</span>
+<span class="fc bfc" id="L1498" title="All 2 branches covered.">            if (&quot;equals&quot;.equals(methodName)) {</span>
+<span class="fc" id="L1499">                return this.equals(args[0]);</span>
+            }
+
+<span class="fc" id="L1502">            Class proxyInterface = null;</span>
+<span class="fc" id="L1503">            Class&lt;?&gt;[] interfaces = proxy.getClass().getInterfaces();</span>
+<span class="fc bfc" id="L1504" title="All 2 branches covered.">            if (interfaces.length == 1) {</span>
+<span class="fc" id="L1505">                proxyInterface = interfaces[0];</span>
+            }
+
+<span class="fc bfc" id="L1508" title="All 4 branches covered.">            if (returnType != void.class &amp;&amp; returnType != proxyInterface) {</span>
+<span class="fc" id="L1509">                throw new JSONException(&quot;This method '&quot; + methodName + &quot;' is not a setter&quot;);</span>
+            }
+
+<span class="fc" id="L1512">            String name = getJSONFieldName(method);</span>
+
+<span class="fc bfc" id="L1514" title="All 2 branches covered.">            if (name == null) {</span>
+<span class="fc" id="L1515">                name = methodName;</span>
+
+<span class="fc bfc" id="L1517" title="All 2 branches covered.">                if (!name.startsWith(&quot;set&quot;)) {</span>
+<span class="fc" id="L1518">                    throw new JSONException(&quot;This method '&quot; + methodName + &quot;' is not a setter&quot;);</span>
+                }
+
+<span class="fc" id="L1521">                name = name.substring(3);</span>
+<span class="fc bfc" id="L1522" title="All 2 branches covered.">                if (name.length() == 0) {</span>
+<span class="fc" id="L1523">                    throw new JSONException(&quot;This method '&quot; + methodName + &quot;' is an illegal setter&quot;);</span>
+                }
+<span class="fc" id="L1525">                name = Character.toLowerCase(name.charAt(0)) + name.substring(1);</span>
+            }
+
+<span class="fc" id="L1528">            put(name, args[0]);</span>
+
+<span class="fc bfc" id="L1530" title="All 2 branches covered.">            if (returnType != void.class) {</span>
+<span class="fc" id="L1531">                return proxy;</span>
+            }
+
+<span class="fc" id="L1534">            return null;</span>
+        }
+
+<span class="fc bfc" id="L1537" title="All 2 branches covered.">        if (parameterCount == 0) {</span>
+<span class="fc bfc" id="L1538" title="All 2 branches covered.">            if (returnType == void.class) {</span>
+<span class="fc" id="L1539">                throw new JSONException(&quot;This method '&quot; + methodName + &quot;' is not a getter&quot;);</span>
+            }
+
+<span class="fc" id="L1542">            String name = getJSONFieldName(method);</span>
+
+            Object value;
+<span class="fc bfc" id="L1545" title="All 2 branches covered.">            if (name == null) {</span>
+<span class="fc" id="L1546">                name = methodName;</span>
+<span class="fc" id="L1547">                boolean with = false;</span>
+                int prefix;
+<span class="fc bfc" id="L1549" title="All 4 branches covered.">                if ((name.startsWith(&quot;get&quot;) || (with = name.startsWith(&quot;with&quot;)))</span>
+<span class="fc bfc" id="L1550" title="All 4 branches covered.">                        &amp;&amp; name.length() &gt; (prefix = with ? 4 : 3)</span>
+                ) {
+<span class="fc" id="L1552">                    char[] chars = new char[name.length() - prefix];</span>
+<span class="fc" id="L1553">                    name.getChars(prefix, name.length(), chars, 0);</span>
+<span class="pc bpc" id="L1554" title="2 of 4 branches missed.">                    if (chars[0] &gt;= 'A' &amp;&amp; chars[0] &lt;= 'Z') {</span>
+<span class="fc" id="L1555">                        chars[0] = (char) (chars[0] + 32);</span>
+                    }
+<span class="fc" id="L1557">                    String fieldName = new String(chars);</span>
+<span class="pc bpc" id="L1558" title="1 of 2 branches missed.">                    if (fieldName.isEmpty()) {</span>
+<span class="nc" id="L1559">                        throw new JSONException(&quot;This method '&quot; + methodName + &quot;' is an illegal getter&quot;);</span>
+                    }
+
+<span class="fc" id="L1562">                    value = get(fieldName);</span>
+<span class="fc bfc" id="L1563" title="All 2 branches covered.">                    if (value == null) {</span>
+<span class="fc" id="L1564">                        return null;</span>
+                    }
+<span class="fc bfc" id="L1566" title="All 2 branches covered.">                } else if (name.startsWith(&quot;is&quot;)) {</span>
+<span class="fc bfc" id="L1567" title="All 2 branches covered.">                    if (&quot;isEmpty&quot;.equals(name)) {</span>
+<span class="fc" id="L1568">                        value = get(&quot;empty&quot;);</span>
+<span class="fc bfc" id="L1569" title="All 2 branches covered.">                        if (value == null) {</span>
+<span class="fc" id="L1570">                            return this.isEmpty();</span>
+                        }
+                    } else {
+<span class="fc" id="L1573">                        name = name.substring(2);</span>
+<span class="fc bfc" id="L1574" title="All 2 branches covered.">                        if (name.isEmpty()) {</span>
+<span class="fc" id="L1575">                            throw new JSONException(&quot;This method '&quot; + methodName + &quot;' is an illegal getter&quot;);</span>
+                        }
+<span class="fc" id="L1577">                        name = Character.toLowerCase(name.charAt(0)) + name.substring(1);</span>
+
+<span class="fc" id="L1579">                        value = get(name);</span>
+<span class="fc bfc" id="L1580" title="All 2 branches covered.">                        if (value == null) {</span>
+<span class="fc" id="L1581">                            return false;</span>
+                        }
+                    }
+<span class="fc bfc" id="L1584" title="All 2 branches covered.">                } else if (&quot;hashCode&quot;.equals(name)) {</span>
+<span class="fc" id="L1585">                    return this.hashCode();</span>
+<span class="fc bfc" id="L1586" title="All 2 branches covered.">                } else if (&quot;toString&quot;.equals(name)) {</span>
+<span class="fc" id="L1587">                    return this.toString();</span>
+<span class="fc bfc" id="L1588" title="All 2 branches covered.">                } else if (name.startsWith(&quot;entrySet&quot;)) {</span>
+<span class="fc" id="L1589">                    return this.entrySet();</span>
+<span class="fc bfc" id="L1590" title="All 2 branches covered.">                } else if (&quot;size&quot;.equals(name)) {</span>
+<span class="fc" id="L1591">                    return this.size();</span>
+                } else {
+<span class="fc" id="L1593">                    Class&lt;?&gt; declaringClass = method.getDeclaringClass();</span>
+<span class="pc bpc" id="L1594" title="1 of 2 branches missed.">                    if (declaringClass.isInterface()</span>
+<span class="pc bpc" id="L1595" title="5 of 6 branches missed.">                            &amp;&amp; !Modifier.isAbstract(method.getModifiers())</span>
+                            &amp;&amp; !ANDROID
+                            &amp;&amp; !GRAAL
+                    ) {
+                        // interface default method
+<span class="nc" id="L1600">                        MethodHandles.Lookup lookup = JDKUtils.trustedLookup(declaringClass);</span>
+<span class="nc" id="L1601">                        MethodHandle methodHandle = lookup.findSpecial(</span>
+                                declaringClass,
+<span class="nc" id="L1603">                                method.getName(),</span>
+<span class="nc" id="L1604">                                MethodType.methodType(returnType),</span>
+                                declaringClass
+                        );
+<span class="nc" id="L1607">                        return methodHandle.invoke(proxy);</span>
+                    }
+<span class="fc" id="L1609">                    throw new JSONException(&quot;This method '&quot; + methodName + &quot;' is not a getter&quot;);</span>
+                }
+<span class="fc" id="L1611">            } else {</span>
+<span class="fc" id="L1612">                value = get(name);</span>
+<span class="fc bfc" id="L1613" title="All 2 branches covered.">                if (value == null) {</span>
+<span class="fc" id="L1614">                    return null;</span>
+                }
+            }
+
+<span class="fc bfc" id="L1618" title="All 2 branches covered.">            if (!returnType.isInstance(value)) {</span>
+                Function typeConvert = JSONFactory
+<span class="fc" id="L1620">                        .getDefaultObjectReaderProvider()</span>
+<span class="fc" id="L1621">                        .getTypeConvert(</span>
+<span class="fc" id="L1622">                                value.getClass(), method.getGenericReturnType()</span>
+                        );
+
+<span class="pc bpc" id="L1625" title="1 of 2 branches missed.">                if (typeConvert != null) {</span>
+<span class="fc" id="L1626">                    value = typeConvert.apply(value);</span>
+                }
+            }
+
+<span class="fc" id="L1630">            return value;</span>
+        }
+
+<span class="fc" id="L1633">        throw new UnsupportedOperationException(method.toGenericString());</span>
+    }
+
+    /**
+     * @since 2.0.4
+     */
+    private String getJSONFieldName(Method method) {
+<span class="fc" id="L1640">        String name = null;</span>
+<span class="fc" id="L1641">        Annotation[] annotations = getAnnotations(method);</span>
+<span class="fc bfc" id="L1642" title="All 2 branches covered.">        for (Annotation annotation : annotations) {</span>
+<span class="fc" id="L1643">            Class&lt;? extends Annotation&gt; annotationType = annotation.annotationType();</span>
+<span class="fc" id="L1644">            JSONField jsonField = BeanUtils.findAnnotation(annotation, JSONField.class);</span>
+<span class="fc bfc" id="L1645" title="All 2 branches covered.">            if (Objects.nonNull(jsonField)) {</span>
+<span class="fc" id="L1646">                name = jsonField.name();</span>
+<span class="fc bfc" id="L1647" title="All 2 branches covered.">                if (name.isEmpty()) {</span>
+<span class="fc" id="L1648">                    name = null;</span>
+                }
+<span class="pc bpc" id="L1650" title="1 of 2 branches missed.">            } else if (&quot;com.alibaba.fastjson.annotation.JSONField&quot;.equals(annotationType.getName())) {</span>
+<span class="fc" id="L1651">                NameConsumer nameConsumer = new NameConsumer(annotation);</span>
+<span class="fc" id="L1652">                BeanUtils.annotationMethods(annotationType, nameConsumer);</span>
+<span class="fc bfc" id="L1653" title="All 2 branches covered.">                if (nameConsumer.name != null) {</span>
+<span class="fc" id="L1654">                    name = nameConsumer.name;</span>
+                }
+            }
+        }
+<span class="fc" id="L1658">        return name;</span>
+    }
+
+    public JSONArray putArray(String name) {
+<span class="fc" id="L1662">        JSONArray array = new JSONArray();</span>
+<span class="fc" id="L1663">        put(name, array);</span>
+<span class="fc" id="L1664">        return array;</span>
+    }
+
+    public JSONObject putObject(String name) {
+<span class="fc" id="L1668">        JSONObject object = new JSONObject();</span>
+<span class="fc" id="L1669">        put(name, object);</span>
+<span class="fc" id="L1670">        return object;</span>
+    }
+
+    /**
+     * @since 2.0.3
+     */
+    static class NameConsumer
+            implements Consumer&lt;Method&gt; {
+        final Annotation annotation;
+        String name;
+
+<span class="fc" id="L1681">        NameConsumer(Annotation annotation) {</span>
+<span class="fc" id="L1682">            this.annotation = annotation;</span>
+<span class="fc" id="L1683">        }</span>
+
+        @Override
+        public void accept(Method method) {
+<span class="fc" id="L1687">            String methodName = method.getName();</span>
+<span class="fc bfc" id="L1688" title="All 2 branches covered.">            if (&quot;name&quot;.equals(methodName)) {</span>
+                try {
+<span class="fc" id="L1690">                    String result = (String) method.invoke(annotation);</span>
+<span class="fc bfc" id="L1691" title="All 2 branches covered.">                    if (!result.isEmpty()) {</span>
+<span class="fc" id="L1692">                        name = result;</span>
+                    }
+<span class="nc" id="L1694">                } catch (IllegalAccessException | InvocationTargetException e) {</span>
+                    // nothing
+<span class="fc" id="L1696">                }</span>
+            }
+<span class="fc" id="L1698">        }</span>
+    }
+
+    /**
+     * Chained addition of elements
+     *
+     * &lt;pre&gt;
+     * JSONObject object = new JSONObject().fluentPut(&quot;a&quot;, 1).fluentPut(&quot;b&quot;, 2).fluentPut(&quot;c&quot;, 3);
+     * &lt;/pre&gt;
+     *
+     * @param key key with which the specified value is to be associated
+     * @param value value to be associated with the specified key
+     */
+    public JSONObject fluentPut(String key, Object value) {
+<span class="fc" id="L1712">        put(key, value);</span>
+<span class="fc" id="L1713">        return this;</span>
+    }
+
+    /**
+     * @since 2.0.4
+     */
+    public boolean isValid(JSONSchema schema) {
+<span class="fc" id="L1720">        return schema.isValid(this);</span>
+    }
+
+    /**
+     * @since 2.0.3
+     */
+    static void nameFilter(Iterable&lt;?&gt; iterable, NameFilter nameFilter) {
+<span class="fc bfc" id="L1727" title="All 2 branches covered.">        for (Object item : iterable) {</span>
+<span class="fc bfc" id="L1728" title="All 2 branches covered.">            if (item instanceof JSONObject) {</span>
+<span class="fc" id="L1729">                ((JSONObject) item).nameFilter(nameFilter);</span>
+<span class="pc bpc" id="L1730" title="1 of 2 branches missed.">            } else if (item instanceof Iterable) {</span>
+<span class="fc" id="L1731">                nameFilter((Iterable&lt;?&gt;) item, nameFilter);</span>
+            }
+<span class="fc" id="L1733">        }</span>
+<span class="fc" id="L1734">    }</span>
+
+    /**
+     * @since 2.0.3
+     */
+    @SuppressWarnings({&quot;rawtypes&quot;, &quot;unchecked&quot;})
+    static void nameFilter(Map map, NameFilter nameFilter) {
+<span class="fc" id="L1741">        JSONObject changed = null;</span>
+<span class="fc bfc" id="L1742" title="All 2 branches covered.">        for (Iterator&lt;?&gt; it = map.entrySet().iterator(); it.hasNext(); ) {</span>
+<span class="fc" id="L1743">            Map.Entry entry = (Map.Entry) it.next();</span>
+<span class="fc" id="L1744">            Object entryKey = entry.getKey();</span>
+<span class="fc" id="L1745">            Object entryValue = entry.getValue();</span>
+
+<span class="fc bfc" id="L1747" title="All 2 branches covered.">            if (entryValue instanceof JSONObject) {</span>
+<span class="fc" id="L1748">                ((JSONObject) entryValue).nameFilter(nameFilter);</span>
+<span class="fc bfc" id="L1749" title="All 2 branches covered.">            } else if (entryValue instanceof Iterable) {</span>
+<span class="fc" id="L1750">                nameFilter((Iterable&lt;?&gt;) entryValue, nameFilter);</span>
+            }
+
+<span class="pc bpc" id="L1753" title="1 of 2 branches missed.">            if (entryKey instanceof String) {</span>
+<span class="fc" id="L1754">                String key = (String) entryKey;</span>
+<span class="fc" id="L1755">                String processName = nameFilter.process(map, key, entryValue);</span>
+<span class="fc bfc" id="L1756" title="All 4 branches covered.">                if (processName != null &amp;&amp; !processName.equals(key)) {</span>
+<span class="pc bpc" id="L1757" title="1 of 2 branches missed.">                    if (changed == null) {</span>
+<span class="fc" id="L1758">                        changed = new JSONObject();</span>
+                    }
+<span class="fc" id="L1760">                    changed.put(processName, entryValue);</span>
+<span class="fc" id="L1761">                    it.remove();</span>
+                }
+            }
+<span class="fc" id="L1764">        }</span>
+<span class="fc bfc" id="L1765" title="All 2 branches covered.">        if (changed != null) {</span>
+<span class="fc" id="L1766">            map.putAll(changed);</span>
+        }
+<span class="fc" id="L1768">    }</span>
+
+    /**
+     * @since 2.0.3
+     */
+    @SuppressWarnings(&quot;rawtypes&quot;)
+    static void valueFilter(Iterable&lt;?&gt; iterable, ValueFilter valueFilter) {
+<span class="fc bfc" id="L1775" title="All 2 branches covered.">        for (Object item : iterable) {</span>
+<span class="fc bfc" id="L1776" title="All 2 branches covered.">            if (item instanceof Map) {</span>
+<span class="fc" id="L1777">                valueFilter((Map) item, valueFilter);</span>
+<span class="pc bpc" id="L1778" title="1 of 2 branches missed.">            } else if (item instanceof Iterable) {</span>
+<span class="fc" id="L1779">                valueFilter((Iterable&lt;?&gt;) item, valueFilter);</span>
+            }
+<span class="fc" id="L1781">        }</span>
+<span class="fc" id="L1782">    }</span>
+
+    /**
+     * @since 2.0.3
+     */
+    @SuppressWarnings({&quot;rawtypes&quot;, &quot;unchecked&quot;})
+    static void valueFilter(Map map, ValueFilter valueFilter) {
+<span class="fc bfc" id="L1789" title="All 2 branches covered.">        for (Object o : map.entrySet()) {</span>
+<span class="fc" id="L1790">            Map.Entry entry = (Map.Entry) o;</span>
+<span class="fc" id="L1791">            Object entryKey = entry.getKey();</span>
+<span class="fc" id="L1792">            Object entryValue = entry.getValue();</span>
+
+<span class="fc bfc" id="L1794" title="All 2 branches covered.">            if (entryValue instanceof Map) {</span>
+<span class="fc" id="L1795">                valueFilter((Map) entryValue, valueFilter);</span>
+<span class="fc bfc" id="L1796" title="All 2 branches covered.">            } else if (entryValue instanceof Iterable) {</span>
+<span class="fc" id="L1797">                valueFilter((Iterable&lt;?&gt;) entryValue, valueFilter);</span>
+            }
+
+<span class="pc bpc" id="L1800" title="1 of 2 branches missed.">            if (entryKey instanceof String) {</span>
+<span class="fc" id="L1801">                String key = (String) entryKey;</span>
+<span class="fc" id="L1802">                Object applyValue = valueFilter.apply(map, key, entryValue);</span>
+<span class="fc bfc" id="L1803" title="All 2 branches covered.">                if (applyValue != entryValue) {</span>
+<span class="fc" id="L1804">                    entry.setValue(applyValue);</span>
+                }
+            }
+<span class="fc" id="L1807">        }</span>
+<span class="fc" id="L1808">    }</span>
+
+    /**
+     * @since 2.0.3
+     */
+    public void valueFilter(ValueFilter valueFilter) {
+<span class="fc" id="L1814">        valueFilter(this, valueFilter);</span>
+<span class="fc" id="L1815">    }</span>
+
+    /**
+     * @since 2.0.3
+     */
+    public void nameFilter(NameFilter nameFilter) {
+<span class="fc" id="L1821">        nameFilter(this, nameFilter);</span>
+<span class="fc" id="L1822">    }</span>
+
+    /**
+     * @see JSONObject#JSONObject(Map)
+     */
+    @Override
+    public JSONObject clone() {
+<span class="fc" id="L1829">        return new JSONObject(this);</span>
+    }
+
+    /**
+     * @see JSONPath#paths(Object)
+     */
+    public Object eval(JSONPath path) {
+<span class="fc" id="L1836">        return path.eval(this);</span>
+    }
+
+    /**
+     * if value instance of Map or Collection, return size, other return 0
+     *
+     * @param key
+     * @since 2.0.24
+     */
+    public int getSize(String key) {
+<span class="fc" id="L1846">        Object value = get(key);</span>
+<span class="fc bfc" id="L1847" title="All 2 branches covered.">        if (value instanceof Map) {</span>
+<span class="fc" id="L1848">            return ((Map&lt;?, ?&gt;) value).size();</span>
+        }
+<span class="fc bfc" id="L1850" title="All 2 branches covered.">        if (value instanceof Collection) {</span>
+<span class="fc" id="L1851">            return ((Collection&lt;?&gt;) value).size();</span>
+        }
+<span class="fc" id="L1853">        return 0;</span>
+    }
+
+    /**
+     * &lt;pre&gt;
+     * JSONObject jsonObject = JSONObject.of();
+     * &lt;/pre&gt;
+     */
+    public static JSONObject of() {
+<span class="fc" id="L1862">        return new JSONObject();</span>
+    }
+
+    /**
+     * Pack a pair of key-values as {@link JSONObject}
+     *
+     * &lt;pre&gt;
+     * JSONObject jsonObject = JSONObject.of(&quot;name&quot;, &quot;fastjson2&quot;);
+     * &lt;/pre&gt;
+     *
+     * @param key the key of the element
+     * @param value the value of the element
+     */
+    public static JSONObject of(String key, Object value) {
+<span class="fc" id="L1876">        JSONObject object = new JSONObject(1, 1F);</span>
+<span class="fc" id="L1877">        object.put(key, value);</span>
+<span class="fc" id="L1878">        return object;</span>
+    }
+
+    /**
+     * Pack two key-value pairs as {@link JSONObject}
+     *
+     * &lt;pre&gt;
+     * JSONObject jsonObject = JSONObject.of(&quot;key1&quot;, &quot;value1&quot;, &quot;key2&quot;, &quot;value2&quot;);
+     * &lt;/pre&gt;
+     *
+     * @param k1 first key
+     * @param v1 first value
+     * @param k2 second key
+     * @param v2 second value
+     * @since 2.0.2
+     */
+    public static JSONObject of(String k1, Object v1, String k2, Object v2) {
+<span class="fc" id="L1895">        JSONObject object = new JSONObject(2, 1F);</span>
+<span class="fc" id="L1896">        object.put(k1, v1);</span>
+<span class="fc" id="L1897">        object.put(k2, v2);</span>
+<span class="fc" id="L1898">        return object;</span>
+    }
+
+    /**
+     * Pack three key-value pairs as {@link JSONObject}
+     *
+     * &lt;pre&gt;
+     * JSONObject jsonObject = JSONObject.of(&quot;key1&quot;, &quot;value1&quot;, &quot;key2&quot;, &quot;value2&quot;, &quot;key3&quot;, &quot;value3&quot;);
+     * &lt;/pre&gt;
+     *
+     * @param k1 first key
+     * @param v1 first value
+     * @param k2 second key
+     * @param v2 second value
+     * @param k3 third key
+     * @param v3 third value
+     * @since 2.0.2
+     */
+    public static JSONObject of(String k1, Object v1, String k2, Object v2, String k3, Object v3) {
+<span class="fc" id="L1917">        JSONObject object = new JSONObject(3);</span>
+<span class="fc" id="L1918">        object.put(k1, v1);</span>
+<span class="fc" id="L1919">        object.put(k2, v2);</span>
+<span class="fc" id="L1920">        object.put(k3, v3);</span>
+<span class="fc" id="L1921">        return object;</span>
+    }
+
+    /**
+     * Pack three key-value pairs as {@link JSONObject}
+     *
+     * &lt;pre&gt;
+     * JSONObject jsonObject = JSONObject.of(&quot;key1&quot;, &quot;value1&quot;, &quot;key2&quot;, &quot;value2&quot;, &quot;key3&quot;, &quot;value3&quot;, &quot;key4&quot;, &quot;value4&quot;);
+     * &lt;/pre&gt;
+     *
+     * @param k1 first key
+     * @param v1 first value
+     * @param k2 second key
+     * @param v2 second value
+     * @param k3 third key
+     * @param v3 third value
+     * @param k4 four key
+     * @param v4 four value
+     * @since 2.0.8
+     */
+    public static JSONObject of(
+            String k1,
+            Object v1,
+            String k2,
+            Object v2,
+            String k3,
+            Object v3,
+            String k4,
+            Object v4) {
+<span class="fc" id="L1950">        JSONObject object = new JSONObject(4, 1F);</span>
+<span class="fc" id="L1951">        object.put(k1, v1);</span>
+<span class="fc" id="L1952">        object.put(k2, v2);</span>
+<span class="fc" id="L1953">        object.put(k3, v3);</span>
+<span class="fc" id="L1954">        object.put(k4, v4);</span>
+<span class="fc" id="L1955">        return object;</span>
+    }
+
+    /**
+     * Pack three key-value pairs as {@link JSONObject}
+     *
+     * &lt;pre&gt;
+     * JSONObject jsonObject = JSONObject.of(&quot;key1&quot;, &quot;value1&quot;, &quot;key2&quot;, &quot;value2&quot;, &quot;key3&quot;, &quot;value3&quot;, &quot;key4&quot;, &quot;value4&quot;, &quot;key5&quot;, &quot;value5&quot;);
+     * &lt;/pre&gt;
+     *
+     * @param k1 first key
+     * @param v1 first value
+     * @param k2 second key
+     * @param v2 second value
+     * @param k3 third key
+     * @param v3 third value
+     * @param k4 four key
+     * @param v4 four value
+     * @param k5 five key
+     * @param v5 five value
+     * @since 2.0.21
+     */
+    public static JSONObject of(
+            String k1,
+            Object v1,
+            String k2,
+            Object v2,
+            String k3,
+            Object v3,
+            String k4,
+            Object v4,
+            String k5,
+            Object v5
+
+    ) {
+<span class="fc" id="L1990">        JSONObject object = new JSONObject(5);</span>
+<span class="fc" id="L1991">        object.put(k1, v1);</span>
+<span class="fc" id="L1992">        object.put(k2, v2);</span>
+<span class="fc" id="L1993">        object.put(k3, v3);</span>
+<span class="fc" id="L1994">        object.put(k4, v4);</span>
+<span class="fc" id="L1995">        object.put(k5, v5);</span>
+<span class="fc" id="L1996">        return object;</span>
+    }
+
+    /**
+     * See {@link JSON#parseObject} for details
+     */
+    public static &lt;T&gt; T parseObject(String text, Class&lt;T&gt; objectClass) {
+<span class="fc" id="L2003">        return JSON.parseObject(text, objectClass);</span>
+    }
+
+    /**
+     * See {@link JSON#parseObject} for details
+     */
+    public static &lt;T&gt; T parseObject(String text, Class&lt;T&gt; objectClass, JSONReader.Feature... features) {
+<span class="fc" id="L2010">        return JSON.parseObject(text, objectClass, features);</span>
+    }
+
+    /**
+     * See {@link JSON#parseObject} for details
+     */
+    public static &lt;T&gt; T parseObject(String text, Type objectType, JSONReader.Feature... features) {
+<span class="fc" id="L2017">        return JSON.parseObject(text, objectType, features);</span>
+    }
+
+    /**
+     * See {@link JSON#parseObject} for details
+     */
+    public static &lt;T&gt; T parseObject(String text, TypeReference&lt;T&gt; typeReference, JSONReader.Feature... features) {
+<span class="fc" id="L2024">        return JSON.parseObject(text, typeReference, features);</span>
+    }
+
+    /**
+     * See {@link JSON#parseObject} for details
+     */
+    public static JSONObject parseObject(String text) {
+<span class="fc" id="L2031">        return JSON.parseObject(text);</span>
+    }
+
+    /**
+     * See {@link JSON#parse} for details
+     *
+     * @since 2.0.13
+     */
+    public static JSONObject parse(String text, JSONReader.Feature... features) {
+<span class="fc" id="L2040">        return JSON.parseObject(text, features);</span>
+    }
+
+    /**
+     * See {@link JSON#toJSON} for details
+     */
+    public static JSONObject from(Object obj) {
+<span class="fc" id="L2047">        return (JSONObject) JSON.toJSON(obj);</span>
+    }
+
+    /**
+     * See {@link JSON#toJSON} for details
+     */
+    public static JSONObject from(Object obj, JSONWriter.Feature... writeFeatures) {
+<span class="fc" id="L2054">        return (JSONObject) JSON.toJSON(obj, writeFeatures);</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.8.202204050719</span></div></body></html>

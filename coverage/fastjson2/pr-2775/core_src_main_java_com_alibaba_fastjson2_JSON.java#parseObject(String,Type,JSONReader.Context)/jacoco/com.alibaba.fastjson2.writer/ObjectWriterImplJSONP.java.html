@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ObjectWriterImplJSONP.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">fastjson2</a> &gt; <a href="index.source.html" class="el_package">com.alibaba.fastjson2.writer</a> &gt; <span class="el_source">ObjectWriterImplJSONP.java</span></div><h1>ObjectWriterImplJSONP.java</h1><pre class="source lang-java linenums">package com.alibaba.fastjson2.writer;
+
+import com.alibaba.fastjson2.JSONPObject;
+import com.alibaba.fastjson2.JSONWriter;
+
+import java.lang.reflect.Type;
+import java.util.List;
+
+<span class="fc" id="L9">public class ObjectWriterImplJSONP</span>
+        extends ObjectWriterPrimitiveImpl&lt;JSONPObject&gt; {
+    @Override
+    public void write(JSONWriter jsonWriter, Object object, Object fieldName, Type fieldType, long features) {
+<span class="fc" id="L13">        long features1 = jsonWriter.getFeatures(features);</span>
+<span class="fc bfc" id="L14" title="All 2 branches covered.">        if ((features1 &amp; JSONWriter.Feature.BrowserSecure.mask) != 0) {</span>
+<span class="fc" id="L15">            final String SECURITY_PREFIX = &quot;/**/&quot;;</span>
+<span class="fc" id="L16">            jsonWriter.writeRaw(SECURITY_PREFIX);</span>
+        }
+
+<span class="fc" id="L19">        JSONPObject jsonp = (JSONPObject) object;</span>
+<span class="fc" id="L20">        jsonWriter.writeRaw(jsonp.getFunction());</span>
+<span class="fc" id="L21">        jsonWriter.writeRaw('(');</span>
+<span class="fc" id="L22">        List&lt;Object&gt; parameters = jsonp.getParameters();</span>
+<span class="fc bfc" id="L23" title="All 2 branches covered.">        for (int i = 0; i &lt; parameters.size(); ++i) {</span>
+<span class="fc bfc" id="L24" title="All 2 branches covered.">            if (i != 0) {</span>
+<span class="fc" id="L25">                jsonWriter.writeRaw(',');</span>
+            }
+<span class="fc" id="L27">            jsonWriter.writeAny(parameters.get(i));</span>
+        }
+<span class="fc" id="L29">        jsonWriter.writeRaw(')');</span>
+<span class="fc" id="L30">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.8.202204050719</span></div></body></html>

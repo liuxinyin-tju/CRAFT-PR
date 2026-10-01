@@ -1,0 +1,133 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>JSONPathTypedMulti.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">fastjson2</a> &gt; <a href="index.source.html" class="el_package">com.alibaba.fastjson2</a> &gt; <span class="el_source">JSONPathTypedMulti.java</span></div><h1>JSONPathTypedMulti.java</h1><pre class="source lang-java linenums">package com.alibaba.fastjson2;
+
+import com.alibaba.fastjson2.util.TypeUtils;
+
+import java.lang.reflect.Type;
+import java.time.ZoneId;
+import java.util.function.BiFunction;
+
+import static com.alibaba.fastjson2.util.DateUtils.DEFAULT_ZONE_ID;
+
+class JSONPathTypedMulti
+        extends JSONPath {
+    final JSONPath[] paths;
+    final Type[] types;
+    final String[] formats;
+    final long[] pathFeatures;
+    final ZoneId zoneId;
+
+    protected JSONPathTypedMulti(
+            JSONPath[] paths,
+            Type[] types,
+            String[] formats,
+            long[] pathFeatures,
+            ZoneId zoneId,
+            long features
+    ) {
+<span class="fc" id="L27">        super(JSON.toJSONString(paths), features);</span>
+<span class="fc" id="L28">        this.types = types;</span>
+<span class="fc" id="L29">        this.paths = paths;</span>
+<span class="fc" id="L30">        this.formats = formats;</span>
+<span class="fc" id="L31">        this.pathFeatures = pathFeatures;</span>
+<span class="fc" id="L32">        this.zoneId = zoneId;</span>
+<span class="fc" id="L33">    }</span>
+
+    @Override
+    public JSONPath getParent() {
+<span class="fc" id="L37">        return paths[0].getParent();</span>
+    }
+
+    @Override
+    public boolean isRef() {
+<span class="fc bfc" id="L42" title="All 2 branches covered.">        for (JSONPath jsonPath : paths) {</span>
+<span class="fc bfc" id="L43" title="All 2 branches covered.">            if (!jsonPath.isRef()) {</span>
+<span class="fc" id="L44">                return false;</span>
+            }
+        }
+<span class="fc" id="L47">        return true;</span>
+    }
+
+    @Override
+    public boolean contains(Object object) {
+<span class="fc bfc" id="L52" title="All 2 branches covered.">        for (JSONPath jsonPath : paths) {</span>
+<span class="fc bfc" id="L53" title="All 2 branches covered.">            if (jsonPath.contains(object)) {</span>
+<span class="fc" id="L54">                return true;</span>
+            }
+        }
+<span class="fc" id="L57">        return false;</span>
+    }
+
+    protected final boolean ignoreError(int index) {
+<span class="pc bpc" id="L61" title="2 of 6 branches missed.">        return pathFeatures != null</span>
+                &amp;&amp; index &lt; pathFeatures.length
+                &amp;&amp; (pathFeatures[index] &amp; Feature.NullOnError.mask) != 0;
+    }
+
+    @Override
+    public Object eval(Object object) {
+<span class="fc" id="L68">        Object[] array = new Object[paths.length];</span>
+<span class="fc bfc" id="L69" title="All 2 branches covered.">        for (int i = 0; i &lt; paths.length; i++) {</span>
+<span class="fc" id="L70">            JSONPath jsonPath = paths[i];</span>
+<span class="fc" id="L71">            Object result = jsonPath.eval(object);</span>
+            try {
+<span class="fc" id="L73">                array[i] = TypeUtils.cast(result, types[i]);</span>
+<span class="fc" id="L74">            } catch (Exception e) {</span>
+<span class="pc bpc" id="L75" title="1 of 2 branches missed.">                if (!ignoreError(i)) {</span>
+<span class="fc" id="L76">                    throw new JSONException(&quot;jsonpath eval path, path : &quot; + jsonPath + &quot;, msg : &quot; + e.getMessage(), e);</span>
+                }
+<span class="fc" id="L78">            }</span>
+        }
+<span class="fc" id="L80">        return array;</span>
+    }
+
+    protected JSONReader.Context createContext() {
+<span class="fc" id="L84">        JSONReader.Context context = JSONFactory.createReadContext(features);</span>
+<span class="fc bfc" id="L85" title="All 4 branches covered.">        if (zoneId != null &amp;&amp; zoneId != DEFAULT_ZONE_ID) {</span>
+<span class="fc" id="L86">            context.zoneId = zoneId;</span>
+        }
+<span class="fc" id="L88">        return context;</span>
+    }
+
+    @Override
+    public Object extract(JSONReader jsonReader) {
+<span class="fc" id="L93">        Object object = jsonReader.readAny();</span>
+<span class="fc" id="L94">        return eval(object);</span>
+    }
+
+    @Override
+    public String extractScalar(JSONReader jsonReader) {
+<span class="fc" id="L99">        Object object = extract(jsonReader);</span>
+<span class="fc" id="L100">        return JSON.toJSONString(object);</span>
+    }
+
+    @Override
+    public void set(Object object, Object value) {
+<span class="fc" id="L105">        throw new JSONException(&quot;unsupported operation&quot;);</span>
+    }
+
+    @Override
+    public void set(Object object, Object value, JSONReader.Feature... readerFeatures) {
+<span class="fc" id="L110">        throw new JSONException(&quot;unsupported operation&quot;);</span>
+    }
+
+    @Override
+    public void setCallback(Object object, BiFunction callback) {
+<span class="fc" id="L115">        throw new JSONException(&quot;unsupported operation&quot;);</span>
+    }
+
+    @Override
+    public void setInt(Object object, int value) {
+<span class="fc" id="L120">        throw new JSONException(&quot;unsupported operation&quot;);</span>
+    }
+
+    @Override
+    public void setLong(Object object, long value) {
+<span class="fc" id="L125">        throw new JSONException(&quot;unsupported operation&quot;);</span>
+    }
+
+    @Override
+    public boolean remove(Object object) {
+<span class="fc" id="L130">        throw new JSONException(&quot;unsupported operation&quot;);</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.8.202204050719</span></div></body></html>

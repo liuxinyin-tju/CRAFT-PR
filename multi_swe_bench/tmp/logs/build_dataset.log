@@ -1,0 +1,34 @@
+[2026-09-30 14:00:37,265] [build_dataset.py] [INFO]: Initialize logger successfully.
+[2026-09-30 14:00:37,265] [build_dataset.py] [INFO]: Compiling instance...
+[2026-09-30 14:00:37,266] [build_dataset.py] [INFO]: Creating instances...
+[2026-09-30 14:00:37,266] [build_dataset.py] [INFO]: Loading raw dataset...
+[2026-09-30 14:00:37,279] [build_dataset.py] [INFO]: Successfully loaded 1 valid pull requests from ['./multi_swe_bench/tmp/raw_dataset/alibaba__fastjson2_dataset.jsonl']
+[2026-09-30 14:00:37,279] [build_dataset.py] [INFO]: Successfully loaded 1 valid instances.
+[2026-09-30 14:00:37,285] [build_dataset.py] [INFO]: Loading test cases...
+[2026-09-30 14:00:37,286] [build_dataset.py] [INFO]: Running mswebench/alibaba_m_fastjson2:pr-2775 with command: bash /home/fix-run.sh...
+[2026-09-30 14:00:37,698] [connectionpool.py] [DEBUG]: http://localhost:None "POST /v1.43/containers/create HTTP/1.1" 201 88
+[2026-09-30 14:00:37,703] [connectionpool.py] [DEBUG]: http://localhost:None "GET /v1.43/containers/ee77acbe6828357022bc35e5df5f8a6141a88274a0203ac4c7b9c8c0c8a505ae/json HTTP/1.1" 200 None
+[2026-09-30 14:00:38,139] [connectionpool.py] [DEBUG]: http://localhost:None "POST /v1.43/containers/ee77acbe6828357022bc35e5df5f8a6141a88274a0203ac4c7b9c8c0c8a505ae/start HTTP/1.1" 204 0
+[2026-09-30 14:00:38,143] [connectionpool.py] [DEBUG]: http://localhost:None "GET /v1.43/containers/ee77acbe6828357022bc35e5df5f8a6141a88274a0203ac4c7b9c8c0c8a505ae/logs?stderr=1&stdout=1&timestamps=0&follow=1&tail=all HTTP/1.1" 200 None
+[2026-09-30 14:00:38,145] [connectionpool.py] [DEBUG]: http://localhost:None "GET /v1.43/containers/ee77acbe6828357022bc35e5df5f8a6141a88274a0203ac4c7b9c8c0c8a505ae/json HTTP/1.1" 200 None
+[2026-09-30 14:01:17,032] [connectionpool.py] [DEBUG]: http://localhost:None "POST /v1.43/containers/ee77acbe6828357022bc35e5df5f8a6141a88274a0203ac4c7b9c8c0c8a505ae/stop?t=10 HTTP/1.1" 304 0
+[2026-09-30 14:01:17,071] [connectionpool.py] [DEBUG]: http://localhost:None "DELETE /v1.43/containers/ee77acbe6828357022bc35e5df5f8a6141a88274a0203ac4c7b9c8c0c8a505ae?v=False&link=False&force=True HTTP/1.1" 204 0
+[2026-09-30 14:01:17,072] [build_dataset.py] [INFO]: Running mswebench/alibaba_m_fastjson2:pr-2775 with command: bash /home/fix-run.sh... done
+[2026-09-30 14:01:17,073] [build_dataset.py] [INFO]: Instances compile successfully.
+[2026-09-30 14:02:15,955] [build_dataset.py] [INFO]: Initialize logger successfully.
+[2026-09-30 14:02:15,955] [build_dataset.py] [INFO]: Compiling instance...
+[2026-09-30 14:02:15,956] [build_dataset.py] [INFO]: Creating instances...
+[2026-09-30 14:02:15,956] [build_dataset.py] [INFO]: Loading raw dataset...
+[2026-09-30 14:02:15,967] [build_dataset.py] [INFO]: Successfully loaded 1 valid pull requests from ['./multi_swe_bench/tmp/raw_dataset/alibaba__fastjson2_dataset.jsonl']
+[2026-09-30 14:02:15,967] [build_dataset.py] [INFO]: Successfully loaded 1 valid instances.
+[2026-09-30 14:02:15,973] [build_dataset.py] [INFO]: Loading test cases...
+[2026-09-30 14:02:15,974] [build_dataset.py] [INFO]: Running mswebench/alibaba_m_fastjson2:pr-2775 with command: bash /home/fix-run.sh...
+[2026-09-30 14:02:16,331] [connectionpool.py] [DEBUG]: http://localhost:None "POST /v1.43/containers/create HTTP/1.1" 201 88
+[2026-09-30 14:02:16,335] [connectionpool.py] [DEBUG]: http://localhost:None "GET /v1.43/containers/2a7a6929b9e5c5fe42b2ea0c6c6ca721a016e5115cdb822cc2c37dee5d76541e/json HTTP/1.1" 200 None
+[2026-09-30 14:02:16,711] [connectionpool.py] [DEBUG]: http://localhost:None "POST /v1.43/containers/2a7a6929b9e5c5fe42b2ea0c6c6ca721a016e5115cdb822cc2c37dee5d76541e/start HTTP/1.1" 204 0
+[2026-09-30 14:02:16,715] [connectionpool.py] [DEBUG]: http://localhost:None "GET /v1.43/containers/2a7a6929b9e5c5fe42b2ea0c6c6ca721a016e5115cdb822cc2c37dee5d76541e/logs?stderr=1&stdout=1&timestamps=0&follow=1&tail=all HTTP/1.1" 200 None
+[2026-09-30 14:02:16,718] [connectionpool.py] [DEBUG]: http://localhost:None "GET /v1.43/containers/2a7a6929b9e5c5fe42b2ea0c6c6ca721a016e5115cdb822cc2c37dee5d76541e/json HTTP/1.1" 200 None
+[2026-09-30 14:07:02,754] [connectionpool.py] [DEBUG]: http://localhost:None "POST /v1.43/containers/2a7a6929b9e5c5fe42b2ea0c6c6ca721a016e5115cdb822cc2c37dee5d76541e/stop?t=10 HTTP/1.1" 304 0
+[2026-09-30 14:07:03,038] [connectionpool.py] [DEBUG]: http://localhost:None "DELETE /v1.43/containers/2a7a6929b9e5c5fe42b2ea0c6c6ca721a016e5115cdb822cc2c37dee5d76541e?v=False&link=False&force=True HTTP/1.1" 204 0
+[2026-09-30 14:07:03,039] [build_dataset.py] [INFO]: Running mswebench/alibaba_m_fastjson2:pr-2775 with command: bash /home/fix-run.sh... done
+[2026-09-30 14:07:03,041] [build_dataset.py] [INFO]: Instances compile successfully.

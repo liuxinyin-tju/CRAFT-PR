@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>FieldReaderAtomicLongArrayReadOnly.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">fastjson2</a> &gt; <a href="index.source.html" class="el_package">com.alibaba.fastjson2.reader</a> &gt; <span class="el_source">FieldReaderAtomicLongArrayReadOnly.java</span></div><h1>FieldReaderAtomicLongArrayReadOnly.java</h1><pre class="source lang-java linenums">package com.alibaba.fastjson2.reader;
+
+import com.alibaba.fastjson2.JSONException;
+import com.alibaba.fastjson2.JSONReader;
+import com.alibaba.fastjson2.schema.JSONSchema;
+import com.alibaba.fastjson2.util.TypeUtils;
+
+import java.lang.reflect.Method;
+import java.util.List;
+import java.util.concurrent.atomic.AtomicLongArray;
+
+final class FieldReaderAtomicLongArrayReadOnly&lt;T&gt;
+        extends FieldReader&lt;T&gt; {
+    FieldReaderAtomicLongArrayReadOnly(
+            String fieldName,
+            Class fieldType,
+            int ordinal,
+            JSONSchema jsonSchema,
+            Method method
+    ) {
+<span class="fc" id="L21">        super(fieldName, fieldType, fieldType, ordinal, 0, null, null, null, jsonSchema, method, null);</span>
+<span class="fc" id="L22">    }</span>
+
+    @Override
+    public boolean isReadOnly() {
+<span class="fc" id="L26">        return true;</span>
+    }
+
+    @Override
+    public void accept(T object, Object value) {
+<span class="pc bpc" id="L31" title="1 of 2 branches missed.">        if (value == null) {</span>
+<span class="nc" id="L32">            return;</span>
+        }
+
+        try {
+<span class="fc" id="L36">            AtomicLongArray atomic = (AtomicLongArray) method.invoke(object);</span>
+<span class="fc bfc" id="L37" title="All 2 branches covered.">            if (value instanceof AtomicLongArray) {</span>
+<span class="fc" id="L38">                AtomicLongArray array = (AtomicLongArray) value;</span>
+<span class="fc bfc" id="L39" title="All 2 branches covered.">                for (int i = 0; i &lt; array.length(); i++) {</span>
+<span class="fc" id="L40">                    atomic.set(i, array.get(i));</span>
+                }
+<span class="fc" id="L42">            } else {</span>
+<span class="fc" id="L43">                List values = (List) value;</span>
+<span class="fc bfc" id="L44" title="All 2 branches covered.">                for (int i = 0; i &lt; values.size(); i++) {</span>
+<span class="fc" id="L45">                    int itemValue = TypeUtils.toIntValue(values.get(i));</span>
+<span class="fc" id="L46">                    atomic.set(i, itemValue);</span>
+                }
+            }
+<span class="nc" id="L49">        } catch (Exception e) {</span>
+<span class="nc" id="L50">            throw new JSONException(&quot;set &quot; + fieldName + &quot; error&quot;, e);</span>
+<span class="fc" id="L51">        }</span>
+<span class="fc" id="L52">    }</span>
+
+    @Override
+    public void readFieldValue(JSONReader jsonReader, T object) {
+<span class="fc bfc" id="L56" title="All 2 branches covered.">        if (jsonReader.readIfNull()) {</span>
+<span class="fc" id="L57">            return;</span>
+        }
+
+        AtomicLongArray atomic;
+        try {
+<span class="fc" id="L62">            atomic = (AtomicLongArray) method.invoke(object);</span>
+<span class="nc" id="L63">        } catch (Exception e) {</span>
+<span class="nc" id="L64">            throw new JSONException(jsonReader.info(&quot;set &quot; + fieldName + &quot; error&quot;), e);</span>
+<span class="fc" id="L65">        }</span>
+<span class="pc bpc" id="L66" title="1 of 2 branches missed.">        if (jsonReader.nextIfArrayStart()) {</span>
+<span class="fc" id="L67">            for (int i = 0; ; ++i) {</span>
+<span class="fc bfc" id="L68" title="All 2 branches covered.">                if (jsonReader.nextIfArrayEnd()) {</span>
+<span class="fc" id="L69">                    break;</span>
+                }
+
+<span class="fc" id="L72">                long value = jsonReader.readInt64Value();</span>
+<span class="pc bpc" id="L73" title="2 of 4 branches missed.">                if (atomic != null &amp;&amp; i &lt; atomic.length()) {</span>
+<span class="fc" id="L74">                    atomic.set(i, value);</span>
+                }
+            }
+        }
+<span class="fc" id="L78">    }</span>
+
+    @Override
+    public Object readFieldValue(JSONReader jsonReader) {
+<span class="pc bpc" id="L82" title="1 of 2 branches missed.">        if (jsonReader.nextIfNull()) {</span>
+<span class="nc" id="L83">            return null;</span>
+        }
+<span class="fc" id="L85">        return jsonReader.readArray(Long.class);</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.8.202204050719</span></div></body></html>

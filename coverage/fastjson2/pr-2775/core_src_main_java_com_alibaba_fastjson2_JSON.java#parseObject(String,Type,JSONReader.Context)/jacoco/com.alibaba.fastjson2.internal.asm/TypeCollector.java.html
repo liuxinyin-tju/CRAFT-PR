@@ -1,0 +1,102 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>TypeCollector.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">fastjson2</a> &gt; <a href="index.source.html" class="el_package">com.alibaba.fastjson2.internal.asm</a> &gt; <span class="el_source">TypeCollector.java</span></div><h1>TypeCollector.java</h1><pre class="source lang-java linenums">package com.alibaba.fastjson2.internal.asm;
+
+import java.lang.reflect.Modifier;
+import java.util.HashMap;
+import java.util.Map;
+
+public class TypeCollector {
+//    static final String JSON_TYPE = ASMUtils.desc(JSONType.class);
+    static final Map&lt;String, String&gt; PRIMITIVES;
+
+    static {
+<span class="fc" id="L12">        HashMap map = new HashMap();</span>
+<span class="fc" id="L13">        map.put(&quot;int&quot;, &quot;I&quot;);</span>
+<span class="fc" id="L14">        map.put(&quot;boolean&quot;, &quot;Z&quot;);</span>
+<span class="fc" id="L15">        map.put(&quot;byte&quot;, &quot;B&quot;);</span>
+<span class="fc" id="L16">        map.put(&quot;char&quot;, &quot;C&quot;);</span>
+<span class="fc" id="L17">        map.put(&quot;short&quot;, &quot;S&quot;);</span>
+<span class="fc" id="L18">        map.put(&quot;float&quot;, &quot;F&quot;);</span>
+<span class="fc" id="L19">        map.put(&quot;long&quot;, &quot;J&quot;);</span>
+<span class="fc" id="L20">        map.put(&quot;double&quot;, &quot;D&quot;);</span>
+<span class="fc" id="L21">        PRIMITIVES = map;</span>
+<span class="fc" id="L22">    }</span>
+
+    final String methodName;
+
+    final Class&lt;?&gt;[] parameterTypes;
+
+    protected MethodCollector collector;
+
+//    protected boolean jsonType;
+
+<span class="fc" id="L32">    public TypeCollector(String methodName, Class&lt;?&gt;[] parameterTypes) {</span>
+<span class="fc" id="L33">        this.methodName = methodName;</span>
+<span class="fc" id="L34">        this.parameterTypes = parameterTypes;</span>
+<span class="fc" id="L35">        this.collector = null;</span>
+<span class="fc" id="L36">    }</span>
+
+    protected MethodCollector visitMethod(int access, String name, String desc) {
+<span class="fc bfc" id="L39" title="All 2 branches covered.">        if (collector != null) {</span>
+<span class="fc" id="L40">            return null;</span>
+        }
+
+<span class="fc bfc" id="L43" title="All 2 branches covered.">        if (!name.equals(methodName)) {</span>
+<span class="fc" id="L44">            return null;</span>
+        }
+
+<span class="fc" id="L47">        Type[] argTypes = Type.getArgumentTypes(desc);</span>
+<span class="fc" id="L48">        int longOrDoubleQuantity = 0;</span>
+<span class="fc bfc" id="L49" title="All 2 branches covered.">        for (int i = 0; i &lt; argTypes.length; i++) {</span>
+<span class="fc" id="L50">            Type t = argTypes[i];</span>
+<span class="fc" id="L51">            String className = t.getClassName();</span>
+<span class="fc bfc" id="L52" title="All 4 branches covered.">            if (&quot;long&quot;.equals(className) || &quot;double&quot;.equals(className)) {</span>
+<span class="fc" id="L53">                longOrDoubleQuantity++;</span>
+            }
+        }
+
+<span class="fc bfc" id="L57" title="All 2 branches covered.">        if (argTypes.length != this.parameterTypes.length) {</span>
+<span class="fc" id="L58">            return null;</span>
+        }
+<span class="fc bfc" id="L60" title="All 2 branches covered.">        for (int i = 0; i &lt; argTypes.length; i++) {</span>
+<span class="fc bfc" id="L61" title="All 2 branches covered.">            if (!correctTypeName(argTypes[i], this.parameterTypes[i].getName())) {</span>
+<span class="fc" id="L62">                return null;</span>
+            }
+        }
+
+<span class="fc" id="L66">        return collector = new MethodCollector(</span>
+<span class="fc bfc" id="L67" title="All 2 branches covered.">                Modifier.isStatic(access) ? 0 : 1,</span>
+                argTypes.length + longOrDoubleQuantity);
+    }
+//
+//    public void visitAnnotation(String desc) {
+//        if (JSON_TYPE.equals(desc)) {
+//            jsonType = true;
+//        }
+//    }
+
+    private boolean correctTypeName(Type type, String paramTypeName) {
+<span class="fc" id="L78">        String s = type.getClassName();</span>
+        // array notation needs cleanup.
+<span class="fc" id="L80">        StringBuilder braces = new StringBuilder();</span>
+<span class="fc bfc" id="L81" title="All 2 branches covered.">        while (s.endsWith(&quot;[]&quot;)) {</span>
+<span class="fc" id="L82">            braces.append('[');</span>
+<span class="fc" id="L83">            s = s.substring(0, s.length() - 2);</span>
+        }
+<span class="fc bfc" id="L85" title="All 2 branches covered.">        if (braces.length() != 0) {</span>
+<span class="pc bpc" id="L86" title="1 of 2 branches missed.">            if (PRIMITIVES.containsKey(s)) {</span>
+<span class="nc" id="L87">                s = braces.append(PRIMITIVES.get(s)).toString();</span>
+            } else {
+<span class="fc" id="L89">                s = braces.append('L').append(s).append(';').toString();</span>
+            }
+        }
+<span class="fc" id="L92">        return s.equals(paramTypeName);</span>
+    }
+
+    public String[] getParameterNamesForMethod() {
+<span class="pc bpc" id="L96" title="1 of 4 branches missed.">        if (collector == null || !collector.debugInfoPresent) {</span>
+<span class="fc" id="L97">            return new String[0];</span>
+        }
+<span class="fc" id="L99">        return collector.getResult().split(&quot;,&quot;);</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.8.202204050719</span></div></body></html>

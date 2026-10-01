@@ -1,0 +1,312 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ObjectReader.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">fastjson2</a> &gt; <a href="index.source.html" class="el_package">com.alibaba.fastjson2.reader</a> &gt; <span class="el_source">ObjectReader.java</span></div><h1>ObjectReader.java</h1><pre class="source lang-java linenums">package com.alibaba.fastjson2.reader;
+
+import com.alibaba.fastjson2.*;
+import com.alibaba.fastjson2.util.Fnv;
+
+import java.lang.reflect.Type;
+import java.util.Collection;
+import java.util.Map;
+import java.util.function.Function;
+
+@SuppressWarnings({&quot;rawtypes&quot;, &quot;unchecked&quot;})
+public interface ObjectReader&lt;T&gt; {
+<span class="fc" id="L13">    long HASH_TYPE = Fnv.hashCode64(&quot;@type&quot;);</span>
+    String VALUE_NAME = &quot;@value&quot;;
+
+    /**
+     * @return {@link T}
+     * @throws UnsupportedOperationException If the method is not overloaded or otherwise
+     */
+    default T createInstance() {
+<span class="fc" id="L21">        return createInstance(0);</span>
+    }
+
+    /**
+     * @return {@link T}
+     * @throws UnsupportedOperationException If the method is not overloaded or otherwise
+     */
+    default T createInstance(long features) {
+<span class="nc" id="L29">        throw new UnsupportedOperationException();</span>
+    }
+
+    /**
+     * @return {@link T}
+     * @throws UnsupportedOperationException If the method is not overloaded or otherwise
+     */
+    default T createInstance(Collection collection) {
+<span class="fc" id="L37">        return createInstance(collection, 0L);</span>
+    }
+
+    /**
+     * @return {@link T}
+     * @throws UnsupportedOperationException If the method is not overloaded or otherwise
+     */
+    default T createInstance(Collection collection, JSONReader.Feature... features) {
+<span class="fc" id="L45">        return createInstance(collection, JSONReader.Feature.of(features));</span>
+    }
+
+    /**
+     * @return {@link T}
+     * @throws UnsupportedOperationException If the method is not overloaded or otherwise
+     */
+    default T createInstance(Collection collection, long features) {
+<span class="nc" id="L53">        throw new UnsupportedOperationException(this.getClass().getName());</span>
+    }
+
+    default void acceptExtra(Object object, String fieldName, Object fieldValue) {
+<span class="nc" id="L57">        acceptExtra(object, fieldName, fieldValue, this.getFeatures());</span>
+<span class="nc" id="L58">    }</span>
+
+    default void acceptExtra(Object object, String fieldName, Object fieldValue, long features) {
+<span class="nc" id="L61">    }</span>
+
+    default T createInstance(Map map, JSONReader.Feature... features) {
+<span class="fc" id="L64">        long featuresValue = 0;</span>
+<span class="fc bfc" id="L65" title="All 2 branches covered.">        for (int i = 0; i &lt; features.length; i++) {</span>
+<span class="fc" id="L66">            featuresValue |= features[i].mask;</span>
+        }
+<span class="fc" id="L68">        return createInstance(map, featuresValue);</span>
+    }
+
+    /**
+     * @return {@link T}
+     * @throws JSONException If a suitable ObjectReader is not found
+     */
+    default T createInstance(Map map, long features) {
+<span class="nc" id="L76">        ObjectReaderProvider provider = JSONFactory.getDefaultObjectReaderProvider();</span>
+<span class="nc" id="L77">        Object typeKey = map.get(getTypeKey());</span>
+
+<span class="nc bnc" id="L79" title="All 2 branches missed.">        if (typeKey instanceof String) {</span>
+<span class="nc" id="L80">            String typeName = (String) typeKey;</span>
+<span class="nc" id="L81">            long typeHash = Fnv.hashCode64(typeName);</span>
+<span class="nc" id="L82">            ObjectReader&lt;T&gt; reader = null;</span>
+<span class="nc bnc" id="L83" title="All 4 branches missed.">            if ((features &amp; JSONReader.Feature.SupportAutoType.mask) != 0 || this instanceof ObjectReaderSeeAlso) {</span>
+<span class="nc" id="L84">                reader = autoType(provider, typeHash);</span>
+            }
+
+<span class="nc bnc" id="L87" title="All 2 branches missed.">            if (reader == null) {</span>
+<span class="nc" id="L88">                reader = provider.getObjectReader(</span>
+<span class="nc" id="L89">                        typeName, getObjectClass(), features | getFeatures()</span>
+                );
+            }
+
+<span class="nc bnc" id="L93" title="All 4 branches missed.">            if (reader != this &amp;&amp; reader != null) {</span>
+<span class="nc" id="L94">                return reader.createInstance(map, features);</span>
+            }
+        }
+
+<span class="nc" id="L98">        T object = createInstance(0L);</span>
+<span class="nc" id="L99">        return accept(object, map, features);</span>
+    }
+
+    default T accept(T object, Map map, long features) {
+<span class="fc bfc" id="L103" title="All 2 branches covered.">        for (Map.Entry entry : (Iterable&lt;Map.Entry&gt;) map.entrySet()) {</span>
+<span class="fc" id="L104">            String entryKey = entry.getKey().toString();</span>
+<span class="fc" id="L105">            Object fieldValue = entry.getValue();</span>
+
+<span class="fc" id="L107">            FieldReader fieldReader = getFieldReader(entryKey);</span>
+<span class="pc bpc" id="L108" title="1 of 2 branches missed.">            if (fieldReader == null) {</span>
+<span class="nc" id="L109">                acceptExtra(object, entryKey, entry.getValue(), features);</span>
+<span class="nc" id="L110">                continue;</span>
+            }
+
+<span class="fc" id="L113">            fieldReader.acceptAny(object, fieldValue, features);</span>
+<span class="fc" id="L114">        }</span>
+
+<span class="fc" id="L116">        Function buildFunction = getBuildFunction();</span>
+<span class="pc bpc" id="L117" title="1 of 2 branches missed.">        return buildFunction != null</span>
+<span class="pc" id="L118">                ? (T) buildFunction.apply(object)</span>
+                : object;
+    }
+
+    /**
+     * @throws UnsupportedOperationException If the method is not overloaded or otherwise
+     */
+    default T createInstanceNoneDefaultConstructor(Map&lt;Long, Object&gt; values) {
+<span class="nc" id="L126">        throw new UnsupportedOperationException();</span>
+    }
+
+    /**
+     * Features enabled by ObjectReader
+     */
+    default long getFeatures() {
+<span class="fc" id="L133">        return 0L;</span>
+    }
+
+    default String getTypeKey() {
+<span class="fc" id="L137">        return &quot;@type&quot;;</span>
+    }
+
+    default long getTypeKeyHash() {
+<span class="fc" id="L141">        return HASH_TYPE;</span>
+    }
+
+    default Class&lt;T&gt; getObjectClass() {
+<span class="nc" id="L145">        return null;</span>
+    }
+
+    default FieldReader getFieldReader(long hashCode) {
+<span class="fc" id="L149">        return null;</span>
+    }
+
+    default FieldReader getFieldReaderLCase(long hashCode) {
+<span class="nc" id="L153">        return null;</span>
+    }
+
+    default boolean setFieldValue(Object object, String fieldName, long fieldNameHashCode, int value) {
+<span class="fc" id="L157">        FieldReader fieldReader = getFieldReader(fieldNameHashCode);</span>
+<span class="pc bpc" id="L158" title="1 of 2 branches missed.">        if (fieldReader == null) {</span>
+<span class="nc" id="L159">            return false;</span>
+        }
+<span class="fc" id="L161">        fieldReader.accept(object, value);</span>
+<span class="fc" id="L162">        return true;</span>
+    }
+
+    default boolean setFieldValue(Object object, String fieldName, long fieldNameHashCode, long value) {
+<span class="fc" id="L166">        FieldReader fieldReader = getFieldReader(fieldNameHashCode);</span>
+<span class="pc bpc" id="L167" title="1 of 2 branches missed.">        if (fieldReader == null) {</span>
+<span class="nc" id="L168">            return false;</span>
+        }
+<span class="fc" id="L170">        fieldReader.accept(object, value);</span>
+<span class="fc" id="L171">        return true;</span>
+    }
+
+    default FieldReader getFieldReader(String fieldName) {
+<span class="fc" id="L175">        long fieldNameHash = Fnv.hashCode64(fieldName);</span>
+<span class="fc" id="L176">        FieldReader fieldReader = getFieldReader(fieldNameHash);</span>
+
+<span class="fc bfc" id="L178" title="All 2 branches covered.">        if (fieldReader == null) {</span>
+<span class="fc" id="L179">            long fieldNameHashLCase = Fnv.hashCode64LCase(fieldName);</span>
+<span class="fc bfc" id="L180" title="All 2 branches covered.">            if (fieldNameHashLCase != fieldNameHash) {</span>
+<span class="fc" id="L181">                fieldReader = getFieldReaderLCase(fieldNameHashLCase);</span>
+            }
+        }
+
+<span class="fc" id="L185">        return fieldReader;</span>
+    }
+
+    default boolean setFieldValue(Object object, String fieldName, Object value) {
+<span class="nc" id="L189">        FieldReader fieldReader = getFieldReader(fieldName);</span>
+<span class="nc bnc" id="L190" title="All 2 branches missed.">        if (fieldReader == null) {</span>
+<span class="nc" id="L191">            return false;</span>
+        }
+<span class="nc" id="L193">        fieldReader.accept(object, value);</span>
+<span class="nc" id="L194">        return true;</span>
+    }
+
+    default Function getBuildFunction() {
+<span class="fc" id="L198">        return null;</span>
+    }
+
+    default ObjectReader autoType(JSONReader.Context context, long typeHash) {
+<span class="nc" id="L202">        return context.getObjectReaderAutoType(typeHash);</span>
+    }
+
+    default ObjectReader autoType(ObjectReaderProvider provider, long typeHash) {
+<span class="fc" id="L206">        return provider.getObjectReader(typeHash);</span>
+    }
+
+    /**
+     * @return {@link T}
+     * @throws JSONException If a suitable ObjectReader is not found
+     */
+    default T readJSONBObject(JSONReader jsonReader, Type fieldType, Object fieldName, long features) {
+<span class="nc bnc" id="L214" title="All 2 branches missed.">        if (jsonReader.isArray() &amp;&amp;</span>
+<span class="nc bnc" id="L215" title="All 2 branches missed.">                jsonReader.isSupportBeanArray()) {</span>
+<span class="nc" id="L216">            return readArrayMappingJSONBObject(jsonReader, fieldType, fieldName, features);</span>
+        }
+
+<span class="nc" id="L219">        T object = null;</span>
+<span class="nc" id="L220">        jsonReader.nextIfObjectStart();</span>
+
+<span class="nc" id="L222">        JSONReader.Context context = jsonReader.getContext();</span>
+<span class="nc" id="L223">        long features2 = context.getFeatures() | features;</span>
+<span class="nc" id="L224">        for (int i = 0; ; ++i) {</span>
+<span class="nc bnc" id="L225" title="All 2 branches missed.">            if (jsonReader.nextIfObjectEnd()) {</span>
+<span class="nc" id="L226">                break;</span>
+            }
+<span class="nc" id="L228">            long hash = jsonReader.readFieldNameHashCode();</span>
+
+<span class="nc bnc" id="L230" title="All 4 branches missed.">            if (hash == getTypeKeyHash() &amp;&amp; i == 0) {</span>
+<span class="nc" id="L231">                long typeHash = jsonReader.readTypeHashCode();</span>
+<span class="nc" id="L232">                ObjectReader reader = autoType(context, typeHash);</span>
+
+<span class="nc bnc" id="L234" title="All 2 branches missed.">                if (reader == null) {</span>
+<span class="nc" id="L235">                    String typeName = jsonReader.getString();</span>
+<span class="nc" id="L236">                    reader = context.getObjectReaderAutoType(typeName, null);</span>
+
+<span class="nc bnc" id="L238" title="All 2 branches missed.">                    if (reader == null) {</span>
+<span class="nc" id="L239">                        throw new JSONException(jsonReader.info(&quot;No suitable ObjectReader found for &quot; + typeName));</span>
+                    }
+                }
+
+<span class="nc bnc" id="L243" title="All 2 branches missed.">                if (reader == this) {</span>
+<span class="nc" id="L244">                    continue;</span>
+                }
+
+<span class="nc" id="L247">                return (T) reader.readJSONBObject(jsonReader, fieldType, fieldName, features);</span>
+            }
+
+<span class="nc bnc" id="L250" title="All 2 branches missed.">            if (hash == 0) {</span>
+<span class="nc" id="L251">                continue;</span>
+            }
+
+<span class="nc" id="L254">            FieldReader fieldReader = getFieldReader(hash);</span>
+<span class="nc bnc" id="L255" title="All 4 branches missed.">            if (fieldReader == null &amp;&amp; jsonReader.isSupportSmartMatch(features2 | getFeatures())) {</span>
+<span class="nc" id="L256">                long nameHashCodeLCase = jsonReader.getNameHashCodeLCase();</span>
+<span class="nc bnc" id="L257" title="All 2 branches missed.">                if (nameHashCodeLCase != hash) {</span>
+<span class="nc" id="L258">                    fieldReader = getFieldReaderLCase(nameHashCodeLCase);</span>
+                }
+            }
+
+<span class="nc bnc" id="L262" title="All 2 branches missed.">            if (fieldReader == null) {</span>
+<span class="nc" id="L263">                jsonReader.skipValue();</span>
+<span class="nc" id="L264">                continue;</span>
+            }
+
+<span class="nc bnc" id="L267" title="All 2 branches missed.">            if (object == null) {</span>
+<span class="nc" id="L268">                object = createInstance(features2);</span>
+            }
+
+<span class="nc" id="L271">            fieldReader.readFieldValue(jsonReader, object);</span>
+        }
+
+<span class="nc bnc" id="L274" title="All 2 branches missed.">        return object != null</span>
+                ? object
+<span class="nc" id="L276">                : createInstance(features2);</span>
+    }
+
+    /**
+     * @return {@link T}
+     * @throws UnsupportedOperationException If the method is not overloaded or otherwise
+     */
+    default T readArrayMappingJSONBObject(JSONReader jsonReader, Type fieldType, Object fieldName, long features) {
+<span class="nc" id="L284">        throw new UnsupportedOperationException();</span>
+    }
+
+    /**
+     * @return {@link T}
+     * @throws UnsupportedOperationException If the method is not overloaded or otherwise
+     */
+    default T readArrayMappingObject(JSONReader jsonReader, Type fieldType, Object fieldName, long features) {
+<span class="nc" id="L292">        throw new UnsupportedOperationException();</span>
+    }
+
+    /**
+     * @return {@link T}
+     */
+    default T readObject(JSONReader jsonReader) {
+<span class="fc" id="L299">        return readObject(jsonReader, null, null, getFeatures());</span>
+    }
+
+    default T readObject(JSONReader jsonReader, long features) {
+<span class="fc" id="L303">        return readObject(jsonReader, null, null, features);</span>
+    }
+
+    /**
+     * @return {@link T}
+     * @throws JSONException If a suitable ObjectReader is not found
+     */
+    T readObject(JSONReader jsonReader, Type fieldType, Object fieldName, long features);
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.8.202204050719</span></div></body></html>

@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>EnumSchema.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">fastjson2</a> &gt; <a href="index.source.html" class="el_package">com.alibaba.fastjson2.schema</a> &gt; <span class="el_source">EnumSchema.java</span></div><h1>EnumSchema.java</h1><pre class="source lang-java linenums">package com.alibaba.fastjson2.schema;
+
+import java.math.BigDecimal;
+import java.math.BigInteger;
+import java.util.LinkedHashSet;
+import java.util.Set;
+
+import static com.alibaba.fastjson2.util.TypeUtils.*;
+
+public final class EnumSchema
+        extends JSONSchema {
+    final Set&lt;Object&gt; items;
+
+    EnumSchema(Object... items) {
+<span class="fc" id="L15">        super(null, null);</span>
+<span class="fc" id="L16">        this.items = new LinkedHashSet&lt;&gt;(items.length);</span>
+<span class="fc bfc" id="L17" title="All 2 branches covered.">        for (Object item : items) {</span>
+<span class="fc bfc" id="L18" title="All 2 branches covered.">            if (item instanceof BigDecimal) {</span>
+<span class="fc" id="L19">                BigDecimal decimal = ((BigDecimal) item).stripTrailingZeros();</span>
+<span class="fc bfc" id="L20" title="All 2 branches covered.">                if (decimal.scale() == 0) {</span>
+<span class="fc" id="L21">                    BigInteger bigInt = decimal.toBigInteger();</span>
+<span class="pc bpc" id="L22" title="1 of 4 branches missed.">                    if (bigInt.compareTo(BIGINT_INT32_MIN) &gt;= 0 &amp;&amp; bigInt.compareTo(BIGINT_INT32_MAX) &lt;= 0) {</span>
+<span class="fc" id="L23">                        item = bigInt.intValue();</span>
+<span class="pc bpc" id="L24" title="1 of 4 branches missed.">                    } else if (bigInt.compareTo(BIGINT_INT64_MIN) &gt;= 0 &amp;&amp; bigInt.compareTo(BIGINT_INT64_MAX) &lt;= 0) {</span>
+<span class="fc" id="L25">                        item = bigInt.longValue();</span>
+                    } else {
+<span class="fc" id="L27">                        item = bigInt;</span>
+                    }
+<span class="fc" id="L29">                } else {</span>
+<span class="fc" id="L30">                    item = decimal;</span>
+                }
+            }
+<span class="fc" id="L33">            this.items.add(item);</span>
+        }
+<span class="fc" id="L35">    }</span>
+
+    @Override
+    public Type getType() {
+<span class="fc" id="L39">        return Type.Enum;</span>
+    }
+
+    @Override
+    public ValidateResult validate(Object value) {
+<span class="fc bfc" id="L44" title="All 2 branches covered.">        if (value instanceof BigDecimal) {</span>
+<span class="fc" id="L45">            BigDecimal decimal = (BigDecimal) value;</span>
+<span class="fc" id="L46">            value = decimal.stripTrailingZeros();</span>
+
+<span class="fc" id="L48">            long longValue = decimal.longValue();</span>
+<span class="fc bfc" id="L49" title="All 2 branches covered.">            if (decimal.compareTo(BigDecimal.valueOf(longValue)) == 0) {</span>
+<span class="fc" id="L50">                value = longValue;</span>
+<span class="fc bfc" id="L51" title="All 2 branches covered.">            } else if (decimal.scale() == 0) {</span>
+<span class="fc" id="L52">                value = decimal.unscaledValue();</span>
+            }
+<span class="fc bfc" id="L54" title="All 2 branches covered.">        } else if (value instanceof BigInteger) {</span>
+<span class="fc" id="L55">            BigInteger bigInt = (BigInteger) value;</span>
+<span class="pc bpc" id="L56" title="1 of 4 branches missed.">            if (bigInt.compareTo(BIGINT_INT64_MIN) &gt;= 0 &amp;&amp; bigInt.compareTo(BIGINT_INT64_MAX) &lt;= 0) {</span>
+<span class="fc" id="L57">                value = bigInt.longValue();</span>
+            }
+        }
+
+<span class="fc bfc" id="L61" title="All 2 branches covered.">        if (value instanceof Long) {</span>
+<span class="fc" id="L62">            long longValue = (Long) value;</span>
+<span class="pc bpc" id="L63" title="1 of 4 branches missed.">            if (longValue &gt;= Integer.MIN_VALUE &amp;&amp; longValue &lt;= Integer.MAX_VALUE) {</span>
+<span class="fc" id="L64">                value = (int) longValue;</span>
+            }
+        }
+
+<span class="fc bfc" id="L68" title="All 2 branches covered.">        if (!items.contains(value)) {</span>
+<span class="fc bfc" id="L69" title="All 2 branches covered.">            if (value == null) {</span>
+<span class="fc" id="L70">                return FAIL_INPUT_NULL;</span>
+            }
+
+<span class="fc" id="L73">            return new ValidateResult(false, &quot;expect type %s, but %s&quot;, Type.Enum, value.getClass());</span>
+        }
+
+<span class="fc" id="L76">        return SUCCESS;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.8.202204050719</span></div></body></html>

@@ -1,0 +1,568 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>JdbcSupport.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">fastjson2</a> &gt; <a href="index.source.html" class="el_package">com.alibaba.fastjson2.util</a> &gt; <span class="el_source">JdbcSupport.java</span></div><h1>JdbcSupport.java</h1><pre class="source lang-java linenums">package com.alibaba.fastjson2.util;
+
+import com.alibaba.fastjson2.JSONB;
+import com.alibaba.fastjson2.JSONException;
+import com.alibaba.fastjson2.JSONReader;
+import com.alibaba.fastjson2.JSONWriter;
+import com.alibaba.fastjson2.codec.DateTimeCodec;
+import com.alibaba.fastjson2.reader.ObjectReader;
+import com.alibaba.fastjson2.reader.ObjectReaderImplDate;
+import com.alibaba.fastjson2.writer.ObjectWriter;
+
+import java.io.Reader;
+import java.lang.reflect.Type;
+import java.sql.SQLException;
+import java.sql.Time;
+import java.sql.Timestamp;
+import java.time.*;
+import java.time.format.DateTimeFormatter;
+import java.util.Date;
+import java.util.Locale;
+
+<span class="nc" id="L22">public class JdbcSupport {</span>
+    static Class CLASS_STRUCT;
+    static volatile boolean CLASS_STRUCT_ERROR;
+
+    static Class CLASS_CLOB;
+    static volatile boolean CLASS_CLOB_ERROR;
+
+    public static ObjectReader createTimeReader(Class objectClass, String format, Locale locale) {
+<span class="fc" id="L30">        return new TimeReader(format, locale);</span>
+    }
+
+    public static ObjectReader createTimestampReader(Class objectClass, String format, Locale locale) {
+<span class="fc" id="L34">        return new TimestampReader(format, locale);</span>
+    }
+
+    public static ObjectReader createDateReader(Class objectClass, String format, Locale locale) {
+<span class="fc" id="L38">        return new DateReader(format, locale);</span>
+    }
+
+    public static ObjectWriter createTimeWriter(String format) {
+<span class="fc bfc" id="L42" title="All 2 branches covered.">        if (format == null) {</span>
+<span class="fc" id="L43">            return TimeWriter.INSTANCE;</span>
+        }
+
+<span class="fc" id="L46">        return new TimeWriter(format);</span>
+    }
+
+    public static Object createTimestamp(long millis) {
+<span class="fc" id="L50">        return new Timestamp(millis);</span>
+    }
+
+    public static Object createDate(long millis) {
+<span class="fc" id="L54">        return new java.sql.Date(millis);</span>
+    }
+
+    public static Object createTime(long millis) {
+<span class="fc" id="L58">        return new java.sql.Time(millis);</span>
+    }
+
+    public static ObjectWriter createClobWriter(Class objectClass) {
+<span class="fc" id="L62">        return new ClobWriter(objectClass);</span>
+    }
+
+    public static ObjectWriter createTimestampWriter(Class objectClass, String format) {
+<span class="fc" id="L66">        return new TimestampWriter(format);</span>
+    }
+
+    public static boolean isClob(Class objectClass) {
+<span class="pc bpc" id="L70" title="1 of 4 branches missed.">        if (CLASS_CLOB == null &amp;&amp; !CLASS_CLOB_ERROR) {</span>
+            try {
+<span class="fc" id="L72">                CLASS_CLOB = Class.forName(&quot;java.sql.Clob&quot;);</span>
+<span class="nc" id="L73">            } catch (Throwable e) {</span>
+<span class="nc" id="L74">                CLASS_CLOB_ERROR = true;</span>
+<span class="fc" id="L75">            }</span>
+        }
+
+<span class="pc bpc" id="L78" title="1 of 4 branches missed.">        return CLASS_CLOB != null &amp;&amp; CLASS_CLOB.isAssignableFrom(objectClass);</span>
+    }
+
+    static class ClobWriter
+            implements ObjectWriter {
+        final Class objectClass;
+
+<span class="fc" id="L85">        public ClobWriter(Class objectClass) {</span>
+<span class="pc bpc" id="L86" title="1 of 4 branches missed.">            if (CLASS_CLOB == null &amp;&amp; !CLASS_CLOB_ERROR) {</span>
+                try {
+<span class="fc" id="L88">                    CLASS_CLOB = Class.forName(&quot;java.sql.Clob&quot;);</span>
+<span class="nc" id="L89">                } catch (Throwable e) {</span>
+<span class="nc" id="L90">                    CLASS_CLOB_ERROR = true;</span>
+<span class="fc" id="L91">                }</span>
+            }
+
+<span class="pc bpc" id="L94" title="1 of 2 branches missed.">            if (CLASS_CLOB == null) {</span>
+<span class="nc" id="L95">                throw new JSONException(&quot;class java.sql.Clob not found&quot;);</span>
+            }
+
+<span class="fc" id="L98">            this.objectClass = objectClass;</span>
+<span class="fc" id="L99">        }</span>
+
+        @Override
+        public void write(JSONWriter jsonWriter, Object object, Object fieldName, Type fieldType, long features) {
+<span class="fc" id="L103">            java.sql.Clob clob = (java.sql.Clob) object;</span>
+            Reader reader;
+            try {
+<span class="fc" id="L106">                reader = clob.getCharacterStream();</span>
+<span class="nc" id="L107">            } catch (SQLException e) {</span>
+<span class="nc" id="L108">                throw new JSONException(&quot;Clob.getCharacterStream error&quot;, e);</span>
+<span class="fc" id="L109">            }</span>
+<span class="fc" id="L110">            jsonWriter.writeString(reader);</span>
+<span class="fc" id="L111">        }</span>
+    }
+
+    static class TimeReader
+            extends ObjectReaderImplDate {
+        public TimeReader(String format, Locale locale) {
+<span class="fc" id="L117">            super(format, locale);</span>
+<span class="fc" id="L118">        }</span>
+
+        @Override
+        public Object readJSONBObject(JSONReader jsonReader, Type fieldType, Object fieldName, long features) {
+<span class="fc" id="L122">            return readObject(jsonReader, fieldType, fieldName, features);</span>
+        }
+
+        @Override
+        public Object readObject(JSONReader jsonReader, Type fieldType, Object fieldName, long features) {
+<span class="fc bfc" id="L127" title="All 2 branches covered.">            if (jsonReader.isInt()) {</span>
+<span class="fc" id="L128">                long millis = jsonReader.readInt64Value();</span>
+
+<span class="fc bfc" id="L130" title="All 2 branches covered.">                if (formatUnixTime) {</span>
+<span class="fc" id="L131">                    millis *= 1000;</span>
+                }
+<span class="fc" id="L133">                return new Time(millis);</span>
+            }
+
+<span class="fc bfc" id="L136" title="All 2 branches covered.">            if (jsonReader.readIfNull()) {</span>
+<span class="fc" id="L137">                return null;</span>
+            }
+
+<span class="pc bpc" id="L140" title="1 of 4 branches missed.">            if (formatISO8601 || formatMillis) {</span>
+<span class="fc" id="L141">                long millis = jsonReader.readMillisFromString();</span>
+<span class="fc" id="L142">                return new Time(millis);</span>
+            }
+
+<span class="pc bpc" id="L145" title="1 of 2 branches missed.">            if (formatUnixTime) {</span>
+<span class="nc" id="L146">                long seconds = jsonReader.readInt64();</span>
+<span class="nc" id="L147">                return new Time(seconds * 1000L);</span>
+            }
+
+            long millis;
+<span class="fc bfc" id="L151" title="All 2 branches covered.">            if (format != null) {</span>
+<span class="fc" id="L152">                DateTimeFormatter formatter = getDateFormatter(jsonReader.getLocale());</span>
+
+                ZonedDateTime zdt;
+<span class="pc bpc" id="L155" title="1 of 2 branches missed.">                if (formatter != null) {</span>
+<span class="fc" id="L156">                    String str = jsonReader.readString();</span>
+<span class="fc bfc" id="L157" title="All 2 branches covered.">                    if (str.isEmpty()) {</span>
+<span class="fc" id="L158">                        return null;</span>
+                    }
+
+                    LocalDateTime ldt;
+<span class="pc bpc" id="L162" title="1 of 2 branches missed.">                    if (!formatHasHour) {</span>
+<span class="nc" id="L163">                        ldt = LocalDateTime.of(</span>
+<span class="nc" id="L164">                                LocalDate.parse(str, formatter),</span>
+                                LocalTime.MIN
+                        );
+<span class="pc bpc" id="L167" title="1 of 2 branches missed.">                    } else if (!formatHasDay) {</span>
+<span class="fc" id="L168">                        ldt = LocalDateTime.of(</span>
+<span class="fc" id="L169">                                LocalDate.of(1970, 1, 1),</span>
+<span class="fc" id="L170">                                LocalTime.parse(str, formatter)</span>
+                        );
+                    } else {
+<span class="nc" id="L173">                        ldt = LocalDateTime.parse(str, formatter);</span>
+                    }
+<span class="fc" id="L175">                    zdt = ldt.atZone(jsonReader.getContext().getZoneId());</span>
+<span class="fc" id="L176">                } else {</span>
+<span class="nc" id="L177">                    zdt = jsonReader.readZonedDateTime();</span>
+                }
+<span class="fc" id="L179">                millis = zdt.toInstant().toEpochMilli();</span>
+<span class="fc" id="L180">            } else {</span>
+<span class="fc" id="L181">                String str = jsonReader.readString();</span>
+<span class="fc bfc" id="L182" title="All 4 branches covered.">                if (&quot;0000-00-00&quot;.equals(str) || &quot;0000-00-00 00:00:00&quot;.equals(str)) {</span>
+<span class="fc" id="L183">                    millis = 0;</span>
+                } else {
+<span class="pc bpc" id="L185" title="1 of 4 branches missed.">                    if (str.length() == 9 &amp;&amp; str.charAt(8) == 'Z') {</span>
+<span class="fc" id="L186">                        LocalTime localTime = DateUtils.parseLocalTime(</span>
+<span class="fc" id="L187">                                str.charAt(0),</span>
+<span class="fc" id="L188">                                str.charAt(1),</span>
+<span class="fc" id="L189">                                str.charAt(2),</span>
+<span class="fc" id="L190">                                str.charAt(3),</span>
+<span class="fc" id="L191">                                str.charAt(4),</span>
+<span class="fc" id="L192">                                str.charAt(5),</span>
+<span class="fc" id="L193">                                str.charAt(6),</span>
+<span class="fc" id="L194">                                str.charAt(7)</span>
+                        );
+<span class="fc" id="L196">                        millis = LocalDateTime.of(DateUtils.LOCAL_DATE_19700101, localTime)</span>
+<span class="fc" id="L197">                                .atZone(DateUtils.DEFAULT_ZONE_ID)</span>
+<span class="fc" id="L198">                                .toInstant()</span>
+<span class="fc" id="L199">                                .toEpochMilli();</span>
+<span class="fc" id="L200">                    } else {</span>
+<span class="fc bfc" id="L201" title="All 4 branches covered.">                        if (str.isEmpty() || &quot;null&quot;.equals(str)) {</span>
+<span class="fc" id="L202">                            return null;</span>
+                        }
+<span class="fc" id="L204">                        return Time.valueOf(str);</span>
+                    }
+                }
+            }
+
+<span class="fc" id="L209">            return new Time(millis);</span>
+        }
+    }
+
+    static class TimeWriter
+            extends DateTimeCodec
+            implements ObjectWriter {
+<span class="fc" id="L216">        public static final TimeWriter INSTANCE = new TimeWriter(null);</span>
+
+        public TimeWriter(String format) {
+<span class="fc" id="L219">            super(format);</span>
+<span class="fc" id="L220">        }</span>
+
+        @Override
+        public void write(JSONWriter jsonWriter, Object object, Object fieldName, Type fieldType, long features) {
+<span class="pc bpc" id="L224" title="1 of 2 branches missed.">            if (object == null) {</span>
+<span class="nc" id="L225">                jsonWriter.writeNull();</span>
+<span class="nc" id="L226">                return;</span>
+            }
+
+<span class="fc" id="L229">            JSONWriter.Context context = jsonWriter.context;</span>
+<span class="fc bfc" id="L230" title="All 4 branches covered.">            if (formatUnixTime || context.isDateFormatUnixTime()) {</span>
+<span class="fc" id="L231">                long millis = ((Date) object).getTime();</span>
+<span class="fc" id="L232">                long seconds = millis / 1000;</span>
+<span class="fc" id="L233">                jsonWriter.writeInt64(seconds);</span>
+<span class="fc" id="L234">                return;</span>
+            }
+
+<span class="fc bfc" id="L237" title="All 4 branches covered.">            if (formatMillis || context.isDateFormatMillis()) {</span>
+<span class="fc" id="L238">                long millis = ((Date) object).getTime();</span>
+<span class="fc" id="L239">                jsonWriter.writeInt64(millis);</span>
+<span class="fc" id="L240">                return;</span>
+            }
+
+<span class="pc bpc" id="L243" title="1 of 4 branches missed.">            if (formatISO8601 || context.isDateFormatISO8601()) {</span>
+<span class="fc" id="L244">                ZoneId zoneId = context.getZoneId();</span>
+<span class="fc" id="L245">                long millis = ((Date) object).getTime();</span>
+<span class="fc" id="L246">                Instant instant = Instant.ofEpochMilli(millis);</span>
+<span class="fc" id="L247">                ZonedDateTime zdt = ZonedDateTime.ofInstant(instant, zoneId);</span>
+<span class="fc" id="L248">                int offsetSeconds = zdt.getOffset().getTotalSeconds();</span>
+
+<span class="fc" id="L250">                int year = zdt.getYear();</span>
+<span class="fc" id="L251">                int month = zdt.getMonthValue();</span>
+<span class="fc" id="L252">                int dayOfMonth = zdt.getDayOfMonth();</span>
+<span class="fc" id="L253">                int hour = zdt.getHour();</span>
+<span class="fc" id="L254">                int minute = zdt.getMinute();</span>
+<span class="fc" id="L255">                int second = zdt.getSecond();</span>
+<span class="fc" id="L256">                int nano = 0;</span>
+<span class="fc" id="L257">                jsonWriter.writeDateTimeISO8601(year, month, dayOfMonth, hour, minute, second, nano, offsetSeconds, true);</span>
+<span class="fc" id="L258">                return;</span>
+            }
+
+<span class="fc" id="L261">            DateTimeFormatter dateFormatter = null;</span>
+<span class="pc bpc" id="L262" title="1 of 4 branches missed.">            if (format != null &amp;&amp; !format.contains(&quot;dd&quot;)) {</span>
+<span class="fc" id="L263">                dateFormatter = getDateFormatter();</span>
+            }
+
+<span class="fc bfc" id="L266" title="All 2 branches covered.">            if (dateFormatter == null) {</span>
+<span class="fc" id="L267">                String format = context.getDateFormat();</span>
+<span class="pc bpc" id="L268" title="1 of 4 branches missed.">                if (format != null &amp;&amp; !format.contains(&quot;dd&quot;)) {</span>
+<span class="nc" id="L269">                    dateFormatter = context.getDateFormatter();</span>
+                }
+            }
+
+<span class="fc bfc" id="L273" title="All 2 branches covered.">            if (dateFormatter == null) {</span>
+<span class="fc" id="L274">                jsonWriter.writeString(object.toString());</span>
+<span class="fc" id="L275">                return;</span>
+            }
+
+<span class="fc" id="L278">            Date time = (Date) object;</span>
+
+<span class="fc" id="L280">            ZoneId zoneId = context.getZoneId();</span>
+<span class="fc" id="L281">            Instant instant = Instant.ofEpochMilli(time.getTime());</span>
+<span class="fc" id="L282">            ZonedDateTime zdt = ZonedDateTime.ofInstant(instant, zoneId);</span>
+
+<span class="fc" id="L284">            String str = dateFormatter.format(zdt);</span>
+<span class="fc" id="L285">            jsonWriter.writeString(str);</span>
+<span class="fc" id="L286">        }</span>
+    }
+
+    static class TimestampWriter
+            extends DateTimeCodec
+            implements ObjectWriter {
+        public TimestampWriter(String format) {
+<span class="fc" id="L293">            super(format);</span>
+<span class="fc" id="L294">        }</span>
+
+        @Override
+        public void writeJSONB(JSONWriter jsonWriter, Object object, Object fieldName, Type fieldType, long features) {
+<span class="pc bpc" id="L298" title="1 of 2 branches missed.">            if (object == null) {</span>
+<span class="nc" id="L299">                jsonWriter.writeNull();</span>
+<span class="nc" id="L300">                return;</span>
+            }
+
+<span class="fc" id="L303">            Timestamp date = (Timestamp) object;</span>
+
+<span class="fc bfc" id="L305" title="All 2 branches covered.">            if (format != null) {</span>
+<span class="fc" id="L306">                write(jsonWriter, object, fieldName, fieldType, features);</span>
+<span class="fc" id="L307">                return;</span>
+            }
+
+<span class="fc" id="L310">            LocalDateTime localDateTime = date.toLocalDateTime();</span>
+<span class="fc" id="L311">            jsonWriter.writeLocalDateTime(localDateTime);</span>
+<span class="fc" id="L312">        }</span>
+
+        @Override
+        public void write(JSONWriter jsonWriter, Object object, Object fieldName, Type fieldType, long features) {
+<span class="pc bpc" id="L316" title="1 of 2 branches missed.">            if (object == null) {</span>
+<span class="nc" id="L317">                jsonWriter.writeNull();</span>
+<span class="nc" id="L318">                return;</span>
+            }
+
+<span class="fc" id="L321">            JSONWriter.Context ctx = jsonWriter.context;</span>
+
+<span class="fc" id="L323">            Timestamp date = (Timestamp) object;</span>
+
+<span class="pc bpc" id="L325" title="1 of 4 branches missed.">            if (formatUnixTime || ctx.isDateFormatUnixTime()) {</span>
+<span class="fc" id="L326">                long millis = date.getTime();</span>
+<span class="fc" id="L327">                jsonWriter.writeInt64(millis / 1000L);</span>
+<span class="fc" id="L328">                return;</span>
+            }
+
+<span class="fc" id="L331">            ZoneId zoneId = ctx.getZoneId();</span>
+<span class="fc" id="L332">            Instant instant = date.toInstant();</span>
+<span class="fc" id="L333">            ZonedDateTime zdt = ZonedDateTime.ofInstant(instant, zoneId);</span>
+<span class="fc" id="L334">            int offsetSeconds = zdt.getOffset().getTotalSeconds();</span>
+
+<span class="fc bfc" id="L336" title="All 6 branches covered.">            if ((formatISO8601 || ctx.isDateFormatISO8601()) &amp;&amp; (zdt.getNano() % 1000_000 == 0)) {</span>
+<span class="fc" id="L337">                int year = zdt.getYear();</span>
+<span class="fc" id="L338">                int month = zdt.getMonthValue();</span>
+<span class="fc" id="L339">                int dayOfMonth = zdt.getDayOfMonth();</span>
+<span class="fc" id="L340">                int hour = zdt.getHour();</span>
+<span class="fc" id="L341">                int minute = zdt.getMinute();</span>
+<span class="fc" id="L342">                int second = zdt.getSecond();</span>
+<span class="fc" id="L343">                int nano = zdt.getNano();</span>
+<span class="fc" id="L344">                int millis = nano / 1000_000;</span>
+<span class="fc" id="L345">                jsonWriter.writeDateTimeISO8601(year, month, dayOfMonth, hour, minute, second, millis, offsetSeconds, true);</span>
+<span class="fc" id="L346">                return;</span>
+            }
+
+<span class="fc" id="L349">            DateTimeFormatter dateFormatter = getDateFormatter();</span>
+<span class="fc bfc" id="L350" title="All 2 branches covered.">            if (dateFormatter == null) {</span>
+<span class="fc" id="L351">                dateFormatter = ctx.getDateFormatter();</span>
+            }
+
+<span class="fc bfc" id="L354" title="All 2 branches covered.">            if (dateFormatter == null) {</span>
+<span class="pc bpc" id="L355" title="1 of 4 branches missed.">                if (formatMillis || ctx.isDateFormatMillis()) {</span>
+<span class="fc" id="L356">                    long millis = date.getTime();</span>
+<span class="fc" id="L357">                    jsonWriter.writeInt64(millis);</span>
+<span class="fc" id="L358">                    return;</span>
+                }
+
+<span class="fc" id="L361">                int nanos = date.getNanos();</span>
+
+<span class="fc" id="L363">                int year = zdt.getYear();</span>
+<span class="fc" id="L364">                int month = zdt.getMonthValue();</span>
+<span class="fc" id="L365">                int dayOfMonth = zdt.getDayOfMonth();</span>
+<span class="fc" id="L366">                int hour = zdt.getHour();</span>
+<span class="fc" id="L367">                int minute = zdt.getMinute();</span>
+<span class="fc" id="L368">                int second = zdt.getSecond();</span>
+<span class="fc bfc" id="L369" title="All 2 branches covered.">                if (nanos % 1000_000 == 0) {</span>
+<span class="fc" id="L370">                    jsonWriter.writeDateTimeISO8601(year, month, dayOfMonth, hour, minute, second, nanos / 1000_000, offsetSeconds, false);</span>
+                } else {
+<span class="fc" id="L372">                    jsonWriter.writeLocalDateTime(zdt.toLocalDateTime());</span>
+                }
+<span class="fc" id="L374">            } else {</span>
+<span class="fc" id="L375">                String str = dateFormatter.format(zdt);</span>
+<span class="fc" id="L376">                jsonWriter.writeString(str);</span>
+            }
+<span class="fc" id="L378">        }</span>
+    }
+
+    static class TimestampReader
+            extends ObjectReaderImplDate {
+        public TimestampReader(String format, Locale locale) {
+<span class="fc" id="L384">            super(format, locale);</span>
+<span class="fc" id="L385">        }</span>
+
+        @Override
+        public Object readJSONBObject(JSONReader jsonReader, Type fieldType, Object fieldName, long features) {
+<span class="fc bfc" id="L389" title="All 2 branches covered.">            if (jsonReader.isInt()) {</span>
+<span class="fc" id="L390">                long millis = jsonReader.readInt64Value();</span>
+
+<span class="fc bfc" id="L392" title="All 2 branches covered.">                if (formatUnixTime) {</span>
+<span class="fc" id="L393">                    millis *= 1000;</span>
+                }
+
+<span class="fc" id="L396">                return createTimestamp(millis, 0);</span>
+            }
+
+<span class="pc bpc" id="L399" title="1 of 2 branches missed.">            if (jsonReader.readIfNull()) {</span>
+<span class="nc" id="L400">                return null;</span>
+            }
+
+<span class="fc" id="L403">            byte type = jsonReader.getType();</span>
+<span class="fc bfc" id="L404" title="All 2 branches covered.">            if (type == JSONB.Constants.BC_LOCAL_DATETIME) {</span>
+<span class="fc" id="L405">                LocalDateTime ldt = jsonReader.readLocalDateTime();</span>
+<span class="fc" id="L406">                Instant instant = ldt.atZone(jsonReader.getContext().getZoneId()).toInstant();</span>
+<span class="fc" id="L407">                return createTimestamp(</span>
+<span class="fc" id="L408">                        instant.toEpochMilli(),</span>
+<span class="fc" id="L409">                        instant.getNano());</span>
+            }
+
+<span class="fc" id="L412">            return readObject(jsonReader, fieldType, fieldName, features);</span>
+        }
+
+        Object createTimestamp(long millis, int nanos) {
+<span class="fc" id="L416">            Timestamp timestamp = new Timestamp(millis);</span>
+<span class="fc bfc" id="L417" title="All 2 branches covered.">            if (nanos != 0) {</span>
+<span class="fc" id="L418">                timestamp.setNanos(nanos);</span>
+            }
+<span class="fc" id="L420">            return timestamp;</span>
+        }
+
+        @Override
+        public Object readObject(JSONReader jsonReader, Type fieldType, Object fieldName, long features) {
+<span class="fc bfc" id="L425" title="All 2 branches covered.">            if (jsonReader.isInt()) {</span>
+<span class="fc" id="L426">                long millis = jsonReader.readInt64Value();</span>
+
+<span class="fc bfc" id="L428" title="All 2 branches covered.">                if (formatUnixTime) {</span>
+<span class="fc" id="L429">                    millis *= 1000L;</span>
+                }
+
+<span class="fc" id="L432">                return createTimestamp(millis, 0);</span>
+            }
+
+<span class="fc bfc" id="L435" title="All 2 branches covered.">            if (jsonReader.nextIfNullOrEmptyString()) {</span>
+<span class="fc" id="L436">                return null;</span>
+            }
+
+<span class="pc bpc" id="L439" title="1 of 6 branches missed.">            if (format == null || formatISO8601 || formatMillis) {</span>
+<span class="fc" id="L440">                LocalDateTime localDateTime = jsonReader.readLocalDateTime();</span>
+<span class="fc bfc" id="L441" title="All 2 branches covered.">                if (localDateTime != null) {</span>
+<span class="fc" id="L442">                    return Timestamp.valueOf(localDateTime);</span>
+                }
+
+<span class="fc bfc" id="L445" title="All 2 branches covered.">                if (jsonReader.wasNull()) {</span>
+<span class="fc" id="L446">                    return null;</span>
+                }
+
+<span class="fc" id="L449">                long millis = jsonReader.readMillisFromString();</span>
+<span class="pc bpc" id="L450" title="2 of 4 branches missed.">                if (millis == 0 &amp;&amp; jsonReader.wasNull()) {</span>
+<span class="fc" id="L451">                    return null;</span>
+                }
+<span class="nc" id="L453">                return new Timestamp(millis);</span>
+            }
+
+<span class="fc" id="L456">            String str = jsonReader.readString();</span>
+<span class="pc bpc" id="L457" title="1 of 2 branches missed.">            if (str.isEmpty()) {</span>
+<span class="nc" id="L458">                return null;</span>
+            }
+
+<span class="fc" id="L461">            DateTimeFormatter dateFormatter = getDateFormatter();</span>
+
+            Instant instant;
+<span class="fc bfc" id="L464" title="All 2 branches covered.">            if (!formatHasHour) {</span>
+<span class="fc" id="L465">                LocalDate localDate = LocalDate.parse(str, dateFormatter);</span>
+<span class="fc" id="L466">                LocalDateTime ldt = LocalDateTime.of(localDate, LocalTime.MIN);</span>
+<span class="fc" id="L467">                instant = ldt.atZone(jsonReader.getContext().getZoneId()).toInstant();</span>
+<span class="fc" id="L468">            } else {</span>
+<span class="fc" id="L469">                LocalDateTime ldt = LocalDateTime.parse(str, dateFormatter);</span>
+<span class="fc" id="L470">                instant = ldt.atZone(jsonReader.getContext().getZoneId()).toInstant();</span>
+            }
+
+<span class="fc" id="L473">            long millis = instant.toEpochMilli();</span>
+<span class="fc" id="L474">            int nanos = instant.getNano();</span>
+
+<span class="fc" id="L476">            return createTimestamp(millis, nanos);</span>
+        }
+    }
+
+    static class DateReader
+            extends ObjectReaderImplDate {
+        public DateReader(String format, Locale locale) {
+<span class="fc" id="L483">            super(format, locale);</span>
+<span class="fc" id="L484">        }</span>
+
+        @Override
+        public Object readJSONBObject(JSONReader jsonReader, Type fieldType, Object fieldName, long features) {
+<span class="fc" id="L488">            return readObject(jsonReader, fieldType, fieldName, features);</span>
+        }
+
+        @Override
+        public Object readObject(JSONReader jsonReader, Type fieldType, Object fieldName, long features) {
+<span class="fc bfc" id="L493" title="All 2 branches covered.">            if (jsonReader.isInt()) {</span>
+<span class="fc" id="L494">                long millis = jsonReader.readInt64Value();</span>
+
+<span class="fc bfc" id="L496" title="All 2 branches covered.">                if (formatUnixTime) {</span>
+<span class="fc" id="L497">                    millis *= 1000L;</span>
+                }
+
+<span class="fc" id="L500">                return new java.sql.Date(millis);</span>
+            }
+
+<span class="fc bfc" id="L503" title="All 2 branches covered.">            if (jsonReader.readIfNull()) {</span>
+<span class="fc" id="L504">                return null;</span>
+            }
+
+<span class="fc bfc" id="L507" title="All 2 branches covered.">            if (formatUnixTime) {</span>
+<span class="pc bpc" id="L508" title="1 of 2 branches missed.">                if (jsonReader.isString()) {</span>
+<span class="fc" id="L509">                    String str = jsonReader.readString();</span>
+<span class="fc" id="L510">                    long millis = Long.parseLong(str);</span>
+<span class="fc" id="L511">                    millis *= 1000L;</span>
+<span class="fc" id="L512">                    return new java.sql.Date(millis);</span>
+                }
+            }
+
+<span class="pc bpc" id="L516" title="1 of 6 branches missed.">            if (format == null || formatISO8601 || formatMillis) {</span>
+<span class="fc" id="L517">                LocalDateTime localDateTime = jsonReader.readLocalDateTime();</span>
+<span class="fc bfc" id="L518" title="All 2 branches covered.">                if (localDateTime != null) {</span>
+<span class="fc" id="L519">                    return java.sql.Date.valueOf(localDateTime.toLocalDate());</span>
+                }
+
+<span class="fc bfc" id="L522" title="All 2 branches covered.">                if (jsonReader.wasNull()) {</span>
+<span class="fc" id="L523">                    return null;</span>
+                }
+
+<span class="fc" id="L526">                long millis = jsonReader.readMillisFromString();</span>
+<span class="pc bpc" id="L527" title="2 of 4 branches missed.">                if (millis == 0 &amp;&amp; jsonReader.wasNull()) {</span>
+<span class="fc" id="L528">                    return null;</span>
+                }
+<span class="nc" id="L530">                return new java.sql.Date(millis);</span>
+            }
+
+<span class="fc" id="L533">            String str = jsonReader.readString();</span>
+<span class="fc bfc" id="L534" title="All 2 branches covered.">            if (str.isEmpty()) {</span>
+<span class="fc" id="L535">                return null;</span>
+            }
+
+<span class="fc" id="L538">            DateTimeFormatter dateFormatter = getDateFormatter();</span>
+
+            Instant instant;
+<span class="fc bfc" id="L541" title="All 2 branches covered.">            if (!formatHasHour) {</span>
+<span class="fc" id="L542">                LocalDate localDate = LocalDate.parse(str, dateFormatter);</span>
+<span class="fc" id="L543">                LocalDateTime ldt = LocalDateTime.of(localDate, LocalTime.MIN);</span>
+<span class="fc" id="L544">                instant = ldt.atZone(jsonReader.getContext().getZoneId()).toInstant();</span>
+<span class="fc" id="L545">            } else {</span>
+<span class="fc" id="L546">                LocalDateTime ldt = LocalDateTime.parse(str, dateFormatter);</span>
+<span class="fc" id="L547">                instant = ldt.atZone(jsonReader.getContext().getZoneId()).toInstant();</span>
+            }
+
+<span class="fc" id="L550">            return new java.sql.Date(</span>
+<span class="fc" id="L551">                    instant.toEpochMilli()</span>
+            );
+        }
+    }
+
+    public static boolean isStruct(Class objectClass) {
+<span class="pc bpc" id="L557" title="1 of 4 branches missed.">        if (CLASS_STRUCT == null &amp;&amp; !CLASS_STRUCT_ERROR) {</span>
+            try {
+<span class="fc" id="L559">                CLASS_STRUCT = Class.forName(&quot;java.sql.Struct&quot;);</span>
+<span class="nc" id="L560">            } catch (Throwable e) {</span>
+<span class="nc" id="L561">                CLASS_STRUCT_ERROR = true;</span>
+<span class="fc" id="L562">            }</span>
+        }
+
+<span class="pc bpc" id="L565" title="1 of 4 branches missed.">        return CLASS_STRUCT != null &amp;&amp; CLASS_STRUCT.isAssignableFrom(objectClass);</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.8.202204050719</span></div></body></html>

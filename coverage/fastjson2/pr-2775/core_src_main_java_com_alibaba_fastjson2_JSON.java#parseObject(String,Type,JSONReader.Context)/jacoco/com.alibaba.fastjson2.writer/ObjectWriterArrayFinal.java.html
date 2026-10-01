@@ -1,0 +1,158 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ObjectWriterArrayFinal.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">fastjson2</a> &gt; <a href="index.source.html" class="el_package">com.alibaba.fastjson2.writer</a> &gt; <span class="el_source">ObjectWriterArrayFinal.java</span></div><h1>ObjectWriterArrayFinal.java</h1><pre class="source lang-java linenums">package com.alibaba.fastjson2.writer;
+
+import com.alibaba.fastjson2.JSONB;
+import com.alibaba.fastjson2.JSONWriter;
+import com.alibaba.fastjson2.util.Fnv;
+import com.alibaba.fastjson2.util.TypeUtils;
+
+import java.lang.reflect.Type;
+import java.math.BigDecimal;
+import java.text.DecimalFormat;
+
+final class ObjectWriterArrayFinal
+        extends ObjectWriterPrimitiveImpl {
+<span class="fc" id="L14">    public static final ObjectWriterArrayFinal FLOAT_ARRAY = new ObjectWriterArrayFinal(Float.class, null);</span>
+<span class="fc" id="L15">    public static final ObjectWriterArrayFinal DOUBLE_ARRAY = new ObjectWriterArrayFinal(Double.class, null);</span>
+<span class="fc" id="L16">    public static final ObjectWriterArrayFinal DECIMAL_ARRAY = new ObjectWriterArrayFinal(BigDecimal.class, null);</span>
+
+    final byte[] typeNameBytes;
+    final long typeNameHash;
+    final Class itemClass;
+    volatile ObjectWriter itemObjectWriter;
+    public final DecimalFormat format;
+    public final boolean refDetect;
+
+<span class="fc" id="L25">    public ObjectWriterArrayFinal(Class itemClass, DecimalFormat format) {</span>
+<span class="fc" id="L26">        this.itemClass = itemClass;</span>
+<span class="fc" id="L27">        this.format = format;</span>
+
+<span class="fc" id="L29">        String typeName = '[' + TypeUtils.getTypeName(itemClass);</span>
+<span class="fc" id="L30">        typeNameBytes = JSONB.toBytes(typeName);</span>
+<span class="fc" id="L31">        typeNameHash = Fnv.hashCode64(typeName);</span>
+<span class="fc bfc" id="L32" title="All 2 branches covered.">        refDetect = !ObjectWriterProvider.isNotReferenceDetect(itemClass);</span>
+<span class="fc" id="L33">    }</span>
+
+    public ObjectWriter getItemObjectWriter(JSONWriter jsonWriter) {
+<span class="fc" id="L36">        ObjectWriter itemObjectWriter = this.itemObjectWriter;</span>
+<span class="fc bfc" id="L37" title="All 2 branches covered.">        if (itemObjectWriter == null) {</span>
+<span class="fc bfc" id="L38" title="All 2 branches covered.">            if (itemClass == Float.class) {</span>
+<span class="fc bfc" id="L39" title="All 2 branches covered.">                if (format != null) {</span>
+<span class="fc" id="L40">                    itemObjectWriter = new ObjectWriterImplFloat(format);</span>
+                } else {
+<span class="fc" id="L42">                    itemObjectWriter = ObjectWriterImplFloat.INSTANCE;</span>
+                }
+<span class="fc bfc" id="L44" title="All 2 branches covered.">            } else if (itemClass == Double.class) {</span>
+<span class="fc bfc" id="L45" title="All 2 branches covered.">                if (format != null) {</span>
+<span class="fc" id="L46">                    itemObjectWriter = new ObjectWriterImplDouble(format);</span>
+                } else {
+<span class="fc" id="L48">                    itemObjectWriter = ObjectWriterImplDouble.INSTANCE;</span>
+                }
+<span class="fc bfc" id="L50" title="All 2 branches covered.">            } else if (itemClass == BigDecimal.class) {</span>
+<span class="pc bpc" id="L51" title="1 of 2 branches missed.">                if (format != null) {</span>
+<span class="fc" id="L52">                    itemObjectWriter = new ObjectWriterImplBigDecimal(format, null);</span>
+                } else {
+<span class="nc" id="L54">                    itemObjectWriter = ObjectWriterImplBigDecimal.INSTANCE;</span>
+                }
+            } else {
+<span class="fc" id="L57">                itemObjectWriter = jsonWriter.getObjectWriter(this.itemClass);</span>
+            }
+<span class="fc" id="L59">            this.itemObjectWriter = itemObjectWriter;</span>
+        }
+<span class="fc" id="L61">        return itemObjectWriter;</span>
+    }
+
+    @Override
+    public void write(JSONWriter jsonWriter, Object object, Object fieldName, Type fieldType, long features) {
+<span class="pc bpc" id="L66" title="1 of 2 branches missed.">        if (jsonWriter.jsonb) {</span>
+<span class="nc" id="L67">            writeJSONB(jsonWriter, object, fieldName, fieldType, features);</span>
+<span class="nc" id="L68">            return;</span>
+        }
+
+<span class="pc bpc" id="L71" title="1 of 2 branches missed.">        if (object == null) {</span>
+<span class="nc" id="L72">            jsonWriter.writeArrayNull();</span>
+<span class="nc" id="L73">            return;</span>
+        }
+
+<span class="fc" id="L76">        boolean refDetect = jsonWriter.isRefDetect();</span>
+<span class="fc bfc" id="L77" title="All 2 branches covered.">        if (refDetect) {</span>
+<span class="fc" id="L78">            refDetect = this.refDetect;</span>
+        }
+
+<span class="fc" id="L81">        Object[] list = (Object[]) object;</span>
+
+<span class="fc" id="L83">        jsonWriter.startArray();</span>
+<span class="fc bfc" id="L84" title="All 2 branches covered.">        for (int i = 0; i &lt; list.length; i++) {</span>
+<span class="fc bfc" id="L85" title="All 2 branches covered.">            if (i != 0) {</span>
+<span class="fc" id="L86">                jsonWriter.writeComma();</span>
+            }
+
+<span class="fc" id="L89">            Object item = list[i];</span>
+<span class="fc bfc" id="L90" title="All 2 branches covered.">            if (item == null) {</span>
+<span class="fc" id="L91">                jsonWriter.writeNull();</span>
+<span class="fc" id="L92">                continue;</span>
+            }
+<span class="fc" id="L94">            ObjectWriter itemObjectWriter = getItemObjectWriter(jsonWriter);</span>
+<span class="pc bpc" id="L95" title="1 of 2 branches missed.">            if (refDetect) {</span>
+<span class="nc" id="L96">                String refPath = jsonWriter.setPath(i, item);</span>
+<span class="nc bnc" id="L97" title="All 2 branches missed.">                if (refPath != null) {</span>
+<span class="nc" id="L98">                    jsonWriter.writeReference(refPath);</span>
+<span class="nc" id="L99">                    jsonWriter.popPath(item);</span>
+<span class="nc" id="L100">                    continue;</span>
+                }
+            }
+
+<span class="fc" id="L104">            itemObjectWriter.write(jsonWriter, item, i, this.itemClass, features);</span>
+
+<span class="pc bpc" id="L106" title="1 of 2 branches missed.">            if (refDetect) {</span>
+<span class="nc" id="L107">                jsonWriter.popPath(item);</span>
+            }
+        }
+<span class="fc" id="L110">        jsonWriter.endArray();</span>
+<span class="fc" id="L111">    }</span>
+
+    @Override
+    public void writeJSONB(JSONWriter jsonWriter, Object object, Object fieldName, Type fieldType, long features) {
+<span class="pc bpc" id="L115" title="1 of 2 branches missed.">        if (object == null) {</span>
+<span class="nc" id="L116">            jsonWriter.writeArrayNull();</span>
+<span class="nc" id="L117">            return;</span>
+        }
+
+<span class="fc" id="L120">        boolean refDetect = jsonWriter.isRefDetect();</span>
+<span class="fc bfc" id="L121" title="All 2 branches covered.">        if (refDetect) {</span>
+<span class="fc" id="L122">            refDetect = this.refDetect;</span>
+        }
+
+<span class="fc" id="L125">        Object[] list = (Object[]) object;</span>
+
+<span class="fc bfc" id="L127" title="All 2 branches covered.">        if (jsonWriter.isWriteTypeInfo(object, fieldType)) {</span>
+<span class="fc" id="L128">            jsonWriter.writeTypeName(typeNameBytes, typeNameHash);</span>
+        }
+
+<span class="fc" id="L131">        jsonWriter.startArray(list.length);</span>
+<span class="fc bfc" id="L132" title="All 2 branches covered.">        for (int i = 0; i &lt; list.length; i++) {</span>
+<span class="fc" id="L133">            Object item = list[i];</span>
+<span class="fc bfc" id="L134" title="All 2 branches covered.">            if (item == null) {</span>
+<span class="fc" id="L135">                jsonWriter.writeNull();</span>
+<span class="fc" id="L136">                continue;</span>
+            }
+
+<span class="fc" id="L139">            ObjectWriter itemObjectWriter = getItemObjectWriter(jsonWriter);</span>
+
+<span class="pc bpc" id="L141" title="1 of 2 branches missed.">            if (refDetect) {</span>
+<span class="nc" id="L142">                String refPath = jsonWriter.setPath(i, item);</span>
+<span class="nc bnc" id="L143" title="All 2 branches missed.">                if (refPath != null) {</span>
+<span class="nc" id="L144">                    jsonWriter.writeReference(refPath);</span>
+<span class="nc" id="L145">                    jsonWriter.popPath(item);</span>
+<span class="nc" id="L146">                    continue;</span>
+                }
+            }
+
+<span class="fc" id="L150">            itemObjectWriter.writeJSONB(jsonWriter, item, i, this.itemClass, features);</span>
+
+<span class="pc bpc" id="L152" title="1 of 2 branches missed.">            if (refDetect) {</span>
+<span class="nc" id="L153">                jsonWriter.popPath(item);</span>
+            }
+        }
+<span class="fc" id="L156">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.8.202204050719</span></div></body></html>

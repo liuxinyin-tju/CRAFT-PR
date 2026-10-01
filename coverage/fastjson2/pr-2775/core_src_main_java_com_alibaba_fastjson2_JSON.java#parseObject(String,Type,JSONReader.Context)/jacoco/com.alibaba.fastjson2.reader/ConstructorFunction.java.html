@@ -1,0 +1,226 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ConstructorFunction.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">fastjson2</a> &gt; <a href="index.source.html" class="el_package">com.alibaba.fastjson2.reader</a> &gt; <span class="el_source">ConstructorFunction.java</span></div><h1>ConstructorFunction.java</h1><pre class="source lang-java linenums">package com.alibaba.fastjson2.reader;
+
+import com.alibaba.fastjson2.JSONException;
+import com.alibaba.fastjson2.JSONFactory;
+import com.alibaba.fastjson2.codec.FieldInfo;
+import com.alibaba.fastjson2.internal.asm.ASMUtils;
+import com.alibaba.fastjson2.util.Fnv;
+import com.alibaba.fastjson2.util.TypeUtils;
+
+import java.lang.reflect.*;
+import java.util.*;
+import java.util.function.BiFunction;
+import java.util.function.Function;
+
+@SuppressWarnings({&quot;rawtypes&quot;, &quot;unchecked&quot;})
+final class ConstructorFunction&lt;T&gt;
+        implements Function&lt;Map&lt;Long, Object&gt;, T&gt; {
+    final Constructor constructor;
+    final Function function;
+    final BiFunction biFunction;
+
+    final Parameter[] parameters;
+    final String[] paramNames;
+    final boolean marker;
+    final long[] hashCodes;
+    final List&lt;Constructor&gt; alternateConstructors;
+    Map&lt;Set&lt;Long&gt;, Constructor&gt; alternateConstructorMap;
+    Map&lt;Set&lt;Long&gt;, String[]&gt; alternateConstructorNames;
+    Map&lt;Set&lt;Long&gt;, long[]&gt; alternateConstructorNameHashCodes;
+    Map&lt;Set&lt;Long&gt;, Type[]&gt; alternateConstructorArgTypes;
+
+    ConstructorFunction(
+            List&lt;Constructor&gt; alternateConstructors,
+            Constructor constructor,
+            Function function,
+            BiFunction biFunction,
+            Constructor markerConstructor,
+            String... paramNames
+<span class="fc" id="L39">    ) {</span>
+<span class="fc" id="L40">        this.function = function;</span>
+<span class="fc" id="L41">        this.biFunction = biFunction;</span>
+<span class="fc bfc" id="L42" title="All 2 branches covered.">        this.marker = markerConstructor != null;</span>
+<span class="fc bfc" id="L43" title="All 2 branches covered.">        this.constructor = marker ? markerConstructor : constructor;</span>
+<span class="fc" id="L44">        this.parameters = constructor.getParameters();</span>
+<span class="fc" id="L45">        this.paramNames = paramNames;</span>
+<span class="fc" id="L46">        this.hashCodes = new long[parameters.length];</span>
+<span class="fc bfc" id="L47" title="All 2 branches covered.">        for (int i = 0; i &lt; parameters.length; i++) {</span>
+            String name;
+<span class="pc bpc" id="L49" title="1 of 2 branches missed.">            if (i &lt; paramNames.length) {</span>
+<span class="fc" id="L50">                name = paramNames[i];</span>
+            } else {
+<span class="nc" id="L52">                name = parameters[i].getName();</span>
+            }
+<span class="pc bpc" id="L54" title="1 of 2 branches missed.">            if (name == null) {</span>
+<span class="nc" id="L55">                name = &quot;arg&quot; + i;</span>
+            }
+<span class="fc" id="L57">            hashCodes[i] = Fnv.hashCode64(name);</span>
+        }
+
+<span class="fc" id="L60">        this.alternateConstructors = alternateConstructors;</span>
+<span class="fc bfc" id="L61" title="All 2 branches covered.">        if (alternateConstructors != null) {</span>
+<span class="fc" id="L62">            final int size = alternateConstructors.size();</span>
+<span class="fc" id="L63">            alternateConstructorMap = new HashMap&lt;&gt;(size, 1F);</span>
+<span class="fc" id="L64">            alternateConstructorNames = new HashMap&lt;&gt;(size, 1F);</span>
+<span class="fc" id="L65">            alternateConstructorArgTypes = new HashMap&lt;&gt;(size, 1F);</span>
+<span class="fc" id="L66">            alternateConstructorNameHashCodes = new HashMap&lt;&gt;(size, 1F);</span>
+<span class="fc bfc" id="L67" title="All 2 branches covered.">            for (int i = 0; i &lt; size; i++) {</span>
+<span class="fc" id="L68">                Constructor alternateConstructor = alternateConstructors.get(i);</span>
+<span class="fc" id="L69">                alternateConstructor.setAccessible(true);</span>
+
+<span class="fc" id="L71">                String[] parameterNames = ASMUtils.lookupParameterNames(alternateConstructor);</span>
+
+<span class="fc" id="L73">                Parameter[] parameters = alternateConstructor.getParameters();</span>
+<span class="fc" id="L74">                FieldInfo fieldInfo = new FieldInfo();</span>
+<span class="fc" id="L75">                ObjectReaderProvider provider = JSONFactory.getDefaultObjectReaderProvider();</span>
+<span class="pc bpc" id="L76" title="1 of 4 branches missed.">                for (int j = 0; j &lt; parameters.length &amp;&amp; j &lt; parameterNames.length; j++) {</span>
+<span class="fc" id="L77">                    fieldInfo.init();</span>
+
+<span class="fc" id="L79">                    Parameter parameter = parameters[j];</span>
+<span class="fc" id="L80">                    provider.getFieldInfo(fieldInfo, alternateConstructor.getDeclaringClass(), alternateConstructor, j, parameter);</span>
+<span class="pc bpc" id="L81" title="1 of 2 branches missed.">                    if (fieldInfo.fieldName != null) {</span>
+<span class="nc" id="L82">                        parameterNames[j] = fieldInfo.fieldName;</span>
+                    }
+                }
+
+<span class="fc" id="L86">                long[] parameterNameHashCodes = new long[parameterNames.length];</span>
+<span class="fc" id="L87">                Type[] parameterTypes = alternateConstructor.getGenericParameterTypes();</span>
+<span class="fc" id="L88">                Set&lt;Long&gt; paramHashCodes = new HashSet&lt;&gt;(parameterNames.length);</span>
+<span class="fc bfc" id="L89" title="All 2 branches covered.">                for (int j = 0; j &lt; parameterNames.length; j++) {</span>
+<span class="fc" id="L90">                    long hashCode64 = Fnv.hashCode64(parameterNames[j]);</span>
+<span class="fc" id="L91">                    parameterNameHashCodes[j] = hashCode64;</span>
+<span class="fc" id="L92">                    paramHashCodes.add(hashCode64);</span>
+                }
+<span class="fc" id="L94">                alternateConstructorMap.put(paramHashCodes, alternateConstructor);</span>
+<span class="fc" id="L95">                alternateConstructorNames.put(paramHashCodes, parameterNames);</span>
+<span class="fc" id="L96">                alternateConstructorNameHashCodes.put(paramHashCodes, parameterNameHashCodes);</span>
+<span class="fc" id="L97">                alternateConstructorArgTypes.put(paramHashCodes, parameterTypes);</span>
+            }
+        }
+<span class="fc" id="L100">    }</span>
+
+    @Override
+    public T apply(Map&lt;Long, Object&gt; values) {
+<span class="fc" id="L104">        boolean containsAll = true;</span>
+<span class="fc bfc" id="L105" title="All 2 branches covered.">        for (long hashCode : hashCodes) {</span>
+<span class="fc bfc" id="L106" title="All 2 branches covered.">            if (!values.containsKey(hashCode)) {</span>
+<span class="fc" id="L107">                containsAll = false;</span>
+<span class="fc" id="L108">                break;</span>
+            }
+        }
+
+<span class="fc bfc" id="L112" title="All 4 branches covered.">        if (!containsAll &amp;&amp; alternateConstructorMap != null) {</span>
+<span class="fc" id="L113">            Set&lt;Long&gt; key = values.keySet();</span>
+<span class="fc" id="L114">            Constructor constructor = alternateConstructorMap.get(key);</span>
+<span class="fc bfc" id="L115" title="All 2 branches covered.">            if (constructor != null) {</span>
+<span class="fc" id="L116">                long[] hashCodes = alternateConstructorNameHashCodes.get(key);</span>
+<span class="fc" id="L117">                Type[] paramTypes = alternateConstructorArgTypes.get(key);</span>
+<span class="fc" id="L118">                Object[] args = new Object[hashCodes.length];</span>
+<span class="fc bfc" id="L119" title="All 2 branches covered.">                for (int i = 0; i &lt; hashCodes.length; i++) {</span>
+<span class="fc" id="L120">                    Object arg = values.get(hashCodes[i]);</span>
+<span class="fc" id="L121">                    Type paramType = paramTypes[i];</span>
+<span class="pc bpc" id="L122" title="1 of 2 branches missed.">                    if (arg == null) {</span>
+<span class="nc" id="L123">                        arg = TypeUtils.getDefaultValue(paramType);</span>
+                    }
+<span class="fc" id="L125">                    args[i] = arg;</span>
+                }
+
+                try {
+<span class="fc" id="L129">                    return (T) constructor.newInstance(args);</span>
+<span class="nc" id="L130">                } catch (InstantiationException | IllegalAccessException | IllegalArgumentException |</span>
+                         InvocationTargetException e) {
+<span class="nc" id="L132">                    throw new JSONException(&quot;invoke constructor error, &quot; + constructor, e);</span>
+                }
+            }
+        }
+
+<span class="pc bpc" id="L137" title="1 of 4 branches missed.">        if (function != null &amp;&amp; parameters.length == 1) {</span>
+<span class="fc" id="L138">            Parameter param = parameters[0];</span>
+<span class="fc" id="L139">            Object arg = values.get(hashCodes[0]);</span>
+<span class="fc" id="L140">            Class&lt;?&gt; paramType = param.getType();</span>
+<span class="fc bfc" id="L141" title="All 2 branches covered.">            if (arg == null) {</span>
+<span class="fc" id="L142">                arg = TypeUtils.getDefaultValue(paramType);</span>
+            } else {
+<span class="fc bfc" id="L144" title="All 2 branches covered.">                if (!paramType.isInstance(arg)) {</span>
+<span class="fc" id="L145">                    arg = TypeUtils.cast(arg, paramType);</span>
+                }
+            }
+<span class="fc" id="L148">            return (T) function.apply(arg);</span>
+        }
+
+<span class="pc bpc" id="L151" title="1 of 4 branches missed.">        if (biFunction != null &amp;&amp; parameters.length == 2) {</span>
+<span class="fc" id="L152">            Object arg0 = values.get(hashCodes[0]);</span>
+<span class="fc" id="L153">            Parameter param0 = parameters[0];</span>
+<span class="fc" id="L154">            Class&lt;?&gt; param0Type = param0.getType();</span>
+<span class="fc bfc" id="L155" title="All 2 branches covered.">            if (arg0 == null) {</span>
+<span class="fc" id="L156">                arg0 = TypeUtils.getDefaultValue(param0Type);</span>
+            } else {
+<span class="fc bfc" id="L158" title="All 2 branches covered.">                if (!param0Type.isInstance(arg0)) {</span>
+<span class="fc" id="L159">                    arg0 = TypeUtils.cast(arg0, param0Type);</span>
+                }
+            }
+
+<span class="fc" id="L163">            Object arg1 = values.get(hashCodes[1]);</span>
+<span class="fc" id="L164">            Parameter param1 = parameters[1];</span>
+<span class="fc" id="L165">            Class&lt;?&gt; param1Type = param1.getType();</span>
+<span class="fc bfc" id="L166" title="All 2 branches covered.">            if (arg1 == null) {</span>
+<span class="fc" id="L167">                arg1 = TypeUtils.getDefaultValue(param1Type);</span>
+            } else {
+<span class="fc bfc" id="L169" title="All 2 branches covered.">                if (!param1Type.isInstance(arg1)) {</span>
+<span class="fc" id="L170">                    arg1 = TypeUtils.cast(arg1, param1Type);</span>
+                }
+            }
+
+<span class="fc" id="L174">            return (T) biFunction.apply(arg0, arg1);</span>
+        }
+
+<span class="fc" id="L177">        final int size = parameters.length;</span>
+<span class="fc" id="L178">        Object[] args = new Object[constructor.getParameterCount()];</span>
+
+<span class="fc bfc" id="L180" title="All 2 branches covered.">        if (marker) {</span>
+<span class="fc" id="L181">            int i = 0, flag = 0;</span>
+<span class="fc bfc" id="L182" title="All 2 branches covered.">            for (int n; i &lt; size; i = n) {</span>
+<span class="fc" id="L183">                Object arg = values.get(hashCodes[i]);</span>
+<span class="fc bfc" id="L184" title="All 2 branches covered.">                if (arg != null) {</span>
+<span class="fc" id="L185">                    args[i] = arg;</span>
+                } else {
+<span class="fc" id="L187">                    flag |= (1 &lt;&lt; i);</span>
+<span class="fc" id="L188">                    Class&lt;?&gt; paramType = parameters[i].getType();</span>
+<span class="pc bpc" id="L189" title="1 of 2 branches missed.">                    if (paramType.isPrimitive()) {</span>
+<span class="nc" id="L190">                        args[i] = TypeUtils.getDefaultValue(paramType);</span>
+                    }
+                }
+<span class="fc" id="L193">                n = i + 1;</span>
+<span class="pc bpc" id="L194" title="1 of 4 branches missed.">                if (n % 32 == 0 || n == size) {</span>
+<span class="fc" id="L195">                    args[size + i / 32] = flag;</span>
+<span class="fc" id="L196">                    flag = 0;</span>
+                }
+            }
+<span class="fc" id="L199">        } else {</span>
+<span class="fc bfc" id="L200" title="All 2 branches covered.">            for (int i = 0; i &lt; size; i++) {</span>
+<span class="fc" id="L201">                Parameter parameter = parameters[i];</span>
+<span class="fc" id="L202">                Class&lt;?&gt; paramClass = parameter.getType();</span>
+<span class="fc" id="L203">                Type paramType = parameter.getParameterizedType();</span>
+<span class="fc" id="L204">                Object arg = values.get(hashCodes[i]);</span>
+<span class="fc bfc" id="L205" title="All 2 branches covered.">                if (arg == null) {</span>
+<span class="fc" id="L206">                    arg = TypeUtils.getDefaultValue(paramClass);</span>
+                } else {
+<span class="fc bfc" id="L208" title="All 2 branches covered.">                    if (!paramClass.isInstance(arg)) {</span>
+<span class="fc" id="L209">                        arg = TypeUtils.cast(arg, paramClass);</span>
+<span class="fc bfc" id="L210" title="All 2 branches covered.">                    } else if (paramType instanceof ParameterizedType) {</span>
+<span class="fc" id="L211">                        arg = TypeUtils.cast(arg, paramType);</span>
+                    }
+                }
+<span class="fc" id="L214">                args[i] = arg;</span>
+            }
+        }
+
+        try {
+<span class="fc" id="L219">            return (T) constructor.newInstance(args);</span>
+<span class="fc" id="L220">        } catch (InstantiationException | IllegalAccessException | IllegalArgumentException |</span>
+                 InvocationTargetException e) {
+<span class="fc" id="L222">            throw new JSONException(&quot;invoke constructor error, &quot; + constructor, e);</span>
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.8.202204050719</span></div></body></html>

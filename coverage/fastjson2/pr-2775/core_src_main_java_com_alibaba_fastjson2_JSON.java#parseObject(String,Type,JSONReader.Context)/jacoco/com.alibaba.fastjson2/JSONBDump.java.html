@@ -1,0 +1,846 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>JSONBDump.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">fastjson2</a> &gt; <a href="index.source.html" class="el_package">com.alibaba.fastjson2</a> &gt; <span class="el_source">JSONBDump.java</span></div><h1>JSONBDump.java</h1><pre class="source lang-java linenums">package com.alibaba.fastjson2;
+
+import com.alibaba.fastjson2.util.JDKUtils;
+
+import java.math.BigDecimal;
+import java.math.BigInteger;
+import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.util.HashMap;
+import java.util.Map;
+
+import static com.alibaba.fastjson2.JSONB.Constants.*;
+import static com.alibaba.fastjson2.JSONB.typeName;
+import static com.alibaba.fastjson2.util.JDKUtils.STRING_CREATOR_JDK11;
+import static com.alibaba.fastjson2.util.JDKUtils.UTF16;
+
+final class JSONBDump {
+    static Charset GB18030;
+
+    final byte[] bytes;
+    final boolean raw;
+    int offset;
+    byte type;
+
+    int strlen;
+    byte strtype;
+    int strBegin;
+
+    String lastReference;
+
+    final JSONWriter jsonWriter;
+    final SymbolTable symbolTable;
+
+<span class="fc" id="L37">    final Map&lt;Integer, String&gt; symbols = new HashMap&lt;&gt;();</span>
+
+<span class="fc" id="L39">    public JSONBDump(byte[] bytes, boolean raw) {</span>
+<span class="fc" id="L40">        this.bytes = bytes;</span>
+<span class="fc" id="L41">        this.raw = raw;</span>
+<span class="fc" id="L42">        jsonWriter = JSONWriter.ofPretty();</span>
+<span class="fc" id="L43">        this.symbolTable = null;</span>
+
+<span class="fc" id="L45">        dumpAny();</span>
+<span class="fc" id="L46">    }</span>
+
+<span class="fc" id="L48">    public JSONBDump(byte[] bytes, SymbolTable symbolTable, boolean raw) {</span>
+<span class="fc" id="L49">        this.bytes = bytes;</span>
+<span class="fc" id="L50">        this.raw = raw;</span>
+<span class="fc" id="L51">        this.symbolTable = symbolTable;</span>
+<span class="fc" id="L52">        jsonWriter = JSONWriter.ofPretty();</span>
+
+<span class="fc" id="L54">        dumpAny();</span>
+<span class="fc" id="L55">    }</span>
+
+    private void dumpAny() {
+<span class="pc bpc" id="L58" title="1 of 2 branches missed.">        if (offset &gt;= bytes.length) {</span>
+<span class="nc" id="L59">            return;</span>
+        }
+
+<span class="fc" id="L62">        type = bytes[offset++];</span>
+
+<span class="pc bpc" id="L64" title="1 of 33 branches missed.">        switch (type) {</span>
+            case BC_NULL:
+<span class="fc" id="L66">                jsonWriter.writeNull();</span>
+<span class="fc" id="L67">                return;</span>
+            case BC_TRUE:
+<span class="fc" id="L69">                jsonWriter.writeBool(true);</span>
+<span class="fc" id="L70">                return;</span>
+            case BC_FALSE:
+<span class="fc" id="L72">                jsonWriter.writeBool(false);</span>
+<span class="fc" id="L73">                return;</span>
+            case BC_DOUBLE_NUM_0:
+<span class="fc" id="L75">                jsonWriter.writeDouble(0);</span>
+<span class="fc" id="L76">                return;</span>
+            case BC_DOUBLE_NUM_1:
+<span class="fc" id="L78">                jsonWriter.writeDouble(1);</span>
+<span class="fc" id="L79">                return;</span>
+            case BC_INT8:
+<span class="fc" id="L81">                jsonWriter.writeInt8(bytes[offset++]);</span>
+<span class="fc" id="L82">                return;</span>
+            case BC_INT16:
+<span class="fc" id="L84">                jsonWriter.writeInt16(</span>
+                        (short) (
+                                (bytes[offset++] &lt;&lt; 8)
+                                        + (bytes[offset++] &amp; 0xFF)
+                        )
+                );
+<span class="fc" id="L90">                return;</span>
+            case BC_TIMESTAMP_MINUTES:
+            case BC_TIMESTAMP_SECONDS:
+            case BC_INT32: {
+<span class="fc" id="L94">                int int32Value =</span>
+                        ((bytes[offset + 3] &amp; 0xFF)) +
+                                ((bytes[offset + 2] &amp; 0xFF) &lt;&lt; 8) +
+                                ((bytes[offset + 1] &amp; 0xFF) &lt;&lt; 16) +
+                                ((bytes[offset]) &lt;&lt; 24);
+<span class="fc" id="L99">                offset += 4;</span>
+<span class="fc" id="L100">                jsonWriter.writeInt32(int32Value);</span>
+<span class="fc" id="L101">                return;</span>
+            }
+            case BC_INT64_INT: {
+<span class="fc" id="L104">                int int32Value =</span>
+                        ((bytes[offset + 3] &amp; 0xFF)) +
+                                ((bytes[offset + 2] &amp; 0xFF) &lt;&lt; 8) +
+                                ((bytes[offset + 1] &amp; 0xFF) &lt;&lt; 16) +
+                                ((bytes[offset]) &lt;&lt; 24);
+<span class="fc" id="L109">                offset += 4;</span>
+<span class="fc" id="L110">                jsonWriter.writeInt64(int32Value);</span>
+<span class="fc" id="L111">                return;</span>
+            }
+            case BC_TIMESTAMP_MILLIS:
+            case BC_INT64: {
+<span class="fc" id="L115">                long int64Value =</span>
+                        ((bytes[offset + 7] &amp; 0xFFL)) +
+                                ((bytes[offset + 6] &amp; 0xFFL) &lt;&lt; 8) +
+                                ((bytes[offset + 5] &amp; 0xFFL) &lt;&lt; 16) +
+                                ((bytes[offset + 4] &amp; 0xFFL) &lt;&lt; 24) +
+                                ((bytes[offset + 3] &amp; 0xFFL) &lt;&lt; 32) +
+                                ((bytes[offset + 2] &amp; 0xFFL) &lt;&lt; 40) +
+                                ((bytes[offset + 1] &amp; 0xFFL) &lt;&lt; 48) +
+                                ((long) (bytes[offset]) &lt;&lt; 56);
+<span class="fc" id="L124">                offset += 8;</span>
+<span class="fc" id="L125">                jsonWriter.writeInt64(int64Value);</span>
+
+<span class="fc" id="L127">                return;</span>
+            }
+            case BC_BIGINT: {
+<span class="fc" id="L130">                int len = readInt32Value();</span>
+<span class="fc" id="L131">                byte[] bytes = new byte[len];</span>
+<span class="fc" id="L132">                System.arraycopy(this.bytes, offset, bytes, 0, len);</span>
+<span class="fc" id="L133">                offset += len;</span>
+<span class="fc" id="L134">                jsonWriter.writeBigInt(</span>
+                        new BigInteger(bytes));
+<span class="fc" id="L136">                return;</span>
+            }
+            case BC_BIGINT_LONG: {
+<span class="fc" id="L139">                jsonWriter.writeInt64(</span>
+<span class="fc" id="L140">                        readInt64Value()</span>
+                );
+<span class="fc" id="L142">                return;</span>
+            }
+            case BC_FLOAT: {
+<span class="fc" id="L145">                int int32Value =</span>
+                        ((bytes[offset + 3] &amp; 0xFF)) +
+                                ((bytes[offset + 2] &amp; 0xFF) &lt;&lt; 8) +
+                                ((bytes[offset + 1] &amp; 0xFF) &lt;&lt; 16) +
+                                ((bytes[offset]) &lt;&lt; 24);
+<span class="fc" id="L150">                offset += 4;</span>
+<span class="fc" id="L151">                jsonWriter.writeFloat(</span>
+<span class="fc" id="L152">                        Float.intBitsToFloat(int32Value));</span>
+<span class="fc" id="L153">                return;</span>
+            }
+            case BC_FLOAT_INT: {
+<span class="fc" id="L156">                jsonWriter.writeFloat(</span>
+<span class="fc" id="L157">                        readInt32Value()</span>
+                );
+<span class="fc" id="L159">                return;</span>
+            }
+            case BC_DOUBLE: {
+<span class="fc" id="L162">                long int64Value =</span>
+                        ((bytes[offset + 7] &amp; 0xFFL)) +
+                                ((bytes[offset + 6] &amp; 0xFFL) &lt;&lt; 8) +
+                                ((bytes[offset + 5] &amp; 0xFFL) &lt;&lt; 16) +
+                                ((bytes[offset + 4] &amp; 0xFFL) &lt;&lt; 24) +
+                                ((bytes[offset + 3] &amp; 0xFFL) &lt;&lt; 32) +
+                                ((bytes[offset + 2] &amp; 0xFFL) &lt;&lt; 40) +
+                                ((bytes[offset + 1] &amp; 0xFFL) &lt;&lt; 48) +
+                                ((long) (bytes[offset]) &lt;&lt; 56);
+<span class="fc" id="L171">                offset += 8;</span>
+<span class="fc" id="L172">                jsonWriter.writeDouble(</span>
+<span class="fc" id="L173">                        Double.longBitsToDouble(int64Value));</span>
+<span class="fc" id="L174">                return;</span>
+            }
+            case BC_DOUBLE_LONG: {
+<span class="fc" id="L177">                jsonWriter.writeDouble(</span>
+<span class="fc" id="L178">                        readInt64Value()</span>
+                );
+<span class="fc" id="L180">                return;</span>
+            }
+            case BC_STR_UTF8: {
+<span class="fc" id="L183">                int strlen = readLength();</span>
+
+<span class="fc" id="L185">                String str = new String(bytes, offset, strlen, StandardCharsets.UTF_8);</span>
+<span class="fc" id="L186">                offset += strlen;</span>
+<span class="fc" id="L187">                jsonWriter.writeString(str);</span>
+<span class="fc" id="L188">                return;</span>
+            }
+            case BC_CHAR: {
+<span class="fc" id="L191">                int intValue = readInt32Value();</span>
+<span class="fc" id="L192">                jsonWriter.writeChar((char) intValue);</span>
+<span class="fc" id="L193">                return;</span>
+            }
+            case BC_STR_UTF16: {
+<span class="fc" id="L196">                int strlen = readLength();</span>
+<span class="fc" id="L197">                String str = new String(bytes, offset, strlen, StandardCharsets.UTF_16);</span>
+<span class="fc" id="L198">                offset += strlen;</span>
+<span class="fc" id="L199">                jsonWriter.writeString(str);</span>
+<span class="fc" id="L200">                return;</span>
+            }
+            case BC_STR_UTF16LE: {
+<span class="fc" id="L203">                int strlen = readLength();</span>
+
+                String str;
+<span class="pc bpc" id="L206" title="3 of 4 branches missed.">                if (STRING_CREATOR_JDK11 != null &amp;&amp; !JDKUtils.BIG_ENDIAN) {</span>
+<span class="nc" id="L207">                    byte[] chars = new byte[strlen];</span>
+<span class="nc" id="L208">                    System.arraycopy(bytes, offset, chars, 0, strlen);</span>
+<span class="nc" id="L209">                    str = STRING_CREATOR_JDK11.apply(chars, UTF16);</span>
+<span class="nc" id="L210">                } else {</span>
+<span class="fc" id="L211">                    str = new String(bytes, offset, strlen, StandardCharsets.UTF_16LE);</span>
+                }
+
+<span class="fc" id="L214">                offset += strlen;</span>
+<span class="fc" id="L215">                jsonWriter.writeString(str);</span>
+<span class="fc" id="L216">                return;</span>
+            }
+            case BC_STR_UTF16BE: {
+<span class="fc" id="L219">                int strlen = readLength();</span>
+
+                String str;
+<span class="pc bpc" id="L222" title="3 of 4 branches missed.">                if (STRING_CREATOR_JDK11 != null &amp;&amp; JDKUtils.BIG_ENDIAN) {</span>
+<span class="nc" id="L223">                    byte[] chars = new byte[strlen];</span>
+<span class="nc" id="L224">                    System.arraycopy(bytes, offset, chars, 0, strlen);</span>
+<span class="nc" id="L225">                    str = STRING_CREATOR_JDK11.apply(chars, UTF16);</span>
+<span class="nc" id="L226">                } else {</span>
+<span class="fc" id="L227">                    str = new String(bytes, offset, strlen, StandardCharsets.UTF_16BE);</span>
+                }
+
+<span class="fc" id="L230">                offset += strlen;</span>
+<span class="fc" id="L231">                jsonWriter.writeString(str);</span>
+<span class="fc" id="L232">                return;</span>
+            }
+            case BC_STR_GB18030: {
+<span class="fc bfc" id="L235" title="All 2 branches covered.">                if (GB18030 == null) {</span>
+<span class="fc" id="L236">                    GB18030 = Charset.forName(&quot;GB18030&quot;);</span>
+                }
+
+<span class="fc" id="L239">                int strlen = readLength();</span>
+<span class="fc" id="L240">                String str = new String(bytes, offset, strlen, GB18030);</span>
+<span class="fc" id="L241">                offset += strlen;</span>
+<span class="fc" id="L242">                jsonWriter.writeString(str);</span>
+<span class="fc" id="L243">                return;</span>
+            }
+            case BC_SYMBOL: {
+                int symbol;
+<span class="fc bfc" id="L247" title="All 2 branches covered.">                if (isInt()) {</span>
+<span class="fc" id="L248">                    symbol = readInt32Value();</span>
+<span class="pc bpc" id="L249" title="1 of 2 branches missed.">                    if (raw) {</span>
+<span class="fc" id="L250">                        jsonWriter.writeString(&quot;#&quot; + symbol);</span>
+                    } else {
+<span class="nc" id="L252">                        String name = getString(symbol);</span>
+<span class="nc" id="L253">                        jsonWriter.writeString(name);</span>
+<span class="nc" id="L254">                    }</span>
+                } else {
+<span class="fc" id="L256">                    String name = readString();</span>
+<span class="fc" id="L257">                    symbol = readInt32Value();</span>
+<span class="fc" id="L258">                    symbols.put(symbol, name);</span>
+<span class="pc bpc" id="L259" title="1 of 2 branches missed.">                    if (raw) {</span>
+<span class="fc" id="L260">                        jsonWriter.writeString(name + &quot;#&quot; + symbol);</span>
+                    } else {
+<span class="nc" id="L262">                        jsonWriter.writeString(name);</span>
+                    }
+                }
+<span class="fc" id="L265">                return;</span>
+            }
+            case BC_DECIMAL: {
+<span class="fc" id="L268">                int scale = readInt32Value();</span>
+                BigInteger unscaledValue;
+<span class="fc" id="L270">                int type = bytes[offset++]; // bigInt</span>
+<span class="fc bfc" id="L271" title="All 2 branches covered.">                switch (type) {</span>
+                    case BC_BIGINT_LONG:
+<span class="fc" id="L273">                        unscaledValue = BigInteger.valueOf(</span>
+<span class="fc" id="L274">                                readInt64Value()</span>
+                        );
+<span class="fc" id="L276">                        break;</span>
+                    default:
+<span class="fc" id="L278">                        int len = readInt32Value();</span>
+<span class="fc" id="L279">                        byte[] bytes = new byte[len];</span>
+<span class="fc" id="L280">                        System.arraycopy(this.bytes, offset, bytes, 0, len);</span>
+<span class="fc" id="L281">                        offset += len;</span>
+<span class="fc" id="L282">                        unscaledValue = new BigInteger(bytes);</span>
+                        break;
+                }
+
+                BigDecimal decimal;
+<span class="fc bfc" id="L287" title="All 2 branches covered.">                if (scale == 0) {</span>
+<span class="fc" id="L288">                    decimal = new BigDecimal(unscaledValue);</span>
+                } else {
+<span class="fc" id="L290">                    decimal = new BigDecimal(unscaledValue, scale);</span>
+                }
+<span class="fc" id="L292">                jsonWriter.writeDecimal(decimal, 0, null);</span>
+<span class="fc" id="L293">                return;</span>
+            }
+            case BC_DECIMAL_LONG: {
+<span class="fc" id="L296">                jsonWriter.writeDecimal(</span>
+<span class="fc" id="L297">                        BigDecimal.valueOf(</span>
+<span class="fc" id="L298">                                readInt64Value()</span>
+                        ),
+                        0,
+                        null
+                );
+<span class="fc" id="L303">                return;</span>
+            }
+            case BC_TYPED_ANY: {
+<span class="fc" id="L306">                boolean isInt = isInt();</span>
+                int symbol;
+<span class="fc" id="L308">                String typeName = null;</span>
+<span class="fc bfc" id="L309" title="All 2 branches covered.">                if (isInt) {</span>
+<span class="fc" id="L310">                    symbol = readInt32Value();</span>
+                } else {
+<span class="fc" id="L312">                    typeName = readString();</span>
+<span class="fc" id="L313">                    symbol = readInt32Value();</span>
+<span class="fc" id="L314">                    symbols.put(symbol, typeName);</span>
+                }
+
+<span class="fc bfc" id="L317" title="All 4 branches covered.">                if (!raw &amp;&amp; bytes[offset] == BC_OBJECT) {</span>
+<span class="fc bfc" id="L318" title="All 2 branches covered.">                    if (typeName == null) {</span>
+<span class="fc" id="L319">                        typeName = getString(symbol);</span>
+                    }
+<span class="fc" id="L321">                    offset++;</span>
+<span class="fc" id="L322">                    dumpObject(typeName);</span>
+<span class="fc" id="L323">                    return;</span>
+                }
+
+<span class="fc" id="L326">                jsonWriter.startObject();</span>
+
+<span class="fc" id="L328">                jsonWriter.writeName(&quot;@type&quot;);</span>
+<span class="fc" id="L329">                jsonWriter.writeColon();</span>
+<span class="fc bfc" id="L330" title="All 2 branches covered.">                if (typeName == null) {</span>
+<span class="pc bpc" id="L331" title="1 of 2 branches missed.">                    if (symbol &lt; 0) {</span>
+<span class="nc bnc" id="L332" title="All 2 branches missed.">                        if (raw) {</span>
+<span class="nc" id="L333">                            jsonWriter.writeString(&quot;#&quot; + symbol);</span>
+                        } else {
+<span class="nc" id="L335">                            String name = symbolTable.getName(-symbol);</span>
+<span class="nc" id="L336">                            jsonWriter.writeString(name);</span>
+<span class="nc" id="L337">                        }</span>
+                    } else {
+<span class="fc" id="L339">                        jsonWriter.writeString(&quot;#&quot; + symbol);</span>
+                    }
+                } else {
+<span class="fc bfc" id="L342" title="All 2 branches covered.">                    if (raw) {</span>
+<span class="fc" id="L343">                        jsonWriter.writeString(typeName + &quot;#&quot; + symbol);</span>
+                    } else {
+<span class="fc" id="L345">                        jsonWriter.writeString(typeName);</span>
+                    }
+                }
+
+<span class="fc" id="L349">                jsonWriter.writeName(&quot;@value&quot;);</span>
+<span class="fc" id="L350">                jsonWriter.writeColon();</span>
+<span class="fc" id="L351">                dumpAny();</span>
+
+<span class="fc" id="L353">                jsonWriter.endObject();</span>
+<span class="fc" id="L354">                return;</span>
+            }
+            case BC_BINARY: {
+<span class="fc" id="L357">                int len = readInt32Value();</span>
+<span class="fc" id="L358">                byte[] bytes = new byte[len];</span>
+<span class="fc" id="L359">                System.arraycopy(this.bytes, offset, bytes, 0, len);</span>
+<span class="fc" id="L360">                offset += len;</span>
+<span class="fc" id="L361">                jsonWriter.writeBinary(bytes);</span>
+<span class="fc" id="L362">                return;</span>
+            }
+            case BC_REFERENCE: {
+<span class="nc" id="L365">                dumpReference();</span>
+<span class="nc" id="L366">                break;</span>
+            }
+            case BC_LOCAL_DATETIME: {
+<span class="fc" id="L369">                int year = (bytes[offset++] &lt;&lt; 8) + (bytes[offset++] &amp; 0xFF);</span>
+<span class="fc" id="L370">                int month = bytes[offset++];</span>
+<span class="fc" id="L371">                int dayOfMonth = bytes[offset++];</span>
+<span class="fc" id="L372">                int hour = bytes[offset++];</span>
+<span class="fc" id="L373">                int minute = bytes[offset++];</span>
+<span class="fc" id="L374">                int second = bytes[offset++];</span>
+
+<span class="fc" id="L376">                int nano = readInt32Value();</span>
+
+<span class="fc" id="L378">                LocalDateTime localDateTime = LocalDateTime.of(year, month, dayOfMonth, hour, minute, second, nano);</span>
+<span class="fc" id="L379">                jsonWriter.writeLocalDateTime(localDateTime);</span>
+<span class="fc" id="L380">                break;</span>
+            }
+            case BC_LOCAL_DATE: {
+<span class="fc" id="L383">                int year = (bytes[offset++] &lt;&lt; 8) + (bytes[offset++] &amp; 0xFF);</span>
+<span class="fc" id="L384">                int month = bytes[offset++];</span>
+<span class="fc" id="L385">                int dayOfMonth = bytes[offset++];</span>
+
+<span class="fc" id="L387">                LocalDate localDate = LocalDate.of(year, month, dayOfMonth);</span>
+<span class="fc" id="L388">                jsonWriter.writeLocalDate(localDate);</span>
+<span class="fc" id="L389">                break;</span>
+            }
+            case BC_TIMESTAMP:
+<span class="fc" id="L392">                long epochSeconds = readInt64Value();</span>
+<span class="fc" id="L393">                int nano = readInt32Value();</span>
+<span class="fc" id="L394">                jsonWriter.writeInstant(</span>
+<span class="fc" id="L395">                        Instant.ofEpochSecond(epochSeconds, nano)</span>
+                );
+<span class="fc" id="L397">                break;</span>
+            case BC_OBJECT: {
+<span class="fc" id="L399">                dumpObject(null);</span>
+<span class="fc" id="L400">                break;</span>
+            }
+            default:
+<span class="fc bfc" id="L403" title="All 4 branches covered.">                if (type &gt;= BC_INT32_NUM_MIN &amp;&amp; type &lt;= BC_INT32_NUM_MAX) {</span>
+<span class="fc" id="L404">                    jsonWriter.writeInt32(type);</span>
+<span class="fc" id="L405">                    return;</span>
+                }
+
+<span class="fc bfc" id="L408" title="All 4 branches covered.">                if (type &gt;= BC_INT64_NUM_MIN &amp;&amp; type &lt;= BC_INT64_NUM_MAX) {</span>
+<span class="fc" id="L409">                    long value = INT64_NUM_LOW_VALUE + (type - BC_INT64_NUM_MIN);</span>
+<span class="fc" id="L410">                    jsonWriter.writeInt64(value);</span>
+<span class="fc" id="L411">                    return;</span>
+                }
+
+<span class="fc bfc" id="L414" title="All 4 branches covered.">                if (type &gt;= BC_INT32_BYTE_MIN &amp;&amp; type &lt;= BC_INT32_BYTE_MAX) {</span>
+<span class="fc" id="L415">                    int value = ((type - BC_INT32_BYTE_ZERO) &lt;&lt; 8)</span>
+                            + (bytes[offset++] &amp; 0xFF);
+<span class="fc" id="L417">                    jsonWriter.writeInt32(value);</span>
+<span class="fc" id="L418">                    return;</span>
+                }
+
+<span class="fc bfc" id="L421" title="All 4 branches covered.">                if (type &gt;= BC_INT32_SHORT_MIN &amp;&amp; type &lt;= BC_INT32_SHORT_MAX) {</span>
+<span class="fc" id="L422">                    int value = ((type - BC_INT32_SHORT_ZERO) &lt;&lt; 16)</span>
+                            + ((bytes[offset++] &amp; 0xFF) &lt;&lt; 8)
+                            + (bytes[offset++] &amp; 0xFF);
+<span class="fc" id="L425">                    jsonWriter.writeInt32(value);</span>
+<span class="fc" id="L426">                    return;</span>
+                }
+
+<span class="fc bfc" id="L429" title="All 4 branches covered.">                if (type &gt;= BC_INT64_BYTE_MIN &amp;&amp; type &lt;= BC_INT64_BYTE_MAX) {</span>
+<span class="fc" id="L430">                    int value = ((type - BC_INT64_BYTE_ZERO) &lt;&lt; 8)</span>
+                            + (bytes[offset++] &amp; 0xFF);
+<span class="fc" id="L432">                    jsonWriter.writeInt32(value);</span>
+<span class="fc" id="L433">                    return;</span>
+                }
+
+<span class="fc bfc" id="L436" title="All 4 branches covered.">                if (type &gt;= BC_INT64_SHORT_MIN &amp;&amp; type &lt;= BC_INT64_SHORT_MAX) {</span>
+<span class="fc" id="L437">                    int value = ((type - BC_INT64_SHORT_ZERO) &lt;&lt; 16)</span>
+                            + ((bytes[offset++] &amp; 0xFF) &lt;&lt; 8)
+                            + (bytes[offset++] &amp; 0xFF);
+<span class="fc" id="L440">                    jsonWriter.writeInt64(value);</span>
+<span class="fc" id="L441">                    return;</span>
+                }
+
+<span class="pc bpc" id="L444" title="1 of 4 branches missed.">                if (type &gt;= BC_ARRAY_FIX_MIN &amp;&amp; type &lt;= BC_ARRAY) {</span>
+<span class="fc" id="L445">                    dumpArray();</span>
+<span class="fc" id="L446">                    return;</span>
+                }
+
+<span class="pc bpc" id="L449" title="1 of 2 branches missed.">                if (type &gt;= BC_STR_ASCII_FIX_MIN) {</span>
+<span class="fc bfc" id="L450" title="All 2 branches covered.">                    strlen = type == BC_STR_ASCII</span>
+<span class="fc" id="L451">                            ? readLength()</span>
+                            : type - BC_STR_ASCII_FIX_MIN;
+
+<span class="fc bfc" id="L454" title="All 2 branches covered.">                    if (strlen &lt; 0) {</span>
+<span class="fc" id="L455">                        jsonWriter.writeRaw(&quot;{\&quot;$symbol\&quot;:&quot;);</span>
+<span class="fc" id="L456">                        jsonWriter.writeInt32(strlen);</span>
+<span class="fc" id="L457">                        jsonWriter.writeRaw(&quot;}&quot;);</span>
+<span class="fc" id="L458">                        return;</span>
+                    }
+
+<span class="fc" id="L461">                    String str = new String(bytes, offset, strlen, StandardCharsets.ISO_8859_1);</span>
+<span class="fc" id="L462">                    offset += strlen;</span>
+<span class="fc" id="L463">                    jsonWriter.writeString(str);</span>
+<span class="fc" id="L464">                    return;</span>
+                }
+
+<span class="nc" id="L467">                throw new JSONException(&quot;not support type : &quot; + typeName(type) + &quot;, offset &quot; + offset);</span>
+        }
+<span class="fc" id="L469">    }</span>
+
+    private void dumpArray() {
+<span class="fc bfc" id="L472" title="All 2 branches covered.">        int len = type == BC_ARRAY</span>
+<span class="fc" id="L473">                ? readLength()</span>
+                : type - BC_ARRAY_FIX_MIN;
+
+<span class="fc bfc" id="L476" title="All 2 branches covered.">        if (len == 0) {</span>
+<span class="fc" id="L477">            jsonWriter.writeRaw(&quot;[]&quot;);</span>
+<span class="fc" id="L478">            return;</span>
+        }
+
+<span class="fc bfc" id="L481" title="All 2 branches covered.">        if (len == 1) {</span>
+<span class="fc" id="L482">            type = bytes[offset];</span>
+<span class="pc bpc" id="L483" title="1 of 8 branches missed.">            if (isInt() || type == BC_NULL || (type &gt;= BC_STR_ASCII_FIX_MIN &amp;&amp; type &lt;= BC_STR_ASCII_FIX_MAX)) {</span>
+<span class="fc" id="L484">                jsonWriter.writeRaw(&quot;[&quot;);</span>
+<span class="fc" id="L485">                dumpAny();</span>
+<span class="fc" id="L486">                jsonWriter.writeRaw(&quot;]&quot;);</span>
+<span class="fc" id="L487">                return;</span>
+            }
+        }
+
+<span class="fc" id="L491">        jsonWriter.startArray();</span>
+<span class="fc bfc" id="L492" title="All 2 branches covered.">        for (int i = 0; i &lt; len; ++i) {</span>
+<span class="fc bfc" id="L493" title="All 2 branches covered.">            if (i != 0) {</span>
+<span class="fc" id="L494">                jsonWriter.writeComma();</span>
+            }
+
+<span class="fc bfc" id="L497" title="All 2 branches covered.">            if (isReference()) {</span>
+<span class="fc" id="L498">                dumpReference();</span>
+<span class="fc" id="L499">                continue;</span>
+            }
+
+<span class="fc" id="L502">            dumpAny();</span>
+        }
+<span class="fc" id="L504">        jsonWriter.endArray();</span>
+<span class="fc" id="L505">    }</span>
+
+    private void dumpObject(String typeName) {
+<span class="fc bfc" id="L508" title="All 2 branches covered.">        if (typeName != null) {</span>
+<span class="fc" id="L509">            jsonWriter.startObject();</span>
+<span class="fc" id="L510">            jsonWriter.writeName(&quot;@type&quot;);</span>
+<span class="fc" id="L511">            jsonWriter.writeColon();</span>
+<span class="fc" id="L512">            jsonWriter.writeString(typeName);</span>
+        } else {
+<span class="fc bfc" id="L514" title="All 2 branches covered.">            if (bytes[offset] == BC_OBJECT_END) {</span>
+<span class="fc" id="L515">                jsonWriter.writeRaw(&quot;{}&quot;);</span>
+<span class="fc" id="L516">                offset++;</span>
+<span class="fc" id="L517">                return;</span>
+            }
+<span class="fc" id="L519">            jsonWriter.startObject();</span>
+        }
+
+        _for:
+<span class="fc" id="L523">        for (int valueCount = 0; ; ) {</span>
+<span class="fc" id="L524">            byte type = bytes[offset];</span>
+<span class="fc bfc" id="L525" title="All 4 branches covered.">            switch (type) {</span>
+                case BC_OBJECT_END:
+<span class="fc" id="L527">                    offset++;</span>
+<span class="fc" id="L528">                    break _for;</span>
+                case BC_REFERENCE: {
+<span class="fc" id="L530">                    dumpReference();</span>
+<span class="fc" id="L531">                    break;</span>
+                }
+                case BC_SYMBOL: {
+<span class="fc" id="L534">                    offset++;</span>
+<span class="fc bfc" id="L535" title="All 2 branches covered.">                    if (isInt()) {</span>
+<span class="fc" id="L536">                        int symbol = readInt32Value();</span>
+<span class="fc bfc" id="L537" title="All 2 branches covered.">                        if (raw) {</span>
+<span class="fc" id="L538">                            jsonWriter.writeName(&quot;#&quot; + symbol);</span>
+                        } else {
+<span class="fc" id="L540">                            jsonWriter.writeName(</span>
+<span class="fc" id="L541">                                    getString(symbol)</span>
+                            );
+                        }
+<span class="fc" id="L544">                    } else {</span>
+<span class="fc" id="L545">                        String name = readString();</span>
+<span class="fc" id="L546">                        int symbol = readInt32Value();</span>
+
+<span class="fc" id="L548">                        symbols.put(symbol, name);</span>
+<span class="fc bfc" id="L549" title="All 2 branches covered.">                        if (raw) {</span>
+<span class="fc" id="L550">                            jsonWriter.writeName(name + &quot;#&quot; + symbol);</span>
+                        } else {
+<span class="fc" id="L552">                            jsonWriter.writeName(name);</span>
+                        }
+                    }
+<span class="fc" id="L555">                    break;</span>
+                }
+                default:
+<span class="fc bfc" id="L558" title="All 2 branches covered.">                    if (isString()) {</span>
+<span class="fc" id="L559">                        jsonWriter.writeName(readString());</span>
+                    } else {
+<span class="pc bpc" id="L561" title="1 of 4 branches missed.">                        if (type &gt;= BC_INT32_NUM_MIN &amp;&amp; type &lt;= BC_INT32) {</span>
+<span class="fc" id="L562">                            jsonWriter.writeName(</span>
+<span class="fc" id="L563">                                    readInt32Value()</span>
+                            );
+<span class="pc bpc" id="L565" title="4 of 6 branches missed.">                        } else if ((type &gt;= BC_INT64_NUM_MIN &amp;&amp; type &lt;= BC_INT64_NUM_MAX)</span>
+                                || type == BC_INT64
+                        ) {
+<span class="nc" id="L568">                            jsonWriter.writeName(</span>
+<span class="nc" id="L569">                                    readInt64Value()</span>
+                            );
+                        } else {
+<span class="fc bfc" id="L572" title="All 2 branches covered.">                            if (valueCount != 0) {</span>
+<span class="fc" id="L573">                                jsonWriter.writeComma();</span>
+                            }
+
+<span class="fc" id="L576">                            dumpAny();</span>
+                        }
+                    }
+                    break;
+            }
+
+<span class="fc" id="L582">            valueCount++;</span>
+<span class="fc" id="L583">            jsonWriter.writeColon();</span>
+
+<span class="fc bfc" id="L585" title="All 2 branches covered.">            if (isReference()) {</span>
+<span class="fc" id="L586">                dumpReference();</span>
+<span class="fc" id="L587">                continue;</span>
+            }
+
+<span class="fc" id="L590">            dumpAny();</span>
+<span class="fc" id="L591">        }</span>
+
+<span class="fc" id="L593">        jsonWriter.endObject();</span>
+<span class="fc" id="L594">    }</span>
+
+    private void dumpReference() {
+<span class="fc" id="L597">        jsonWriter.writeRaw(&quot;{\&quot;$ref\&quot;:&quot;);</span>
+<span class="fc" id="L598">        String reference = readReference();</span>
+<span class="fc" id="L599">        jsonWriter.writeString(reference);</span>
+<span class="fc bfc" id="L600" title="All 2 branches covered.">        if (!&quot;#-1&quot;.equals(reference)) {</span>
+<span class="fc" id="L601">            lastReference = reference;</span>
+        }
+<span class="fc" id="L603">        jsonWriter.writeRaw(&quot;}&quot;);</span>
+<span class="fc" id="L604">    }</span>
+
+    int readInt32Value() {
+<span class="fc" id="L607">        byte type = bytes[offset++];</span>
+<span class="pc bpc" id="L608" title="1 of 4 branches missed.">        if (type &gt;= BC_INT32_NUM_MIN &amp;&amp; type &lt;= BC_INT32_NUM_MAX) {</span>
+<span class="fc" id="L609">            return type;</span>
+        }
+
+<span class="pc bpc" id="L612" title="1 of 4 branches missed.">        if (type &gt;= BC_INT32_BYTE_MIN &amp;&amp; type &lt;= BC_INT32_BYTE_MAX) {</span>
+<span class="fc" id="L613">            return ((type - BC_INT32_BYTE_ZERO) &lt;&lt; 8)</span>
+                    + (bytes[offset++] &amp; 0xFF);
+        }
+
+<span class="pc bpc" id="L617" title="2 of 4 branches missed.">        if (type &gt;= BC_INT32_SHORT_MIN &amp;&amp; type &lt;= BC_INT32_SHORT_MAX) {</span>
+<span class="nc" id="L618">            return ((type - BC_INT32_SHORT_ZERO) &lt;&lt; 16)</span>
+                    + ((bytes[offset++] &amp; 0xFF) &lt;&lt; 8)
+                    + (bytes[offset++] &amp; 0xFF);
+        }
+
+<span class="pc bpc" id="L623" title="1 of 2 branches missed.">        switch (type) {</span>
+            case BC_INT32:
+            case BC_TIMESTAMP_MINUTES:
+            case BC_TIMESTAMP_SECONDS:
+<span class="fc" id="L627">                int int32Value =</span>
+                        ((bytes[offset + 3] &amp; 0xFF)) +
+                                ((bytes[offset + 2] &amp; 0xFF) &lt;&lt; 8) +
+                                ((bytes[offset + 1] &amp; 0xFF) &lt;&lt; 16) +
+                                ((bytes[offset]) &lt;&lt; 24);
+<span class="fc" id="L632">                offset += 4;</span>
+<span class="fc" id="L633">                return int32Value;</span>
+            default:
+                break;
+        }
+<span class="nc" id="L637">        throw new JSONException(&quot;readInt32Value not support &quot; + typeName(type) + &quot;, offset &quot; + offset + &quot;/&quot; + bytes.length);</span>
+    }
+
+    long readInt64Value() {
+<span class="fc" id="L641">        byte type = bytes[offset++];</span>
+<span class="fc bfc" id="L642" title="All 4 branches covered.">        if (type &gt;= BC_INT32_NUM_MIN &amp;&amp; type &lt;= BC_INT32_NUM_MAX) {</span>
+<span class="fc" id="L643">            return type;</span>
+        }
+
+<span class="fc bfc" id="L646" title="All 4 branches covered.">        if (type &gt;= BC_INT32_BYTE_MIN &amp;&amp; type &lt;= BC_INT32_BYTE_MAX) {</span>
+<span class="fc" id="L647">            return ((type - BC_INT32_BYTE_ZERO) &lt;&lt; 8)</span>
+                    + (bytes[offset++] &amp; 0xFF);
+        }
+
+<span class="fc bfc" id="L651" title="All 4 branches covered.">        if (type &gt;= BC_INT32_SHORT_MIN &amp;&amp; type &lt;= BC_INT32_SHORT_MAX) {</span>
+<span class="fc" id="L652">            return ((type - BC_INT32_SHORT_ZERO) &lt;&lt; 16)</span>
+                    + ((bytes[offset++] &amp; 0xFF) &lt;&lt; 8)
+                    + (bytes[offset++] &amp; 0xFF);
+        }
+
+<span class="fc bfc" id="L657" title="All 4 branches covered.">        if (type &gt;= BC_INT64_NUM_MIN &amp;&amp; type &lt;= BC_INT64_NUM_MAX) {</span>
+<span class="fc" id="L658">            return (long) INT64_NUM_LOW_VALUE + (type - BC_INT64_NUM_MIN);</span>
+        }
+
+<span class="fc bfc" id="L661" title="All 4 branches covered.">        if (type &gt;= BC_INT64_BYTE_MIN &amp;&amp; type &lt;= BC_INT64_BYTE_MAX) {</span>
+<span class="fc" id="L662">            return ((type - BC_INT64_BYTE_ZERO) &lt;&lt; 8)</span>
+                    + (bytes[offset++] &amp; 0xFF);
+        }
+
+<span class="fc bfc" id="L666" title="All 4 branches covered.">        if (type &gt;= BC_INT64_SHORT_MIN &amp;&amp; type &lt;= BC_INT64_SHORT_MAX) {</span>
+<span class="fc" id="L667">            return ((type - BC_INT64_SHORT_ZERO) &lt;&lt; 16)</span>
+                    + ((bytes[offset++] &amp; 0xFF) &lt;&lt; 8)
+                    + (bytes[offset++] &amp; 0xFF);
+        }
+
+<span class="pc bpc" id="L672" title="1 of 5 branches missed.">        switch (type) {</span>
+            case BC_INT8:
+<span class="fc" id="L674">                return bytes[offset++];</span>
+            case BC_INT16:
+<span class="fc" id="L676">                int int16Value =</span>
+                        ((bytes[offset + 1] &amp; 0xFF) +
+                                (bytes[offset] &lt;&lt; 8));
+<span class="fc" id="L679">                offset += 2;</span>
+<span class="fc" id="L680">                return int16Value;</span>
+            case BC_INT32:
+            case BC_INT64_INT:
+<span class="fc" id="L683">                int int32Value =</span>
+                        ((bytes[offset + 3] &amp; 0xFF)) +
+                                ((bytes[offset + 2] &amp; 0xFF) &lt;&lt; 8) +
+                                ((bytes[offset + 1] &amp; 0xFF) &lt;&lt; 16) +
+                                ((bytes[offset]) &lt;&lt; 24);
+<span class="fc" id="L688">                offset += 4;</span>
+<span class="fc" id="L689">                return int32Value;</span>
+            case BC_TIMESTAMP_MILLIS:
+            case BC_INT64:
+<span class="fc" id="L692">                long int64Value =</span>
+                        ((bytes[offset + 7] &amp; 0xFFL)) +
+                                ((bytes[offset + 6] &amp; 0xFFL) &lt;&lt; 8) +
+                                ((bytes[offset + 5] &amp; 0xFFL) &lt;&lt; 16) +
+                                ((bytes[offset + 4] &amp; 0xFFL) &lt;&lt; 24) +
+                                ((bytes[offset + 3] &amp; 0xFFL) &lt;&lt; 32) +
+                                ((bytes[offset + 2] &amp; 0xFFL) &lt;&lt; 40) +
+                                ((bytes[offset + 1] &amp; 0xFFL) &lt;&lt; 48) +
+                                ((long) (bytes[offset]) &lt;&lt; 56);
+<span class="fc" id="L701">                offset += 8;</span>
+<span class="fc" id="L702">                return int64Value;</span>
+            default:
+                break;
+        }
+<span class="nc" id="L706">        throw new JSONException(&quot;readInt64Value not support &quot; + typeName(type) + &quot;, offset &quot; + offset + &quot;/&quot; + bytes.length);</span>
+    }
+
+    int readLength() {
+<span class="fc" id="L710">        byte type = bytes[offset++];</span>
+<span class="fc bfc" id="L711" title="All 4 branches covered.">        if (type &gt;= BC_INT32_NUM_MIN &amp;&amp; type &lt;= BC_INT32_NUM_MAX) {</span>
+<span class="fc" id="L712">            return type;</span>
+        }
+
+<span class="fc bfc" id="L715" title="All 4 branches covered.">        if (type &gt;= BC_INT32_SHORT_MIN &amp;&amp; type &lt;= BC_INT32_SHORT_MAX) {</span>
+<span class="fc" id="L716">            return ((type - BC_INT32_SHORT_ZERO) &lt;&lt; 16)</span>
+                    + ((bytes[offset++] &amp; 0xFF) &lt;&lt; 8)
+                    + (bytes[offset++] &amp; 0xFF);
+        }
+
+<span class="fc bfc" id="L721" title="All 4 branches covered.">        if (type &gt;= BC_INT32_BYTE_MIN &amp;&amp; type &lt;= BC_INT32_BYTE_MAX) {</span>
+<span class="fc" id="L722">            return ((type - BC_INT32_BYTE_ZERO) &lt;&lt; 8)</span>
+                    + (bytes[offset++] &amp; 0xFF);
+        }
+
+<span class="fc bfc" id="L726" title="All 2 branches covered.">        if (type == BC_INT32) {</span>
+<span class="fc" id="L727">            return (bytes[offset++] &lt;&lt; 24)</span>
+                    + ((bytes[offset++] &amp; 0xFF) &lt;&lt; 16)
+                    + ((bytes[offset++] &amp; 0xFF) &lt;&lt; 8)
+                    + (bytes[offset++] &amp; 0xFF);
+        }
+
+<span class="fc" id="L733">        throw new JSONException(&quot;not support length type : &quot; + type);</span>
+    }
+
+    boolean isReference() {
+<span class="pc bpc" id="L737" title="1 of 4 branches missed.">        return offset &lt; bytes.length &amp;&amp; bytes[offset] == BC_REFERENCE;</span>
+    }
+
+    boolean isString() {
+<span class="fc" id="L741">        byte type = bytes[offset];</span>
+<span class="pc bpc" id="L742" title="1 of 4 branches missed.">        return type &gt;= BC_STR_ASCII_FIX_MIN &amp;&amp; type &lt;= BC_STR_UTF16BE;</span>
+    }
+
+    String readString() {
+<span class="fc" id="L746">        strtype = bytes[offset++];</span>
+
+<span class="fc" id="L748">        strBegin = offset;</span>
+        Charset charset;
+<span class="pc bpc" id="L750" title="2 of 4 branches missed.">        if (strtype &gt;= BC_STR_ASCII_FIX_MIN &amp;&amp; strtype &lt;= BC_STR_ASCII) {</span>
+<span class="fc bfc" id="L751" title="All 2 branches covered.">            if (strtype == BC_STR_ASCII) {</span>
+<span class="fc" id="L752">                strlen = readLength();</span>
+<span class="fc" id="L753">                strBegin = offset;</span>
+            } else {
+<span class="fc" id="L755">                strlen = strtype - BC_STR_ASCII_FIX_MIN;</span>
+            }
+
+<span class="fc" id="L758">            charset = StandardCharsets.ISO_8859_1;</span>
+<span class="nc bnc" id="L759" title="All 2 branches missed.">        } else if (strtype == BC_STR_UTF8) {</span>
+<span class="nc" id="L760">            strlen = readLength();</span>
+<span class="nc" id="L761">            strBegin = offset;</span>
+
+<span class="nc" id="L763">            charset = StandardCharsets.UTF_8;</span>
+<span class="nc bnc" id="L764" title="All 2 branches missed.">        } else if (strtype == BC_STR_UTF16) {</span>
+<span class="nc" id="L765">            strlen = readLength();</span>
+<span class="nc" id="L766">            strBegin = offset;</span>
+<span class="nc" id="L767">            charset = StandardCharsets.UTF_16;</span>
+<span class="nc bnc" id="L768" title="All 2 branches missed.">        } else if (strtype == BC_STR_UTF16LE) {</span>
+<span class="nc" id="L769">            strlen = readLength();</span>
+<span class="nc" id="L770">            strBegin = offset;</span>
+
+<span class="nc bnc" id="L772" title="All 4 branches missed.">            if (STRING_CREATOR_JDK11 != null &amp;&amp; !JDKUtils.BIG_ENDIAN) {</span>
+<span class="nc" id="L773">                byte[] chars = new byte[strlen];</span>
+<span class="nc" id="L774">                System.arraycopy(bytes, offset, chars, 0, strlen);</span>
+<span class="nc" id="L775">                String str = STRING_CREATOR_JDK11.apply(chars, UTF16);</span>
+<span class="nc" id="L776">                offset += strlen;</span>
+<span class="nc" id="L777">                return str;</span>
+            }
+
+<span class="nc" id="L780">            charset = StandardCharsets.UTF_16LE;</span>
+<span class="nc bnc" id="L781" title="All 2 branches missed.">        } else if (strtype == BC_STR_UTF16BE) {</span>
+<span class="nc" id="L782">            strlen = readLength();</span>
+<span class="nc" id="L783">            strBegin = offset;</span>
+
+<span class="nc bnc" id="L785" title="All 4 branches missed.">            if (STRING_CREATOR_JDK11 != null &amp;&amp; JDKUtils.BIG_ENDIAN) {</span>
+<span class="nc" id="L786">                byte[] chars = new byte[strlen];</span>
+<span class="nc" id="L787">                System.arraycopy(bytes, offset, chars, 0, strlen);</span>
+<span class="nc" id="L788">                String str = STRING_CREATOR_JDK11.apply(chars, UTF16);</span>
+<span class="nc" id="L789">                offset += strlen;</span>
+<span class="nc" id="L790">                return str;</span>
+            }
+
+<span class="nc" id="L793">            charset = StandardCharsets.UTF_16BE;</span>
+        } else {
+<span class="nc" id="L795">            throw new JSONException(&quot;readString not support type &quot; + typeName(strtype) + &quot;, offset &quot; + offset + &quot;/&quot; + bytes.length);</span>
+        }
+
+<span class="pc bpc" id="L798" title="1 of 2 branches missed.">        if (strlen &lt; 0) {</span>
+<span class="nc" id="L799">            return symbolTable.getName(-strlen);</span>
+        }
+
+<span class="fc" id="L802">        String str = new String(bytes, offset, strlen, charset);</span>
+<span class="fc" id="L803">        offset += strlen;</span>
+<span class="fc" id="L804">        return str;</span>
+    }
+
+    String readReference() {
+<span class="pc bpc" id="L808" title="1 of 2 branches missed.">        if (bytes[offset] != BC_REFERENCE) {</span>
+<span class="nc" id="L809">            return null;</span>
+        }
+<span class="fc" id="L811">        offset++;</span>
+<span class="pc bpc" id="L812" title="1 of 2 branches missed.">        if (isString()) {</span>
+<span class="fc" id="L813">            return readString();</span>
+        }
+
+<span class="nc" id="L816">        throw new JSONException(&quot;reference not support input &quot; + typeName(type));</span>
+    }
+
+    @Override
+    public String toString() {
+<span class="fc" id="L821">        return jsonWriter.toString();</span>
+    }
+
+    boolean isInt() {
+<span class="fc" id="L825">        int type = bytes[offset];</span>
+<span class="pc bpc" id="L826" title="3 of 10 branches missed.">        return (type &gt;= BC_BIGINT_LONG &amp;&amp; type &lt;= BC_INT32)</span>
+                || type == BC_TIMESTAMP_MINUTES
+                || type == BC_TIMESTAMP_SECONDS
+                || type == BC_TIMESTAMP_MILLIS;
+    }
+
+    public String getString(int symbol) {
+        String name;
+<span class="fc bfc" id="L834" title="All 2 branches covered.">        if (symbol &lt; 0) {</span>
+<span class="fc" id="L835">            name = symbolTable.getName(-symbol);</span>
+        } else {
+<span class="fc" id="L837">            name = symbols.get(symbol);</span>
+        }
+
+<span class="pc bpc" id="L840" title="1 of 2 branches missed.">        if (name == null) {</span>
+<span class="nc" id="L841">            throw new JSONException(&quot;symbol not found : &quot; + symbol);</span>
+        }
+<span class="fc" id="L843">        return name;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.8.202204050719</span></div></body></html>

@@ -1,0 +1,505 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ObjectReaderImplMap.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">fastjson2</a> &gt; <a href="index.source.html" class="el_package">com.alibaba.fastjson2.reader</a> &gt; <span class="el_source">ObjectReaderImplMap.java</span></div><h1>ObjectReaderImplMap.java</h1><pre class="source lang-java linenums">package com.alibaba.fastjson2.reader;
+
+import com.alibaba.fastjson2.*;
+import com.alibaba.fastjson2.util.*;
+
+import java.lang.reflect.*;
+import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.ConcurrentNavigableMap;
+import java.util.concurrent.ConcurrentSkipListMap;
+import java.util.function.Function;
+import java.util.function.Supplier;
+
+import static com.alibaba.fastjson2.JSONB.Constants.*;
+import static com.alibaba.fastjson2.util.JDKUtils.UNSAFE;
+import static com.alibaba.fastjson2.util.TypeUtils.CLASS_JSON_OBJECT_1x;
+
+public final class ObjectReaderImplMap
+        implements ObjectReader {
+<span class="fc" id="L21">    static final Function ENUM_MAP_BUILDER = e -&gt; new EnumMap((Map) e);</span>
+    static Function UNSAFE_OBJECT_CREATOR;
+<span class="fc" id="L23">    static final Class CLASS_SINGLETON_MAP = Collections.singletonMap(1, 1).getClass();</span>
+<span class="fc" id="L24">    static final Class CLASS_EMPTY_MAP = Collections.EMPTY_MAP.getClass();</span>
+<span class="fc" id="L25">    static final Class CLASS_EMPTY_SORTED_MAP = Collections.emptySortedMap().getClass();</span>
+<span class="fc" id="L26">    static final Class CLASS_EMPTY_NAVIGABLE_MAP = Collections.emptyNavigableMap().getClass();</span>
+<span class="fc" id="L27">    static final Class CLASS_UNMODIFIABLE_MAP = Collections.unmodifiableMap(Collections.emptyMap()).getClass();</span>
+<span class="fc" id="L28">    static final Class CLASS_UNMODIFIABLE_SORTED_MAP = Collections.unmodifiableSortedMap(Collections.emptySortedMap()).getClass();</span>
+<span class="fc" id="L29">    static final Class CLASS_UNMODIFIABLE_NAVIGABLE_MAP = Collections.unmodifiableNavigableMap(Collections.emptyNavigableMap()).getClass();</span>
+
+<span class="fc" id="L31">    public static final ObjectReaderImplMap INSTANCE = new ObjectReaderImplMap(null, HashMap.class, HashMap.class, 0, null);</span>
+<span class="fc" id="L32">    public static final ObjectReaderImplMap INSTANCE_OBJECT = new ObjectReaderImplMap(null, JSONObject.class, JSONObject.class, 0, null);</span>
+
+    final Type fieldType;
+    final Class mapType;
+    final long mapTypeHash;
+    final Class instanceType;
+    final long features;
+    final Function builder;
+    Object mapSingleton;
+    volatile boolean instanceError;
+
+    public static ObjectReader of(Type fieldType, Class mapType, long features) {
+<span class="fc" id="L44">        Function builder = null;</span>
+<span class="fc" id="L45">        Class instanceType = mapType;</span>
+
+<span class="fc bfc" id="L47" title="All 2 branches covered.">        if (&quot;&quot;.equals(instanceType.getSimpleName())) {</span>
+<span class="fc" id="L48">            instanceType = mapType.getSuperclass();</span>
+<span class="pc bpc" id="L49" title="1 of 2 branches missed.">            if (fieldType == null) {</span>
+<span class="fc" id="L50">                fieldType = mapType.getGenericSuperclass();</span>
+            }
+        }
+
+<span class="fc bfc" id="L54" title="All 6 branches covered.">        if (mapType == Map.class</span>
+                || mapType == AbstractMap.class
+                || mapType == CLASS_SINGLETON_MAP
+        ) {
+<span class="fc" id="L58">            instanceType = HashMap.class;</span>
+<span class="fc bfc" id="L59" title="All 2 branches covered.">        } else if (mapType == CLASS_UNMODIFIABLE_MAP) {</span>
+<span class="fc" id="L60">            instanceType = LinkedHashMap.class;</span>
+<span class="fc bfc" id="L61" title="All 6 branches covered.">        } else if (mapType == SortedMap.class</span>
+                || mapType == CLASS_UNMODIFIABLE_SORTED_MAP
+                || mapType == CLASS_UNMODIFIABLE_NAVIGABLE_MAP
+        ) {
+<span class="fc" id="L65">            instanceType = TreeMap.class;</span>
+<span class="fc bfc" id="L66" title="All 2 branches covered.">        } else if (mapType == ConcurrentMap.class) {</span>
+<span class="fc" id="L67">            instanceType = ConcurrentHashMap.class;</span>
+<span class="pc bpc" id="L68" title="1 of 2 branches missed.">        } else if (mapType == ConcurrentNavigableMap.class) {</span>
+<span class="nc" id="L69">            instanceType = ConcurrentSkipListMap.class;</span>
+        } else {
+<span class="fc bfc" id="L71" title="All 6 branches covered.">            switch (mapType.getTypeName()) {</span>
+                case &quot;com.google.common.collect.ImmutableMap&quot;:
+                case &quot;com.google.common.collect.RegularImmutableMap&quot;:
+<span class="fc" id="L74">                    instanceType = HashMap.class;</span>
+<span class="fc" id="L75">                    builder = GuavaSupport.immutableMapConverter();</span>
+<span class="fc" id="L76">                    break;</span>
+                case &quot;com.google.common.collect.SingletonImmutableBiMap&quot;:
+<span class="fc" id="L78">                    instanceType = HashMap.class;</span>
+<span class="fc" id="L79">                    builder = GuavaSupport.singletonBiMapConverter();</span>
+<span class="fc" id="L80">                    break;</span>
+                case &quot;java.util.Collections$SynchronizedMap&quot;:
+<span class="fc" id="L82">                    instanceType = HashMap.class;</span>
+<span class="fc" id="L83">                    builder = (Function&lt;Map, Map&gt;) Collections::synchronizedMap;</span>
+<span class="fc" id="L84">                    break;</span>
+                case &quot;java.util.Collections$SynchronizedNavigableMap&quot;:
+<span class="fc" id="L86">                    instanceType = TreeMap.class;</span>
+<span class="fc" id="L87">                    builder = (Function&lt;NavigableMap, NavigableMap&gt;) Collections::synchronizedNavigableMap;</span>
+<span class="fc" id="L88">                    break;</span>
+                case &quot;java.util.Collections$SynchronizedSortedMap&quot;:
+<span class="fc" id="L90">                    instanceType = TreeMap.class;</span>
+<span class="fc" id="L91">                    builder = (Function&lt;SortedMap, SortedMap&gt;) Collections::synchronizedSortedMap;</span>
+<span class="fc" id="L92">                    break;</span>
+                default:
+                    break;
+            }
+        }
+
+<span class="fc bfc" id="L98" title="All 2 branches covered.">        if (fieldType instanceof ParameterizedType) {</span>
+<span class="fc" id="L99">            ParameterizedType parameterizedType = (ParameterizedType) fieldType;</span>
+
+<span class="fc" id="L101">            Type[] actualTypeArguments = parameterizedType.getActualTypeArguments();</span>
+<span class="pc bpc" id="L102" title="1 of 2 branches missed.">            if (actualTypeArguments.length == 2) {</span>
+<span class="fc" id="L103">                Type keyType = actualTypeArguments[0];</span>
+<span class="fc" id="L104">                Type valueType = actualTypeArguments[1];</span>
+
+<span class="fc" id="L106">                boolean multiValueMap = &quot;org.springframework.util.LinkedMultiValueMap&quot;.equals(instanceType.getName());</span>
+
+<span class="fc bfc" id="L108" title="All 6 branches covered.">                if (keyType == String.class &amp;&amp; valueType == String.class &amp;&amp; builder == null) {</span>
+<span class="fc" id="L109">                    return new ObjectReaderImplMapString(mapType, instanceType, features);</span>
+                }
+
+<span class="fc" id="L112">                return new ObjectReaderImplMapTyped(mapType, instanceType, keyType, valueType, 0, builder);</span>
+            }
+        }
+
+<span class="pc bpc" id="L116" title="1 of 4 branches missed.">        if (fieldType == null &amp;&amp; features == 0) {</span>
+<span class="pc bpc" id="L117" title="1 of 4 branches missed.">            if (mapType == HashMap.class &amp;&amp; instanceType == HashMap.class) {</span>
+<span class="fc" id="L118">                return INSTANCE;</span>
+            }
+
+<span class="pc bpc" id="L121" title="1 of 4 branches missed.">            if (mapType == JSONObject.class &amp;&amp; instanceType == JSONObject.class) {</span>
+<span class="fc" id="L122">                return INSTANCE_OBJECT;</span>
+            }
+        }
+
+<span class="fc" id="L126">        String instanceTypeName = instanceType.getName();</span>
+<span class="pc bpc" id="L127" title="2 of 7 branches missed.">        switch (instanceTypeName) {</span>
+            case &quot;com.alibaba.fastjson.JSONObject&quot;:
+<span class="fc" id="L129">                builder = createObjectSupplier(instanceType);</span>
+//                instanceType = HashMap.class;//?为什么
+<span class="fc" id="L131">                break;</span>
+            case &quot;com.google.common.collect.RegularImmutableMap&quot;:
+<span class="nc" id="L133">                builder = GuavaSupport.immutableMapConverter();</span>
+<span class="nc" id="L134">                instanceType = HashMap.class;</span>
+<span class="nc" id="L135">                break;</span>
+            case &quot;com.google.common.collect.SingletonImmutableBiMap&quot;:
+<span class="nc" id="L137">                builder = GuavaSupport.singletonBiMapConverter();</span>
+<span class="nc" id="L138">                instanceType = HashMap.class;</span>
+<span class="nc" id="L139">                break;</span>
+            case &quot;com.google.common.collect.ArrayListMultimap&quot;:
+<span class="fc" id="L141">                builder = GuavaSupport.createConvertFunction(instanceType);</span>
+<span class="fc" id="L142">                instanceType = HashMap.class;</span>
+<span class="fc" id="L143">                break;</span>
+            case &quot;kotlin.collections.EmptyMap&quot;: {
+                Object mapSingleton;
+                try {
+<span class="fc" id="L147">                    Field field = instanceType.getField(&quot;INSTANCE&quot;);</span>
+<span class="pc bpc" id="L148" title="1 of 2 branches missed.">                    if (!field.isAccessible()) {</span>
+<span class="fc" id="L149">                        field.setAccessible(true);</span>
+                    }
+<span class="fc" id="L151">                    mapSingleton = field.get(null);</span>
+<span class="nc" id="L152">                } catch (NoSuchFieldException | IllegalAccessException e) {</span>
+<span class="nc" id="L153">                    throw new IllegalStateException(&quot;Failed to get singleton of &quot; + instanceType, e);</span>
+<span class="fc" id="L154">                }</span>
+<span class="fc" id="L155">                return new ObjectReaderImplMap(instanceType, features, mapSingleton);</span>
+            }
+            case &quot;java.util.Collections$EmptyMap&quot;: {
+<span class="fc" id="L158">                return new ObjectReaderImplMap(instanceType, features, Collections.EMPTY_MAP);</span>
+            }
+            default:
+<span class="fc" id="L161">                Type genericSuperclass = instanceType.getGenericSuperclass();</span>
+<span class="fc bfc" id="L162" title="All 4 branches covered.">                if (mapType != JSONObject.class &amp;&amp; genericSuperclass instanceof ParameterizedType) {</span>
+<span class="fc" id="L163">                    ParameterizedType parameterizedType = (ParameterizedType) genericSuperclass;</span>
+<span class="fc" id="L164">                    Type[] arguments = parameterizedType.getActualTypeArguments();</span>
+<span class="pc bpc" id="L165" title="1 of 2 branches missed.">                    if (arguments.length == 2) {</span>
+<span class="fc" id="L166">                        Type arg0 = arguments[0];</span>
+<span class="fc" id="L167">                        Type arg1 = arguments[1];</span>
+<span class="pc bpc" id="L168" title="1 of 4 branches missed.">                        boolean typed = !(arg0 instanceof TypeVariable || arg1 instanceof TypeVariable);</span>
+<span class="fc bfc" id="L169" title="All 2 branches covered.">                        if (typed) {</span>
+<span class="fc" id="L170">                            return new ObjectReaderImplMapTyped(mapType, instanceType, arg0, arg1, 0, builder);</span>
+                        }
+                    }
+                }
+
+<span class="fc bfc" id="L175" title="All 2 branches covered.">                if (instanceType == JSONObject1O.class) {</span>
+<span class="fc" id="L176">                    builder = createObjectSupplier(CLASS_JSON_OBJECT_1x);</span>
+<span class="fc" id="L177">                    instanceType = LinkedHashMap.class;</span>
+<span class="fc bfc" id="L178" title="All 2 branches covered.">                } else if (mapType == CLASS_UNMODIFIABLE_MAP) {</span>
+<span class="fc" id="L179">                    builder = (Function&lt;Map, Map&gt;) Collections::unmodifiableMap;</span>
+<span class="fc bfc" id="L180" title="All 2 branches covered.">                } else if (mapType == CLASS_UNMODIFIABLE_SORTED_MAP) {</span>
+<span class="fc" id="L181">                    builder = (Function&lt;SortedMap, SortedMap&gt;) Collections::unmodifiableSortedMap;</span>
+<span class="fc bfc" id="L182" title="All 2 branches covered.">                } else if (mapType == CLASS_UNMODIFIABLE_NAVIGABLE_MAP) {</span>
+<span class="fc" id="L183">                    builder = (Function&lt;NavigableMap, NavigableMap&gt;) Collections::unmodifiableNavigableMap;</span>
+<span class="fc bfc" id="L184" title="All 2 branches covered.">                } else if (mapType == CLASS_SINGLETON_MAP) {</span>
+<span class="fc" id="L185">                    builder = (Function&lt;Map, Map&gt;) (Map map) -&gt; {</span>
+<span class="fc" id="L186">                        Map.Entry entry = (Map.Entry) map.entrySet().iterator().next();</span>
+<span class="fc" id="L187">                        return Collections.singletonMap(entry.getKey(), entry.getValue());</span>
+                    };
+<span class="fc bfc" id="L189" title="All 2 branches covered.">                } else if (mapType == EnumMap.class) {</span>
+<span class="fc" id="L190">                    instanceType = LinkedHashMap.class;</span>
+<span class="fc" id="L191">                    builder = ENUM_MAP_BUILDER;</span>
+                }
+        }
+
+<span class="fc" id="L195">        return new ObjectReaderImplMap(fieldType, mapType, instanceType, features, builder);</span>
+    }
+
+    ObjectReaderImplMap(Class mapClass, long features, Object mapSingleton) {
+<span class="fc" id="L199">        this(mapClass, mapClass, mapClass, features, null);</span>
+<span class="fc" id="L200">        this.mapSingleton = mapSingleton;</span>
+<span class="fc" id="L201">    }</span>
+
+<span class="fc" id="L203">    ObjectReaderImplMap(Type fieldType, Class mapType, Class instanceType, long features, Function builder) {</span>
+<span class="fc" id="L204">        this.fieldType = fieldType;</span>
+<span class="fc" id="L205">        this.mapType = mapType;</span>
+<span class="fc" id="L206">        this.mapTypeHash = Fnv.hashCode64(TypeUtils.getTypeName(mapType));</span>
+<span class="fc" id="L207">        this.instanceType = instanceType;</span>
+<span class="fc" id="L208">        this.features = features;</span>
+<span class="fc" id="L209">        this.builder = builder;</span>
+<span class="fc" id="L210">    }</span>
+
+    @Override
+    public Class getObjectClass() {
+<span class="fc" id="L214">        return mapType;</span>
+    }
+
+    @Override
+    public Function getBuildFunction() {
+<span class="fc" id="L219">        return builder;</span>
+    }
+
+    @Override
+    public Object createInstance(long features) {
+<span class="fc bfc" id="L224" title="All 2 branches covered.">        if (instanceType == HashMap.class) {</span>
+<span class="fc" id="L225">            return new HashMap&lt;&gt;();</span>
+        }
+
+<span class="fc bfc" id="L228" title="All 2 branches covered.">        if (instanceType == LinkedHashMap.class) {</span>
+<span class="fc" id="L229">            return new LinkedHashMap&lt;&gt;();</span>
+        }
+
+<span class="fc bfc" id="L232" title="All 2 branches covered.">        if (instanceType == JSONObject.class) {</span>
+<span class="fc" id="L233">            return new JSONObject();</span>
+        }
+
+<span class="fc bfc" id="L236" title="All 2 branches covered.">        if (mapSingleton != null) {</span>
+<span class="fc" id="L237">            return mapSingleton;</span>
+        }
+
+<span class="fc bfc" id="L240" title="All 2 branches covered.">        if (instanceType == CLASS_EMPTY_SORTED_MAP) {</span>
+<span class="fc" id="L241">            return Collections.emptySortedMap();</span>
+        }
+
+<span class="pc bpc" id="L244" title="1 of 2 branches missed.">        if (instanceType == CLASS_EMPTY_NAVIGABLE_MAP) {</span>
+<span class="nc" id="L245">            return Collections.emptyNavigableMap();</span>
+        }
+
+<span class="fc" id="L248">        String instanceTypeName = instanceType.getName();</span>
+<span class="pc bpc" id="L249" title="3 of 4 branches missed.">        switch (instanceTypeName) {</span>
+            case &quot;com.ali.com.google.common.collect.EmptyImmutableBiMap&quot;:
+                try {
+<span class="nc" id="L252">                    return UNSAFE.allocateInstance(instanceType);</span>
+<span class="nc" id="L253">                } catch (InstantiationException e) {</span>
+<span class="nc" id="L254">                    throw new JSONException(&quot;create map error : &quot; + instanceType);</span>
+                }
+            case &quot;java.util.ImmutableCollections$Map1&quot;:
+<span class="nc" id="L257">                return new HashMap&lt;&gt;();</span>
+            case &quot;java.util.ImmutableCollections$MapN&quot;:
+<span class="nc" id="L259">                return new LinkedHashMap&lt;&gt;();</span>
+            default:
+                break;
+        }
+
+        try {
+<span class="fc" id="L265">            return instanceType.newInstance();</span>
+<span class="nc" id="L266">        } catch (InstantiationException | IllegalAccessException e) {</span>
+<span class="nc" id="L267">            throw new JSONException(&quot;create map error : &quot; + instanceType);</span>
+        }
+    }
+
+    @Override
+    public Object createInstance(Map map, long features) {
+<span class="fc bfc" id="L273" title="All 2 branches covered.">        if (mapType.isInstance(map)) {</span>
+<span class="fc" id="L274">            return map;</span>
+        }
+
+<span class="fc bfc" id="L277" title="All 2 branches covered.">        if (mapType == JSONObject.class) {</span>
+<span class="fc" id="L278">            return new JSONObject(map);</span>
+        }
+
+<span class="fc" id="L281">        Map instance = (Map) this.createInstance(features);</span>
+<span class="fc" id="L282">        instance.putAll(map);</span>
+
+<span class="pc bpc" id="L284" title="1 of 2 branches missed.">        if (builder != null) {</span>
+<span class="fc" id="L285">            return builder.apply(instance);</span>
+        }
+
+<span class="nc" id="L288">        return instance;</span>
+    }
+
+    @Override
+    public Object readJSONBObject(JSONReader jsonReader, Type fieldType, Object fieldName1, long features) {
+<span class="fc" id="L293">        ObjectReader objectReader = jsonReader.checkAutoType(mapType, mapTypeHash, this.features | features);</span>
+<span class="fc bfc" id="L294" title="All 4 branches covered.">        if (objectReader != null &amp;&amp; objectReader != this) {</span>
+<span class="fc" id="L295">            return objectReader.readJSONBObject(jsonReader, fieldType, fieldName1, features);</span>
+        }
+
+<span class="fc bfc" id="L298" title="All 2 branches covered.">        if (jsonReader.nextIfNull()) {</span>
+<span class="fc" id="L299">            return null;</span>
+        }
+
+<span class="fc" id="L302">        boolean emptyObject = false;</span>
+<span class="fc" id="L303">        jsonReader.nextIfMatch(BC_OBJECT);</span>
+
+<span class="fc" id="L305">        Supplier&lt;Map&gt; objectSupplier = jsonReader.getContext().getObjectSupplier();</span>
+<span class="fc" id="L306">        long contextFeatures = features | jsonReader.features(features);</span>
+
+<span class="fc" id="L308">        Map map = null;</span>
+<span class="pc bpc" id="L309" title="3 of 4 branches missed.">        if (mapType == null &amp;&amp; objectSupplier != null) {</span>
+<span class="nc" id="L310">            map = objectSupplier.get();</span>
+        } else {
+<span class="fc bfc" id="L312" title="All 2 branches covered.">            if (instanceType == HashMap.class) {</span>
+<span class="fc" id="L313">                map = new HashMap&lt;&gt;();</span>
+<span class="fc bfc" id="L314" title="All 2 branches covered.">            } else if (instanceType == LinkedHashMap.class) {</span>
+<span class="fc" id="L315">                map = new LinkedHashMap&lt;&gt;();</span>
+<span class="fc bfc" id="L316" title="All 2 branches covered.">            } else if (instanceType == JSONObject.class) {</span>
+<span class="fc" id="L317">                map = new JSONObject();</span>
+<span class="fc bfc" id="L318" title="All 2 branches covered.">            } else if (instanceType == CLASS_EMPTY_MAP) {</span>
+<span class="fc" id="L319">                map = Collections.EMPTY_MAP;</span>
+            } else {
+<span class="fc" id="L321">                JSONException error = null;</span>
+
+<span class="pc bpc" id="L323" title="1 of 2 branches missed.">                if (!instanceError) {</span>
+                    try {
+<span class="fc" id="L325">                        map = (Map) instanceType.newInstance();</span>
+<span class="nc" id="L326">                    } catch (InstantiationException | IllegalAccessException e) {</span>
+<span class="nc" id="L327">                        instanceError = true;</span>
+<span class="nc" id="L328">                        error = new JSONException(jsonReader.info(&quot;create map error &quot; + instanceType));</span>
+<span class="fc" id="L329">                    }</span>
+                }
+
+<span class="pc bpc" id="L332" title="3 of 4 branches missed.">                if (instanceError &amp;&amp; Map.class.isAssignableFrom(instanceType.getSuperclass())) {</span>
+                    try {
+<span class="nc" id="L334">                        map = (Map) instanceType.getSuperclass().newInstance();</span>
+<span class="nc" id="L335">                        error = null;</span>
+<span class="nc" id="L336">                    } catch (InstantiationException | IllegalAccessException e) {</span>
+<span class="nc bnc" id="L337" title="All 2 branches missed.">                        if (error == null) {</span>
+<span class="nc" id="L338">                            error = new JSONException(jsonReader.info(&quot;create map error &quot; + instanceType));</span>
+                        }
+<span class="nc" id="L340">                    }</span>
+                }
+
+<span class="pc bpc" id="L343" title="1 of 2 branches missed.">                if (error != null) {</span>
+<span class="nc" id="L344">                    throw error;</span>
+                }
+            }
+        }
+
+<span class="pc bpc" id="L349" title="1 of 2 branches missed.">        if (!emptyObject) {</span>
+<span class="fc" id="L350">            for (int i = 0; ; ++i) {</span>
+<span class="fc" id="L351">                byte type = jsonReader.getType();</span>
+<span class="fc bfc" id="L352" title="All 2 branches covered.">                if (type == BC_OBJECT_END) {</span>
+<span class="fc" id="L353">                    jsonReader.next();</span>
+<span class="fc" id="L354">                    break;</span>
+                }
+
+                Object fieldName;
+<span class="fc bfc" id="L358" title="All 2 branches covered.">                if (type &gt;= BC_STR_ASCII_FIX_MIN) {</span>
+<span class="fc" id="L359">                    fieldName = jsonReader.readFieldName();</span>
+<span class="fc bfc" id="L360" title="All 2 branches covered.">                } else if (jsonReader.nextIfMatch(BC_REFERENCE)) {</span>
+<span class="fc" id="L361">                    String reference = jsonReader.readString();</span>
+<span class="fc" id="L362">                    fieldName = new ReferenceKey(i);</span>
+<span class="fc" id="L363">                    jsonReader.addResolveTask(map, fieldName, JSONPath.of(reference));</span>
+<span class="fc" id="L364">                } else {</span>
+<span class="fc" id="L365">                    fieldName = jsonReader.readAny();</span>
+                }
+
+<span class="fc bfc" id="L368" title="All 2 branches covered.">                if (jsonReader.isReference()) {</span>
+<span class="fc" id="L369">                    String reference = jsonReader.readReference();</span>
+<span class="fc bfc" id="L370" title="All 2 branches covered.">                    if (&quot;..&quot;.equals(reference)) {</span>
+<span class="fc" id="L371">                        map.put(fieldName, map);</span>
+                    } else {
+<span class="fc" id="L373">                        jsonReader.addResolveTask(map, fieldName, JSONPath.of(reference));</span>
+<span class="fc" id="L374">                        map.put(fieldName, null);</span>
+                    }
+<span class="fc" id="L376">                    continue;</span>
+                }
+
+                Object value;
+<span class="fc" id="L380">                type = jsonReader.getType();</span>
+<span class="fc bfc" id="L381" title="All 4 branches covered.">                if (type &gt;= BC_STR_ASCII_FIX_MIN &amp;&amp; type &lt;= BC_STR_UTF16BE) {</span>
+<span class="fc" id="L382">                    value = jsonReader.readString();</span>
+<span class="fc bfc" id="L383" title="All 2 branches covered.">                } else if (type == BC_TYPED_ANY) {</span>
+<span class="fc" id="L384">                    ObjectReader autoTypeObjectReader = jsonReader.checkAutoType(Object.class, 0, this.features | features);</span>
+<span class="pc bpc" id="L385" title="1 of 2 branches missed.">                    if (autoTypeObjectReader != null) {</span>
+<span class="fc" id="L386">                        value = autoTypeObjectReader.readJSONBObject(jsonReader, null, fieldName, features);</span>
+                    } else {
+<span class="nc" id="L388">                        value = jsonReader.readAny();</span>
+                    }
+<span class="fc bfc" id="L390" title="All 2 branches covered.">                } else if (type == BC_TRUE) {</span>
+<span class="fc" id="L391">                    value = Boolean.TRUE;</span>
+<span class="fc" id="L392">                    jsonReader.next();</span>
+<span class="fc bfc" id="L393" title="All 2 branches covered.">                } else if (type == BC_FALSE) {</span>
+<span class="fc" id="L394">                    value = Boolean.FALSE;</span>
+<span class="fc" id="L395">                    jsonReader.next();</span>
+<span class="pc bpc" id="L396" title="1 of 2 branches missed.">                } else if (type == BC_REFERENCE) {</span>
+<span class="nc" id="L397">                    String reference = jsonReader.readReference();</span>
+<span class="nc bnc" id="L398" title="All 2 branches missed.">                    if (&quot;..&quot;.equals(reference)) {</span>
+<span class="nc" id="L399">                        value = map;</span>
+                    } else {
+<span class="nc" id="L401">                        value = null;</span>
+<span class="nc" id="L402">                        jsonReader.addResolveTask(map, fieldName, JSONPath.of(reference));</span>
+                    }
+<span class="pc bpc" id="L404" title="1 of 2 branches missed.">                } else if (type == BC_OBJECT) {</span>
+<span class="nc" id="L405">                    value = jsonReader.readObject();</span>
+<span class="pc bpc" id="L406" title="1 of 4 branches missed.">                } else if (type &gt;= BC_ARRAY_FIX_MIN &amp;&amp; type &lt;= BC_ARRAY) {</span>
+<span class="fc" id="L407">                    value = jsonReader.readArray();</span>
+                } else {
+<span class="fc" id="L409">                    value = jsonReader.readAny();</span>
+                }
+
+<span class="pc bpc" id="L412" title="1 of 4 branches missed.">                if (value == null &amp;&amp; (contextFeatures &amp; JSONReader.Feature.IgnoreNullPropertyValue.mask) != 0) {</span>
+<span class="nc" id="L413">                    continue;</span>
+                }
+
+<span class="fc" id="L416">                map.put(fieldName, value);</span>
+            }
+        }
+
+<span class="fc bfc" id="L420" title="All 2 branches covered.">        if (builder != null) {</span>
+<span class="fc" id="L421">            return builder.apply(map);</span>
+        }
+<span class="fc" id="L423">        return map;</span>
+    }
+
+    @Override
+    public Object readObject(JSONReader jsonReader, Type fieldType, Object fieldName, long features) {
+<span class="pc bpc" id="L428" title="1 of 2 branches missed.">        if (jsonReader.jsonb) {</span>
+<span class="nc" id="L429">            return readJSONBObject(jsonReader, fieldType, fieldName, features);</span>
+        }
+
+<span class="fc bfc" id="L432" title="All 2 branches covered.">        if (jsonReader.nextIfNull()) {</span>
+<span class="fc" id="L433">            return null;</span>
+        }
+
+<span class="fc" id="L436">        JSONReader.Context context = jsonReader.getContext();</span>
+<span class="fc" id="L437">        Supplier&lt;Map&gt; objectSupplier = jsonReader.getContext().getObjectSupplier();</span>
+        Map object;
+<span class="pc bpc" id="L439" title="3 of 8 branches missed.">        if (objectSupplier != null &amp;&amp; (mapType == null || mapType == JSONObject.class || &quot;com.alibaba.fastjson.JSONObject&quot;.equals(mapType.getName()))) {</span>
+<span class="nc" id="L440">            object = objectSupplier.get();</span>
+        } else {
+<span class="fc" id="L442">            object = (Map) createInstance(context.getFeatures() | features);</span>
+        }
+
+<span class="fc bfc" id="L445" title="All 4 branches covered.">        if (jsonReader.isString() &amp;&amp; !jsonReader.isTypeRedirect()) {</span>
+<span class="fc" id="L446">            String str = jsonReader.readString();</span>
+<span class="fc bfc" id="L447" title="All 2 branches covered.">            if (!str.isEmpty()) {</span>
+<span class="fc" id="L448">                try (JSONReader strReader = JSONReader.of(str, jsonReader.getContext())) {</span>
+<span class="fc" id="L449">                    strReader.read(object, features);</span>
+                }
+            }
+<span class="fc" id="L452">        } else {</span>
+<span class="fc" id="L453">            jsonReader.read(object, features);</span>
+        }
+
+<span class="fc" id="L456">        jsonReader.nextIfComma();</span>
+
+<span class="fc bfc" id="L458" title="All 2 branches covered.">        if (builder != null) {</span>
+<span class="fc" id="L459">            return builder.apply(object);</span>
+        }
+
+<span class="fc" id="L462">        return object;</span>
+    }
+
+    static Function createObjectSupplier(Class objectClass) {
+<span class="fc bfc" id="L466" title="All 2 branches covered.">        if (UNSAFE_OBJECT_CREATOR != null) {</span>
+<span class="fc" id="L467">            return UNSAFE_OBJECT_CREATOR;</span>
+        }
+<span class="fc" id="L469">        return UNSAFE_OBJECT_CREATOR = new ObjectCreatorUF(objectClass);</span>
+    }
+
+    static class ObjectCreatorUF
+            implements Function {
+        final Class objectClass;
+        final Field map;
+        final long mapOffset;
+
+<span class="fc" id="L478">        ObjectCreatorUF(Class objectClass) {</span>
+<span class="fc" id="L479">            this.objectClass = objectClass;</span>
+            try {
+<span class="fc" id="L481">                map = objectClass.getDeclaredField(&quot;map&quot;);</span>
+<span class="nc" id="L482">            } catch (NoSuchFieldException e) {</span>
+<span class="nc" id="L483">                throw new JSONException(&quot;field map not found&quot;, e);</span>
+<span class="fc" id="L484">            }</span>
+<span class="fc" id="L485">            mapOffset = UNSAFE.objectFieldOffset(map);</span>
+<span class="fc" id="L486">        }</span>
+
+        @Override
+        public Object apply(Object map) {
+<span class="pc bpc" id="L490" title="1 of 2 branches missed.">            if (map == null) {</span>
+<span class="nc" id="L491">                map = new HashMap&lt;&gt;();</span>
+            }
+
+            Object object;
+            try {
+<span class="fc" id="L496">                object = UNSAFE.allocateInstance(objectClass);</span>
+<span class="fc" id="L497">                UNSAFE.putObject(object, mapOffset, map);</span>
+<span class="nc" id="L498">            } catch (InstantiationException e) {</span>
+<span class="nc" id="L499">                throw new JSONException(&quot;create &quot; + objectClass.getName() + &quot; error&quot;, e);</span>
+<span class="fc" id="L500">            }</span>
+<span class="fc" id="L501">            return object;</span>
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.8.202204050719</span></div></body></html>

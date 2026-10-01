@@ -1,0 +1,2998 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>BeanUtils.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">fastjson2</a> &gt; <a href="index.source.html" class="el_package">com.alibaba.fastjson2.util</a> &gt; <span class="el_source">BeanUtils.java</span></div><h1>BeanUtils.java</h1><pre class="source lang-java linenums">package com.alibaba.fastjson2.util;
+
+import com.alibaba.fastjson2.*;
+import com.alibaba.fastjson2.annotation.JSONField;
+import com.alibaba.fastjson2.annotation.JSONType;
+import com.alibaba.fastjson2.codec.BeanInfo;
+import com.alibaba.fastjson2.codec.FieldInfo;
+import com.alibaba.fastjson2.modules.ObjectCodecProvider;
+import com.alibaba.fastjson2.reader.ObjectReader;
+import com.alibaba.fastjson2.writer.ObjectWriter;
+
+import java.io.Serializable;
+import java.lang.annotation.Annotation;
+import java.lang.annotation.Inherited;
+import java.lang.reflect.*;
+import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.atomic.*;
+import java.util.function.Consumer;
+
+import static com.alibaba.fastjson2.util.JDKUtils.ANDROID_SDK_INT;
+import static com.alibaba.fastjson2.util.JDKUtils.JVM_VERSION;
+
+/**
+ * @author Bob Lee
+ * @author Jesse Wilson
+ * @author Shaojin Wen
+ */
+<span class="nc" id="L30">public abstract class BeanUtils {</span>
+<span class="fc" id="L31">    static final Type[] EMPTY_TYPE_ARRAY = new Type[]{};</span>
+
+<span class="fc" id="L33">    static final ConcurrentMap&lt;Class, Field[]&gt; fieldCache = new ConcurrentHashMap&lt;&gt;();</span>
+<span class="fc" id="L34">    static final ConcurrentMap&lt;Class, Map&lt;String, Field&gt;&gt; fieldMapCache = new ConcurrentHashMap&lt;&gt;();</span>
+<span class="fc" id="L35">    static final ConcurrentMap&lt;Class, Field[]&gt; declaredFieldCache = new ConcurrentHashMap&lt;&gt;();</span>
+<span class="fc" id="L36">    static final ConcurrentMap&lt;Class, Method[]&gt; methodCache = new ConcurrentHashMap&lt;&gt;();</span>
+<span class="fc" id="L37">    static final ConcurrentMap&lt;Class, Constructor[]&gt; constructorCache = new ConcurrentHashMap&lt;&gt;();</span>
+
+    private static volatile Class RECORD_CLASS;
+    private static volatile Method RECORD_GET_RECORD_COMPONENTS;
+    private static volatile Method RECORD_COMPONENT_GET_NAME;
+
+    public static final String SUPER = &quot;$super$&quot;;
+
+    // com.alibaba.fastjson2.util.BeanUtilsTest.buildIgnores
+<span class="fc" id="L46">    static final long[] IGNORE_CLASS_HASH_CODES = {</span>
+            -9214723784238596577L,
+            -9030616758866828325L,
+            -8335274122997354104L,
+            -6963030519018899258L,
+            -4863137578837233966L,
+            -3653547262287832698L,
+            -2819277587813726773L,
+            -2669552864532011468L,
+            -2458634727370886912L,
+            -2291619803571459675L,
+            -1811306045128064037L,
+            -864440709753525476L,
+            -779604756358333743L,
+            8731803887940231L,
+            1616814008855344660L,
+            2164749833121980361L,
+            2688642392827789427L,
+            3724195282986200606L,
+            3742915795806478647L,
+            3977020351318456359L,
+            4882459834864833642L,
+            6033839080488254886L,
+            7981148566008458638L,
+            8344106065386396833L
+    };
+
+    public static String[] getRecordFieldNames(Class&lt;?&gt; recordType) {
+<span class="pc bpc" id="L74" title="2 of 4 branches missed.">        if (JVM_VERSION &lt; 14 &amp;&amp; ANDROID_SDK_INT &lt; 33) {</span>
+<span class="fc" id="L75">            return new String[0];</span>
+        }
+
+        try {
+<span class="nc bnc" id="L79" title="All 2 branches missed.">            if (RECORD_GET_RECORD_COMPONENTS == null) {</span>
+<span class="nc" id="L80">                RECORD_GET_RECORD_COMPONENTS = Class.class.getMethod(&quot;getRecordComponents&quot;);</span>
+            }
+
+<span class="nc bnc" id="L83" title="All 2 branches missed.">            if (RECORD_COMPONENT_GET_NAME == null) {</span>
+<span class="nc" id="L84">                Class&lt;?&gt; c = Class.forName(&quot;java.lang.reflect.RecordComponent&quot;);</span>
+<span class="nc" id="L85">                RECORD_COMPONENT_GET_NAME = c.getMethod(&quot;getName&quot;);</span>
+            }
+
+<span class="nc" id="L88">            final Object[] components = (Object[]) RECORD_GET_RECORD_COMPONENTS.invoke(recordType);</span>
+<span class="nc" id="L89">            final String[] names = new String[components.length];</span>
+<span class="nc bnc" id="L90" title="All 2 branches missed.">            for (int i = 0; i &lt; components.length; i++) {</span>
+<span class="nc" id="L91">                names[i] = (String) RECORD_COMPONENT_GET_NAME.invoke(components[i]);</span>
+            }
+
+<span class="nc" id="L94">            return names;</span>
+<span class="nc" id="L95">        } catch (Exception e) {</span>
+<span class="nc" id="L96">            throw new RuntimeException(String.format(</span>
+                    &quot;Failed to access Methods needed to support `java.lang.Record`: (%s) %s&quot;,
+<span class="nc" id="L98">                    e.getClass().getName(), e.getMessage()), e);</span>
+        }
+    }
+
+    public static void fields(Class objectClass, Consumer&lt;Field&gt; fieldReaders) {
+<span class="pc bpc" id="L103" title="1 of 2 branches missed.">        if (TypeUtils.isProxy(objectClass)) {</span>
+<span class="nc" id="L104">            Class superclass = objectClass.getSuperclass();</span>
+<span class="nc" id="L105">            fields(superclass, fieldReaders);</span>
+<span class="nc" id="L106">            return;</span>
+        }
+
+<span class="fc" id="L109">        Field[] fields = fieldCache.get(objectClass);</span>
+<span class="fc bfc" id="L110" title="All 2 branches covered.">        if (fields == null) {</span>
+<span class="fc" id="L111">            fields = objectClass.getFields();</span>
+<span class="fc" id="L112">            fieldCache.putIfAbsent(objectClass, fields);</span>
+        }
+
+<span class="fc" id="L115">        boolean enumClass = Enum.class.isAssignableFrom(objectClass);</span>
+<span class="fc bfc" id="L116" title="All 2 branches covered.">        for (Field field : fields) {</span>
+<span class="fc" id="L117">            int modifiers = field.getModifiers();</span>
+<span class="pc bpc" id="L118" title="1 of 4 branches missed.">            if (Modifier.isStatic(modifiers) &amp;&amp; !enumClass) {</span>
+<span class="nc" id="L119">                continue;</span>
+            }
+
+<span class="fc" id="L122">            fieldReaders.accept(field);</span>
+        }
+<span class="fc" id="L124">    }</span>
+
+    public static Method getMethod(Class objectClass, String methodName) {
+<span class="fc" id="L127">        Method[] methods = methodCache.get(objectClass);</span>
+<span class="fc bfc" id="L128" title="All 2 branches covered.">        if (methods == null) {</span>
+<span class="fc" id="L129">            methods = getMethods(objectClass);</span>
+<span class="fc" id="L130">            methodCache.putIfAbsent(objectClass, methods);</span>
+        }
+
+<span class="pc bpc" id="L133" title="1 of 2 branches missed.">        for (Method method : methods) {</span>
+<span class="fc bfc" id="L134" title="All 2 branches covered.">            if (method.getName().equals(methodName)) {</span>
+<span class="fc" id="L135">                return method;</span>
+            }
+        }
+
+<span class="nc" id="L139">        return null;</span>
+    }
+
+    public static Method fluentSetter(Class objectClass, String methodName, Class paramType) {
+<span class="fc" id="L143">        Method[] methods = methodCache.get(objectClass);</span>
+<span class="pc bpc" id="L144" title="1 of 2 branches missed.">        if (methods == null) {</span>
+<span class="nc" id="L145">            methods = getMethods(objectClass);</span>
+<span class="nc" id="L146">            methodCache.putIfAbsent(objectClass, methods);</span>
+        }
+
+<span class="fc bfc" id="L149" title="All 2 branches covered.">        for (Method method : methods) {</span>
+<span class="fc bfc" id="L150" title="All 2 branches covered.">            if (method.getName().equals(methodName)</span>
+<span class="fc bfc" id="L151" title="All 2 branches covered.">                    &amp;&amp; method.getReturnType() == objectClass</span>
+<span class="fc bfc" id="L152" title="All 2 branches covered.">                    &amp;&amp; method.getParameterCount() == 1</span>
+<span class="pc bpc" id="L153" title="1 of 2 branches missed.">                    &amp;&amp; method.getParameterTypes()[0] == paramType</span>
+            ) {
+<span class="fc" id="L155">                return method;</span>
+            }
+        }
+
+<span class="fc" id="L159">        return null;</span>
+    }
+
+    public static Method getMethod(Class objectClass, Method signature) {
+<span class="fc bfc" id="L163" title="All 6 branches covered.">        if (objectClass == null</span>
+                || objectClass == Object.class
+                || objectClass == Serializable.class
+        ) {
+<span class="fc" id="L167">            return null;</span>
+        }
+
+<span class="fc" id="L170">        Method[] methods = methodCache.get(objectClass);</span>
+<span class="fc bfc" id="L171" title="All 2 branches covered.">        if (methods == null) {</span>
+<span class="fc" id="L172">            methods = getMethods(objectClass);</span>
+<span class="fc" id="L173">            methodCache.putIfAbsent(objectClass, methods);</span>
+        }
+
+<span class="fc bfc" id="L176" title="All 2 branches covered.">        for (Method method : methods) {</span>
+<span class="fc bfc" id="L177" title="All 2 branches covered.">            if (!method.getName().equals(signature.getName())) {</span>
+<span class="fc" id="L178">                continue;</span>
+            }
+<span class="pc bpc" id="L180" title="1 of 2 branches missed.">            if (method.getParameterCount() != signature.getParameterCount()) {</span>
+<span class="nc" id="L181">                continue;</span>
+            }
+<span class="fc" id="L183">            Class&lt;?&gt;[] parameterTypes0 = method.getParameterTypes();</span>
+<span class="fc" id="L184">            Class&lt;?&gt;[] parameterTypes1 = signature.getParameterTypes();</span>
+<span class="fc" id="L185">            boolean paramMatch = true;</span>
+<span class="fc bfc" id="L186" title="All 2 branches covered.">            for (int i = 0; i &lt; parameterTypes0.length; i++) {</span>
+<span class="fc bfc" id="L187" title="All 2 branches covered.">                if (!parameterTypes0[i].equals(parameterTypes1[i])) {</span>
+<span class="fc" id="L188">                    paramMatch = false;</span>
+<span class="fc" id="L189">                    break;</span>
+                }
+            }
+<span class="fc bfc" id="L192" title="All 2 branches covered.">            if (paramMatch) {</span>
+<span class="fc" id="L193">                return method;</span>
+            }
+        }
+
+<span class="fc" id="L197">        return null;</span>
+    }
+
+    public static Field getDeclaredField(Class objectClass, String fieldName) {
+<span class="fc" id="L201">        Map&lt;String, Field&gt; fieldMap = fieldMapCache.get(objectClass);</span>
+<span class="fc bfc" id="L202" title="All 2 branches covered.">        if (fieldMap == null) {</span>
+<span class="fc" id="L203">            Map&lt;String, Field&gt; map = new HashMap&lt;&gt;();</span>
+<span class="fc" id="L204">            declaredFields(objectClass, field -&gt; map.put(field.getName(), field));</span>
+
+<span class="fc" id="L206">            fieldMapCache.putIfAbsent(objectClass, map);</span>
+<span class="fc" id="L207">            fieldMap = fieldMapCache.get(objectClass);</span>
+        }
+
+<span class="fc" id="L210">        return fieldMap.get(fieldName);</span>
+    }
+
+    public static Method getSetter(Class objectClass, String methodName) {
+<span class="nc" id="L214">        Method[] methods = new Method[1];</span>
+<span class="nc" id="L215">        setters(objectClass, e -&gt; {</span>
+<span class="nc bnc" id="L216" title="All 2 branches missed.">            if (!methodName.equals(e.getName())) {</span>
+<span class="nc" id="L217">                return;</span>
+            }
+
+<span class="nc" id="L220">            methods[0] = e;</span>
+<span class="nc" id="L221">        });</span>
+<span class="nc" id="L222">        return methods[0];</span>
+    }
+
+    /**
+     * ignore static fields
+     */
+    public static void declaredFields(Class objectClass, Consumer&lt;Field&gt; fieldConsumer) {
+<span class="fc bfc" id="L229" title="All 4 branches covered.">        if (objectClass == null || fieldConsumer == null) {</span>
+<span class="fc" id="L230">            return;</span>
+        }
+
+<span class="fc bfc" id="L233" title="All 6 branches covered.">        if (ignore(objectClass) || objectClass.getName().contains(&quot;$$Lambda&quot;) || JdbcSupport.isStruct(objectClass)) {</span>
+<span class="fc" id="L234">            return;</span>
+        }
+
+<span class="pc bpc" id="L237" title="1 of 2 branches missed.">        if (TypeUtils.isProxy(objectClass)) {</span>
+<span class="nc" id="L238">            Class superclass = objectClass.getSuperclass();</span>
+<span class="nc" id="L239">            declaredFields(superclass, fieldConsumer);</span>
+<span class="nc" id="L240">            return;</span>
+        }
+
+<span class="fc" id="L243">        Class superClass = objectClass.getSuperclass();</span>
+
+<span class="fc" id="L245">        boolean protobufMessageV3 = false;</span>
+<span class="fc bfc" id="L246" title="All 4 branches covered.">        if (superClass != null</span>
+                &amp;&amp; superClass != Object.class
+        ) {
+<span class="fc" id="L249">            protobufMessageV3 = &quot;com.google.protobuf.GeneratedMessageV3&quot;.equals(superClass.getName());</span>
+<span class="fc bfc" id="L250" title="All 2 branches covered.">            if (!protobufMessageV3) {</span>
+<span class="fc" id="L251">                declaredFields(superClass, fieldConsumer);</span>
+            }
+        }
+
+<span class="fc" id="L255">        Field[] fields = declaredFieldCache.get(objectClass);</span>
+<span class="fc bfc" id="L256" title="All 2 branches covered.">        if (fields == null) {</span>
+            Field[] declaredFields;
+            try {
+<span class="fc" id="L259">                declaredFields = objectClass.getDeclaredFields();</span>
+<span class="fc" id="L260">                declaredFieldCache.put(objectClass, declaredFields);</span>
+<span class="nc" id="L261">            } catch (Throwable ignored) {</span>
+<span class="nc" id="L262">                declaredFields = new Field[0];</span>
+<span class="fc" id="L263">            }</span>
+
+<span class="fc" id="L265">            boolean allMatch = true;</span>
+<span class="fc bfc" id="L266" title="All 2 branches covered.">            for (Field field : declaredFields) {</span>
+<span class="fc" id="L267">                int modifiers = field.getModifiers();</span>
+<span class="fc bfc" id="L268" title="All 2 branches covered.">                if (Modifier.isStatic(modifiers)) {</span>
+<span class="fc" id="L269">                    allMatch = false;</span>
+<span class="fc" id="L270">                    break;</span>
+                }
+            }
+
+<span class="fc bfc" id="L274" title="All 2 branches covered.">            if (allMatch) {</span>
+<span class="fc" id="L275">                fields = declaredFields;</span>
+            } else {
+<span class="fc" id="L277">                boolean isEnum = Enum.class.isAssignableFrom(objectClass);</span>
+<span class="fc" id="L278">                List&lt;Field&gt; list = new ArrayList&lt;&gt;(declaredFields.length);</span>
+<span class="fc bfc" id="L279" title="All 2 branches covered.">                for (Field field : declaredFields) {</span>
+<span class="fc bfc" id="L280" title="All 4 branches covered.">                    if (!isEnum &amp;&amp; Modifier.isStatic(field.getModifiers())) {</span>
+<span class="fc" id="L281">                        continue;</span>
+                    }
+<span class="fc" id="L283">                    list.add(field);</span>
+                }
+<span class="fc" id="L285">                fields = list.toArray(new Field[list.size()]);</span>
+            }
+
+<span class="fc" id="L288">            fieldCache.putIfAbsent(objectClass, fields);</span>
+        }
+
+<span class="fc bfc" id="L291" title="All 2 branches covered.">        for (Field field : fields) {</span>
+<span class="fc" id="L292">            int modifiers = field.getModifiers();</span>
+<span class="fc" id="L293">            Class&lt;?&gt; fieldClass = field.getType();</span>
+<span class="fc bfc" id="L294" title="All 2 branches covered.">            if ((modifiers &amp; Modifier.STATIC) != 0) {</span>
+<span class="fc" id="L295">                continue;</span>
+            }
+
+<span class="fc bfc" id="L298" title="All 2 branches covered.">            if (BeanUtils.ignore(fieldClass)) {</span>
+<span class="fc" id="L299">                continue;</span>
+            }
+
+<span class="fc bfc" id="L302" title="All 2 branches covered.">            if (protobufMessageV3) {</span>
+<span class="fc" id="L303">                String fieldName = field.getName();</span>
+<span class="fc bfc" id="L304" title="All 2 branches covered.">                if (&quot;cardsmap_&quot;.equals(fieldName)</span>
+<span class="pc bpc" id="L305" title="1 of 2 branches missed.">                        &amp;&amp; &quot;com.google.protobuf.MapField&quot;.equals(fieldClass.getName())) {</span>
+<span class="fc" id="L306">                    return;</span>
+                }
+            }
+
+<span class="fc" id="L310">            Class&lt;?&gt; declaringClass = field.getDeclaringClass();</span>
+<span class="pc bpc" id="L311" title="1 of 10 branches missed.">            if (declaringClass == AbstractMap.class</span>
+                    || declaringClass == HashMap.class
+                    || declaringClass == LinkedHashMap.class
+                    || declaringClass == TreeMap.class
+                    || declaringClass == ConcurrentHashMap.class
+            ) {
+<span class="nc" id="L317">                continue;</span>
+            }
+
+<span class="fc" id="L320">            fieldConsumer.accept(field);</span>
+        }
+<span class="fc" id="L322">    }</span>
+
+    public static void staticMethod(Class objectClass, Consumer&lt;Method&gt; methodConsumer) {
+<span class="fc" id="L325">        Method[] methods = methodCache.get(objectClass);</span>
+<span class="fc bfc" id="L326" title="All 2 branches covered.">        if (methods == null) {</span>
+<span class="fc" id="L327">            methods = getMethods(objectClass);</span>
+<span class="fc" id="L328">            methodCache.putIfAbsent(objectClass, methods);</span>
+        }
+
+<span class="fc bfc" id="L331" title="All 2 branches covered.">        for (Method method : methods) {</span>
+<span class="fc" id="L332">            int modifiers = method.getModifiers();</span>
+<span class="fc bfc" id="L333" title="All 2 branches covered.">            if (!Modifier.isStatic(modifiers)) {</span>
+<span class="fc" id="L334">                continue;</span>
+            }
+
+<span class="fc" id="L337">            methodConsumer.accept(method);</span>
+        }
+<span class="fc" id="L339">    }</span>
+
+    public static Method buildMethod(Class objectClass, String methodName) {
+<span class="fc" id="L342">        Method[] methods = methodCache.get(objectClass);</span>
+<span class="fc bfc" id="L343" title="All 2 branches covered.">        if (methods == null) {</span>
+<span class="fc" id="L344">            methods = getMethods(objectClass);</span>
+<span class="fc" id="L345">            methodCache.putIfAbsent(objectClass, methods);</span>
+        }
+
+<span class="fc bfc" id="L348" title="All 2 branches covered.">        for (Method method : methods) {</span>
+<span class="fc" id="L349">            int modifiers = method.getModifiers();</span>
+<span class="pc bpc" id="L350" title="1 of 2 branches missed.">            if (Modifier.isStatic(modifiers)) {</span>
+<span class="nc" id="L351">                continue;</span>
+            }
+
+<span class="fc bfc" id="L354" title="All 2 branches covered.">            if (method.getParameterCount() != 0) {</span>
+<span class="fc" id="L355">                continue;</span>
+            }
+
+<span class="fc bfc" id="L358" title="All 2 branches covered.">            if (method.getName().equals(methodName)) {</span>
+<span class="fc" id="L359">                return method;</span>
+            }
+        }
+
+<span class="fc" id="L363">        return null;</span>
+    }
+
+    public static void constructor(Class objectClass, Consumer&lt;Constructor&gt; constructorConsumer) {
+<span class="fc" id="L367">        Constructor[] constructors = constructorCache.get(objectClass);</span>
+<span class="fc bfc" id="L368" title="All 2 branches covered.">        if (constructors == null) {</span>
+<span class="fc" id="L369">            constructors = objectClass.getDeclaredConstructors();</span>
+<span class="fc" id="L370">            constructorCache.putIfAbsent(objectClass, constructors);</span>
+        }
+
+<span class="fc" id="L373">        boolean record = isRecord(objectClass);</span>
+<span class="fc bfc" id="L374" title="All 2 branches covered.">        for (Constructor constructor : constructors) {</span>
+<span class="pc bpc" id="L375" title="3 of 4 branches missed.">            if (record &amp;&amp; constructor.getParameterCount() == 0) {</span>
+<span class="nc" id="L376">                continue;</span>
+            }
+<span class="fc" id="L378">            constructorConsumer.accept(constructor);</span>
+        }
+<span class="fc" id="L380">    }</span>
+
+    public static Constructor[] getConstructor(Class objectClass) {
+<span class="fc" id="L383">        Constructor[] constructors = constructorCache.get(objectClass);</span>
+<span class="fc bfc" id="L384" title="All 2 branches covered.">        if (constructors == null) {</span>
+<span class="fc" id="L385">            constructors = objectClass.getDeclaredConstructors();</span>
+<span class="fc" id="L386">            constructorCache.putIfAbsent(objectClass, constructors);</span>
+        }
+
+<span class="fc" id="L389">        return constructors;</span>
+    }
+
+    public static boolean hasPublicDefaultConstructor(Class objectClass) {
+<span class="fc" id="L393">        Constructor constructor = getDefaultConstructor(objectClass, false);</span>
+<span class="pc bpc" id="L394" title="1 of 4 branches missed.">        return constructor != null &amp;&amp; Modifier.isPublic(constructor.getModifiers());</span>
+    }
+
+    public static Constructor getDefaultConstructor(Class objectClass, boolean includeNoneStaticMember) {
+<span class="pc bpc" id="L398" title="2 of 6 branches missed.">        if ((objectClass == StackTraceElement.class &amp;&amp; JVM_VERSION &gt;= 9) || (isRecord(objectClass))) {</span>
+<span class="nc" id="L399">            return null;</span>
+        }
+
+<span class="fc" id="L402">        Constructor[] constructors = constructorCache.get(objectClass);</span>
+<span class="fc bfc" id="L403" title="All 2 branches covered.">        if (constructors == null) {</span>
+<span class="fc" id="L404">            constructors = objectClass.getDeclaredConstructors();</span>
+<span class="fc" id="L405">            constructorCache.putIfAbsent(objectClass, constructors);</span>
+        }
+
+<span class="fc bfc" id="L408" title="All 2 branches covered.">        for (Constructor constructor : constructors) {</span>
+<span class="fc bfc" id="L409" title="All 2 branches covered.">            if (constructor.getParameterCount() == 0) {</span>
+<span class="fc" id="L410">                return constructor;</span>
+            }
+        }
+
+<span class="fc bfc" id="L414" title="All 2 branches covered.">        if (!includeNoneStaticMember) {</span>
+<span class="fc" id="L415">            return null;</span>
+        }
+
+<span class="fc" id="L418">        Class declaringClass = objectClass.getDeclaringClass();</span>
+<span class="fc bfc" id="L419" title="All 2 branches covered.">        if (declaringClass != null) {</span>
+<span class="fc bfc" id="L420" title="All 2 branches covered.">            for (Constructor constructor : constructors) {</span>
+<span class="fc bfc" id="L421" title="All 2 branches covered.">                if (constructor.getParameterCount() == 1) {</span>
+<span class="fc" id="L422">                    Class firstParamType = constructor.getParameterTypes()[0];</span>
+<span class="fc bfc" id="L423" title="All 2 branches covered.">                    if (declaringClass.equals(firstParamType)) {</span>
+<span class="fc" id="L424">                        return constructor;</span>
+                    }
+                }
+            }
+        }
+
+<span class="fc" id="L430">        return null;</span>
+    }
+
+    public static void setters(Class objectClass, Consumer&lt;Method&gt; methodConsumer) {
+<span class="fc" id="L434">        setters(objectClass, null, null, methodConsumer);</span>
+<span class="fc" id="L435">    }</span>
+
+    public static void setters(Class objectClass, Class mixin, Consumer&lt;Method&gt; methodConsumer) {
+<span class="nc" id="L438">        setters(objectClass, null, mixin, methodConsumer);</span>
+<span class="nc" id="L439">    }</span>
+
+    public static void setters(Class objectClass, BeanInfo beanInfo, Class mixin, Consumer&lt;Method&gt; methodConsumer) {
+<span class="pc bpc" id="L442" title="1 of 2 branches missed.">        if (ignore(objectClass)) {</span>
+<span class="nc" id="L443">            return;</span>
+        }
+
+<span class="fc" id="L446">        Method[] methods = methodCache.get(objectClass);</span>
+<span class="fc bfc" id="L447" title="All 2 branches covered.">        if (methods == null) {</span>
+<span class="fc" id="L448">            methods = getMethods(objectClass);</span>
+<span class="fc" id="L449">            methodCache.putIfAbsent(objectClass, methods);</span>
+        }
+
+<span class="fc bfc" id="L452" title="All 2 branches covered.">        for (Method method : methods) {</span>
+<span class="fc" id="L453">            int mods = method.getModifiers();</span>
+<span class="fc bfc" id="L454" title="All 2 branches covered.">            if (Modifier.isStatic(mods)) {</span>
+<span class="fc" id="L455">                continue;</span>
+            }
+
+<span class="fc bfc" id="L458" title="All 2 branches covered.">            if (method.getDeclaringClass() == Object.class) {</span>
+<span class="fc" id="L459">                continue;</span>
+            }
+
+<span class="fc" id="L462">            String methodName = method.getName();</span>
+
+<span class="fc" id="L464">            boolean methodSkip = false;</span>
+<span class="fc bfc" id="L465" title="All 3 branches covered.">            switch (methodName) {</span>
+                case &quot;equals&quot;:
+                case &quot;hashCode&quot;:
+                case &quot;toString&quot;:
+<span class="fc" id="L469">                    methodSkip = true;</span>
+<span class="fc" id="L470">                    break;</span>
+                case &quot;copy&quot;:
+<span class="pc bpc" id="L472" title="2 of 4 branches missed.">                    if (beanInfo != null &amp;&amp; beanInfo.kotlin) {</span>
+<span class="fc" id="L473">                        methodSkip = true;</span>
+                    }
+                    break;
+                default:
+                    break;
+            }
+
+<span class="fc bfc" id="L480" title="All 2 branches covered.">            if (methodSkip) {</span>
+<span class="fc" id="L481">                continue;</span>
+            }
+
+<span class="fc" id="L484">            int paramCount = method.getParameterCount();</span>
+<span class="fc" id="L485">            Class&lt;?&gt; returnType = method.getReturnType();</span>
+
+            // read only getter
+<span class="fc bfc" id="L488" title="All 2 branches covered.">            if (paramCount == 0) {</span>
+<span class="fc bfc" id="L489" title="All 4 branches covered.">                if (methodName.length() &lt;= 3 || !methodName.startsWith(&quot;get&quot;)) {</span>
+<span class="fc" id="L490">                    continue;</span>
+                }
+
+<span class="fc bfc" id="L493" title="All 12 branches covered.">                if (returnType == AtomicInteger.class</span>
+                        || returnType == AtomicLong.class
+                        || returnType == AtomicBoolean.class
+                        || returnType == AtomicIntegerArray.class
+                        || returnType == AtomicLongArray.class
+                        || returnType == AtomicReference.class
+<span class="fc bfc" id="L499" title="All 2 branches covered.">                        || Collection.class.isAssignableFrom(returnType)</span>
+<span class="fc bfc" id="L500" title="All 2 branches covered.">                        || Map.class.isAssignableFrom(returnType)</span>
+                ) {
+<span class="fc" id="L502">                    methodConsumer.accept(method);</span>
+<span class="fc" id="L503">                    continue;</span>
+                }
+            }
+
+<span class="fc bfc" id="L507" title="All 2 branches covered.">            if (paramCount == 2</span>
+<span class="fc bfc" id="L508" title="All 2 branches covered.">                    &amp;&amp; method.getReturnType() == Void.TYPE</span>
+<span class="fc bfc" id="L509" title="All 2 branches covered.">                    &amp;&amp; method.getParameterTypes()[0] == String.class</span>
+            ) {
+<span class="fc" id="L511">                Annotation[] annotations = getAnnotations(method);</span>
+
+<span class="fc" id="L513">                AtomicBoolean unwrapped = new AtomicBoolean(false);</span>
+<span class="fc bfc" id="L514" title="All 2 branches covered.">                for (Annotation annotation : annotations) {</span>
+<span class="fc" id="L515">                    Class&lt;? extends Annotation&gt; annotationType = annotation.annotationType();</span>
+<span class="fc" id="L516">                    JSONField jsonField = findAnnotation(annotation, JSONField.class);</span>
+<span class="fc bfc" id="L517" title="All 2 branches covered.">                    if (jsonField != null) {</span>
+<span class="fc bfc" id="L518" title="All 2 branches covered.">                        if (jsonField.unwrapped()) {</span>
+<span class="fc" id="L519">                            unwrapped.set(true);</span>
+<span class="fc" id="L520">                            break;</span>
+                        }
+                        continue;
+                    }
+
+<span class="pc bpc" id="L525" title="2 of 3 branches missed.">                    switch (annotationType.getName()) {</span>
+                        case &quot;com.fasterxml.jackson.annotation.JsonAnySetter&quot;:
+<span class="pc bpc" id="L527" title="1 of 2 branches missed.">                            if (JSONFactory.isUseJacksonAnnotation()) {</span>
+<span class="fc" id="L528">                                unwrapped.set(true);</span>
+                            }
+                            break;
+                        case &quot;com.alibaba.fastjson.annotation.JSONField&quot;: {
+<span class="nc" id="L532">                            BeanUtils.annotationMethods(annotation.getClass(), m -&gt; {</span>
+<span class="nc" id="L533">                                String name = m.getName();</span>
+                                try {
+<span class="nc bnc" id="L535" title="All 2 branches missed.">                                    if (&quot;unwrapped&quot;.equals(name)) {</span>
+<span class="nc" id="L536">                                        Object result = m.invoke(annotation);</span>
+<span class="nc bnc" id="L537" title="All 2 branches missed.">                                        if ((Boolean) result) {</span>
+<span class="nc" id="L538">                                            unwrapped.set(true);</span>
+                                        }
+                                    }
+<span class="nc" id="L541">                                } catch (Throwable ignored) {</span>
+                                    // ignored
+<span class="nc" id="L543">                                }</span>
+<span class="nc" id="L544">                            });</span>
+<span class="nc" id="L545">                            break;</span>
+                        }
+                        default:
+                            break;
+                    }
+                }
+
+<span class="fc bfc" id="L552" title="All 2 branches covered.">                if (unwrapped.get()) {</span>
+<span class="fc" id="L553">                    methodConsumer.accept(method);</span>
+                }
+                continue;
+            }
+
+<span class="fc bfc" id="L558" title="All 2 branches covered.">            if (paramCount != 1) {</span>
+<span class="fc" id="L559">                continue;</span>
+            }
+
+<span class="fc" id="L562">            final int methodNameLength = methodName.length();</span>
+<span class="fc bfc" id="L563" title="All 6 branches covered.">            boolean nameMatch = methodNameLength &gt; 3 &amp;&amp; (methodName.startsWith(&quot;set&quot;) || returnType == objectClass);</span>
+<span class="fc bfc" id="L564" title="All 2 branches covered.">            if (!nameMatch) {</span>
+<span class="fc bfc" id="L565" title="All 2 branches covered.">                if (mixin != null) {</span>
+<span class="fc" id="L566">                    Method mixinMethod = getMethod(mixin, method);</span>
+<span class="fc bfc" id="L567" title="All 2 branches covered.">                    if (mixinMethod != null) {</span>
+<span class="fc" id="L568">                        Annotation[] annotations = getAnnotations(mixinMethod);</span>
+<span class="pc bpc" id="L569" title="1 of 2 branches missed.">                        for (Annotation annotation : annotations) {</span>
+<span class="pc bpc" id="L570" title="1 of 2 branches missed.">                            if (annotation.annotationType() == JSONField.class) {</span>
+<span class="fc" id="L571">                                JSONField jsonField = (JSONField) annotation;</span>
+<span class="pc bpc" id="L572" title="1 of 2 branches missed.">                                if (!jsonField.unwrapped()) {</span>
+<span class="fc" id="L573">                                    nameMatch = true;</span>
+                                }
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+
+<span class="fc bfc" id="L582" title="All 2 branches covered.">            if (!nameMatch) {</span>
+<span class="fc" id="L583">                Annotation[] annotations = getAnnotations(method);</span>
+<span class="pc bfc" id="L584" title="All 2 branches covered.">                for (Annotation annotation : annotations) {</span>
+<span class="pc bpc" id="L585" title="1 of 2 branches missed.">                    if (annotation.annotationType() == JSONField.class) {</span>
+<span class="fc" id="L586">                        JSONField jsonField = (JSONField) annotation;</span>
+<span class="fc bfc" id="L587" title="All 2 branches covered.">                        if (!jsonField.unwrapped()) {</span>
+<span class="fc" id="L588">                            nameMatch = true;</span>
+                        }
+                        break;
+                    }
+                }
+            }
+
+<span class="fc bfc" id="L595" title="All 2 branches covered.">            if (!nameMatch) {</span>
+<span class="fc" id="L596">                continue;</span>
+            }
+
+<span class="fc" id="L599">            methodConsumer.accept(method);</span>
+        }
+<span class="fc" id="L601">    }</span>
+
+    public static void setters(Class objectClass, boolean checkPrefix, Consumer&lt;Method&gt; methodConsumer) {
+<span class="pc bpc" id="L604" title="1 of 2 branches missed.">        if (ignore(objectClass)) {</span>
+<span class="nc" id="L605">            return;</span>
+        }
+
+<span class="fc" id="L608">        Method[] methods = methodCache.get(objectClass);</span>
+<span class="fc bfc" id="L609" title="All 2 branches covered.">        if (methods == null) {</span>
+<span class="fc" id="L610">            methods = getMethods(objectClass);</span>
+<span class="fc" id="L611">            methodCache.putIfAbsent(objectClass, methods);</span>
+        }
+
+<span class="fc bfc" id="L614" title="All 2 branches covered.">        for (Method method : methods) {</span>
+<span class="fc" id="L615">            int paramType = method.getParameterCount();</span>
+
+            // read only getter
+<span class="fc bfc" id="L618" title="All 2 branches covered.">            if (paramType == 0) {</span>
+<span class="fc" id="L619">                String methodName = method.getName();</span>
+<span class="pc bpc" id="L620" title="1 of 6 branches missed.">                if (checkPrefix &amp;&amp; (methodName.length() &lt;= 3 || !methodName.startsWith(&quot;get&quot;))) {</span>
+<span class="fc" id="L621">                    continue;</span>
+                }
+
+<span class="fc" id="L624">                Class&lt;?&gt; returnType = method.getReturnType();</span>
+<span class="pc bpc" id="L625" title="2 of 10 branches missed.">                if (returnType == AtomicInteger.class</span>
+                        || returnType == AtomicLong.class
+                        || returnType == AtomicBoolean.class
+                        || returnType == AtomicIntegerArray.class
+                        || returnType == AtomicLongArray.class
+<span class="pc bpc" id="L630" title="1 of 2 branches missed.">                        || Collection.class.isAssignableFrom(returnType)</span>
+                ) {
+<span class="fc" id="L632">                    methodConsumer.accept(method);</span>
+<span class="fc" id="L633">                    continue;</span>
+                }
+            }
+
+<span class="fc bfc" id="L637" title="All 2 branches covered.">            if (paramType != 1) {</span>
+<span class="fc" id="L638">                continue;</span>
+            }
+
+<span class="fc" id="L641">            int mods = method.getModifiers();</span>
+<span class="fc bfc" id="L642" title="All 2 branches covered.">            if (Modifier.isStatic(mods)) {</span>
+<span class="fc" id="L643">                continue;</span>
+            }
+
+<span class="fc" id="L646">            String methodName = method.getName();</span>
+<span class="fc" id="L647">            final int methodNameLength = methodName.length();</span>
+<span class="fc bfc" id="L648" title="All 6 branches covered.">            if (checkPrefix &amp;&amp; (methodNameLength &lt;= 3 || !methodName.startsWith(&quot;set&quot;))) {</span>
+<span class="fc" id="L649">                continue;</span>
+            }
+
+<span class="fc" id="L652">            methodConsumer.accept(method);</span>
+        }
+<span class="fc" id="L654">    }</span>
+
+    public static void annotationMethods(Class objectClass, Consumer&lt;Method&gt; methodConsumer) {
+<span class="fc" id="L657">        Method[] methods = methodCache.get(objectClass);</span>
+<span class="fc bfc" id="L658" title="All 2 branches covered.">        if (methods == null) {</span>
+<span class="fc" id="L659">            methods = getMethods(objectClass);</span>
+<span class="fc" id="L660">            methodCache.putIfAbsent(objectClass, methods);</span>
+        }
+
+<span class="fc bfc" id="L663" title="All 2 branches covered.">        for (Method method : methods) {</span>
+<span class="fc bfc" id="L664" title="All 2 branches covered.">            if (method.getParameterCount() != 0) {</span>
+<span class="fc" id="L665">                continue;</span>
+            }
+<span class="fc" id="L667">            Class&lt;?&gt; declaringClass = method.getDeclaringClass();</span>
+<span class="fc bfc" id="L668" title="All 2 branches covered.">            if (declaringClass == Object.class) {</span>
+<span class="fc" id="L669">                continue;</span>
+            }
+
+<span class="fc bfc" id="L672" title="All 2 branches covered.">            switch (method.getName()) {</span>
+                case &quot;toString&quot;:
+                case &quot;hashCode&quot;:
+                case &quot;annotationType&quot;:
+<span class="fc" id="L676">                    continue;</span>
+                default:
+                    break;
+            }
+
+<span class="fc" id="L681">            methodConsumer.accept(method);</span>
+        }
+<span class="fc" id="L683">    }</span>
+
+    public static boolean isWriteEnumAsJavaBean(Class clazz) {
+<span class="fc" id="L686">        Annotation[] annotations = getAnnotations(clazz);</span>
+<span class="pc bfc" id="L687" title="All 2 branches covered.">        for (Annotation annotation : annotations) {</span>
+<span class="fc" id="L688">            JSONType jsonType = findAnnotation(annotation, JSONType.class);</span>
+<span class="pc bpc" id="L689" title="1 of 2 branches missed.">            if (jsonType != null) {</span>
+<span class="fc" id="L690">                return jsonType.writeEnumAsJavaBean();</span>
+            }
+
+<span class="nc" id="L693">            Class&lt;? extends Annotation&gt; annotationType = annotation.annotationType();</span>
+<span class="nc" id="L694">            String name = annotationType.getName();</span>
+<span class="nc bnc" id="L695" title="All 2 branches missed.">            if (&quot;com.alibaba.fastjson.annotation.JSONType&quot;.equals(name)) {</span>
+<span class="nc" id="L696">                BeanInfo beanInfo = new BeanInfo(JSONFactory.getDefaultObjectWriterProvider());</span>
+<span class="nc" id="L697">                BeanUtils.annotationMethods(annotationType, method -&gt; BeanUtils.processJSONType1x(beanInfo, annotation, method));</span>
+<span class="nc bnc" id="L698" title="All 2 branches missed.">                if (beanInfo.writeEnumAsJavaBean) {</span>
+<span class="nc" id="L699">                    return true;</span>
+                }
+            }
+        }
+
+<span class="fc" id="L704">        return false;</span>
+    }
+
+    public static String[] getEnumAnnotationNames(Class enumClass) {
+<span class="fc" id="L708">        Enum[] enumConstants = (Enum[]) enumClass.getEnumConstants();</span>
+<span class="fc" id="L709">        String[] annotationNames = new String[enumConstants.length];</span>
+<span class="fc" id="L710">        BeanUtils.fields(enumClass, field -&gt; {</span>
+<span class="fc" id="L711">            String fieldName = field.getName();</span>
+<span class="fc bfc" id="L712" title="All 2 branches covered.">            for (int i = 0; i &lt; enumConstants.length; i++) {</span>
+<span class="fc" id="L713">                Enum e = enumConstants[i];</span>
+<span class="fc" id="L714">                final int enumIndex = i;</span>
+<span class="fc" id="L715">                String enumName = e.name();</span>
+<span class="fc bfc" id="L716" title="All 2 branches covered.">                if (fieldName.equals(enumName)) {</span>
+<span class="fc bfc" id="L717" title="All 2 branches covered.">                    for (Annotation annotation : field.getAnnotations()) {</span>
+<span class="fc" id="L718">                        Class annotationType = annotation.annotationType();</span>
+<span class="fc" id="L719">                        String annotationTypeName = annotationType.getName();</span>
+<span class="fc bfc" id="L720" title="All 2 branches covered.">                        if (&quot;com.alibaba.fastjson2.annotation.JSONField&quot;.equals(annotationTypeName)</span>
+<span class="pc bpc" id="L721" title="1 of 2 branches missed.">                                || &quot;com.alibaba.fastjson.annotation.JSONField&quot;.equals(annotationTypeName)) {</span>
+<span class="fc" id="L722">                            BeanUtils.annotationMethods(annotationType, m -&gt; {</span>
+<span class="fc" id="L723">                                String name = m.getName();</span>
+                                try {
+<span class="fc" id="L725">                                    Object result = m.invoke(annotation);</span>
+<span class="fc bfc" id="L726" title="All 2 branches covered.">                                    if (&quot;name&quot;.equals(name)) {</span>
+<span class="fc" id="L727">                                        String annotationName = (String) result;</span>
+<span class="pc bpc" id="L728" title="2 of 4 branches missed.">                                        if (annotationName.length() != 0 &amp;&amp; !annotationName.equals(enumName)) {</span>
+<span class="fc" id="L729">                                            annotationNames[enumIndex] = annotationName;</span>
+                                        }
+                                    }
+<span class="nc" id="L732">                                } catch (Exception ignored) {</span>
+                                    // ignored
+<span class="fc" id="L734">                                }</span>
+<span class="fc" id="L735">                            });</span>
+                        }
+                    }
+<span class="fc" id="L738">                    break;</span>
+                }
+            }
+<span class="fc" id="L741">        });</span>
+
+<span class="fc" id="L743">        int nulls = 0;</span>
+<span class="fc bfc" id="L744" title="All 2 branches covered.">        for (String annotationName : annotationNames) {</span>
+<span class="fc bfc" id="L745" title="All 2 branches covered.">            if (annotationName == null) {</span>
+<span class="fc" id="L746">                nulls++;</span>
+            }
+        }
+
+<span class="fc bfc" id="L750" title="All 2 branches covered.">        if (nulls == annotationNames.length) {</span>
+<span class="fc" id="L751">            return null;</span>
+        }
+
+<span class="fc" id="L754">        return annotationNames;</span>
+    }
+
+    public static Member getEnumValueField(Class enumClass, ObjectCodecProvider mixinProvider) {
+<span class="fc bfc" id="L758" title="All 2 branches covered.">        if (enumClass == null) {</span>
+<span class="fc" id="L759">            return null;</span>
+        }
+
+<span class="fc" id="L762">        Class[] interfaces = enumClass.getInterfaces();</span>
+
+<span class="fc" id="L764">        Method[] methods = methodCache.get(enumClass);</span>
+<span class="fc bfc" id="L765" title="All 2 branches covered.">        if (methods == null) {</span>
+<span class="fc" id="L766">            methods = enumClass.getMethods();</span>
+<span class="fc" id="L767">            methodCache.putIfAbsent(enumClass, methods);</span>
+        }
+
+<span class="fc bfc" id="L770" title="All 2 branches covered.">        for (Method method : methods) {</span>
+<span class="pc bpc" id="L771" title="1 of 2 branches missed.">            if (method.getReturnType() == Void.class) {</span>
+<span class="nc" id="L772">                continue;</span>
+            }
+
+<span class="fc bfc" id="L775" title="All 2 branches covered.">            if (method.getParameterCount() != 0) {</span>
+<span class="fc" id="L776">                continue;</span>
+            }
+
+<span class="fc" id="L779">            Class&lt;?&gt; declaringClass = method.getDeclaringClass();</span>
+<span class="fc bfc" id="L780" title="All 4 branches covered.">            if (declaringClass == Enum.class || declaringClass == Object.class) {</span>
+<span class="fc" id="L781">                continue;</span>
+            }
+
+<span class="fc" id="L784">            String methodName = method.getName();</span>
+<span class="fc bfc" id="L785" title="All 2 branches covered.">            if (&quot;values&quot;.equals(methodName)) {</span>
+<span class="fc" id="L786">                continue;</span>
+            }
+
+<span class="fc bfc" id="L789" title="All 2 branches covered.">            if (isJSONField(method)) {</span>
+<span class="fc" id="L790">                return method;</span>
+            }
+
+<span class="fc bfc" id="L793" title="All 2 branches covered.">            if (methodName.startsWith(&quot;get&quot;)) {</span>
+<span class="fc" id="L794">                String fieldName = BeanUtils.getterName(methodName, null);</span>
+<span class="fc" id="L795">                Field field = BeanUtils.getDeclaredField(enumClass, fieldName);</span>
+<span class="fc bfc" id="L796" title="All 4 branches covered.">                if (field != null &amp;&amp; isJSONField(field)) {</span>
+<span class="fc" id="L797">                    return method;</span>
+                }
+            }
+
+<span class="fc" id="L801">            AtomicReference&lt;Member&gt; memberRef = new AtomicReference&lt;&gt;();</span>
+<span class="fc bfc" id="L802" title="All 2 branches covered.">            for (Class enumInterface : interfaces) {</span>
+<span class="fc" id="L803">                getters(enumInterface, e -&gt; {</span>
+<span class="fc bfc" id="L804" title="All 2 branches covered.">                    if (e.getName().equals(methodName)) {</span>
+<span class="fc bfc" id="L805" title="All 2 branches covered.">                        if (isJSONField(e)) {</span>
+<span class="fc" id="L806">                            memberRef.set(method);</span>
+                        }
+                    }
+<span class="fc" id="L809">                });</span>
+
+                Class mixIn;
+<span class="pc bpc" id="L812" title="1 of 2 branches missed.">                if (mixinProvider != null) {</span>
+<span class="fc" id="L813">                    mixIn = mixinProvider.getMixIn(enumInterface);</span>
+                } else {
+<span class="nc" id="L815">                    mixIn = JSONFactory.getDefaultObjectWriterProvider().getMixIn(enumInterface);</span>
+                }
+
+<span class="fc bfc" id="L818" title="All 2 branches covered.">                if (mixIn != null) {</span>
+<span class="fc" id="L819">                    getters(mixIn, e -&gt; {</span>
+<span class="pc bpc" id="L820" title="1 of 2 branches missed.">                        if (e.getName().equals(methodName)) {</span>
+<span class="pc bpc" id="L821" title="1 of 2 branches missed.">                            if (isJSONField(e)) {</span>
+<span class="fc" id="L822">                                memberRef.set(method);</span>
+                            }
+                        }
+<span class="fc" id="L825">                    });</span>
+                }
+            }
+<span class="fc" id="L828">            Member refMember = memberRef.get();</span>
+<span class="fc bfc" id="L829" title="All 2 branches covered.">            if (refMember != null) {</span>
+<span class="fc" id="L830">                return refMember;</span>
+            }
+        }
+
+<span class="fc" id="L834">        Field[] fields = fieldCache.get(enumClass);</span>
+<span class="fc bfc" id="L835" title="All 2 branches covered.">        if (fields == null) {</span>
+<span class="fc" id="L836">            fields = enumClass.getFields();</span>
+<span class="fc" id="L837">            fieldCache.putIfAbsent(enumClass, fields);</span>
+        }
+
+<span class="fc" id="L840">        Member member = null;</span>
+<span class="fc" id="L841">        Enum[] enumConstants = (Enum[]) enumClass.getEnumConstants();</span>
+<span class="fc bfc" id="L842" title="All 2 branches covered.">        for (Field field : fields) {</span>
+<span class="fc" id="L843">            boolean found = false;</span>
+<span class="fc bfc" id="L844" title="All 2 branches covered.">            if (enumConstants != null) {</span>
+<span class="fc" id="L845">                String fieldName = field.getName();</span>
+<span class="fc bfc" id="L846" title="All 2 branches covered.">                for (Enum e : enumConstants) {</span>
+<span class="fc bfc" id="L847" title="All 2 branches covered.">                    if (fieldName.equals(e.name())) {</span>
+<span class="fc" id="L848">                        found = true;</span>
+<span class="fc" id="L849">                        break;</span>
+                    }
+                }
+            }
+
+<span class="fc bfc" id="L854" title="All 2 branches covered.">            if (isJSONField(field)) {</span>
+<span class="fc bfc" id="L855" title="All 2 branches covered.">                if (!found) {</span>
+<span class="fc" id="L856">                    member = field;</span>
+<span class="fc" id="L857">                    break;</span>
+                }
+            }
+        }
+
+<span class="fc" id="L862">        return member;</span>
+    }
+
+    public static void getters(Class objectClass, Consumer&lt;Method&gt; methodConsumer) {
+<span class="fc" id="L866">        getters(objectClass, null, methodConsumer);</span>
+<span class="fc" id="L867">    }</span>
+
+    public static void getters(Class objectClass, Class mixinSource, Consumer&lt;Method&gt; methodConsumer) {
+<span class="fc" id="L870">        getters(objectClass, mixinSource, false, methodConsumer);</span>
+<span class="fc" id="L871">    }</span>
+
+    public static void getters(Class objectClass, Class mixinSource, boolean kotlin, Consumer&lt;Method&gt; methodConsumer) {
+<span class="pc bpc" id="L874" title="1 of 2 branches missed.">        if (objectClass == null) {</span>
+<span class="nc" id="L875">            return;</span>
+        }
+
+<span class="fc bfc" id="L878" title="All 2 branches covered.">        if (Proxy.isProxyClass(objectClass)) {</span>
+<span class="fc" id="L879">            Class[] interfaces = objectClass.getInterfaces();</span>
+<span class="pc bpc" id="L880" title="1 of 2 branches missed.">            if (interfaces.length == 1) {</span>
+<span class="fc" id="L881">                getters(interfaces[0], methodConsumer);</span>
+<span class="fc" id="L882">                return;</span>
+            }
+        }
+
+<span class="fc bfc" id="L886" title="All 2 branches covered.">        if (ignore(objectClass)) {</span>
+<span class="fc" id="L887">            return;</span>
+        }
+
+<span class="fc" id="L890">        Class superClass = objectClass.getSuperclass();</span>
+<span class="pc bpc" id="L891" title="1 of 2 branches missed.">        if (TypeUtils.isProxy(objectClass)) {</span>
+<span class="nc" id="L892">            getters(superClass, methodConsumer);</span>
+<span class="nc" id="L893">            return;</span>
+        }
+
+<span class="fc" id="L896">        boolean record = isRecord(objectClass);</span>
+<span class="fc" id="L897">        boolean jdbcStruct = JdbcSupport.isStruct(objectClass);</span>
+
+<span class="fc" id="L899">        String[] recordFieldNames = null;</span>
+<span class="pc bpc" id="L900" title="1 of 2 branches missed.">        if (record) {</span>
+<span class="nc" id="L901">            recordFieldNames = getRecordFieldNames(objectClass);</span>
+        }
+
+<span class="fc" id="L904">        Method[] methods = methodCache.get(objectClass);</span>
+<span class="fc bfc" id="L905" title="All 2 branches covered.">        if (methods == null) {</span>
+<span class="fc" id="L906">            methods = getMethods(objectClass);</span>
+<span class="fc" id="L907">            methodCache.putIfAbsent(objectClass, methods);</span>
+        }
+
+<span class="fc bfc" id="L910" title="All 4 branches covered.">        boolean protobufMessageV3 = superClass != null &amp;&amp; &quot;com.google.protobuf.GeneratedMessageV3&quot;.equals(superClass.getName());</span>
+
+<span class="fc bfc" id="L912" title="All 2 branches covered.">        for (Method method : methods) {</span>
+<span class="fc" id="L913">            int paramType = method.getParameterCount();</span>
+<span class="fc bfc" id="L914" title="All 2 branches covered.">            if (paramType != 0) {</span>
+<span class="fc" id="L915">                continue;</span>
+            }
+
+<span class="fc" id="L918">            int mods = method.getModifiers();</span>
+<span class="fc bfc" id="L919" title="All 2 branches covered.">            if (Modifier.isStatic(mods)) {</span>
+<span class="fc" id="L920">                continue;</span>
+            }
+
+<span class="fc" id="L923">            Class&lt;?&gt; returnClass = method.getReturnType();</span>
+<span class="fc bfc" id="L924" title="All 6 branches covered.">            if (returnClass == Void.class || returnClass == void.class || ignore(returnClass)) {</span>
+<span class="fc" id="L925">                continue;</span>
+            }
+
+<span class="fc" id="L928">            Class&lt;?&gt; declaringClass = method.getDeclaringClass();</span>
+<span class="fc bfc" id="L929" title="All 4 branches covered.">            if (declaringClass == Enum.class || declaringClass == Object.class) {</span>
+<span class="fc" id="L930">                continue;</span>
+            }
+
+<span class="fc" id="L933">            String methodName = method.getName();</span>
+<span class="fc bfc" id="L934" title="All 2 branches covered.">            if (jdbcStruct) {</span>
+<span class="fc bfc" id="L935" title="All 4 branches covered.">                if (!&quot;getSQLTypeName&quot;.equals(methodName) &amp;&amp; !&quot;getAttributes&quot;.equals(methodName)) {</span>
+<span class="fc" id="L936">                    continue;</span>
+                }
+            }
+
+<span class="fc" id="L940">            boolean methodSkip = false;</span>
+<span class="fc bfc" id="L941" title="All 3 branches covered.">            switch (methodName) {</span>
+                case &quot;isInitialized&quot;:
+                case &quot;getInitializationErrorString&quot;:
+                case &quot;getSerializedSize&quot;:
+<span class="pc bpc" id="L945" title="1 of 2 branches missed.">                    if (protobufMessageV3) {</span>
+<span class="fc" id="L946">                        methodSkip = true;</span>
+                    }
+                    break;
+                case &quot;equals&quot;:
+                case &quot;hashCode&quot;:
+                case &quot;toString&quot;:
+<span class="fc" id="L952">                    methodSkip = true;</span>
+<span class="fc" id="L953">                    break;</span>
+                default:
+                    break;
+            }
+
+<span class="fc bfc" id="L958" title="All 2 branches covered.">            if (methodSkip) {</span>
+<span class="fc" id="L959">                continue;</span>
+            }
+
+<span class="fc bfc" id="L962" title="All 2 branches covered.">            if (protobufMessageV3) {</span>
+<span class="fc bfc" id="L963" title="All 4 branches covered.">                if ((methodName.endsWith(&quot;Type&quot;) || methodName.endsWith(&quot;Bytes&quot;))</span>
+<span class="fc bfc" id="L964" title="All 2 branches covered.">                        &amp;&amp; &quot;com.google.protobuf.ByteString&quot;.equals(returnClass.getName())) {</span>
+<span class="fc" id="L965">                    continue;</span>
+                }
+            }
+
+            // skip thrift isSetXXX
+<span class="pc bpc" id="L970" title="1 of 4 branches missed.">            if (methodName.startsWith(&quot;isSet&quot;) &amp;&amp; returnClass == boolean.class) {</span>
+<span class="fc" id="L971">                boolean setterFound = false, unsetFound = false, getterFound = false;</span>
+<span class="fc" id="L972">                String setterName = BeanUtils.getterName(methodName, null);</span>
+<span class="fc" id="L973">                String getterName = &quot;g&quot; + setterName.substring(1);</span>
+
+<span class="fc" id="L975">                String unsetName = &quot;un&quot; + setterName;</span>
+<span class="fc bfc" id="L976" title="All 2 branches covered.">                for (Method m : methods) {</span>
+<span class="fc bfc" id="L977" title="All 2 branches covered.">                    if (m.getName().equals(setterName)</span>
+<span class="pc bpc" id="L978" title="1 of 2 branches missed.">                            &amp;&amp; m.getParameterCount() == 1</span>
+<span class="pc bpc" id="L979" title="1 of 2 branches missed.">                            &amp;&amp; m.getReturnType() == void.class) {</span>
+<span class="fc" id="L980">                        setterFound = true;</span>
+<span class="fc bfc" id="L981" title="All 2 branches covered.">                    } else if (m.getName().equals(getterName)</span>
+<span class="pc bpc" id="L982" title="1 of 2 branches missed.">                            &amp;&amp; m.getParameterCount() == 0) {</span>
+<span class="fc" id="L983">                        getterFound = true;</span>
+<span class="fc bfc" id="L984" title="All 2 branches covered.">                    } else if (m.getName().equals(unsetName)</span>
+<span class="pc bpc" id="L985" title="1 of 2 branches missed.">                            &amp;&amp; m.getParameterCount() == 0</span>
+<span class="pc bpc" id="L986" title="1 of 2 branches missed.">                            &amp;&amp; m.getReturnType() == void.class) {</span>
+<span class="fc" id="L987">                        unsetFound = true;</span>
+                    }
+                }
+
+<span class="pc bpc" id="L991" title="3 of 6 branches missed.">                if (setterFound &amp;&amp; unsetFound &amp;&amp; getterFound</span>
+<span class="pc bpc" id="L992" title="1 of 2 branches missed.">                        &amp;&amp; findAnnotation(method, JSONField.class) == null) {</span>
+<span class="fc" id="L993">                    continue;</span>
+                }
+            }
+
+<span class="pc bpc" id="L997" title="1 of 2 branches missed.">            if (record) {</span>
+<span class="nc" id="L998">                boolean match = false;</span>
+<span class="nc bnc" id="L999" title="All 2 branches missed.">                for (String recordFieldName : recordFieldNames) {</span>
+<span class="nc bnc" id="L1000" title="All 2 branches missed.">                    if (methodName.equals(recordFieldName)) {</span>
+<span class="nc" id="L1001">                        match = true;</span>
+<span class="nc" id="L1002">                        break;</span>
+                    }
+                }
+
+<span class="nc bnc" id="L1006" title="All 2 branches missed.">                if (match) {</span>
+<span class="nc" id="L1007">                    methodConsumer.accept(method);</span>
+<span class="nc" id="L1008">                    continue;</span>
+                }
+            }
+
+<span class="fc" id="L1012">            final int methodNameLength = methodName.length();</span>
+<span class="fc bfc" id="L1013" title="All 4 branches covered.">            boolean nameMatch = methodNameLength &gt; 3 &amp;&amp; methodName.startsWith(&quot;get&quot;);</span>
+<span class="fc bfc" id="L1014" title="All 2 branches covered.">            if (nameMatch) {</span>
+<span class="fc" id="L1015">                char firstChar = methodName.charAt(3);</span>
+<span class="pc bpc" id="L1016" title="1 of 6 branches missed.">                if (firstChar &gt;= 'a' &amp;&amp; firstChar &lt;= 'z' &amp;&amp; methodNameLength == 4) {</span>
+<span class="fc" id="L1017">                    nameMatch = false;</span>
+                }
+<span class="fc bfc" id="L1019" title="All 6 branches covered.">            } else if (returnClass == boolean.class || returnClass == Boolean.class || kotlin) {</span>
+<span class="fc bfc" id="L1020" title="All 4 branches covered.">                nameMatch = methodNameLength &gt; 2 &amp;&amp; methodName.startsWith(&quot;is&quot;);</span>
+<span class="fc bfc" id="L1021" title="All 2 branches covered.">                if (nameMatch) {</span>
+<span class="fc" id="L1022">                    char firstChar = methodName.charAt(2);</span>
+<span class="pc bpc" id="L1023" title="1 of 6 branches missed.">                    if (firstChar &gt;= 'a' &amp;&amp; firstChar &lt;= 'z' &amp;&amp; methodNameLength == 3) {</span>
+<span class="fc" id="L1024">                        nameMatch = false;</span>
+                    }
+                }
+            }
+
+<span class="fc bfc" id="L1029" title="All 2 branches covered.">            if (!nameMatch) {</span>
+<span class="fc bfc" id="L1030" title="All 2 branches covered.">                if (isJSONField(method)) {</span>
+<span class="fc" id="L1031">                    nameMatch = true;</span>
+                }
+            }
+
+<span class="fc bfc" id="L1035" title="All 4 branches covered.">            if (!nameMatch &amp;&amp; mixinSource != null) {</span>
+<span class="fc" id="L1036">                Method mixinMethod = getMethod(mixinSource, method);</span>
+<span class="fc bfc" id="L1037" title="All 2 branches covered.">                if (mixinMethod != null) {</span>
+<span class="pc bpc" id="L1038" title="1 of 2 branches missed.">                    if (isJSONField(mixinMethod)) {</span>
+<span class="fc" id="L1039">                        nameMatch = true;</span>
+                    }
+                }
+            }
+
+<span class="fc bfc" id="L1044" title="All 4 branches covered.">            if (!nameMatch</span>
+                    &amp;&amp; objectClass != returnClass
+<span class="pc bpc" id="L1046" title="1 of 2 branches missed.">                    &amp;&amp; (!methodName.startsWith(&quot;build&quot;))</span>
+<span class="fc bfc" id="L1047" title="All 2 branches covered.">                    &amp;&amp; fluentSetter(objectClass, methodName, returnClass) != null) {</span>
+<span class="fc" id="L1048">                nameMatch = true;</span>
+            }
+
+<span class="fc bfc" id="L1051" title="All 2 branches covered.">            if (!nameMatch) {</span>
+<span class="fc" id="L1052">                continue;</span>
+            }
+
+<span class="fc bfc" id="L1055" title="All 2 branches covered.">            if (protobufMessageV3) {</span>
+<span class="fc bfc" id="L1056" title="All 2 branches covered.">                if (method.getDeclaringClass() == superClass) {</span>
+<span class="fc" id="L1057">                    continue;</span>
+                }
+<span class="fc" id="L1059">                Class&lt;?&gt; returnType = method.getReturnType();</span>
+<span class="fc" id="L1060">                boolean ignore = false;</span>
+<span class="fc bfc" id="L1061" title="All 2 branches covered.">                switch (methodName) {</span>
+                    case &quot;getUnknownFields&quot;:
+                    case &quot;getSerializedSize&quot;:
+                    case &quot;getParserForType&quot;:
+                    case &quot;getMessageBytes&quot;:
+                    case &quot;getDefaultInstanceForType&quot;:
+<span class="pc bpc" id="L1067" title="1 of 4 branches missed.">                        ignore = returnType.getName().startsWith(&quot;com.google.protobuf.&quot;) || returnType == objectClass;</span>
+<span class="fc" id="L1068">                        break;</span>
+                    default:
+                        break;
+                }
+
+<span class="fc bfc" id="L1073" title="All 2 branches covered.">                if (ignore) {</span>
+<span class="fc" id="L1074">                    continue;</span>
+                }
+            }
+
+<span class="fc" id="L1078">            methodConsumer.accept(method);</span>
+        }
+<span class="fc" id="L1080">    }</span>
+
+    private static Method[] getMethods(Class objectClass) {
+        Method[] methods;
+        try {
+<span class="fc" id="L1085">            methods = objectClass.getMethods();</span>
+<span class="nc" id="L1086">        } catch (NoClassDefFoundError ignored) {</span>
+<span class="nc" id="L1087">            methods = new Method[0];</span>
+<span class="fc" id="L1088">        }</span>
+<span class="fc" id="L1089">        return methods;</span>
+    }
+
+    private static boolean isJSONField(AnnotatedElement element) {
+<span class="fc" id="L1093">        Annotation[] annotations = element.getAnnotations();</span>
+<span class="fc bfc" id="L1094" title="All 2 branches covered.">        for (Annotation annotation : annotations) {</span>
+<span class="fc" id="L1095">            String annotationTypeName = annotation.annotationType().getName();</span>
+<span class="fc bfc" id="L1096" title="All 3 branches covered.">            switch (annotationTypeName) {</span>
+                case &quot;com.alibaba.fastjson.annotation.JSONField&quot;:
+                case &quot;com.alibaba.fastjson2.annotation.JSONField&quot;:
+<span class="fc" id="L1099">                    return true;</span>
+                case &quot;com.fasterxml.jackson.annotation.JsonValue&quot;:
+                case &quot;com.fasterxml.jackson.annotation.JsonRawValue&quot;:
+                case &quot;com.fasterxml.jackson.annotation.JsonProperty&quot;:
+<span class="pc bpc" id="L1103" title="1 of 2 branches missed.">                    if (JSONFactory.isUseJacksonAnnotation()) {</span>
+<span class="fc" id="L1104">                        return true;</span>
+                    }
+                    break;
+                default:
+                    break;
+            }
+        }
+<span class="fc" id="L1111">        return false;</span>
+    }
+
+    static boolean ignore(Class objectClass) {
+<span class="pc bpc" id="L1115" title="1 of 2 branches missed.">        if (objectClass == null) {</span>
+<span class="nc" id="L1116">            return true;</span>
+        }
+
+<span class="fc bfc" id="L1119" title="All 2 branches covered.">        return Arrays.binarySearch(</span>
+                IGNORE_CLASS_HASH_CODES,
+<span class="fc" id="L1121">                Fnv.hashCode64(</span>
+<span class="fc" id="L1122">                        objectClass.getName()</span>
+                )
+        ) &gt;= 0;
+    }
+
+    public static boolean isRecord(Class objectClass) {
+<span class="fc" id="L1128">        Class superclass = objectClass.getSuperclass();</span>
+<span class="fc bfc" id="L1129" title="All 2 branches covered.">        if (superclass == null) {</span>
+<span class="fc" id="L1130">            return false;</span>
+        }
+
+<span class="pc bpc" id="L1133" title="1 of 2 branches missed.">        if (RECORD_CLASS == null) {</span>
+<span class="fc" id="L1134">            String superclassName = superclass.getName();</span>
+<span class="pc bpc" id="L1135" title="1 of 2 branches missed.">            if (&quot;java.lang.Record&quot;.equals(superclassName)) {</span>
+<span class="nc" id="L1136">                RECORD_CLASS = superclass;</span>
+<span class="nc" id="L1137">                return true;</span>
+            } else {
+<span class="fc" id="L1139">                return false;</span>
+            }
+        }
+
+<span class="nc bnc" id="L1143" title="All 2 branches missed.">        return superclass == RECORD_CLASS;</span>
+    }
+
+    public static String setterName(String methodName, String namingStrategy) {
+<span class="fc bfc" id="L1147" title="All 2 branches covered.">        if (namingStrategy == null) {</span>
+<span class="fc" id="L1148">            namingStrategy = &quot;CamelCase&quot;;</span>
+        }
+
+<span class="fc" id="L1151">        int methodNameLength = methodName.length();</span>
+<span class="fc bfc" id="L1152" title="All 2 branches covered.">        if (methodNameLength &lt;= 3) {</span>
+<span class="fc" id="L1153">            return methodName;</span>
+        }
+
+<span class="fc bfc" id="L1156" title="All 2 branches covered.">        int prefixLength = methodName.startsWith(&quot;set&quot;) ? 3 : 0;</span>
+
+<span class="fc bfc" id="L1158" title="All 18 branches covered.">        switch (namingStrategy) {</span>
+            case &quot;NeverUseThisValueExceptDefaultValue&quot;:
+            case &quot;CamelCase&quot;: {
+<span class="fc" id="L1161">                char[] chars = new char[methodNameLength - prefixLength];</span>
+<span class="fc" id="L1162">                methodName.getChars(prefixLength, methodNameLength, chars, 0);</span>
+<span class="fc" id="L1163">                char c0 = chars[0];</span>
+<span class="fc bfc" id="L1164" title="All 6 branches covered.">                boolean c1UCase = chars.length &gt; 1 &amp;&amp; chars[1] &gt;= 'A' &amp;&amp; chars[1] &lt;= 'Z';</span>
+<span class="pc bpc" id="L1165" title="1 of 6 branches missed.">                if (c0 &gt;= 'A' &amp;&amp; c0 &lt;= 'Z' &amp;&amp; !c1UCase) {</span>
+<span class="fc" id="L1166">                    chars[0] = (char) (c0 + 32);</span>
+                }
+<span class="fc" id="L1168">                return new String(chars);</span>
+            }
+            case &quot;PascalCase&quot;:
+<span class="fc" id="L1171">                return pascal(methodName, methodNameLength, prefixLength);</span>
+            case &quot;SnakeCase&quot;: {
+<span class="fc" id="L1173">                return snakeCase(methodName, prefixLength);</span>
+            }
+            case &quot;UpperCaseWithUnderScores&quot;: {
+<span class="fc" id="L1176">                return underScores(methodName, prefixLength, true);</span>
+            }
+            case &quot;UpperCase&quot;: {
+<span class="fc" id="L1179">                char[] chars = new char[methodNameLength - prefixLength];</span>
+<span class="fc" id="L1180">                methodName.getChars(prefixLength, methodNameLength, chars, 0);</span>
+<span class="fc" id="L1181">                char c0 = chars[0];</span>
+<span class="fc bfc" id="L1182" title="All 2 branches covered.">                for (int i = 0; i &lt; chars.length; i++) {</span>
+<span class="fc" id="L1183">                    char ch = chars[i];</span>
+<span class="pc bpc" id="L1184" title="1 of 4 branches missed.">                    if (ch &gt;= 'a' &amp;&amp; c0 &lt;= 'z') {</span>
+<span class="fc" id="L1185">                        chars[i] = (char) (ch - 32);</span>
+                    }
+                }
+<span class="fc" id="L1188">                return new String(chars);</span>
+            }
+            case &quot;CamelCase1x&quot;: {
+<span class="fc" id="L1191">                char[] chars = new char[methodNameLength - prefixLength];</span>
+<span class="fc" id="L1192">                methodName.getChars(prefixLength, methodNameLength, chars, 0);</span>
+<span class="fc" id="L1193">                char c0 = chars[0];</span>
+<span class="pc bpc" id="L1194" title="2 of 4 branches missed.">                if (c0 &gt;= 'A' &amp;&amp; c0 &lt;= 'Z') {</span>
+<span class="fc" id="L1195">                    chars[0] = (char) (c0 + 32);</span>
+                }
+<span class="fc" id="L1197">                return new String(chars);</span>
+            }
+            case &quot;UpperCamelCaseWithSpaces&quot;:
+<span class="fc" id="L1200">                return upperCamelWith(methodName, prefixLength, ' ');</span>
+            case &quot;UpperCamelCaseWithUnderScores&quot;:
+<span class="fc" id="L1202">                return upperCamelWith(methodName, prefixLength, '_');</span>
+            case &quot;UpperCamelCaseWithDashes&quot;:
+<span class="fc" id="L1204">                return upperCamelWith(methodName, prefixLength, '-');</span>
+            case &quot;UpperCamelCaseWithDots&quot;:
+<span class="fc" id="L1206">                return upperCamelWith(methodName, prefixLength, '.');</span>
+            case &quot;KebabCase&quot;: {
+<span class="fc" id="L1208">                StringBuilder buf = new StringBuilder();</span>
+<span class="fc" id="L1209">                final int firstIndex = prefixLength;</span>
+
+<span class="fc bfc" id="L1211" title="All 2 branches covered.">                for (int i = prefixLength; i &lt; methodName.length(); ++i) {</span>
+<span class="fc" id="L1212">                    char ch = methodName.charAt(i);</span>
+<span class="pc bpc" id="L1213" title="1 of 4 branches missed.">                    if (ch &gt;= 'A' &amp;&amp; ch &lt;= 'Z') {</span>
+<span class="fc" id="L1214">                        ch = (char) (ch + 32);</span>
+<span class="fc bfc" id="L1215" title="All 2 branches covered.">                        if (i &gt; firstIndex) {</span>
+<span class="fc" id="L1216">                            buf.append('-');</span>
+                        }
+                    }
+<span class="fc" id="L1219">                    buf.append(ch);</span>
+                }
+<span class="fc" id="L1221">                return buf.toString();</span>
+            }
+            case &quot;UpperCaseWithDashes&quot;:
+<span class="fc" id="L1224">                return dashes(methodName, prefixLength, true);</span>
+            case &quot;UpperCaseWithDots&quot;:
+<span class="fc" id="L1226">                return dots(methodName, prefixLength, true);</span>
+            case &quot;LowerCase&quot;:
+<span class="fc" id="L1228">                return methodName.substring(prefixLength).toLowerCase();</span>
+            case &quot;LowerCaseWithUnderScores&quot;:
+<span class="fc" id="L1230">                return underScores(methodName, prefixLength, false);</span>
+            case &quot;LowerCaseWithDashes&quot;:
+<span class="fc" id="L1232">                return dashes(methodName, prefixLength, false);</span>
+            case &quot;LowerCaseWithDots&quot;:
+<span class="fc" id="L1234">                return dots(methodName, prefixLength, false);</span>
+            default:
+<span class="fc" id="L1236">                throw new JSONException(&quot;TODO : &quot; + namingStrategy);</span>
+        }
+    }
+
+    public static String setterName(String methodName, int prefixLength) {
+<span class="fc" id="L1241">        int methodNameLength = methodName.length();</span>
+<span class="fc" id="L1242">        char[] chars = new char[methodNameLength - prefixLength];</span>
+<span class="fc" id="L1243">        methodName.getChars(prefixLength, methodNameLength, chars, 0);</span>
+<span class="fc" id="L1244">        char c0 = chars[0];</span>
+<span class="pc bpc" id="L1245" title="3 of 6 branches missed.">        boolean c1UCase = chars.length &gt; 1 &amp;&amp; chars[1] &gt;= 'A' &amp;&amp; chars[1] &lt;= 'Z';</span>
+<span class="pc bpc" id="L1246" title="3 of 6 branches missed.">        if (c0 &gt;= 'A' &amp;&amp; c0 &lt;= 'Z' &amp;&amp; !c1UCase) {</span>
+<span class="fc" id="L1247">            chars[0] = (char) (c0 + 32);</span>
+        }
+<span class="fc" id="L1249">        return new String(chars);</span>
+    }
+
+    public static String getterName(Method method, String namingStrategy) {
+<span class="nc" id="L1253">        return getterName(method, false, namingStrategy);</span>
+    }
+
+    public static String getterName(Method method, boolean kotlin, String namingStrategy) {
+<span class="fc" id="L1257">        String methodName = method.getName();</span>
+<span class="fc bfc" id="L1258" title="All 2 branches covered.">        if (methodName.startsWith(&quot;is&quot;)) {</span>
+<span class="fc" id="L1259">            Class&lt;?&gt; returnType = method.getReturnType();</span>
+<span class="fc bfc" id="L1260" title="All 6 branches covered.">            if ((returnType != Boolean.class &amp;&amp; returnType != boolean.class) || kotlin) {</span>
+<span class="fc" id="L1261">                return methodName;</span>
+            }
+        }
+
+<span class="fc" id="L1265">        String fieldName = getterName(methodName, namingStrategy);</span>
+
+<span class="fc bfc" id="L1267" title="All 2 branches covered.">        if (fieldName.length() &gt; 2</span>
+<span class="pc bpc" id="L1268" title="1 of 4 branches missed.">                &amp;&amp; fieldName.charAt(0) &gt;= 'A' &amp;&amp; fieldName.charAt(0) &lt;= 'Z'</span>
+<span class="pc bpc" id="L1269" title="1 of 4 branches missed.">                &amp;&amp; fieldName.charAt(1) &gt;= 'A' &amp;&amp; fieldName.charAt(1) &lt;= 'Z'</span>
+        ) {
+<span class="fc" id="L1271">            char[] chars = fieldName.toCharArray();</span>
+<span class="fc" id="L1272">            chars[0] = (char) (chars[0] + 32);</span>
+<span class="fc" id="L1273">            String fieldName1 = new String(chars);</span>
+<span class="fc" id="L1274">            Field field = BeanUtils.getDeclaredField(method.getDeclaringClass(), fieldName1);</span>
+<span class="fc bfc" id="L1275" title="All 4 branches covered.">            if (field != null &amp;&amp; Modifier.isPublic(field.getModifiers())) {</span>
+<span class="fc" id="L1276">                fieldName = field.getName();</span>
+            }
+        }
+
+<span class="fc" id="L1280">        return fieldName;</span>
+    }
+
+    public static Field getField(Class objectClass, Method method) {
+<span class="fc" id="L1284">        String methodName = method.getName();</span>
+<span class="fc" id="L1285">        final int len = methodName.length();</span>
+<span class="fc" id="L1286">        Class&lt;?&gt; returnType = method.getReturnType();</span>
+
+<span class="fc" id="L1288">        boolean is = false, get = false, set = false;</span>
+<span class="fc bfc" id="L1289" title="All 2 branches covered.">        if (len &gt; 2) {</span>
+<span class="fc" id="L1290">            char c0 = methodName.charAt(0);</span>
+<span class="fc" id="L1291">            char c1 = methodName.charAt(1);</span>
+<span class="fc" id="L1292">            char c2 = methodName.charAt(2);</span>
+
+<span class="pc bpc" id="L1294" title="1 of 4 branches missed.">            if (c0 == 'i' &amp;&amp; c1 == 's') {</span>
+<span class="fc bfc" id="L1295" title="All 4 branches covered.">                is = returnType == Boolean.class || returnType == boolean.class;</span>
+<span class="pc bpc" id="L1296" title="2 of 6 branches missed.">            } else if (c0 == 'g' &amp;&amp; c1 == 'e' &amp;&amp; c2 == 't') {</span>
+<span class="fc bfc" id="L1297" title="All 2 branches covered.">                get = len &gt; 3;</span>
+<span class="pc bpc" id="L1298" title="2 of 6 branches missed.">            } else if (c0 == 's' &amp;&amp; c1 == 'e' &amp;&amp; c2 == 't') {</span>
+<span class="pc bpc" id="L1299" title="1 of 4 branches missed.">                set = len &gt; 3 &amp;&amp; method.getParameterCount() == 1;</span>
+            }
+        }
+
+<span class="fc" id="L1303">        Field[] fields = new Field[2];</span>
+<span class="fc bfc" id="L1304" title="All 6 branches covered.">        if (is || get || set) {</span>
+<span class="fc bfc" id="L1305" title="All 4 branches covered.">            Class type = (is || get) ? returnType : method.getParameterTypes()[0];</span>
+<span class="fc bfc" id="L1306" title="All 2 branches covered.">            int prefix = is ? 2 : 3;</span>
+<span class="fc" id="L1307">            char[] chars = new char[len - prefix];</span>
+<span class="fc" id="L1308">            methodName.getChars(prefix, len, chars, 0);</span>
+<span class="fc" id="L1309">            char c0 = chars[0];</span>
+<span class="fc" id="L1310">            declaredFields(objectClass, field -&gt; {</span>
+<span class="fc bfc" id="L1311" title="All 2 branches covered.">                if (field.getDeclaringClass() != method.getDeclaringClass()) {</span>
+<span class="fc" id="L1312">                    return;</span>
+                }
+
+<span class="fc" id="L1315">                String fieldName = field.getName();</span>
+<span class="fc" id="L1316">                int fieldNameLength = fieldName.length();</span>
+<span class="fc bfc" id="L1317" title="All 2 branches covered.">                if (fieldNameLength == len - prefix</span>
+<span class="fc bfc" id="L1318" title="All 4 branches covered.">                        &amp;&amp; (field.getType() == type || type.isAssignableFrom(field.getType()))) {</span>
+<span class="pc bpc" id="L1319" title="1 of 6 branches missed.">                    if (c0 &gt;= 'A' &amp;&amp; c0 &lt;= 'Z' &amp;&amp; (c0 + 32) == fieldName.charAt(0)</span>
+<span class="fc bfc" id="L1320" title="All 2 branches covered.">                            &amp;&amp; fieldName.regionMatches(1, methodName, prefix + 1, fieldNameLength - 1)</span>
+                    ) {
+<span class="fc" id="L1322">                        fields[0] = field;</span>
+<span class="fc bfc" id="L1323" title="All 2 branches covered.">                    } else if (fieldName.regionMatches(0, methodName, prefix, fieldNameLength)) {</span>
+<span class="fc" id="L1324">                        fields[1] = field;</span>
+                    }
+                }
+<span class="fc" id="L1327">            });</span>
+        }
+
+<span class="fc bfc" id="L1330" title="All 2 branches covered.">        Field field = fields[0] != null ? fields[0] : fields[1];</span>
+<span class="fc bfc" id="L1331" title="All 2 branches covered.">        if (Throwable.class.isAssignableFrom(objectClass)) {</span>
+<span class="pc bpc" id="L1332" title="1 of 10 branches missed.">            if (returnType == String.class &amp;&amp; (field == null &amp;&amp; &quot;getMessage&quot;.equals(methodName) || field == null &amp;&amp; &quot;getLocalizedMessage&quot;.equals(methodName))) {</span>
+<span class="fc" id="L1333">                field = getDeclaredField(objectClass, &quot;detailMessage&quot;);</span>
+<span class="pc bpc" id="L1334" title="1 of 4 branches missed.">            } else if (returnType == Throwable[].class &amp;&amp; &quot;getSuppressed&quot;.equals(methodName)) {</span>
+<span class="fc" id="L1335">                field = getDeclaredField(objectClass, &quot;suppressedExceptions&quot;);</span>
+            }
+        }
+
+<span class="fc" id="L1339">        return field;</span>
+    }
+
+    public static String getterName(String methodName, String namingStrategy) {
+<span class="fc bfc" id="L1343" title="All 2 branches covered.">        if (namingStrategy == null) {</span>
+<span class="fc" id="L1344">            namingStrategy = &quot;CamelCase&quot;;</span>
+        }
+
+<span class="fc" id="L1347">        final int methodNameLength = methodName.length();</span>
+<span class="fc" id="L1348">        boolean is = methodName.startsWith(&quot;is&quot;);</span>
+<span class="fc" id="L1349">        boolean get = methodName.startsWith(&quot;get&quot;);</span>
+
+        final int prefixLength;
+<span class="fc bfc" id="L1352" title="All 2 branches covered.">        if (is) {</span>
+<span class="fc" id="L1353">            prefixLength = 2;</span>
+<span class="fc bfc" id="L1354" title="All 2 branches covered.">        } else if (get) {</span>
+<span class="fc" id="L1355">            prefixLength = 3;</span>
+        } else {
+<span class="fc" id="L1357">            prefixLength = 0;</span>
+        }
+
+<span class="fc bfc" id="L1360" title="All 2 branches covered.">        if (methodNameLength == prefixLength) {</span>
+<span class="fc" id="L1361">            return methodName;</span>
+        }
+
+<span class="fc bfc" id="L1364" title="All 18 branches covered.">        switch (namingStrategy) {</span>
+            case &quot;NeverUseThisValueExceptDefaultValue&quot;:
+            case &quot;CamelCase&quot;: {
+<span class="fc" id="L1367">                char[] chars = new char[methodNameLength - prefixLength];</span>
+<span class="fc" id="L1368">                methodName.getChars(prefixLength, methodNameLength, chars, 0);</span>
+<span class="fc" id="L1369">                char c0 = chars[0];</span>
+<span class="fc bfc" id="L1370" title="All 6 branches covered.">                boolean c1UCase = chars.length &gt; 1 &amp;&amp; chars[1] &gt;= 'A' &amp;&amp; chars[1] &lt;= 'Z';</span>
+<span class="pc bpc" id="L1371" title="1 of 6 branches missed.">                if (c0 &gt;= 'A' &amp;&amp; c0 &lt;= 'Z' &amp;&amp; !c1UCase) {</span>
+<span class="fc" id="L1372">                    chars[0] = (char) (c0 + 32);</span>
+                }
+<span class="fc" id="L1374">                return new String(chars);</span>
+            }
+            case &quot;CamelCase1x&quot;: {
+<span class="fc" id="L1377">                char[] chars = new char[methodNameLength - prefixLength];</span>
+<span class="fc" id="L1378">                methodName.getChars(prefixLength, methodNameLength, chars, 0);</span>
+<span class="fc" id="L1379">                char c0 = chars[0];</span>
+<span class="pc bpc" id="L1380" title="2 of 4 branches missed.">                if (c0 &gt;= 'A' &amp;&amp; c0 &lt;= 'Z') {</span>
+<span class="fc" id="L1381">                    chars[0] = (char) (c0 + 32);</span>
+                }
+<span class="fc" id="L1383">                return new String(chars);</span>
+            }
+            case &quot;PascalCase&quot;: {
+<span class="fc" id="L1386">                return pascal(methodName, methodNameLength, prefixLength);</span>
+            }
+            case &quot;SnakeCase&quot;: {
+<span class="fc" id="L1389">                return snakeCase(methodName, prefixLength);</span>
+            }
+            case &quot;UpperCaseWithUnderScores&quot;: {
+<span class="fc" id="L1392">                return underScores(methodName, prefixLength, true);</span>
+            }
+            case &quot;UpperCamelCaseWithSpaces&quot;:
+<span class="fc" id="L1395">                return upperCamelWith(methodName, prefixLength, ' ');</span>
+            case &quot;UpperCase&quot;:
+<span class="fc" id="L1397">                return methodName.substring(prefixLength).toUpperCase();</span>
+            case &quot;UpperCaseWithDashes&quot;:
+<span class="fc" id="L1399">                return dashes(methodName, prefixLength, true);</span>
+            case &quot;UpperCaseWithDots&quot;:
+<span class="fc" id="L1401">                return dots(methodName, prefixLength, true);</span>
+            case &quot;KebabCase&quot;: {
+<span class="fc" id="L1403">                StringBuilder buf = new StringBuilder();</span>
+                final int firstIndex;
+<span class="fc bfc" id="L1405" title="All 2 branches covered.">                if (is) {</span>
+<span class="fc" id="L1406">                    firstIndex = 2;</span>
+<span class="fc bfc" id="L1407" title="All 2 branches covered.">                } else if (get) {</span>
+<span class="fc" id="L1408">                    firstIndex = 3;</span>
+                } else {
+<span class="fc" id="L1410">                    firstIndex = 0;</span>
+                }
+
+<span class="fc bfc" id="L1413" title="All 2 branches covered.">                for (int i = firstIndex; i &lt; methodName.length(); ++i) {</span>
+<span class="fc" id="L1414">                    char ch = methodName.charAt(i);</span>
+<span class="pc bpc" id="L1415" title="1 of 4 branches missed.">                    if (ch &gt;= 'A' &amp;&amp; ch &lt;= 'Z') {</span>
+<span class="fc" id="L1416">                        ch = (char) (ch + 32);</span>
+<span class="fc bfc" id="L1417" title="All 2 branches covered.">                        if (i &gt; firstIndex) {</span>
+<span class="fc" id="L1418">                            buf.append('-');</span>
+                        }
+                    }
+<span class="fc" id="L1421">                    buf.append(ch);</span>
+                }
+<span class="fc" id="L1423">                return buf.toString();</span>
+            }
+            case &quot;UpperCamelCaseWithUnderScores&quot;:
+<span class="fc" id="L1426">                return upperCamelWith(methodName, prefixLength, '_');</span>
+            case &quot;UpperCamelCaseWithDashes&quot;:
+<span class="fc" id="L1428">                return upperCamelWith(methodName, prefixLength, '-');</span>
+            case &quot;UpperCamelCaseWithDots&quot;:
+<span class="fc" id="L1430">                return upperCamelWith(methodName, prefixLength, '.');</span>
+            case &quot;LowerCase&quot;:
+<span class="fc" id="L1432">                return methodName.substring(prefixLength).toLowerCase();</span>
+            case &quot;LowerCaseWithUnderScores&quot;:
+<span class="fc" id="L1434">                return underScores(methodName, prefixLength, false);</span>
+            case &quot;LowerCaseWithDashes&quot;:
+<span class="fc" id="L1436">                return dashes(methodName, prefixLength, false);</span>
+            case &quot;LowerCaseWithDots&quot;:
+<span class="fc" id="L1438">                return dots(methodName, prefixLength, false);</span>
+            default:
+<span class="fc" id="L1440">                throw new JSONException(&quot;TODO : &quot; + namingStrategy);</span>
+        }
+    }
+
+    private static String pascal(String methodName, int methodNameLength, int prefixLength) {
+<span class="fc" id="L1445">        char[] chars = new char[methodNameLength - prefixLength];</span>
+<span class="fc" id="L1446">        methodName.getChars(prefixLength, methodNameLength, chars, 0);</span>
+<span class="fc" id="L1447">        char c0 = chars[0];</span>
+<span class="pc bpc" id="L1448" title="2 of 6 branches missed.">        if (c0 &gt;= 'a' &amp;&amp; c0 &lt;= 'z' &amp;&amp; chars.length &gt; 1) {</span>
+<span class="fc" id="L1449">            chars[0] = (char) (c0 - 32);</span>
+<span class="pc bpc" id="L1450" title="1 of 4 branches missed.">        } else if (c0 == '_' &amp;&amp; chars.length &gt; 2) {</span>
+<span class="fc" id="L1451">            char c1 = chars[1];</span>
+<span class="pc bpc" id="L1452" title="4 of 8 branches missed.">            if (c1 &gt;= 'a' &amp;&amp; c1 &lt;= 'z' &amp;&amp; chars[2] &gt;= 'a' &amp;&amp; chars[2] &lt;= 'z') {</span>
+<span class="fc" id="L1453">                chars[1] = (char) (c1 - 32);</span>
+            }
+        }
+<span class="fc" id="L1456">        return new String(chars);</span>
+    }
+
+    public static String fieldName(String methodName, String namingStrategy) {
+<span class="pc bpc" id="L1460" title="1 of 2 branches missed.">        if (namingStrategy == null) {</span>
+<span class="nc" id="L1461">            namingStrategy = &quot;CamelCase&quot;;</span>
+        }
+<span class="pc bpc" id="L1463" title="1 of 4 branches missed.">        if (methodName == null || methodName.isEmpty()) {</span>
+<span class="fc" id="L1464">            return methodName;</span>
+        }
+
+<span class="fc bfc" id="L1467" title="All 18 branches covered.">        switch (namingStrategy) {</span>
+            case &quot;NoChange&quot;:
+            case &quot;NeverUseThisValueExceptDefaultValue&quot;:
+            case &quot;CamelCase&quot;: {
+<span class="fc" id="L1471">                char c0 = methodName.charAt(0);</span>
+<span class="pc bpc" id="L1472" title="1 of 2 branches missed.">                char c1 = methodName.length() &gt; 1 ? methodName.charAt(1) : '\0';</span>
+<span class="pc bpc" id="L1473" title="1 of 4 branches missed.">                if (c0 &gt;= 'A' &amp;&amp; c0 &lt;= 'Z'</span>
+<span class="pc bpc" id="L1474" title="3 of 6 branches missed.">                        &amp;&amp; methodName.length() &gt; 1</span>
+                        &amp;&amp; (c1 &lt; 'A' || c1 &gt; 'Z')) {
+<span class="fc" id="L1476">                    char[] chars = methodName.toCharArray();</span>
+<span class="fc" id="L1477">                    chars[0] = (char) (c0 + 32);</span>
+<span class="fc" id="L1478">                    return new String(chars);</span>
+                }
+<span class="fc" id="L1480">                return methodName;</span>
+            }
+            case &quot;CamelCase1x&quot;: {
+<span class="fc" id="L1483">                char c0 = methodName.charAt(0);</span>
+<span class="pc bpc" id="L1484" title="4 of 6 branches missed.">                if (c0 &gt;= 'A' &amp;&amp; c0 &lt;= 'Z' &amp;&amp; methodName.length() &gt; 1) {</span>
+<span class="nc" id="L1485">                    char[] chars = methodName.toCharArray();</span>
+<span class="nc" id="L1486">                    chars[0] = (char) (c0 + 32);</span>
+<span class="nc" id="L1487">                    return new String(chars);</span>
+                }
+<span class="fc" id="L1489">                return methodName;</span>
+            }
+            case &quot;PascalCase&quot;: {
+<span class="fc" id="L1492">                char c0 = methodName.charAt(0);</span>
+                char c1;
+<span class="pc bpc" id="L1494" title="1 of 4 branches missed.">                if (c0 &gt;= 'a' &amp;&amp; c0 &lt;= 'z'</span>
+<span class="pc bpc" id="L1495" title="1 of 2 branches missed.">                        &amp;&amp; methodName.length() &gt; 1</span>
+<span class="pc bpc" id="L1496" title="2 of 4 branches missed.">                        &amp;&amp; (c1 = methodName.charAt(1)) &gt;= 'a'</span>
+                        &amp;&amp; c1 &lt;= 'z') {
+<span class="fc" id="L1498">                    char[] chars = methodName.toCharArray();</span>
+<span class="fc" id="L1499">                    chars[0] = (char) (c0 - 32);</span>
+<span class="fc" id="L1500">                    return new String(chars);</span>
+<span class="fc bfc" id="L1501" title="All 2 branches covered.">                } else if (c0 == '_'</span>
+<span class="pc bpc" id="L1502" title="1 of 2 branches missed.">                        &amp;&amp; methodName.length() &gt; 1</span>
+<span class="pc bpc" id="L1503" title="2 of 4 branches missed.">                        &amp;&amp; (c1 = methodName.charAt(1)) &gt;= 'a'</span>
+                        &amp;&amp; c1 &lt;= 'z') {
+<span class="fc" id="L1505">                    char[] chars = methodName.toCharArray();</span>
+<span class="fc" id="L1506">                    chars[1] = (char) (c1 - 32);</span>
+<span class="fc" id="L1507">                    return new String(chars);</span>
+                }
+<span class="fc" id="L1509">                return methodName;</span>
+            }
+            case &quot;SnakeCase&quot;:
+<span class="fc" id="L1512">                return snakeCase(methodName, 0);</span>
+            case &quot;UpperCaseWithUnderScores&quot;:
+<span class="fc" id="L1514">                return underScores(methodName, 0, true);</span>
+            case &quot;LowerCaseWithUnderScores&quot;:
+<span class="fc" id="L1516">                return underScores(methodName, 0, false);</span>
+            case &quot;UpperCaseWithDashes&quot;:
+<span class="fc" id="L1518">                return dashes(methodName, 0, true);</span>
+            case &quot;LowerCaseWithDashes&quot;:
+<span class="fc" id="L1520">                return dashes(methodName, 0, false);</span>
+            case &quot;UpperCaseWithDots&quot;:
+<span class="fc" id="L1522">                return dots(methodName, 0, true);</span>
+            case &quot;LowerCaseWithDots&quot;:
+<span class="fc" id="L1524">                return dots(methodName, 0, false);</span>
+            case &quot;UpperCase&quot;:
+<span class="fc" id="L1526">                return methodName.toUpperCase();</span>
+            case &quot;LowerCase&quot;:
+<span class="fc" id="L1528">                return methodName.toLowerCase();</span>
+            case &quot;UpperCamelCaseWithSpaces&quot;:
+<span class="fc" id="L1530">                return upperCamelWith(methodName, 0, ' ');</span>
+            case &quot;UpperCamelCaseWithUnderScores&quot;:
+<span class="fc" id="L1532">                return upperCamelWith(methodName, 0, '_');</span>
+            case &quot;UpperCamelCaseWithDashes&quot;:
+<span class="fc" id="L1534">                return upperCamelWith(methodName, 0, '-');</span>
+            case &quot;UpperCamelCaseWithDots&quot;:
+<span class="fc" id="L1536">                return upperCamelWith(methodName, 0, '.');</span>
+            case &quot;KebabCase&quot;: {
+<span class="fc" id="L1538">                StringBuilder buf = new StringBuilder();</span>
+<span class="fc bfc" id="L1539" title="All 2 branches covered.">                for (int i = 0; i &lt; methodName.length(); ++i) {</span>
+<span class="fc" id="L1540">                    char ch = methodName.charAt(i);</span>
+<span class="pc bpc" id="L1541" title="1 of 4 branches missed.">                    if (ch &gt;= 'A' &amp;&amp; ch &lt;= 'Z') {</span>
+<span class="fc" id="L1542">                        ch = (char) (ch + 32);</span>
+<span class="pc bpc" id="L1543" title="1 of 2 branches missed.">                        if (i &gt; 0) {</span>
+<span class="fc" id="L1544">                            buf.append('-');</span>
+                        }
+                    }
+<span class="fc" id="L1547">                    buf.append(ch);</span>
+                }
+<span class="fc" id="L1549">                return buf.toString();</span>
+            }
+            default:
+<span class="fc" id="L1552">                throw new JSONException(&quot;TODO : &quot; + namingStrategy);</span>
+        }
+    }
+
+    static String snakeCase(String methodName, int prefixLength) {
+<span class="fc" id="L1557">        final int methodNameLength = methodName.length();</span>
+
+<span class="fc" id="L1559">        char[] buf = TypeUtils.CHARS_UPDATER.getAndSet(TypeUtils.CACHE, null);</span>
+<span class="fc bfc" id="L1560" title="All 2 branches covered.">        if (buf == null) {</span>
+<span class="fc" id="L1561">            buf = new char[128];</span>
+        }
+        try {
+<span class="fc" id="L1564">            int off = 0;</span>
+<span class="fc bfc" id="L1565" title="All 2 branches covered.">            for (int i = prefixLength; i &lt; methodNameLength; ++i) {</span>
+<span class="fc" id="L1566">                char ch = methodName.charAt(i);</span>
+<span class="fc bfc" id="L1567" title="All 4 branches covered.">                if (ch &gt;= 'A' &amp;&amp; ch &lt;= 'Z') {</span>
+<span class="fc" id="L1568">                    ch = (char) (ch + 32);</span>
+<span class="fc bfc" id="L1569" title="All 2 branches covered.">                    if (i &gt; prefixLength) {</span>
+<span class="fc" id="L1570">                        buf[off++] = '_';</span>
+                    }
+                }
+<span class="fc" id="L1573">                buf[off++] = ch;</span>
+            }
+<span class="fc" id="L1575">            return new String(buf, 0, off);</span>
+        } finally {
+<span class="fc" id="L1577">            TypeUtils.CHARS_UPDATER.set(TypeUtils.CACHE, buf);</span>
+        }
+    }
+
+    static String upperCamelWith(String methodName, int prefixLength, char separator) {
+<span class="fc" id="L1582">        final int methodNameLength = methodName.length();</span>
+
+<span class="fc" id="L1584">        char[] buf = TypeUtils.CHARS_UPDATER.getAndSet(TypeUtils.CACHE, null);</span>
+<span class="fc bfc" id="L1585" title="All 2 branches covered.">        if (buf == null) {</span>
+<span class="fc" id="L1586">            buf = new char[128];</span>
+        }
+        try {
+<span class="fc" id="L1589">            int off = 0;</span>
+<span class="fc bfc" id="L1590" title="All 2 branches covered.">            for (int i = prefixLength; i &lt; methodNameLength; ++i) {</span>
+<span class="fc" id="L1591">                char ch = methodName.charAt(i);</span>
+                char c1;
+<span class="fc bfc" id="L1593" title="All 2 branches covered.">                if (i == prefixLength) {</span>
+<span class="pc bpc" id="L1594" title="2 of 6 branches missed.">                    if (ch &gt;= 'a' &amp;&amp; ch &lt;= 'z'</span>
+                            &amp;&amp; i + 1 &lt; methodNameLength
+<span class="pc bpc" id="L1596" title="1 of 4 branches missed.">                            &amp;&amp; (c1 = methodName.charAt(i + 1)) &gt;= 'a'</span>
+                            &amp;&amp; c1 &lt;= 'z') {
+<span class="fc" id="L1598">                        ch = (char) (ch - 32);</span>
+<span class="pc bpc" id="L1599" title="1 of 4 branches missed.">                    } else if (ch == '_' &amp;&amp; i + 1 &lt; methodNameLength</span>
+<span class="pc bpc" id="L1600" title="2 of 4 branches missed.">                            &amp;&amp; (c1 = methodName.charAt(i + 1)) &gt;= 'a'</span>
+                            &amp;&amp; c1 &lt;= 'z') {
+<span class="fc" id="L1602">                        buf[off++] = ch;</span>
+<span class="fc" id="L1603">                        ch = (char) (c1 - 32);</span>
+<span class="fc" id="L1604">                        ++i;</span>
+                    }
+<span class="fc bfc" id="L1606" title="All 6 branches covered.">                } else if (ch &gt;= 'A' &amp;&amp; ch &lt;= 'Z'</span>
+                        &amp;&amp; i + 1 &lt; methodNameLength
+<span class="fc bfc" id="L1608" title="All 4 branches covered.">                        &amp;&amp; ((c1 = methodName.charAt(i + 1)) &lt; 'A' || c1 &gt; 'Z')) {</span>
+<span class="pc bpc" id="L1609" title="1 of 2 branches missed.">                    if (i &gt; prefixLength) {</span>
+<span class="fc" id="L1610">                        buf[off++] = separator;</span>
+                    }
+<span class="pc bpc" id="L1612" title="1 of 8 branches missed.">                } else if (ch &gt;= 'A' &amp;&amp; ch &lt;= 'Z'</span>
+                        &amp;&amp; i &gt; prefixLength
+                        &amp;&amp; i + 1 &lt; methodNameLength
+<span class="pc bpc" id="L1615" title="2 of 4 branches missed.">                        &amp;&amp; (c1 = methodName.charAt(i + 1)) &gt;= 'A'</span>
+                        &amp;&amp; c1 &lt;= 'Z'
+<span class="pc bpc" id="L1617" title="1 of 4 branches missed.">                        &amp;&amp; (c1 = methodName.charAt(i - 1)) &gt;= 'a'</span>
+                        &amp;&amp; c1 &lt;= 'z') {
+<span class="fc" id="L1619">                    buf[off++] = separator;</span>
+                }
+<span class="fc" id="L1621">                buf[off++] = ch;</span>
+            }
+<span class="fc" id="L1623">            return new String(buf, 0, off);</span>
+        } finally {
+<span class="fc" id="L1625">            TypeUtils.CHARS_UPDATER.set(TypeUtils.CACHE, buf);</span>
+        }
+    }
+
+    static String underScores(String methodName, int prefixLength, boolean upper) {
+<span class="fc" id="L1630">        final int methodNameLength = methodName.length();</span>
+
+<span class="fc" id="L1632">        char[] buf = TypeUtils.CHARS_UPDATER.getAndSet(TypeUtils.CACHE, null);</span>
+<span class="pc bpc" id="L1633" title="1 of 2 branches missed.">        if (buf == null) {</span>
+<span class="nc" id="L1634">            buf = new char[128];</span>
+        }
+        try {
+<span class="fc" id="L1637">            int off = 0;</span>
+<span class="fc bfc" id="L1638" title="All 2 branches covered.">            for (int i = prefixLength; i &lt; methodNameLength; ++i) {</span>
+<span class="fc" id="L1639">                char ch = methodName.charAt(i);</span>
+<span class="fc bfc" id="L1640" title="All 2 branches covered.">                if (upper) {</span>
+<span class="fc bfc" id="L1641" title="All 4 branches covered.">                    if (ch &lt; 'A' || ch &gt; 'Z') {</span>
+<span class="pc bpc" id="L1642" title="1 of 4 branches missed.">                        if (ch &gt;= 'a' &amp;&amp; ch &lt;= 'z') {</span>
+<span class="fc" id="L1643">                            ch -= 32;</span>
+                        }
+                    } else {
+<span class="fc bfc" id="L1646" title="All 2 branches covered.">                        if (i &gt; prefixLength) {</span>
+<span class="fc" id="L1647">                            buf[off++] = '_';</span>
+                        }
+                    }
+                } else {
+<span class="pc bpc" id="L1651" title="1 of 4 branches missed.">                    if (ch &gt;= 'A' &amp;&amp; ch &lt;= 'Z') {</span>
+<span class="fc bfc" id="L1652" title="All 2 branches covered.">                        if (i &gt; prefixLength) {</span>
+<span class="fc" id="L1653">                            buf[off++] = '_';</span>
+                        }
+<span class="fc" id="L1655">                        ch = (char) (ch + 32);</span>
+                    }
+                }
+<span class="fc" id="L1658">                buf[off++] = ch;</span>
+            }
+<span class="fc" id="L1660">            return new String(buf, 0, off);</span>
+        } finally {
+<span class="fc" id="L1662">            TypeUtils.CHARS_UPDATER.set(TypeUtils.CACHE, buf);</span>
+        }
+    }
+
+    static String dashes(String methodName, int prefixLength, boolean upper) {
+<span class="fc" id="L1667">        final int methodNameLength = methodName.length();</span>
+
+<span class="fc" id="L1669">        char[] buf = TypeUtils.CHARS_UPDATER.getAndSet(TypeUtils.CACHE, null);</span>
+<span class="fc bfc" id="L1670" title="All 2 branches covered.">        if (buf == null) {</span>
+<span class="fc" id="L1671">            buf = new char[128];</span>
+        }
+        try {
+<span class="fc" id="L1674">            int off = 0;</span>
+<span class="fc bfc" id="L1675" title="All 2 branches covered.">            for (int i = prefixLength; i &lt; methodNameLength; ++i) {</span>
+<span class="fc" id="L1676">                char ch = methodName.charAt(i);</span>
+<span class="fc bfc" id="L1677" title="All 2 branches covered.">                if (upper) {</span>
+<span class="pc bpc" id="L1678" title="1 of 4 branches missed.">                    if (ch &gt;= 'A' &amp;&amp; ch &lt;= 'Z') {</span>
+<span class="fc bfc" id="L1679" title="All 2 branches covered.">                        if (i &gt; prefixLength) {</span>
+<span class="fc" id="L1680">                            buf[off++] = '-';</span>
+                        }
+                    } else {
+<span class="pc bpc" id="L1683" title="1 of 4 branches missed.">                        if (ch &gt;= 'a' &amp;&amp; ch &lt;= 'z') {</span>
+<span class="fc" id="L1684">                            ch -= 32;</span>
+                        }
+                    }
+                } else {
+<span class="pc bpc" id="L1688" title="1 of 4 branches missed.">                    if (ch &gt;= 'A' &amp;&amp; ch &lt;= 'Z') {</span>
+<span class="fc bfc" id="L1689" title="All 2 branches covered.">                        if (i &gt; prefixLength) {</span>
+<span class="fc" id="L1690">                            buf[off++] = '-';</span>
+                        }
+<span class="fc" id="L1692">                        ch = (char) (ch + 32);</span>
+                    }
+                }
+<span class="fc" id="L1695">                buf[off++] = ch;</span>
+            }
+<span class="fc" id="L1697">            return new String(buf, 0, off);</span>
+        } finally {
+<span class="fc" id="L1699">            TypeUtils.CHARS_UPDATER.set(TypeUtils.CACHE, buf);</span>
+        }
+    }
+
+    static String dots(String methodName, int prefixLength, boolean upper) {
+<span class="fc" id="L1704">        final int methodNameLength = methodName.length();</span>
+
+<span class="fc" id="L1706">        char[] buf = TypeUtils.CHARS_UPDATER.getAndSet(TypeUtils.CACHE, null);</span>
+<span class="fc bfc" id="L1707" title="All 2 branches covered.">        if (buf == null) {</span>
+<span class="fc" id="L1708">            buf = new char[128];</span>
+        }
+        try {
+<span class="fc" id="L1711">            int off = 0;</span>
+<span class="fc bfc" id="L1712" title="All 2 branches covered.">            for (int i = prefixLength; i &lt; methodNameLength; ++i) {</span>
+<span class="fc" id="L1713">                char ch = methodName.charAt(i);</span>
+<span class="fc bfc" id="L1714" title="All 2 branches covered.">                if (upper) {</span>
+<span class="pc bpc" id="L1715" title="1 of 4 branches missed.">                    if (ch &gt;= 'A' &amp;&amp; ch &lt;= 'Z') {</span>
+<span class="fc bfc" id="L1716" title="All 2 branches covered.">                        if (i &gt; prefixLength) {</span>
+<span class="fc" id="L1717">                            buf[off++] = '.';</span>
+                        }
+                    } else {
+<span class="pc bpc" id="L1720" title="1 of 4 branches missed.">                        if (ch &gt;= 'a' &amp;&amp; ch &lt;= 'z') {</span>
+<span class="fc" id="L1721">                            ch -= 32;</span>
+                        }
+                    }
+                } else {
+<span class="pc bpc" id="L1725" title="1 of 4 branches missed.">                    if (ch &gt;= 'A' &amp;&amp; ch &lt;= 'Z') {</span>
+<span class="fc bfc" id="L1726" title="All 2 branches covered.">                        if (i &gt; prefixLength) {</span>
+<span class="fc" id="L1727">                            buf[off++] = '.';</span>
+                        }
+<span class="fc" id="L1729">                        ch = (char) (ch + 32);</span>
+                    }
+                }
+<span class="fc" id="L1732">                buf[off++] = ch;</span>
+            }
+<span class="fc" id="L1734">            return new String(buf, 0, off);</span>
+        } finally {
+<span class="fc" id="L1736">            TypeUtils.CHARS_UPDATER.set(TypeUtils.CACHE, buf);</span>
+        }
+    }
+
+    public static Type getFieldType(TypeReference typeReference, Class&lt;?&gt; raw, Member field, Type fieldType) {
+<span class="fc bfc" id="L1741" title="All 2 branches covered.">        final Class&lt;?&gt; declaringClass = field == null ? null : field.getDeclaringClass();</span>
+
+<span class="fc bfc" id="L1743" title="All 2 branches covered.">        while (raw != Object.class) {</span>
+<span class="fc bfc" id="L1744" title="All 2 branches covered.">            Type type = typeReference == null ? null : typeReference.getType();</span>
+<span class="fc bfc" id="L1745" title="All 2 branches covered.">            if (declaringClass == raw) {</span>
+<span class="fc" id="L1746">                return resolve(type, declaringClass, fieldType);</span>
+            }
+<span class="fc" id="L1748">            Type superType = raw.getGenericSuperclass();</span>
+            // interface has no generic super class
+<span class="fc bfc" id="L1750" title="All 2 branches covered.">            if (superType == null) {</span>
+<span class="fc" id="L1751">                break;</span>
+            }
+<span class="fc" id="L1753">            typeReference = TypeReference.get(resolve(type, raw, superType));</span>
+<span class="fc" id="L1754">            raw = typeReference.getRawType();</span>
+<span class="fc" id="L1755">        }</span>
+<span class="fc" id="L1756">        return null;</span>
+    }
+
+    public static Type getParamType(
+            TypeReference type,
+            Class&lt;?&gt; raw,
+            Class declaringClass,
+            Parameter field,
+            Type fieldType
+    ) {
+<span class="fc bfc" id="L1766" title="All 2 branches covered.">        while (raw != Object.class) {</span>
+<span class="fc bfc" id="L1767" title="All 2 branches covered.">            if (declaringClass == raw) {</span>
+<span class="fc" id="L1768">                return resolve(type.getType(), declaringClass, fieldType);</span>
+            }
+<span class="fc" id="L1770">            type = TypeReference.get(resolve(type.getType(), raw, raw.getGenericSuperclass()));</span>
+<span class="fc" id="L1771">            raw = type.getRawType();</span>
+        }
+<span class="fc" id="L1773">        return null;</span>
+    }
+
+    /**
+     * Returns a new parameterized type, applying {@code typeArguments} to
+     * {@code rawType} and enclosed by {@code ownerType}.
+     *
+     * @return a {@link java.io.Serializable serializable} parameterized type.
+     */
+    public static ParameterizedType newParameterizedTypeWithOwner(
+            Type ownerType, Type rawType, Type... typeArguments) {
+<span class="fc" id="L1784">        return new ParameterizedTypeImpl(ownerType, rawType, typeArguments);</span>
+    }
+
+    /**
+     * Returns an array type whose elements are all instances of
+     * {@code componentType}.
+     *
+     * @return a {@link java.io.Serializable serializable} generic array type.
+     */
+    public static GenericArrayType arrayOf(Type componentType) {
+<span class="fc" id="L1794">        return new GenericArrayTypeImpl(componentType);</span>
+    }
+
+    /**
+     * Returns a type that represents an unknown type that extends {@code bound}.
+     * For example, if {@code bound} is {@code CharSequence.class}, this returns
+     * {@code ? extends CharSequence}. If {@code bound} is {@code Object.class},
+     * this returns {@code ?}, which is shorthand for {@code ? extends Object}.
+     */
+    public static WildcardType subtypeOf(Type bound) {
+<span class="fc bfc" id="L1804" title="All 2 branches covered.">        return new WildcardTypeImpl(</span>
+                bound instanceof WildcardType
+<span class="fc" id="L1806">                        ? ((WildcardType) bound).getUpperBounds()</span>
+                        : new Type[]{bound},
+                EMPTY_TYPE_ARRAY);
+    }
+
+    /**
+     * Returns a type that represents an unknown supertype of {@code bound}. For
+     * example, if {@code bound} is {@code String.class}, this returns {@code ?
+     * super String}.
+     */
+    public static WildcardType supertypeOf(Type bound) {
+<span class="fc bfc" id="L1817" title="All 2 branches covered.">        return new WildcardTypeImpl(</span>
+                new Type[]{Object.class},
+                bound instanceof WildcardType
+<span class="fc" id="L1820">                        ? ((WildcardType) bound).getLowerBounds()</span>
+                        : new Type[]{bound}
+        );
+    }
+
+    /**
+     * Returns a type that is functionally equal but not necessarily equal
+     * according to {@link Object#equals(Object) Object.equals()}. The returned
+     * type is {@link java.io.Serializable}.
+     */
+    public static Type canonicalize(Type type) {
+<span class="fc bfc" id="L1831" title="All 2 branches covered.">        if (type instanceof Class) {</span>
+<span class="fc" id="L1832">            Class&lt;?&gt; c = (Class&lt;?&gt;) type;</span>
+<span class="fc bfc" id="L1833" title="All 2 branches covered.">            return c.isArray() ? new GenericArrayTypeImpl(canonicalize(c.getComponentType())) : c;</span>
+<span class="fc bfc" id="L1834" title="All 2 branches covered.">        } else if (type instanceof ParameterizedType) {</span>
+<span class="fc" id="L1835">            ParameterizedType p = (ParameterizedType) type;</span>
+<span class="fc" id="L1836">            return new ParameterizedTypeImpl(p.getOwnerType(),</span>
+<span class="fc" id="L1837">                    p.getRawType(), p.getActualTypeArguments());</span>
+<span class="fc bfc" id="L1838" title="All 2 branches covered.">        } else if (type instanceof GenericArrayType) {</span>
+<span class="fc" id="L1839">            GenericArrayType g = (GenericArrayType) type;</span>
+<span class="fc" id="L1840">            return new GenericArrayTypeImpl(g.getGenericComponentType());</span>
+<span class="fc bfc" id="L1841" title="All 2 branches covered.">        } else if (type instanceof WildcardType) {</span>
+<span class="fc" id="L1842">            WildcardType w = (WildcardType) type;</span>
+<span class="fc" id="L1843">            return new WildcardTypeImpl(w.getUpperBounds(), w.getLowerBounds());</span>
+        } else {
+            // type is either serializable as-is or unsupported
+<span class="fc" id="L1846">            return type;</span>
+        }
+    }
+
+    public static Class&lt;?&gt; getRawType(Type type) {
+<span class="fc bfc" id="L1851" title="All 2 branches covered.">        if (type instanceof Class&lt;?&gt;) {</span>
+            // type is a normal class.
+<span class="fc" id="L1853">            return (Class&lt;?&gt;) type;</span>
+<span class="fc bfc" id="L1854" title="All 2 branches covered.">        } else if (type instanceof ParameterizedType) {</span>
+<span class="fc" id="L1855">            ParameterizedType parameterizedType = (ParameterizedType) type;</span>
+
+            // I'm not exactly sure why getRawType() returns Type instead of Class.
+            // Neal isn't either but suspects some pathological case related
+            // to nested classes exists.
+<span class="fc" id="L1860">            Type rawType = parameterizedType.getRawType();</span>
+<span class="fc" id="L1861">            checkArgument(rawType instanceof Class);</span>
+<span class="fc" id="L1862">            return (Class&lt;?&gt;) rawType;</span>
+<span class="fc bfc" id="L1863" title="All 2 branches covered.">        } else if (type instanceof GenericArrayType) {</span>
+<span class="fc" id="L1864">            Type componentType = ((GenericArrayType) type).getGenericComponentType();</span>
+<span class="fc" id="L1865">            return Array.newInstance(getRawType(componentType), 0).getClass();</span>
+<span class="fc bfc" id="L1866" title="All 2 branches covered.">        } else if (type instanceof TypeVariable) {</span>
+            // we could use the variable's bounds, but that won't work if there are multiple.
+            // having a raw type that's more general than necessary is okay
+<span class="fc" id="L1869">            return Object.class;</span>
+<span class="pc bpc" id="L1870" title="1 of 2 branches missed.">        } else if (type instanceof WildcardType) {</span>
+<span class="fc" id="L1871">            return getRawType(((WildcardType) type).getUpperBounds()[0]);</span>
+        } else {
+<span class="nc bnc" id="L1873" title="All 2 branches missed.">            String className = type == null ? &quot;null&quot; : type.getClass().getName();</span>
+<span class="nc" id="L1874">            throw new IllegalArgumentException(&quot;Expected a Class, ParameterizedType, or &quot;</span>
+                    + &quot;GenericArrayType, but &lt;&quot; + type + &quot;&gt; is of type &quot; + className);
+        }
+    }
+
+    static boolean equal(Object a, Object b) {
+<span class="fc" id="L1880">        return Objects.equals(a, b);</span>
+    }
+
+    /**
+     * Returns true if {@code a} and {@code b} are equal.
+     */
+    public static boolean equals(Type a, Type b) {
+<span class="fc bfc" id="L1887" title="All 2 branches covered.">        if (a == b) {</span>
+            // also handles (a == null &amp;&amp; b == null)
+<span class="fc" id="L1889">            return true;</span>
+<span class="fc bfc" id="L1890" title="All 2 branches covered.">        } else if (a instanceof Class) {</span>
+            // Class already specifies equals().
+<span class="fc" id="L1892">            return a.equals(b);</span>
+<span class="fc bfc" id="L1893" title="All 2 branches covered.">        } else if (a instanceof ParameterizedType) {</span>
+<span class="fc bfc" id="L1894" title="All 2 branches covered.">            if (!(b instanceof ParameterizedType)) {</span>
+<span class="fc" id="L1895">                return false;</span>
+            }
+
+            // TODO: save a .clone() call
+<span class="fc" id="L1899">            ParameterizedType pa = (ParameterizedType) a;</span>
+<span class="fc" id="L1900">            ParameterizedType pb = (ParameterizedType) b;</span>
+<span class="pc bpc" id="L1901" title="1 of 2 branches missed.">            return equal(pa.getOwnerType(), pb.getOwnerType())</span>
+<span class="pc bpc" id="L1902" title="1 of 2 branches missed.">                    &amp;&amp; pa.getRawType().equals(pb.getRawType())</span>
+<span class="fc bfc" id="L1903" title="All 2 branches covered.">                    &amp;&amp; Arrays.equals(pa.getActualTypeArguments(), pb.getActualTypeArguments());</span>
+<span class="fc bfc" id="L1904" title="All 2 branches covered.">        } else if (a instanceof GenericArrayType) {</span>
+<span class="fc bfc" id="L1905" title="All 2 branches covered.">            if (!(b instanceof GenericArrayType)) {</span>
+<span class="fc" id="L1906">                return false;</span>
+            }
+
+<span class="fc" id="L1909">            GenericArrayType ga = (GenericArrayType) a;</span>
+<span class="fc" id="L1910">            GenericArrayType gb = (GenericArrayType) b;</span>
+<span class="fc" id="L1911">            return equals(ga.getGenericComponentType(), gb.getGenericComponentType());</span>
+<span class="fc bfc" id="L1912" title="All 2 branches covered.">        } else if (a instanceof WildcardType) {</span>
+<span class="fc bfc" id="L1913" title="All 2 branches covered.">            if (!(b instanceof WildcardType)) {</span>
+<span class="fc" id="L1914">                return false;</span>
+            }
+
+<span class="fc" id="L1917">            WildcardType wa = (WildcardType) a;</span>
+<span class="fc" id="L1918">            WildcardType wb = (WildcardType) b;</span>
+<span class="pc bpc" id="L1919" title="1 of 2 branches missed.">            return Arrays.equals(wa.getUpperBounds(), wb.getUpperBounds())</span>
+<span class="pc bpc" id="L1920" title="1 of 2 branches missed.">                    &amp;&amp; Arrays.equals(wa.getLowerBounds(), wb.getLowerBounds());</span>
+<span class="pc bpc" id="L1921" title="1 of 2 branches missed.">        } else if (a instanceof TypeVariable) {</span>
+<span class="fc bfc" id="L1922" title="All 2 branches covered.">            if (!(b instanceof TypeVariable)) {</span>
+<span class="fc" id="L1923">                return false;</span>
+            }
+<span class="fc" id="L1925">            TypeVariable&lt;?&gt; va = (TypeVariable&lt;?&gt;) a;</span>
+<span class="fc" id="L1926">            TypeVariable&lt;?&gt; vb = (TypeVariable&lt;?&gt;) b;</span>
+<span class="pc bpc" id="L1927" title="1 of 2 branches missed.">            return va.getGenericDeclaration() == vb.getGenericDeclaration()</span>
+<span class="pc bnc" id="L1928" title="All 2 branches missed.">                    &amp;&amp; va.getName().equals(vb.getName());</span>
+        } else {
+            // This isn't a type we support. Could be a generic array type, wildcard type, etc.
+<span class="nc" id="L1931">            return false;</span>
+        }
+    }
+
+    static int hashCodeOrZero(Object o) {
+<span class="pc bpc" id="L1936" title="1 of 2 branches missed.">        return o != null ? o.hashCode() : 0;</span>
+    }
+
+    public static String typeToString(Type type) {
+<span class="fc bfc" id="L1940" title="All 2 branches covered.">        return type instanceof Class ? ((Class&lt;?&gt;) type).getName() : type.toString();</span>
+    }
+
+    /**
+     * Returns the generic supertype for {@code supertype}. For example, given a class {@code
+     * IntegerSet}, the result for when supertype is {@code Set.class} is {@code Set&lt;Integer&gt;} and the
+     * result when the supertype is {@code Collection.class} is {@code Collection&lt;Integer&gt;}.
+     */
+    static Type getGenericSupertype(Type context, Class&lt;?&gt; rawType, Class&lt;?&gt; toResolve) {
+<span class="fc bfc" id="L1949" title="All 2 branches covered.">        if (toResolve == rawType) {</span>
+<span class="fc" id="L1950">            return context;</span>
+        }
+
+        // we skip searching through interfaces if unknown is an interface
+<span class="fc bfc" id="L1954" title="All 2 branches covered.">        if (toResolve.isInterface()) {</span>
+<span class="fc" id="L1955">            Class&lt;?&gt;[] interfaces = rawType.getInterfaces();</span>
+<span class="pc bpc" id="L1956" title="1 of 2 branches missed.">            for (int i = 0, length = interfaces.length; i &lt; length; i++) {</span>
+<span class="pc bpc" id="L1957" title="1 of 2 branches missed.">                if (interfaces[i] == toResolve) {</span>
+<span class="fc" id="L1958">                    return rawType.getGenericInterfaces()[i];</span>
+<span class="nc bnc" id="L1959" title="All 2 branches missed.">                } else if (toResolve.isAssignableFrom(interfaces[i])) {</span>
+<span class="nc" id="L1960">                    return getGenericSupertype(rawType.getGenericInterfaces()[i], interfaces[i], toResolve);</span>
+                }
+            }
+        }
+
+        // check our supertypes
+<span class="pc bpc" id="L1966" title="1 of 4 branches missed.">        if (rawType != null &amp;&amp; !rawType.isInterface()) {</span>
+<span class="fc bfc" id="L1967" title="All 2 branches covered.">            while (rawType != Object.class) {</span>
+<span class="fc" id="L1968">                Class&lt;?&gt; rawSupertype = rawType.getSuperclass();</span>
+<span class="pc bpc" id="L1969" title="1 of 2 branches missed.">                if (rawSupertype == toResolve) {</span>
+<span class="nc" id="L1970">                    return rawType.getGenericSuperclass();</span>
+<span class="pc bpc" id="L1971" title="1 of 2 branches missed.">                } else if (toResolve.isAssignableFrom(rawSupertype)) {</span>
+<span class="nc" id="L1972">                    return getGenericSupertype(rawType.getGenericSuperclass(), rawSupertype, toResolve);</span>
+                }
+<span class="fc" id="L1974">                rawType = rawSupertype;</span>
+<span class="fc" id="L1975">            }</span>
+        }
+
+        // we can't resolve this further
+<span class="fc" id="L1979">        return toResolve;</span>
+    }
+
+    public static Type resolve(Type context, Class&lt;?&gt; contextRawType, Type toResolve) {
+<span class="fc" id="L1983">        return resolve(context, contextRawType, toResolve, new HashMap&lt;&gt;());</span>
+    }
+
+    private static Type resolve(Type context, Class&lt;?&gt; contextRawType, Type toResolve,
+                                Map&lt;TypeVariable&lt;?&gt;, Type&gt; visitedTypeVariables) {
+        // this implementation is made a little more complicated in an attempt to avoid object-creation
+<span class="fc" id="L1989">        TypeVariable&lt;?&gt; resolving = null;</span>
+        while (true) {
+<span class="fc bfc" id="L1991" title="All 2 branches covered.">            if (toResolve instanceof TypeVariable) {</span>
+<span class="fc" id="L1992">                TypeVariable&lt;?&gt; typeVariable = (TypeVariable&lt;?&gt;) toResolve;</span>
+<span class="fc" id="L1993">                Type previouslyResolved = visitedTypeVariables.get(typeVariable);</span>
+<span class="fc bfc" id="L1994" title="All 2 branches covered.">                if (previouslyResolved != null) {</span>
+                    // cannot reduce due to infinite recursion
+<span class="pc bpc" id="L1996" title="1 of 2 branches missed.">                    return (previouslyResolved == Void.TYPE) ? toResolve : previouslyResolved;</span>
+                }
+
+                // Insert a placeholder to mark the fact that we are in the process of resolving this type
+<span class="fc" id="L2000">                visitedTypeVariables.put(typeVariable, Void.TYPE);</span>
+<span class="fc bfc" id="L2001" title="All 2 branches covered.">                if (resolving == null) {</span>
+<span class="fc" id="L2002">                    resolving = typeVariable;</span>
+                }
+
+<span class="fc" id="L2005">                toResolve = resolveTypeVariable(context, contextRawType, typeVariable);</span>
+<span class="fc bfc" id="L2006" title="All 2 branches covered.">                if (toResolve == typeVariable) {</span>
+<span class="fc" id="L2007">                    break;</span>
+                }
+<span class="fc bfc" id="L2009" title="All 4 branches covered.">            } else if (toResolve instanceof Class &amp;&amp; ((Class&lt;?&gt;) toResolve).isArray()) {</span>
+<span class="fc" id="L2010">                Class&lt;?&gt; original = (Class&lt;?&gt;) toResolve;</span>
+<span class="fc" id="L2011">                Type componentType = original.getComponentType();</span>
+<span class="fc" id="L2012">                Type newComponentType = resolve(context, contextRawType, componentType, visitedTypeVariables);</span>
+<span class="pc bpc" id="L2013" title="1 of 2 branches missed.">                toResolve = equal(componentType, newComponentType)</span>
+                        ? original
+<span class="pc" id="L2015">                        : arrayOf(newComponentType);</span>
+<span class="fc" id="L2016">                break;</span>
+<span class="fc bfc" id="L2017" title="All 2 branches covered.">            } else if (toResolve instanceof GenericArrayType) {</span>
+<span class="fc" id="L2018">                GenericArrayType original = (GenericArrayType) toResolve;</span>
+<span class="fc" id="L2019">                Type componentType = original.getGenericComponentType();</span>
+<span class="fc" id="L2020">                Type newComponentType = resolve(context, contextRawType, componentType, visitedTypeVariables);</span>
+<span class="fc bfc" id="L2021" title="All 2 branches covered.">                toResolve = equal(componentType, newComponentType)</span>
+                        ? original
+<span class="fc" id="L2023">                        : arrayOf(newComponentType);</span>
+<span class="fc" id="L2024">                break;</span>
+<span class="fc bfc" id="L2025" title="All 2 branches covered.">            } else if (toResolve instanceof ParameterizedType) {</span>
+<span class="fc" id="L2026">                ParameterizedType original = (ParameterizedType) toResolve;</span>
+<span class="fc" id="L2027">                Type ownerType = original.getOwnerType();</span>
+<span class="fc" id="L2028">                Type newOwnerType = resolve(context, contextRawType, ownerType, visitedTypeVariables);</span>
+<span class="pc bpc" id="L2029" title="1 of 2 branches missed.">                boolean changed = !equal(newOwnerType, ownerType);</span>
+
+<span class="fc" id="L2031">                Type[] args = original.getActualTypeArguments();</span>
+<span class="fc bfc" id="L2032" title="All 2 branches covered.">                for (int i = 0, length = args.length; i &lt; length; i++) {</span>
+<span class="fc" id="L2033">                    Type arg = args[i];</span>
+<span class="fc bfc" id="L2034" title="All 2 branches covered.">                    if (arg == String.class) {</span>
+<span class="fc" id="L2035">                        continue;</span>
+                    }
+<span class="fc" id="L2037">                    Type resolvedTypeArgument = resolve(context, contextRawType, arg, visitedTypeVariables);</span>
+<span class="fc bfc" id="L2038" title="All 2 branches covered.">                    if (!equal(resolvedTypeArgument, arg)) {</span>
+<span class="fc bfc" id="L2039" title="All 2 branches covered.">                        if (!changed) {</span>
+<span class="fc" id="L2040">                            args = args.clone();</span>
+<span class="fc" id="L2041">                            changed = true;</span>
+                        }
+<span class="fc" id="L2043">                        args[i] = resolvedTypeArgument;</span>
+                    }
+                }
+
+<span class="fc bfc" id="L2047" title="All 2 branches covered.">                toResolve = changed</span>
+<span class="fc" id="L2048">                        ? newParameterizedTypeWithOwner(newOwnerType, original.getRawType(), args)</span>
+                        : original;
+<span class="fc" id="L2050">                break;</span>
+<span class="fc bfc" id="L2051" title="All 2 branches covered.">            } else if (toResolve instanceof WildcardType) {</span>
+<span class="fc" id="L2052">                WildcardType original = (WildcardType) toResolve;</span>
+<span class="fc" id="L2053">                Type[] originalLowerBound = original.getLowerBounds();</span>
+<span class="fc" id="L2054">                Type[] originalUpperBound = original.getUpperBounds();</span>
+
+<span class="pc bpc" id="L2056" title="1 of 2 branches missed.">                if (originalLowerBound.length == 1) {</span>
+<span class="nc" id="L2057">                    Type lowerBound = resolve(context, contextRawType, originalLowerBound[0], visitedTypeVariables);</span>
+<span class="nc bnc" id="L2058" title="All 2 branches missed.">                    if (lowerBound != originalLowerBound[0]) {</span>
+<span class="nc" id="L2059">                        toResolve = supertypeOf(lowerBound);</span>
+<span class="nc" id="L2060">                        break;</span>
+                    }
+<span class="pc bpc" id="L2062" title="1 of 2 branches missed.">                } else if (originalUpperBound.length == 1) {</span>
+<span class="fc" id="L2063">                    Type upperBound = resolve(context, contextRawType, originalUpperBound[0], visitedTypeVariables);</span>
+<span class="pc bpc" id="L2064" title="1 of 2 branches missed.">                    if (upperBound != originalUpperBound[0]) {</span>
+<span class="nc" id="L2065">                        toResolve = subtypeOf(upperBound);</span>
+<span class="nc" id="L2066">                        break;</span>
+                    }
+<span class="fc" id="L2068">                }</span>
+                break;
+            } else {
+                break;
+            }
+        }
+        // ensure that any in-process resolution gets updated with the final result
+<span class="fc bfc" id="L2075" title="All 2 branches covered.">        if (resolving != null) {</span>
+<span class="fc" id="L2076">            visitedTypeVariables.put(resolving, toResolve);</span>
+        }
+<span class="fc" id="L2078">        return toResolve;</span>
+    }
+
+    static Type resolveTypeVariable(Type context, Class&lt;?&gt; contextRawType, TypeVariable&lt;?&gt; unknown) {
+<span class="fc" id="L2082">        Class&lt;?&gt; declaredByRaw = declaringClassOf(unknown);</span>
+
+        // we can't reduce this further
+<span class="fc bfc" id="L2085" title="All 2 branches covered.">        if (declaredByRaw == null) {</span>
+<span class="fc" id="L2086">            return unknown;</span>
+        }
+
+<span class="fc" id="L2089">        Type declaredBy = getGenericSupertype(context, contextRawType, declaredByRaw);</span>
+<span class="fc bfc" id="L2090" title="All 2 branches covered.">        if (declaredBy instanceof ParameterizedType) {</span>
+<span class="fc" id="L2091">            int index = indexOf(declaredByRaw.getTypeParameters(), unknown);</span>
+<span class="fc" id="L2092">            return ((ParameterizedType) declaredBy).getActualTypeArguments()[index];</span>
+        }
+
+<span class="fc" id="L2095">        return unknown;</span>
+    }
+
+    private static int indexOf(Object[] array, Object toFind) {
+<span class="pc bpc" id="L2099" title="1 of 2 branches missed.">        for (int i = 0, length = array.length; i &lt; length; i++) {</span>
+<span class="fc bfc" id="L2100" title="All 2 branches covered.">            if (toFind.equals(array[i])) {</span>
+<span class="fc" id="L2101">                return i;</span>
+            }
+        }
+<span class="nc" id="L2104">        throw new NoSuchElementException();</span>
+    }
+
+    /**
+     * Returns the declaring class of {@code typeVariable}, or {@code null} if it was not declared by
+     * a class.
+     */
+    private static Class&lt;?&gt; declaringClassOf(TypeVariable&lt;?&gt; typeVariable) {
+<span class="fc" id="L2112">        GenericDeclaration genericDeclaration = typeVariable.getGenericDeclaration();</span>
+<span class="fc bfc" id="L2113" title="All 2 branches covered.">        return genericDeclaration instanceof Class</span>
+                ? (Class&lt;?&gt;) genericDeclaration
+                : null;
+    }
+
+    static void checkNotPrimitive(Type type) {
+<span class="pc bpc" id="L2119" title="1 of 4 branches missed.">        checkArgument(!(type instanceof Class&lt;?&gt;) || !((Class&lt;?&gt;) type).isPrimitive());</span>
+<span class="fc" id="L2120">    }</span>
+
+    /**
+     * Find the first annotation of {@code annotationType} that is either
+     * &lt;em&gt;directly present&lt;/em&gt;, &lt;em&gt;meta-present&lt;/em&gt;, or &lt;em&gt;indirectly
+     * present&lt;/em&gt; on the supplied {@code element}.
+     *
+     * &lt;p&gt;If the element is a class and the annotation is neither &lt;em&gt;directly
+     * present&lt;/em&gt; nor &lt;em&gt;meta-present&lt;/em&gt; on the class, this method will additionally search on
+     * interfaces implemented by the class before finding an annotation that is &lt;em&gt;indirectly
+     * present&lt;/em&gt; on the class.
+     *
+     * @param element the element on which to search for the annotation
+     * @param annotationType the annotation type of need to search
+     * @param &lt;A&gt; the annotation
+     * @return the searched annotation type
+     */
+    public static &lt;A extends Annotation&gt; A findAnnotation(AnnotatedElement element, Class&lt;A&gt; annotationType) {
+<span class="pc bpc" id="L2138" title="1 of 2 branches missed.">        if (annotationType == null) {</span>
+<span class="nc" id="L2139">            throw new NullPointerException(&quot;annotationType must not be null&quot;);</span>
+        }
+
+<span class="fc" id="L2142">        boolean inherited = annotationType.isAnnotationPresent(Inherited.class);</span>
+<span class="fc" id="L2143">        return findAnnotation(element, annotationType, inherited, new HashSet&lt;&gt;());</span>
+    }
+
+    /**
+     * If the {@code annotation}'s annotationType is not {@code annotationType}, then to find the
+     * first annotation of {@code annotationType} that is either
+     * &lt;em&gt;directly present&lt;/em&gt;, &lt;em&gt;meta-present&lt;/em&gt;, or &lt;em&gt;indirectly
+     * present&lt;/em&gt; on the supplied {@code element}.
+     *
+     * @param annotation annotation
+     * @param annotationType the annotation type of need to search
+     * @param &lt;A&gt; the searched annotation type
+     * @return the searched annotation
+     */
+    @SuppressWarnings(&quot;unchecked&quot;)
+    public static &lt;A extends Annotation&gt; A findAnnotation(Annotation annotation, Class&lt;A&gt; annotationType) {
+<span class="pc bpc" id="L2159" title="1 of 2 branches missed.">        if (annotation == null) {</span>
+<span class="nc" id="L2160">            throw new NullPointerException(&quot;annotation must not be null&quot;);</span>
+        }
+<span class="pc bpc" id="L2162" title="1 of 2 branches missed.">        if (annotationType == null) {</span>
+<span class="nc" id="L2163">            throw new NullPointerException(&quot;annotationType must not be null&quot;);</span>
+        }
+
+<span class="fc" id="L2166">        Class&lt;? extends Annotation&gt; annotationTypeClass = annotation.annotationType();</span>
+<span class="fc bfc" id="L2167" title="All 2 branches covered.">        if (annotationTypeClass == annotationType) {</span>
+<span class="fc" id="L2168">            return (A) annotation;</span>
+        }
+
+<span class="fc" id="L2171">        boolean inherited = annotationType.isAnnotationPresent(Inherited.class);</span>
+<span class="fc" id="L2172">        return findAnnotation(annotationTypeClass, annotationType, inherited, new HashSet&lt;&gt;());</span>
+    }
+
+    /**
+     * Find the first annotation of {@code annotationType} that is either
+     * &lt;em&gt;directly present&lt;/em&gt;, &lt;em&gt;meta-present&lt;/em&gt;, or &lt;em&gt;indirectly
+     * present&lt;/em&gt; on the supplied {@code element}.
+     *
+     * &lt;p&gt;If the element is a class and the annotation is neither &lt;em&gt;directly
+     * present&lt;/em&gt; nor &lt;em&gt;meta-present&lt;/em&gt; on the class, this method will additionally search on
+     * interfaces implemented by the class before finding an annotation that is &lt;em&gt;indirectly
+     * present&lt;/em&gt; on the class.
+     *
+     * @param element the element on which to search for the annotation
+     * @param annotationType the annotation type of need to search
+     * @param inherited whether has {@link Inherited}
+     * @param visited this annotation whether visited
+     * @param &lt;A&gt; the annotation type
+     * @return the searched annotation
+     */
+    private static &lt;A extends Annotation&gt; A findAnnotation(
+            AnnotatedElement element,
+            Class&lt;A&gt; annotationType,
+            boolean inherited,
+            Set&lt;Annotation&gt; visited
+    ) {
+<span class="pc bpc" id="L2198" title="2 of 4 branches missed.">        if (element == null || annotationType == null) {</span>
+<span class="nc" id="L2199">            return null;</span>
+        }
+
+<span class="fc" id="L2202">        A annotation = element.getDeclaredAnnotation(annotationType);</span>
+<span class="fc bfc" id="L2203" title="All 2 branches covered.">        if (annotation != null) {</span>
+<span class="fc" id="L2204">            return annotation;</span>
+        }
+
+<span class="fc" id="L2207">        Annotation[] declaredAnnotations = element.getDeclaredAnnotations();</span>
+<span class="fc" id="L2208">        A directMetaAnnotation = findMetaAnnotation(annotationType, declaredAnnotations, inherited, visited);</span>
+<span class="fc bfc" id="L2209" title="All 2 branches covered.">        if (directMetaAnnotation != null) {</span>
+<span class="fc" id="L2210">            return directMetaAnnotation;</span>
+        }
+
+<span class="fc bfc" id="L2213" title="All 2 branches covered.">        if (element instanceof Class) {</span>
+<span class="fc" id="L2214">            Class&lt;?&gt; clazz = (Class&lt;?&gt;) element;</span>
+
+<span class="fc bfc" id="L2216" title="All 2 branches covered.">            for (Class&lt;?&gt; ifc : clazz.getInterfaces()) {</span>
+<span class="pc bpc" id="L2217" title="1 of 2 branches missed.">                if (ifc != Annotation.class) {</span>
+<span class="nc" id="L2218">                    A annotationOnInterface = findAnnotation(ifc, annotationType, inherited, visited);</span>
+<span class="nc bnc" id="L2219" title="All 2 branches missed.">                    if (annotationOnInterface != null) {</span>
+<span class="nc" id="L2220">                        return annotationOnInterface;</span>
+                    }
+                }
+            }
+
+<span class="pc bpc" id="L2225" title="1 of 2 branches missed.">            if (inherited) {</span>
+<span class="nc" id="L2226">                Class&lt;?&gt; superclass = clazz.getSuperclass();</span>
+<span class="nc bnc" id="L2227" title="All 4 branches missed.">                if (superclass != null &amp;&amp; superclass != Object.class) {</span>
+<span class="nc" id="L2228">                    A annotationOnSuperclass = findAnnotation(superclass, annotationType, true, visited);</span>
+<span class="nc bnc" id="L2229" title="All 2 branches missed.">                    if (annotationOnSuperclass != null) {</span>
+<span class="nc" id="L2230">                        return annotationOnSuperclass;</span>
+                    }
+                }
+            }
+        }
+
+<span class="fc" id="L2236">        return findMetaAnnotation(annotationType, getAnnotations(element), inherited, visited);</span>
+    }
+
+    /**
+     * Find meta-present on indirectly present annotations.
+     *
+     * @param annotationType the annotation type of need to search
+     * @param candidates annotations for candidates
+     * @param inherited whether has {@link Inherited}
+     * @param visited this annotation whether visited
+     * @param &lt;A&gt; the annotation type
+     * @return the searched annotation
+     */
+    private static &lt;A extends Annotation&gt; A findMetaAnnotation(
+            Class&lt;A&gt; annotationType,
+            Annotation[] candidates,
+            boolean inherited,
+            Set&lt;Annotation&gt; visited
+    ) {
+<span class="fc bfc" id="L2255" title="All 2 branches covered.">        for (Annotation candidateAnnotation : candidates) {</span>
+<span class="fc" id="L2256">            Class&lt;? extends Annotation&gt; candidateAnnotationType = candidateAnnotation.annotationType();</span>
+<span class="fc" id="L2257">            String name = candidateAnnotationType.getName();</span>
+<span class="fc bfc" id="L2258" title="All 4 branches covered.">            boolean isInJavaLangAnnotationPackage = name.startsWith(&quot;java.lang.annotation&quot;) || name.startsWith(&quot;kotlin.&quot;);</span>
+<span class="fc bfc" id="L2259" title="All 4 branches covered.">            if (!isInJavaLangAnnotationPackage &amp;&amp; visited.add(candidateAnnotation)) {</span>
+<span class="fc" id="L2260">                A metaAnnotation = findAnnotation(candidateAnnotationType, annotationType, inherited, visited);</span>
+<span class="fc bfc" id="L2261" title="All 2 branches covered.">                if (metaAnnotation != null) {</span>
+<span class="fc" id="L2262">                    return metaAnnotation;</span>
+                }
+            }
+        }
+<span class="fc" id="L2266">        return null;</span>
+    }
+
+    public static Annotation[] getAnnotations(AnnotatedElement element) {
+        try {
+<span class="fc" id="L2271">            return element.getDeclaredAnnotations();</span>
+<span class="nc" id="L2272">        } catch (Throwable ignored) {</span>
+<span class="nc" id="L2273">            return new Annotation[0];</span>
+        }
+    }
+
+    static final class ParameterizedTypeImpl
+            implements ParameterizedType, Serializable {
+        private final Type ownerType;
+        private final Type rawType;
+        private final Type[] typeArguments;
+
+<span class="fc" id="L2283">        public ParameterizedTypeImpl(Type ownerType, Type rawType, Type... typeArguments) {</span>
+            // require an owner type if the raw type needs it
+<span class="pc bpc" id="L2285" title="1 of 2 branches missed.">            if (rawType instanceof Class&lt;?&gt;) {</span>
+<span class="fc" id="L2286">                Class&lt;?&gt; rawTypeAsClass = (Class&lt;?&gt;) rawType;</span>
+<span class="fc bfc" id="L2287" title="All 2 branches covered.">                boolean isStaticOrTopLevelClass = Modifier.isStatic(rawTypeAsClass.getModifiers())</span>
+<span class="fc bfc" id="L2288" title="All 2 branches covered.">                        || rawTypeAsClass.getEnclosingClass() == null;</span>
+<span class="pc bpc" id="L2289" title="1 of 4 branches missed.">                checkArgument(ownerType != null || isStaticOrTopLevelClass);</span>
+            }
+
+<span class="fc bfc" id="L2292" title="All 2 branches covered.">            this.ownerType = ownerType == null ? null : canonicalize(ownerType);</span>
+<span class="fc" id="L2293">            this.rawType = canonicalize(rawType);</span>
+<span class="fc" id="L2294">            this.typeArguments = typeArguments.clone();</span>
+<span class="fc bfc" id="L2295" title="All 2 branches covered.">            for (int t = 0, length = this.typeArguments.length; t &lt; length; t++) {</span>
+<span class="fc" id="L2296">                checkNotPrimitive(this.typeArguments[t]);</span>
+<span class="fc" id="L2297">                this.typeArguments[t] = canonicalize(this.typeArguments[t]);</span>
+            }
+<span class="fc" id="L2299">        }</span>
+
+        @Override
+        public Type[] getActualTypeArguments() {
+<span class="fc" id="L2303">            return typeArguments.clone();</span>
+        }
+
+        @Override
+        public Type getRawType() {
+<span class="fc" id="L2308">            return rawType;</span>
+        }
+
+        @Override
+        public Type getOwnerType() {
+<span class="fc" id="L2313">            return ownerType;</span>
+        }
+
+        @Override
+        public boolean equals(Object other) {
+<span class="fc bfc" id="L2318" title="All 2 branches covered.">            return other instanceof ParameterizedType</span>
+<span class="fc bfc" id="L2319" title="All 2 branches covered.">                    &amp;&amp; BeanUtils.equals(this, (ParameterizedType) other);</span>
+        }
+
+        @Override
+        public int hashCode() {
+<span class="fc" id="L2324">            return Arrays.hashCode(typeArguments)</span>
+<span class="fc" id="L2325">                    ^ rawType.hashCode()</span>
+<span class="fc" id="L2326">                    ^ hashCodeOrZero(ownerType);</span>
+        }
+
+        @Override
+        public String toString() {
+<span class="fc" id="L2331">            int length = typeArguments.length;</span>
+<span class="fc bfc" id="L2332" title="All 2 branches covered.">            if (length == 0) {</span>
+<span class="fc" id="L2333">                return typeToString(rawType);</span>
+            }
+
+<span class="fc" id="L2336">            StringBuilder stringBuilder = new StringBuilder(30 * (length + 1));</span>
+<span class="fc" id="L2337">            stringBuilder.append(typeToString(rawType)).append(&quot;&lt;&quot;).append(typeToString(typeArguments[0]));</span>
+<span class="fc bfc" id="L2338" title="All 2 branches covered.">            for (int i = 1; i &lt; length; i++) {</span>
+<span class="fc" id="L2339">                stringBuilder.append(&quot;, &quot;).append(typeToString(typeArguments[i]));</span>
+            }
+<span class="fc" id="L2341">            return stringBuilder.append(&quot;&gt;&quot;).toString();</span>
+        }
+
+        private static final long serialVersionUID = 0;
+    }
+
+    public static final class GenericArrayTypeImpl
+            implements GenericArrayType, Serializable {
+        private final Type componentType;
+
+<span class="fc" id="L2351">        public GenericArrayTypeImpl(Type componentType) {</span>
+<span class="fc" id="L2352">            this.componentType = canonicalize(componentType);</span>
+<span class="fc" id="L2353">        }</span>
+
+        @Override
+        public Type getGenericComponentType() {
+<span class="fc" id="L2357">            return componentType;</span>
+        }
+
+        @Override
+        public boolean equals(Object o) {
+<span class="fc bfc" id="L2362" title="All 2 branches covered.">            return o instanceof GenericArrayType</span>
+<span class="fc bfc" id="L2363" title="All 2 branches covered.">                    &amp;&amp; BeanUtils.equals(this, (GenericArrayType) o);</span>
+        }
+
+        @Override
+        public int hashCode() {
+<span class="fc" id="L2368">            return componentType.hashCode();</span>
+        }
+
+        @Override
+        public String toString() {
+<span class="fc" id="L2373">            return typeToString(componentType) + &quot;[]&quot;;</span>
+        }
+
+        private static final long serialVersionUID = 0;
+    }
+
+    /**
+     * The WildcardType interface supports multiple upper bounds and multiple
+     * lower bounds. We only support what the Java 6 language needs - at most one
+     * bound. If a lower bound is set, the upper bound must be Object.class.
+     */
+    static final class WildcardTypeImpl
+            implements WildcardType, Serializable {
+        private final Type upperBound;
+        private final Type lowerBound;
+
+<span class="fc" id="L2389">        public WildcardTypeImpl(Type[] upperBounds, Type[] lowerBounds) {</span>
+<span class="pc bpc" id="L2390" title="1 of 2 branches missed.">            checkArgument(lowerBounds.length &lt;= 1);</span>
+<span class="pc bpc" id="L2391" title="1 of 2 branches missed.">            checkArgument(upperBounds.length == 1);</span>
+
+<span class="fc bfc" id="L2393" title="All 2 branches covered.">            if (lowerBounds.length == 1) {</span>
+<span class="fc" id="L2394">                checkNotPrimitive(lowerBounds[0]);</span>
+<span class="fc bfc" id="L2395" title="All 2 branches covered.">                checkArgument(upperBounds[0] == Object.class);</span>
+<span class="fc" id="L2396">                this.lowerBound = canonicalize(lowerBounds[0]);</span>
+<span class="fc" id="L2397">                this.upperBound = Object.class;</span>
+            } else {
+<span class="fc" id="L2399">                checkNotPrimitive(upperBounds[0]);</span>
+<span class="fc" id="L2400">                this.lowerBound = null;</span>
+<span class="fc" id="L2401">                this.upperBound = canonicalize(upperBounds[0]);</span>
+            }
+<span class="fc" id="L2403">        }</span>
+
+        @Override
+        public Type[] getUpperBounds() {
+<span class="fc" id="L2407">            return new Type[]{upperBound};</span>
+        }
+
+        @Override
+        public Type[] getLowerBounds() {
+<span class="fc bfc" id="L2412" title="All 2 branches covered.">            return lowerBound != null ? new Type[]{lowerBound} : EMPTY_TYPE_ARRAY;</span>
+        }
+
+        @Override
+        public boolean equals(Object other) {
+<span class="fc bfc" id="L2417" title="All 2 branches covered.">            return other instanceof WildcardType</span>
+<span class="pc bpc" id="L2418" title="1 of 2 branches missed.">                    &amp;&amp; BeanUtils.equals(this, (WildcardType) other);</span>
+        }
+
+        @Override
+        public int hashCode() {
+            // this equals Arrays.hashCode(getLowerBounds()) ^ Arrays.hashCode(getUpperBounds());
+<span class="pc bpc" id="L2424" title="1 of 2 branches missed.">            return (lowerBound != null ? 31 + lowerBound.hashCode() : 1)</span>
+<span class="fc" id="L2425">                    ^ (31 + upperBound.hashCode());</span>
+        }
+
+        @Override
+        public String toString() {
+<span class="fc bfc" id="L2430" title="All 2 branches covered.">            if (lowerBound != null) {</span>
+<span class="fc" id="L2431">                return &quot;? super &quot; + typeToString(lowerBound);</span>
+<span class="pc bpc" id="L2432" title="1 of 2 branches missed.">            } else if (upperBound == Object.class) {</span>
+<span class="fc" id="L2433">                return &quot;?&quot;;</span>
+            } else {
+<span class="nc" id="L2435">                return &quot;? extends &quot; + typeToString(upperBound);</span>
+            }
+        }
+
+        private static final long serialVersionUID = 0;
+    }
+
+    static void checkArgument(boolean condition) {
+<span class="fc bfc" id="L2443" title="All 2 branches covered.">        if (!condition) {</span>
+<span class="fc" id="L2444">            throw new IllegalArgumentException();</span>
+        }
+<span class="fc" id="L2446">    }</span>
+
+    public static void processJacksonJsonIgnore(FieldInfo fieldInfo, Annotation annotation) {
+<span class="fc" id="L2449">        fieldInfo.ignore = true;</span>
+<span class="fc" id="L2450">        Class&lt;? extends Annotation&gt; annotationClass = annotation.getClass();</span>
+<span class="fc" id="L2451">        BeanUtils.annotationMethods(annotationClass, m -&gt; {</span>
+<span class="fc" id="L2452">            String name = m.getName();</span>
+            try {
+<span class="fc" id="L2454">                Object result = m.invoke(annotation);</span>
+<span class="pc bpc" id="L2455" title="1 of 2 branches missed.">                if (&quot;value&quot;.equals(name)) {</span>
+<span class="fc" id="L2456">                    fieldInfo.ignore = (boolean) (Boolean) result;</span>
+                }
+<span class="nc" id="L2458">            } catch (Throwable ignored) {</span>
+                // ignored
+<span class="fc" id="L2460">            }</span>
+<span class="fc" id="L2461">        });</span>
+<span class="fc" id="L2462">    }</span>
+
+    public static boolean isNoneStaticMemberClass(Class objectClass, Class memberClass) {
+<span class="fc bfc" id="L2465" title="All 2 branches covered.">        if (memberClass == null</span>
+<span class="fc bfc" id="L2466" title="All 6 branches covered.">                || memberClass.isPrimitive()</span>
+                || memberClass == String.class
+                || memberClass == List.class
+        ) {
+<span class="fc" id="L2470">            return false;</span>
+        }
+
+<span class="fc" id="L2473">        Class enclosingClass = memberClass.getEnclosingClass();</span>
+<span class="fc bfc" id="L2474" title="All 2 branches covered.">        if (enclosingClass == null) {</span>
+<span class="fc" id="L2475">            return false;</span>
+        }
+
+<span class="fc bfc" id="L2478" title="All 4 branches covered.">        if (objectClass != null &amp;&amp; !objectClass.equals(enclosingClass)) {</span>
+<span class="fc" id="L2479">            return false;</span>
+        }
+
+<span class="fc" id="L2482">        Constructor[] constructors = constructorCache.get(memberClass);</span>
+<span class="fc bfc" id="L2483" title="All 2 branches covered.">        if (constructors == null) {</span>
+<span class="fc" id="L2484">            constructors = memberClass.getDeclaredConstructors();</span>
+<span class="fc" id="L2485">            constructorCache.putIfAbsent(memberClass, constructors);</span>
+        }
+
+<span class="fc bfc" id="L2488" title="All 2 branches covered.">        if (constructors.length == 0) {</span>
+<span class="fc" id="L2489">            return false;</span>
+        }
+
+<span class="fc" id="L2492">        Constructor firstConstructor = constructors[0];</span>
+<span class="fc bfc" id="L2493" title="All 2 branches covered.">        if (firstConstructor.getParameterCount() == 0) {</span>
+<span class="fc" id="L2494">            return false;</span>
+        }
+
+<span class="fc" id="L2497">        Class[] parameterTypes = firstConstructor.getParameterTypes();</span>
+<span class="fc" id="L2498">        return enclosingClass.equals(parameterTypes[0]);</span>
+    }
+
+    public static void setNoneStaticMemberClassParent(Object object, Object parent) {
+<span class="fc" id="L2502">        Class objectClass = object.getClass();</span>
+<span class="fc" id="L2503">        Field[] fields = declaredFieldCache.get(objectClass);</span>
+<span class="pc bpc" id="L2504" title="1 of 2 branches missed.">        if (fields == null) {</span>
+<span class="nc" id="L2505">            Field[] declaredFields = objectClass.getDeclaredFields();</span>
+
+<span class="nc" id="L2507">            boolean allMatch = true;</span>
+<span class="nc bnc" id="L2508" title="All 2 branches missed.">            for (Field field : declaredFields) {</span>
+<span class="nc" id="L2509">                int modifiers = field.getModifiers();</span>
+<span class="nc bnc" id="L2510" title="All 2 branches missed.">                if (Modifier.isStatic(modifiers)) {</span>
+<span class="nc" id="L2511">                    allMatch = false;</span>
+<span class="nc" id="L2512">                    break;</span>
+                }
+            }
+
+<span class="nc bnc" id="L2516" title="All 2 branches missed.">            if (allMatch) {</span>
+<span class="nc" id="L2517">                fields = declaredFields;</span>
+            } else {
+<span class="nc" id="L2519">                List&lt;Field&gt; list = new ArrayList&lt;&gt;(declaredFields.length);</span>
+<span class="nc bnc" id="L2520" title="All 2 branches missed.">                for (Field field : declaredFields) {</span>
+<span class="nc" id="L2521">                    int modifiers = field.getModifiers();</span>
+<span class="nc bnc" id="L2522" title="All 2 branches missed.">                    if (Modifier.isStatic(modifiers)) {</span>
+<span class="nc" id="L2523">                        continue;</span>
+                    }
+<span class="nc" id="L2525">                    list.add(field);</span>
+                }
+<span class="nc" id="L2527">                fields = list.toArray(new Field[list.size()]);</span>
+            }
+
+<span class="nc" id="L2530">            fieldCache.putIfAbsent(objectClass, fields);</span>
+        }
+
+<span class="fc" id="L2533">        Field this0 = null;</span>
+<span class="fc bfc" id="L2534" title="All 2 branches covered.">        for (Field field : fields) {</span>
+<span class="fc bfc" id="L2535" title="All 2 branches covered.">            if (&quot;this$0&quot;.equals(field.getName())) {</span>
+<span class="fc" id="L2536">                this0 = field;</span>
+            }
+        }
+
+<span class="pc bpc" id="L2540" title="1 of 2 branches missed.">        if (this0 != null) {</span>
+<span class="fc" id="L2541">            this0.setAccessible(true);</span>
+            try {
+<span class="fc" id="L2543">                this0.set(object, parent);</span>
+<span class="nc" id="L2544">            } catch (IllegalAccessException e) {</span>
+<span class="nc" id="L2545">                throw new JSONException(&quot;setNoneStaticMemberClassParent error, class &quot; + objectClass);</span>
+<span class="fc" id="L2546">            }</span>
+        }
+<span class="fc" id="L2548">    }</span>
+
+    public static void cleanupCache(Class objectClass) {
+<span class="pc bpc" id="L2551" title="1 of 2 branches missed.">        if (objectClass == null) {</span>
+<span class="nc" id="L2552">            return;</span>
+        }
+
+<span class="fc" id="L2555">        fieldCache.remove(objectClass);</span>
+<span class="fc" id="L2556">        fieldMapCache.remove(objectClass);</span>
+<span class="fc" id="L2557">        declaredFieldCache.remove(objectClass);</span>
+<span class="fc" id="L2558">        methodCache.remove(objectClass);</span>
+<span class="fc" id="L2559">        constructorCache.remove(objectClass);</span>
+<span class="fc" id="L2560">    }</span>
+
+    public static void cleanupCache(ClassLoader classLoader) {
+<span class="fc bfc" id="L2563" title="All 2 branches covered.">        for (Iterator&lt;Map.Entry&lt;Class, Field[]&gt;&gt; it = fieldCache.entrySet().iterator(); it.hasNext(); ) {</span>
+<span class="fc" id="L2564">            Map.Entry&lt;Class, Field[]&gt; entry = it.next();</span>
+<span class="fc" id="L2565">            Class entryKey = entry.getKey();</span>
+<span class="fc bfc" id="L2566" title="All 2 branches covered.">            if (entryKey.getClassLoader() == classLoader) {</span>
+<span class="fc" id="L2567">                it.remove();</span>
+            }
+<span class="fc" id="L2569">        }</span>
+
+<span class="fc bfc" id="L2571" title="All 2 branches covered.">        for (Iterator&lt;Map.Entry&lt;Class, Map&lt;String, Field&gt;&gt;&gt; it = fieldMapCache.entrySet().iterator(); it.hasNext(); ) {</span>
+<span class="fc" id="L2572">            Map.Entry&lt;Class, Map&lt;String, Field&gt;&gt; entry = it.next();</span>
+<span class="fc" id="L2573">            Class entryKey = entry.getKey();</span>
+<span class="fc bfc" id="L2574" title="All 2 branches covered.">            if (entryKey.getClassLoader() == classLoader) {</span>
+<span class="fc" id="L2575">                it.remove();</span>
+            }
+<span class="fc" id="L2577">        }</span>
+
+<span class="fc bfc" id="L2579" title="All 2 branches covered.">        for (Iterator&lt;Map.Entry&lt;Class, Field[]&gt;&gt; it = declaredFieldCache.entrySet().iterator(); it.hasNext(); ) {</span>
+<span class="fc" id="L2580">            Map.Entry&lt;Class, Field[]&gt; entry = it.next();</span>
+<span class="fc" id="L2581">            Class entryKey = entry.getKey();</span>
+<span class="fc bfc" id="L2582" title="All 2 branches covered.">            if (entryKey.getClassLoader() == classLoader) {</span>
+<span class="fc" id="L2583">                it.remove();</span>
+            }
+<span class="fc" id="L2585">        }</span>
+
+<span class="fc bfc" id="L2587" title="All 2 branches covered.">        for (Iterator&lt;Map.Entry&lt;Class, Method[]&gt;&gt; it = methodCache.entrySet().iterator(); it.hasNext(); ) {</span>
+<span class="fc" id="L2588">            Map.Entry&lt;Class, Method[]&gt; entry = it.next();</span>
+<span class="fc" id="L2589">            Class entryKey = entry.getKey();</span>
+<span class="fc bfc" id="L2590" title="All 2 branches covered.">            if (entryKey.getClassLoader() == classLoader) {</span>
+<span class="fc" id="L2591">                it.remove();</span>
+            }
+<span class="fc" id="L2593">        }</span>
+
+<span class="fc bfc" id="L2595" title="All 2 branches covered.">        for (Iterator&lt;Map.Entry&lt;Class, Constructor[]&gt;&gt; it = constructorCache.entrySet().iterator(); it.hasNext(); ) {</span>
+<span class="fc" id="L2596">            Map.Entry&lt;Class, Constructor[]&gt; entry = it.next();</span>
+<span class="fc" id="L2597">            Class entryKey = entry.getKey();</span>
+<span class="fc bfc" id="L2598" title="All 2 branches covered.">            if (entryKey.getClassLoader() == classLoader) {</span>
+<span class="fc" id="L2599">                it.remove();</span>
+            }
+<span class="fc" id="L2601">        }</span>
+<span class="fc" id="L2602">    }</span>
+
+    public static void processJSONType1x(BeanInfo beanInfo, Annotation jsonType1x, Method method) {
+        try {
+<span class="fc" id="L2606">            Object result = method.invoke(jsonType1x);</span>
+<span class="fc bfc" id="L2607" title="All 13 branches covered.">            switch (method.getName()) {</span>
+                case &quot;seeAlso&quot;: {
+<span class="fc" id="L2609">                    Class&lt;?&gt;[] classes = (Class[]) result;</span>
+<span class="fc bfc" id="L2610" title="All 2 branches covered.">                    if (classes.length != 0) {</span>
+<span class="fc" id="L2611">                        beanInfo.seeAlso = classes;</span>
+                    }
+                    break;
+                }
+                case &quot;typeName&quot;: {
+<span class="fc" id="L2616">                    String typeName = (String) result;</span>
+<span class="fc bfc" id="L2617" title="All 2 branches covered.">                    if (!typeName.isEmpty()) {</span>
+<span class="fc" id="L2618">                        beanInfo.typeName = typeName;</span>
+                    }
+                    break;
+                }
+                case &quot;typeKey&quot;: {
+<span class="fc" id="L2623">                    String typeKey = (String) result;</span>
+<span class="fc bfc" id="L2624" title="All 2 branches covered.">                    if (!typeKey.isEmpty()) {</span>
+<span class="fc" id="L2625">                        beanInfo.typeKey = typeKey;</span>
+                    }
+                    break;
+                }
+                case &quot;alphabetic&quot;: {
+<span class="fc" id="L2630">                    Boolean alphabetic = (Boolean) result;</span>
+<span class="pc bpc" id="L2631" title="1 of 2 branches missed.">                    if (!alphabetic) {</span>
+<span class="nc" id="L2632">                        beanInfo.alphabetic = false;</span>
+                    }
+                    break;
+                }
+                case &quot;serializeFeatures&quot;:
+                case &quot;serialzeFeatures&quot;: {
+<span class="fc" id="L2638">                    Enum[] serializeFeatures = (Enum[]) result;</span>
+<span class="fc bfc" id="L2639" title="All 2 branches covered.">                    for (Enum feature : serializeFeatures) {</span>
+<span class="pc bpc" id="L2640" title="11 of 12 branches missed.">                        switch (feature.name()) {</span>
+                            case &quot;WriteMapNullValue&quot;:
+<span class="nc" id="L2642">                                beanInfo.writerFeatures |= JSONWriter.Feature.WriteNulls.mask;</span>
+<span class="nc" id="L2643">                                break;</span>
+                            case &quot;WriteNullListAsEmpty&quot;:
+<span class="nc" id="L2645">                                beanInfo.writerFeatures |= JSONWriter.Feature.WriteNullListAsEmpty.mask;</span>
+<span class="nc" id="L2646">                                break;</span>
+                            case &quot;WriteNullStringAsEmpty&quot;:
+<span class="nc" id="L2648">                                beanInfo.writerFeatures |= JSONWriter.Feature.WriteNullStringAsEmpty.mask;</span>
+<span class="nc" id="L2649">                                break;</span>
+                            case &quot;WriteNullNumberAsZero&quot;:
+<span class="nc" id="L2651">                                beanInfo.writerFeatures |= JSONWriter.Feature.WriteNullNumberAsZero.mask;</span>
+<span class="nc" id="L2652">                                break;</span>
+                            case &quot;WriteNullBooleanAsFalse&quot;:
+<span class="nc" id="L2654">                                beanInfo.writerFeatures |= JSONWriter.Feature.WriteNullBooleanAsFalse.mask;</span>
+<span class="nc" id="L2655">                                break;</span>
+                            case &quot;BrowserCompatible&quot;:
+<span class="fc" id="L2657">                                beanInfo.writerFeatures |= JSONWriter.Feature.BrowserCompatible.mask;</span>
+<span class="fc" id="L2658">                                break;</span>
+                            case &quot;WriteClassName&quot;:
+<span class="nc" id="L2660">                                beanInfo.writerFeatures |= JSONWriter.Feature.WriteClassName.mask;</span>
+<span class="nc" id="L2661">                                break;</span>
+                            case &quot;WriteNonStringValueAsString&quot;:
+<span class="nc" id="L2663">                                beanInfo.writerFeatures |= JSONWriter.Feature.WriteNonStringValueAsString.mask;</span>
+<span class="nc" id="L2664">                                break;</span>
+                            case &quot;WriteEnumUsingToString&quot;:
+<span class="nc" id="L2666">                                beanInfo.writerFeatures |= JSONWriter.Feature.WriteEnumUsingToString.mask;</span>
+<span class="nc" id="L2667">                                break;</span>
+                            case &quot;NotWriteRootClassName&quot;:
+<span class="nc" id="L2669">                                beanInfo.writerFeatures |= JSONWriter.Feature.NotWriteRootClassName.mask;</span>
+<span class="nc" id="L2670">                                break;</span>
+                            case &quot;IgnoreErrorGetter&quot;:
+<span class="nc" id="L2672">                                beanInfo.writerFeatures |= JSONWriter.Feature.IgnoreErrorGetter.mask;</span>
+<span class="nc" id="L2673">                                break;</span>
+                            default:
+                                break;
+                        }
+                    }
+<span class="fc" id="L2678">                    break;</span>
+                }
+                case &quot;serializeEnumAsJavaBean&quot;: {
+<span class="fc" id="L2681">                    boolean serializeEnumAsJavaBean = (Boolean) result;</span>
+<span class="fc bfc" id="L2682" title="All 2 branches covered.">                    if (serializeEnumAsJavaBean) {</span>
+<span class="fc" id="L2683">                        beanInfo.writeEnumAsJavaBean = true;</span>
+                    }
+                    break;
+                }
+                case &quot;naming&quot;: {
+<span class="fc" id="L2688">                    Enum naming = (Enum) result;</span>
+<span class="fc" id="L2689">                    beanInfo.namingStrategy = naming.name();</span>
+<span class="fc" id="L2690">                    break;</span>
+                }
+                case &quot;ignores&quot;: {
+<span class="fc" id="L2693">                    String[] fields = (String[]) result;</span>
+<span class="fc bfc" id="L2694" title="All 2 branches covered.">                    if (fields.length != 0) {</span>
+<span class="pc bpc" id="L2695" title="1 of 2 branches missed.">                        if (beanInfo.ignores == null) {</span>
+<span class="fc" id="L2696">                            beanInfo.ignores = fields;</span>
+                        } else {
+<span class="nc" id="L2698">                            LinkedHashSet&lt;String&gt; ignoresSet = new LinkedHashSet&lt;&gt;();</span>
+<span class="nc" id="L2699">                            ignoresSet.addAll(Arrays.asList(beanInfo.ignores));</span>
+<span class="nc" id="L2700">                            ignoresSet.addAll(Arrays.asList(fields));</span>
+<span class="nc" id="L2701">                            beanInfo.ignores = ignoresSet.toArray(new String[ignoresSet.size()]);</span>
+<span class="nc" id="L2702">                        }</span>
+                    }
+                    break;
+                }
+                case &quot;includes&quot;: {
+<span class="fc" id="L2707">                    String[] fields = (String[]) result;</span>
+<span class="fc bfc" id="L2708" title="All 2 branches covered.">                    if (fields.length != 0) {</span>
+<span class="fc" id="L2709">                        beanInfo.includes = fields;</span>
+                    }
+                    break;
+                }
+                case &quot;orders&quot;: {
+<span class="fc" id="L2714">                    String[] fields = (String[]) result;</span>
+<span class="fc bfc" id="L2715" title="All 2 branches covered.">                    if (fields.length != 0) {</span>
+<span class="fc" id="L2716">                        beanInfo.orders = fields;</span>
+                    }
+                    break;
+                }
+                case &quot;serializer&quot;: {
+<span class="fc" id="L2721">                    Class serializerClass = (Class) result;</span>
+<span class="pc bpc" id="L2722" title="1 of 2 branches missed.">                    if (ObjectWriter.class.isAssignableFrom(serializerClass)) {</span>
+<span class="nc" id="L2723">                        beanInfo.writeEnumAsJavaBean = true;</span>
+<span class="nc" id="L2724">                        beanInfo.serializer = serializerClass;</span>
+                    }
+                    break;
+                }
+                case &quot;deserializer&quot;: {
+<span class="fc" id="L2729">                    Class deserializerClass = (Class) result;</span>
+<span class="pc bpc" id="L2730" title="1 of 2 branches missed.">                    if (ObjectReader.class.isAssignableFrom(deserializerClass)) {</span>
+<span class="nc" id="L2731">                        beanInfo.deserializer = deserializerClass;</span>
+                    }
+                    break;
+                }
+                default:
+                    break;
+            }
+<span class="nc" id="L2738">        } catch (Throwable ignored) {</span>
+            // ignored
+<span class="fc" id="L2740">        }</span>
+<span class="fc" id="L2741">    }</span>
+
+    public static void processJacksonJsonFormat(FieldInfo fieldInfo, Annotation annotation) {
+<span class="fc" id="L2744">        Class&lt;? extends Annotation&gt; annotationClass = annotation.getClass();</span>
+<span class="fc" id="L2745">        BeanUtils.annotationMethods(annotationClass, m -&gt; {</span>
+<span class="fc" id="L2746">            String name = m.getName();</span>
+            try {
+<span class="fc" id="L2748">                Object result = m.invoke(annotation);</span>
+<span class="fc bfc" id="L2749" title="All 4 branches covered.">                switch (name) {</span>
+                    case &quot;pattern&quot;: {
+<span class="fc" id="L2751">                        String pattern = (String) result;</span>
+<span class="fc bfc" id="L2752" title="All 2 branches covered.">                        if (pattern.length() != 0) {</span>
+<span class="fc" id="L2753">                            fieldInfo.format = pattern;</span>
+                        }
+                        break;
+                    }
+                    case &quot;shape&quot;: {
+<span class="fc" id="L2758">                        String shape = ((Enum) result).name();</span>
+<span class="fc bfc" id="L2759" title="All 2 branches covered.">                        if (&quot;STRING&quot;.equals(shape)) {</span>
+<span class="fc" id="L2760">                            fieldInfo.features |= JSONWriter.Feature.WriteNonStringValueAsString.mask;</span>
+<span class="fc bfc" id="L2761" title="All 2 branches covered.">                        } else if (&quot;NUMBER&quot;.equals(shape)) {</span>
+<span class="fc" id="L2762">                            fieldInfo.format = &quot;millis&quot;;</span>
+                        }
+                        break;
+                    }
+                    case &quot;locale&quot;: {
+<span class="fc" id="L2767">                        String locale = (String) result;</span>
+<span class="pc bpc" id="L2768" title="1 of 4 branches missed.">                        if (!locale.isEmpty() &amp;&amp; !&quot;##default&quot;.equals(locale)) {</span>
+<span class="fc" id="L2769">                            fieldInfo.locale = Locale.forLanguageTag(locale);</span>
+                        }
+                        break;
+                    }
+                    default:
+                        break;
+                }
+<span class="nc" id="L2776">            } catch (Throwable ignored) {</span>
+                // ignored
+<span class="fc" id="L2778">            }</span>
+<span class="fc" id="L2779">        });</span>
+<span class="fc" id="L2780">    }</span>
+
+    public static void processJacksonJsonFormat(BeanInfo beanInfo, Annotation annotation) {
+<span class="fc" id="L2783">        Class&lt;? extends Annotation&gt; annotationClass = annotation.getClass();</span>
+<span class="fc" id="L2784">        BeanUtils.annotationMethods(annotationClass, m -&gt; {</span>
+<span class="fc" id="L2785">            String name = m.getName();</span>
+            try {
+<span class="fc" id="L2787">                Object result = m.invoke(annotation);</span>
+<span class="fc bfc" id="L2788" title="All 2 branches covered.">                if (&quot;pattern&quot;.equals(name)) {</span>
+<span class="fc" id="L2789">                    String pattern = (String) result;</span>
+<span class="fc bfc" id="L2790" title="All 2 branches covered.">                    if (!pattern.isEmpty()) {</span>
+<span class="fc" id="L2791">                        beanInfo.format = pattern;</span>
+                    }
+<span class="fc bfc" id="L2793" title="All 2 branches covered.">                } else if (&quot;shape&quot;.equals(name)) {</span>
+<span class="fc" id="L2794">                    String shape = ((Enum) result).name();</span>
+<span class="pc bpc" id="L2795" title="1 of 2 branches missed.">                    if (&quot;NUMBER&quot;.equals(shape)) {</span>
+<span class="nc" id="L2796">                        beanInfo.format = &quot;millis&quot;;</span>
+<span class="fc bfc" id="L2797" title="All 2 branches covered.">                    } else if (&quot;OBJECT&quot;.equals(shape)) {</span>
+<span class="fc" id="L2798">                        beanInfo.writeEnumAsJavaBean = true;</span>
+                    }
+<span class="fc bfc" id="L2800" title="All 2 branches covered.">                } else if (&quot;locale&quot;.equals(name)) {</span>
+<span class="fc" id="L2801">                    String locale = (String) result;</span>
+<span class="pc bpc" id="L2802" title="2 of 4 branches missed.">                    if (!locale.isEmpty() &amp;&amp; !&quot;##default&quot;.equals(locale)) {</span>
+<span class="nc" id="L2803">                        beanInfo.locale = Locale.forLanguageTag(locale);</span>
+                    }
+                }
+<span class="nc" id="L2806">            } catch (Throwable ignored) {</span>
+                // ignored
+<span class="fc" id="L2808">            }</span>
+<span class="fc" id="L2809">        });</span>
+<span class="fc" id="L2810">    }</span>
+
+    public static void processJacksonJsonInclude(BeanInfo beanInfo, Annotation annotation) {
+<span class="fc" id="L2813">        Class&lt;? extends Annotation&gt; annotationClass = annotation.getClass();</span>
+<span class="fc" id="L2814">        BeanUtils.annotationMethods(annotationClass, m -&gt; {</span>
+<span class="fc" id="L2815">            String name = m.getName();</span>
+            try {
+<span class="fc" id="L2817">                Object result = m.invoke(annotation);</span>
+<span class="fc bfc" id="L2818" title="All 2 branches covered.">                if (&quot;value&quot;.equals(name)) {</span>
+<span class="fc" id="L2819">                    String include = ((Enum) result).name();</span>
+<span class="pc bpc" id="L2820" title="2 of 4 branches missed.">                    switch (include) {</span>
+                        case &quot;ALWAYS&quot;:
+<span class="nc" id="L2822">                            beanInfo.writerFeatures |= JSONWriter.Feature.WriteNulls.mask;</span>
+<span class="nc" id="L2823">                            break;</span>
+                        case &quot;NON_DEFAULT&quot;:
+<span class="nc" id="L2825">                            beanInfo.writerFeatures |= JSONWriter.Feature.NotWriteDefaultValue.mask;</span>
+<span class="nc" id="L2826">                            break;</span>
+                        case &quot;NON_EMPTY&quot;:
+<span class="fc" id="L2828">                            beanInfo.writerFeatures |= JSONWriter.Feature.NotWriteEmptyArray.mask;</span>
+<span class="fc" id="L2829">                            break;</span>
+                        default:
+                            break;
+                    }
+                }
+<span class="nc" id="L2834">            } catch (Throwable ignored) {</span>
+                // ignored
+<span class="fc" id="L2836">            }</span>
+<span class="fc" id="L2837">        });</span>
+<span class="fc" id="L2838">    }</span>
+
+    public static void processJacksonJsonInclude(FieldInfo fieldInfo, Annotation annotation) {
+<span class="fc" id="L2841">        Class&lt;? extends Annotation&gt; annotationClass = annotation.getClass();</span>
+<span class="fc" id="L2842">        BeanUtils.annotationMethods(annotationClass, m -&gt; {</span>
+<span class="fc" id="L2843">            String name = m.getName();</span>
+            try {
+<span class="fc" id="L2845">                Object result = m.invoke(annotation);</span>
+<span class="fc bfc" id="L2846" title="All 2 branches covered.">                if (&quot;value&quot;.equals(name)) {</span>
+<span class="fc" id="L2847">                    String include = ((Enum) result).name();</span>
+<span class="pc bpc" id="L2848" title="2 of 4 branches missed.">                    switch (include) {</span>
+                        case &quot;ALWAYS&quot;:
+<span class="nc" id="L2850">                            fieldInfo.features |= JSONWriter.Feature.WriteNulls.mask;</span>
+<span class="nc" id="L2851">                            break;</span>
+                        case &quot;NON_DEFAULT&quot;:
+<span class="nc" id="L2853">                            fieldInfo.features |= JSONWriter.Feature.NotWriteDefaultValue.mask;</span>
+<span class="nc" id="L2854">                            break;</span>
+                        case &quot;NON_EMPTY&quot;:
+<span class="fc" id="L2856">                            fieldInfo.features |= JSONWriter.Feature.NotWriteEmptyArray.mask;</span>
+<span class="fc" id="L2857">                            fieldInfo.features |= JSONWriter.Feature.IgnoreEmpty.mask;</span>
+<span class="fc" id="L2858">                            break;</span>
+                        default:
+                            break;
+                    }
+                }
+<span class="nc" id="L2863">            } catch (Throwable ignored) {</span>
+                // ignored
+<span class="fc" id="L2865">            }</span>
+<span class="fc" id="L2866">        });</span>
+<span class="fc" id="L2867">    }</span>
+
+    public static void processJacksonJsonUnwrapped(FieldInfo fieldInfo, Annotation annotation) {
+<span class="fc" id="L2870">        Class&lt;? extends Annotation&gt; annotationClass = annotation.getClass();</span>
+<span class="fc" id="L2871">        BeanUtils.annotationMethods(annotationClass, m -&gt; {</span>
+<span class="fc" id="L2872">            String name = m.getName();</span>
+            try {
+<span class="fc" id="L2874">                Object result = m.invoke(annotation);</span>
+<span class="fc bfc" id="L2875" title="All 2 branches covered.">                if (&quot;enabled&quot;.equals(name)) {</span>
+<span class="fc" id="L2876">                    boolean value = (Boolean) result;</span>
+<span class="pc bpc" id="L2877" title="1 of 2 branches missed.">                    if (value) {</span>
+<span class="fc" id="L2878">                        fieldInfo.features = FieldInfo.UNWRAPPED_MASK;</span>
+                    }
+                }
+<span class="nc" id="L2881">            } catch (Throwable ignored) {</span>
+                // ignored
+<span class="fc" id="L2883">            }</span>
+<span class="fc" id="L2884">        });</span>
+<span class="fc" id="L2885">    }</span>
+
+    public static void processJacksonJsonTypeName(BeanInfo beanInfo, Annotation annotation) {
+<span class="fc" id="L2888">        Class&lt;? extends Annotation&gt; annotationClass = annotation.getClass();</span>
+<span class="fc" id="L2889">        BeanUtils.annotationMethods(annotationClass, m -&gt; {</span>
+<span class="fc" id="L2890">            String name = m.getName();</span>
+            try {
+<span class="fc" id="L2892">                Object result = m.invoke(annotation);</span>
+<span class="pc bpc" id="L2893" title="1 of 2 branches missed.">                if (&quot;value&quot;.equals(name)) {</span>
+<span class="fc" id="L2894">                    String value = (String) result;</span>
+<span class="pc bpc" id="L2895" title="1 of 2 branches missed.">                    if (!value.isEmpty()) {</span>
+<span class="fc" id="L2896">                        beanInfo.typeName = value;</span>
+                    }
+                }
+<span class="nc" id="L2899">            } catch (Throwable ignored) {</span>
+                // ignored
+<span class="fc" id="L2901">            }</span>
+<span class="fc" id="L2902">        });</span>
+<span class="fc" id="L2903">    }</span>
+
+    public static void processJacksonJsonSubTypesType(BeanInfo beanInfo, int index, Annotation annotation) {
+<span class="fc" id="L2906">        Class&lt;? extends Annotation&gt; annotationClass = annotation.getClass();</span>
+<span class="fc" id="L2907">        BeanUtils.annotationMethods(annotationClass, m -&gt; {</span>
+<span class="fc" id="L2908">            String name = m.getName();</span>
+            try {
+<span class="fc" id="L2910">                Object result = m.invoke(annotation);</span>
+<span class="fc bfc" id="L2911" title="All 3 branches covered.">                switch (name) {</span>
+                    case &quot;value&quot;: {
+<span class="fc" id="L2913">                        Class value = (Class) result;</span>
+<span class="fc" id="L2914">                        beanInfo.seeAlso[index] = value;</span>
+<span class="fc" id="L2915">                        break;</span>
+                    }
+                    case &quot;name&quot;: {
+<span class="fc" id="L2918">                        String value = (String) result;</span>
+<span class="fc" id="L2919">                        beanInfo.seeAlsoNames[index] = value;</span>
+<span class="fc" id="L2920">                        break;</span>
+                    }
+                    default:
+                        break;
+                }
+<span class="nc" id="L2925">            } catch (Throwable ignored) {</span>
+                // ignored
+<span class="fc" id="L2927">            }</span>
+<span class="fc" id="L2928">        });</span>
+<span class="fc" id="L2929">    }</span>
+
+    public static void processGsonSerializedName(FieldInfo fieldInfo, Annotation annotation) {
+<span class="fc" id="L2932">        Class&lt;? extends Annotation&gt; annotationClass = annotation.getClass();</span>
+<span class="fc" id="L2933">        BeanUtils.annotationMethods(annotationClass, m -&gt; {</span>
+<span class="fc" id="L2934">            String name = m.getName();</span>
+            try {
+<span class="fc" id="L2936">                Object result = m.invoke(annotation);</span>
+<span class="pc bpc" id="L2937" title="1 of 3 branches missed.">                switch (name) {</span>
+                    case &quot;value&quot;:
+<span class="fc" id="L2939">                        String value = (String) result;</span>
+<span class="pc bpc" id="L2940" title="1 of 2 branches missed.">                        if (!value.isEmpty()) {</span>
+<span class="fc" id="L2941">                            fieldInfo.fieldName = value;</span>
+                        }
+                        break;
+                    case &quot;alternate&quot;:
+<span class="fc" id="L2945">                        String[] alternate = (String[]) result;</span>
+<span class="pc bpc" id="L2946" title="1 of 2 branches missed.">                        if (alternate.length != 0) {</span>
+<span class="fc" id="L2947">                            fieldInfo.alternateNames = alternate;</span>
+                        }
+                        break;
+                    default:
+                        break;
+                }
+<span class="nc" id="L2953">            } catch (Throwable ignored) {</span>
+                // ignored
+<span class="fc" id="L2955">            }</span>
+<span class="fc" id="L2956">        });</span>
+<span class="fc" id="L2957">    }</span>
+
+    public static boolean isExtendedMap(Class objectClass) {
+<span class="fc bfc" id="L2960" title="All 6 branches covered.">        if (objectClass == HashMap.class</span>
+                || objectClass == LinkedHashMap.class
+                || objectClass == TreeMap.class
+<span class="fc bfc" id="L2963" title="All 2 branches covered.">                || &quot;&quot;.equals(objectClass.getSimpleName())</span>
+        ) {
+<span class="fc" id="L2965">            return false;</span>
+        }
+
+<span class="fc" id="L2968">        Class superclass = objectClass.getSuperclass();</span>
+<span class="fc bfc" id="L2969" title="All 6 branches covered.">        if (superclass != HashMap.class</span>
+                &amp;&amp; superclass != LinkedHashMap.class
+                &amp;&amp; superclass != TreeMap.class
+        ) {
+<span class="fc" id="L2973">            return false;</span>
+        }
+
+<span class="fc" id="L2976">        Constructor defaultConstructor = getDefaultConstructor(objectClass, false);</span>
+<span class="fc bfc" id="L2977" title="All 2 branches covered.">        if (defaultConstructor != null) {</span>
+<span class="fc" id="L2978">            return false;</span>
+        }
+
+<span class="fc" id="L2981">        List&lt;Field&gt; fields = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L2982">        BeanUtils.declaredFields(objectClass, field -&gt; {</span>
+<span class="fc" id="L2983">            int modifiers = field.getModifiers();</span>
+<span class="pc bpc" id="L2984" title="1 of 2 branches missed.">            if (Modifier.isStatic(modifiers)</span>
+<span class="pc bpc" id="L2985" title="1 of 2 branches missed.">                    || Modifier.isTransient(modifiers)</span>
+<span class="pc bpc" id="L2986" title="1 of 2 branches missed.">                    || field.getDeclaringClass().isAssignableFrom(superclass)</span>
+<span class="pc bpc" id="L2987" title="1 of 2 branches missed.">                    || &quot;this$0&quot;.equals(field.getName())</span>
+            ) {
+<span class="nc" id="L2989">                return;</span>
+            }
+
+<span class="fc" id="L2992">            fields.add(field);</span>
+<span class="fc" id="L2993">        });</span>
+
+<span class="pc bpc" id="L2995" title="1 of 2 branches missed.">        return !fields.isEmpty();</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.8.202204050719</span></div></body></html>

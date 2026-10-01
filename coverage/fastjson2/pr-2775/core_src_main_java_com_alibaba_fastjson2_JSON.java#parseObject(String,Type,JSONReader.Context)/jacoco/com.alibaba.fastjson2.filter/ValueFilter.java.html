@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ValueFilter.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">fastjson2</a> &gt; <a href="index.source.html" class="el_package">com.alibaba.fastjson2.filter</a> &gt; <span class="el_source">ValueFilter.java</span></div><h1>ValueFilter.java</h1><pre class="source lang-java linenums">package com.alibaba.fastjson2.filter;
+
+import java.util.Map;
+import java.util.function.Function;
+import java.util.function.Predicate;
+
+public interface ValueFilter
+        extends Filter {
+    Object apply(Object object, String name, Object value);
+
+    static ValueFilter compose(ValueFilter before, ValueFilter after) {
+<span class="fc" id="L12">        return (object, name, value) -&gt;</span>
+<span class="fc" id="L13">                after.apply(</span>
+                        object,
+                        name,
+<span class="fc" id="L16">                        before.apply(object, name, value)</span>
+                );
+    }
+
+    static ValueFilter of(final String name, Function function) {
+<span class="fc" id="L21">        return (object, fieldName, fieldValue)</span>
+<span class="pc bpc" id="L22" title="1 of 4 branches missed.">                -&gt; name == null || name.equals(fieldName)</span>
+<span class="fc" id="L23">                ? function.apply(fieldValue)</span>
+                : fieldValue;
+    }
+
+    static ValueFilter of(final String name, Map map) {
+<span class="fc" id="L28">        return (object, fieldName, fieldValue) -&gt; {</span>
+<span class="pc bpc" id="L29" title="1 of 4 branches missed.">            if (name == null || name.equals(fieldName)) {</span>
+<span class="fc" id="L30">                Object o = map.get(fieldValue);</span>
+<span class="pc bpc" id="L31" title="3 of 4 branches missed.">                if (o != null || map.containsKey(fieldValue)) {</span>
+<span class="fc" id="L32">                    return o;</span>
+                }
+            }
+<span class="fc" id="L35">            return fieldValue;</span>
+        };
+    }
+
+    static ValueFilter of(Predicate&lt;String&gt; nameMatcher, Function function) {
+<span class="fc" id="L40">        return (object, fieldName, fieldValue)</span>
+<span class="pc bpc" id="L41" title="1 of 4 branches missed.">                -&gt; nameMatcher == null || nameMatcher.test(fieldName)</span>
+<span class="fc" id="L42">                ? function.apply(fieldValue)</span>
+                : fieldValue;
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.8.202204050719</span></div></body></html>

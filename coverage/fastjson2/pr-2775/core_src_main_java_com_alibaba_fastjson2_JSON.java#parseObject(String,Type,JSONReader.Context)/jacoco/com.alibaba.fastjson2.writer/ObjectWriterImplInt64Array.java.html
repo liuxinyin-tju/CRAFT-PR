@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ObjectWriterImplInt64Array.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">fastjson2</a> &gt; <a href="index.source.html" class="el_package">com.alibaba.fastjson2.writer</a> &gt; <span class="el_source">ObjectWriterImplInt64Array.java</span></div><h1>ObjectWriterImplInt64Array.java</h1><pre class="source lang-java linenums">package com.alibaba.fastjson2.writer;
+
+import com.alibaba.fastjson2.JSONB;
+import com.alibaba.fastjson2.JSONWriter;
+import com.alibaba.fastjson2.util.Fnv;
+
+import java.lang.reflect.Type;
+
+import static com.alibaba.fastjson2.JSONWriter.Feature.*;
+
+<span class="fc" id="L11">final class ObjectWriterImplInt64Array</span>
+        extends ObjectWriterPrimitiveImpl {
+<span class="fc" id="L13">    static final ObjectWriterImplInt64Array INSTANCE = new ObjectWriterImplInt64Array();</span>
+<span class="fc" id="L14">    static final byte[] JSONB_TYPE_NAME_BYTES = JSONB.toBytes(&quot;[Long&quot;);</span>
+<span class="fc" id="L15">    static final long JSONB_TYPE_HASH = Fnv.hashCode64(&quot;[Long&quot;);</span>
+
+    @Override
+    public void write(JSONWriter jsonWriter, Object object, Object fieldName, Type fieldType, long features) {
+<span class="pc bpc" id="L19" title="1 of 2 branches missed.">        if (object == null) {</span>
+<span class="nc bnc" id="L20" title="All 2 branches missed.">            if (jsonWriter.isEnabled(NullAsDefaultValue.mask | WriteNullListAsEmpty.mask)) {</span>
+<span class="nc" id="L21">                jsonWriter.startArray();</span>
+<span class="nc" id="L22">                jsonWriter.endArray();</span>
+            } else {
+<span class="nc" id="L24">                jsonWriter.writeNull();</span>
+            }
+<span class="nc" id="L26">            return;</span>
+        }
+
+<span class="fc bfc" id="L29" title="All 2 branches covered.">        boolean writeAsString = (features &amp; WriteNonStringValueAsString.mask) != 0;</span>
+
+<span class="fc" id="L31">        Long[] array = (Long[]) object;</span>
+
+<span class="fc" id="L33">        jsonWriter.startArray();</span>
+<span class="fc bfc" id="L34" title="All 2 branches covered.">        for (int i = 0; i &lt; array.length; i++) {</span>
+<span class="fc bfc" id="L35" title="All 2 branches covered.">            if (i != 0) {</span>
+<span class="fc" id="L36">                jsonWriter.writeComma();</span>
+            }
+
+<span class="fc" id="L39">            Long item = array[i];</span>
+<span class="fc bfc" id="L40" title="All 2 branches covered.">            if (item == null) {</span>
+<span class="fc" id="L41">                jsonWriter.writeNull();</span>
+<span class="fc" id="L42">                continue;</span>
+            }
+
+<span class="fc" id="L45">            long longValue = item.longValue();</span>
+<span class="fc bfc" id="L46" title="All 2 branches covered.">            if (writeAsString) {</span>
+<span class="fc" id="L47">                jsonWriter.writeString(longValue);</span>
+            } else {
+<span class="fc" id="L49">                jsonWriter.writeInt64(longValue);</span>
+            }
+        }
+<span class="fc" id="L52">        jsonWriter.endArray();</span>
+<span class="fc" id="L53">    }</span>
+
+    @Override
+    public void writeJSONB(JSONWriter jsonWriter, Object object, Object fieldName, Type fieldType, long features) {
+<span class="pc bpc" id="L57" title="1 of 2 branches missed.">        if (object == null) {</span>
+<span class="nc" id="L58">            jsonWriter.writeNull();</span>
+<span class="nc" id="L59">            return;</span>
+        }
+
+<span class="fc bfc" id="L62" title="All 2 branches covered.">        if (jsonWriter.isWriteTypeInfo(object, fieldType)) {</span>
+<span class="fc" id="L63">            jsonWriter.writeTypeName(JSONB_TYPE_NAME_BYTES, JSONB_TYPE_HASH);</span>
+        }
+
+<span class="fc bfc" id="L66" title="All 2 branches covered.">        boolean writeAsString = (features &amp; WriteNonStringValueAsString.mask) != 0;</span>
+
+<span class="fc" id="L68">        Long[] array = (Long[]) object;</span>
+
+<span class="fc" id="L70">        jsonWriter.startArray(array.length);</span>
+<span class="fc bfc" id="L71" title="All 2 branches covered.">        for (Long item : array) {</span>
+<span class="fc bfc" id="L72" title="All 2 branches covered.">            if (item == null) {</span>
+<span class="fc" id="L73">                jsonWriter.writeNull();</span>
+<span class="fc" id="L74">                continue;</span>
+            }
+
+<span class="fc" id="L77">            long longValue = item.longValue();</span>
+<span class="fc bfc" id="L78" title="All 2 branches covered.">            if (writeAsString) {</span>
+<span class="fc" id="L79">                jsonWriter.writeString(longValue);</span>
+            } else {
+<span class="fc" id="L81">                jsonWriter.writeInt64(longValue);</span>
+            }
+        }
+<span class="fc" id="L84">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.8.202204050719</span></div></body></html>

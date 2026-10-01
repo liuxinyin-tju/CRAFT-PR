@@ -1,0 +1,155 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>JSONPathTypedMultiNames.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">fastjson2</a> &gt; <a href="index.source.html" class="el_package">com.alibaba.fastjson2</a> &gt; <span class="el_source">JSONPathTypedMultiNames.java</span></div><h1>JSONPathTypedMultiNames.java</h1><pre class="source lang-java linenums">package com.alibaba.fastjson2;
+
+import com.alibaba.fastjson2.reader.FieldReader;
+import com.alibaba.fastjson2.reader.ObjectReaderAdapter;
+import com.alibaba.fastjson2.util.TypeUtils;
+import com.alibaba.fastjson2.writer.FieldWriter;
+import com.alibaba.fastjson2.writer.ObjectWriter;
+
+import java.lang.reflect.Type;
+import java.math.BigDecimal;
+import java.time.ZoneId;
+import java.util.Map;
+
+class JSONPathTypedMultiNames
+        extends JSONPathTypedMulti {
+    final JSONPath prefix;
+    final JSONPath[] namePaths;
+    final String[] names;
+    final FieldReader[] fieldReaders;
+    final ObjectReaderAdapter&lt;Object[]&gt; objectReader;
+
+    JSONPathTypedMultiNames(
+            JSONPath[] paths,
+            JSONPath prefix,
+            JSONPath[] namePaths,
+            Type[] types,
+            String[] formats,
+            long[] pathFeatures,
+            ZoneId zoneId,
+            long features
+    ) {
+<span class="fc" id="L32">        super(paths, types, formats, pathFeatures, zoneId, features);</span>
+<span class="fc" id="L33">        this.prefix = prefix;</span>
+<span class="fc" id="L34">        this.namePaths = namePaths;</span>
+<span class="fc" id="L35">        this.names = new String[paths.length];</span>
+<span class="fc bfc" id="L36" title="All 2 branches covered.">        for (int i = 0; i &lt; paths.length; i++) {</span>
+<span class="fc" id="L37">            JSONPathSingleName jsonPathSingleName = (JSONPathSingleName) namePaths[i];</span>
+<span class="fc" id="L38">            String fieldName = jsonPathSingleName.name;</span>
+<span class="fc" id="L39">            names[i] = fieldName;</span>
+        }
+<span class="fc" id="L41">        long[] fieldReaderFeatures = new long[names.length];</span>
+<span class="fc bfc" id="L42" title="All 2 branches covered.">        if (pathFeatures != null) {</span>
+<span class="fc bfc" id="L43" title="All 2 branches covered.">            for (int i = 0; i &lt; pathFeatures.length; i++) {</span>
+<span class="fc bfc" id="L44" title="All 2 branches covered.">                if ((pathFeatures[i] &amp; Feature.NullOnError.mask) != 0) {</span>
+<span class="fc" id="L45">                    fieldReaderFeatures[i] |= JSONReader.Feature.NullOnError.mask;</span>
+                }
+            }
+        }
+
+<span class="fc" id="L50">        Type[] fieldTypes = types.clone();</span>
+<span class="fc bfc" id="L51" title="All 2 branches covered.">        for (int i = 0; i &lt; fieldTypes.length; i++) {</span>
+<span class="fc" id="L52">            Type fieldType = fieldTypes[i];</span>
+<span class="fc bfc" id="L53" title="All 2 branches covered.">            if (fieldType == boolean.class) {</span>
+<span class="fc" id="L54">                fieldTypes[i] = Boolean.class;</span>
+<span class="pc bpc" id="L55" title="1 of 2 branches missed.">            } else if (fieldType == char.class) {</span>
+<span class="nc" id="L56">                fieldTypes[i] = Character.class;</span>
+<span class="pc bpc" id="L57" title="1 of 2 branches missed.">            } else if (fieldType == byte.class) {</span>
+<span class="nc" id="L58">                fieldTypes[i] = Byte.class;</span>
+<span class="pc bpc" id="L59" title="1 of 2 branches missed.">            } else if (fieldType == short.class) {</span>
+<span class="nc" id="L60">                fieldTypes[i] = Short.class;</span>
+<span class="fc bfc" id="L61" title="All 2 branches covered.">            } else if (fieldType == int.class) {</span>
+<span class="fc" id="L62">                fieldTypes[i] = Integer.class;</span>
+<span class="pc bpc" id="L63" title="1 of 2 branches missed.">            } else if (fieldType == long.class) {</span>
+<span class="nc" id="L64">                fieldTypes[i] = Long.class;</span>
+<span class="pc bpc" id="L65" title="1 of 2 branches missed.">            } else if (fieldType == float.class) {</span>
+<span class="nc" id="L66">                fieldTypes[i] = Float.class;</span>
+<span class="pc bpc" id="L67" title="1 of 2 branches missed.">            } else if (fieldType == double.class) {</span>
+<span class="nc" id="L68">                fieldTypes[i] = Double.class;</span>
+            }
+        }
+
+<span class="fc" id="L72">        final int length = names.length;</span>
+<span class="fc" id="L73">        objectReader = (ObjectReaderAdapter&lt;Object[]&gt;) JSONFactory.getDefaultObjectReaderProvider()</span>
+<span class="fc" id="L74">                .createObjectReader(</span>
+                        names,
+                        fieldTypes,
+                        fieldReaderFeatures,
+<span class="fc" id="L78">                        () -&gt; new Object[length],</span>
+<span class="fc" id="L79">                        (o, i, v) -&gt; o[i] = v</span>
+                );
+<span class="fc" id="L81">        this.fieldReaders = objectReader.getFieldReaders();</span>
+<span class="fc" id="L82">    }</span>
+
+    @Override
+    public boolean isRef() {
+<span class="fc" id="L86">        return true;</span>
+    }
+
+    @Override
+    public Object eval(Object root) {
+<span class="fc" id="L91">        Object[] array = new Object[paths.length];</span>
+
+<span class="fc" id="L93">        Object object = root;</span>
+<span class="fc bfc" id="L94" title="All 2 branches covered.">        if (prefix != null) {</span>
+<span class="fc" id="L95">            object = prefix.eval(root);</span>
+        }
+
+<span class="fc bfc" id="L98" title="All 2 branches covered.">        if (object == null) {</span>
+<span class="fc" id="L99">            return new Object[paths.length];</span>
+        }
+
+<span class="fc bfc" id="L102" title="All 2 branches covered.">        if (object instanceof Map) {</span>
+<span class="fc" id="L103">            return objectReader.createInstance((Map) object, 0);</span>
+        } else {
+<span class="fc" id="L105">            ObjectWriter objectReader = JSONFactory.defaultObjectWriterProvider</span>
+<span class="fc" id="L106">                    .getObjectWriter(</span>
+<span class="fc" id="L107">                            object.getClass()</span>
+                    );
+
+<span class="fc bfc" id="L110" title="All 2 branches covered.">            for (int i = 0; i &lt; names.length; i++) {</span>
+<span class="fc" id="L111">                FieldWriter fieldWriter = objectReader.getFieldWriter(names[i]);</span>
+<span class="fc bfc" id="L112" title="All 2 branches covered.">                if (fieldWriter == null) {</span>
+<span class="fc" id="L113">                    continue;</span>
+                }
+
+<span class="fc" id="L116">                Object result = fieldWriter.getFieldValue(object);</span>
+
+<span class="fc" id="L118">                Type type = types[i];</span>
+<span class="pc bpc" id="L119" title="1 of 4 branches missed.">                if (result != null &amp;&amp; result.getClass() != type) {</span>
+<span class="fc bfc" id="L120" title="All 2 branches covered.">                    if (type == Long.class) {</span>
+<span class="fc" id="L121">                        result = TypeUtils.toLong(result);</span>
+<span class="fc bfc" id="L122" title="All 2 branches covered.">                    } else if (type == BigDecimal.class) {</span>
+<span class="fc" id="L123">                        result = TypeUtils.toBigDecimal(result);</span>
+<span class="fc bfc" id="L124" title="All 2 branches covered.">                    } else if (type == String[].class) {</span>
+<span class="fc" id="L125">                        result = TypeUtils.toStringArray(result);</span>
+                    } else {
+<span class="fc" id="L127">                        result = TypeUtils.cast(result, type);</span>
+                    }
+                }
+<span class="fc" id="L130">                array[i] = result;</span>
+            }
+        }
+
+<span class="fc" id="L134">        return array;</span>
+    }
+
+    @Override
+    public Object extract(JSONReader jsonReader) {
+<span class="fc bfc" id="L139" title="All 2 branches covered.">        if (prefix != null) {</span>
+<span class="fc" id="L140">            Object object = jsonReader.readAny();</span>
+<span class="fc" id="L141">            return eval(object);</span>
+        }
+
+<span class="fc bfc" id="L144" title="All 2 branches covered.">        if (jsonReader.nextIfNull()) {</span>
+<span class="fc" id="L145">            return new Object[paths.length];</span>
+        }
+
+<span class="fc bfc" id="L148" title="All 2 branches covered.">        if (!jsonReader.nextIfObjectStart()) {</span>
+<span class="fc" id="L149">            throw new JSONException(jsonReader.info(&quot;illegal input, expect '[', but &quot; + jsonReader.current()));</span>
+        }
+
+<span class="fc" id="L152">        return objectReader.readObject(jsonReader, null, null, 0);</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.8.202204050719</span></div></body></html>

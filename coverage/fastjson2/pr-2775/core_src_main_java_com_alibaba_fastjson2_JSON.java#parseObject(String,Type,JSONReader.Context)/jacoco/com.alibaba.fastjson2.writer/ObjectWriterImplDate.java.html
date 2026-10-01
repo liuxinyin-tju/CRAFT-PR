@@ -1,0 +1,213 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ObjectWriterImplDate.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">fastjson2</a> &gt; <a href="index.source.html" class="el_package">com.alibaba.fastjson2.writer</a> &gt; <span class="el_source">ObjectWriterImplDate.java</span></div><h1>ObjectWriterImplDate.java</h1><pre class="source lang-java linenums">package com.alibaba.fastjson2.writer;
+
+import com.alibaba.fastjson2.JSONWriter;
+import com.alibaba.fastjson2.codec.DateTimeCodec;
+import com.alibaba.fastjson2.util.DateUtils;
+
+import java.lang.reflect.Type;
+import java.nio.charset.StandardCharsets;
+import java.time.*;
+import java.time.format.DateTimeFormatter;
+import java.util.Date;
+import java.util.Locale;
+
+final class ObjectWriterImplDate
+        extends DateTimeCodec
+        implements ObjectWriter {
+<span class="fc" id="L17">    static final ObjectWriterImplDate INSTANCE = new ObjectWriterImplDate(null, null);</span>
+
+<span class="fc" id="L19">    static final char[] PREFIX_CHARS = &quot;new Date(&quot;.toCharArray();</span>
+<span class="fc" id="L20">    static final byte[] PREFIX_BYTES = &quot;new Date(&quot;.getBytes(StandardCharsets.UTF_8);</span>
+
+<span class="fc" id="L22">    static final char[] PREFIX_CHARS_SQL = &quot;{\&quot;@type\&quot;:\&quot;java.sql.Date\&quot;,\&quot;val\&quot;:&quot;.toCharArray();</span>
+<span class="fc" id="L23">    static final byte[] PREFIX_BYTES_SQL = &quot;{\&quot;@type\&quot;:\&quot;java.sql.Date\&quot;,\&quot;val\&quot;:&quot;.getBytes(StandardCharsets.UTF_8);</span>
+
+    public ObjectWriterImplDate(String format, Locale locale) {
+<span class="fc" id="L26">        super(format, locale);</span>
+<span class="fc" id="L27">    }</span>
+
+    @Override
+    public void writeJSONB(JSONWriter jsonWriter, Object object, Object fieldName, Type fieldType, long features) {
+<span class="pc bpc" id="L31" title="1 of 2 branches missed.">        if (object == null) {</span>
+<span class="nc" id="L32">            jsonWriter.writeNull();</span>
+<span class="nc" id="L33">            return;</span>
+        }
+
+<span class="fc" id="L36">        jsonWriter.writeMillis(</span>
+<span class="fc" id="L37">                ((Date) object).getTime());</span>
+<span class="fc" id="L38">    }</span>
+
+    @Override
+    public void write(JSONWriter jsonWriter, Object object, Object fieldName, Type fieldType, long features) {
+<span class="pc bpc" id="L42" title="1 of 2 branches missed.">        if (object == null) {</span>
+<span class="nc" id="L43">            jsonWriter.writeNull();</span>
+<span class="nc" id="L44">            return;</span>
+        }
+
+<span class="fc" id="L47">        JSONWriter.Context ctx = jsonWriter.context;</span>
+
+<span class="fc" id="L49">        Date date = (Date) object;</span>
+<span class="fc" id="L50">        long millis = date.getTime();</span>
+
+<span class="fc bfc" id="L52" title="All 2 branches covered.">        if (jsonWriter.isWriteTypeInfo(object, fieldType)) {</span>
+<span class="fc" id="L53">            char end = ')';</span>
+<span class="pc bpc" id="L54" title="1 of 2 branches missed.">            if (jsonWriter.utf16) {</span>
+                char[] prefix;
+<span class="fc bfc" id="L56" title="All 2 branches covered.">                if (&quot;java.sql.Date&quot;.equals(date.getClass().getName())) {</span>
+<span class="fc" id="L57">                    prefix = PREFIX_CHARS_SQL;</span>
+<span class="fc" id="L58">                    end = '}';</span>
+                } else {
+<span class="fc" id="L60">                    prefix = PREFIX_CHARS;</span>
+                }
+<span class="fc" id="L62">                jsonWriter.writeRaw(prefix, 0, prefix.length);</span>
+<span class="fc" id="L63">            } else {</span>
+                byte[] prefix;
+<span class="nc bnc" id="L65" title="All 2 branches missed.">                if (&quot;java.sql.Date&quot;.equals(date.getClass().getName())) {</span>
+<span class="nc" id="L66">                    prefix = PREFIX_BYTES_SQL;</span>
+<span class="nc" id="L67">                    end = '}';</span>
+                } else {
+<span class="nc" id="L69">                    prefix = PREFIX_BYTES;</span>
+                }
+<span class="nc" id="L71">                jsonWriter.writeRaw(prefix);</span>
+            }
+<span class="fc" id="L73">            jsonWriter.writeInt64(millis);</span>
+<span class="fc" id="L74">            jsonWriter.writeRaw(end);</span>
+<span class="fc" id="L75">            return;</span>
+        }
+
+<span class="fc bfc" id="L78" title="All 6 branches covered.">        if (formatMillis || (format == null &amp;&amp; ctx.isDateFormatMillis())) {</span>
+<span class="fc" id="L79">            jsonWriter.writeInt64(millis);</span>
+<span class="fc" id="L80">            return;</span>
+        }
+
+<span class="fc bfc" id="L83" title="All 6 branches covered.">        if (formatUnixTime || (format == null &amp;&amp; ctx.isDateFormatUnixTime())) {</span>
+<span class="fc" id="L84">            jsonWriter.writeInt64(millis / 1000);</span>
+<span class="fc" id="L85">            return;</span>
+        }
+
+<span class="fc" id="L88">        ZoneId zoneId = ctx.getZoneId();</span>
+        int offsetSeconds;
+
+<span class="pc bpc" id="L91" title="1 of 4 branches missed.">        if (zoneId == DateUtils.SHANGHAI_ZONE_ID || zoneId.getRules() == DateUtils.SHANGHAI_ZONE_RULES) {</span>
+<span class="fc" id="L92">            offsetSeconds = DateUtils.getShanghaiZoneOffsetTotalSeconds(</span>
+<span class="fc" id="L93">                    Math.floorDiv(millis, 1000L)</span>
+            );
+<span class="pc bpc" id="L95" title="1 of 4 branches missed.">        } else if (zoneId == ZoneOffset.UTC || &quot;UTC&quot;.equals(zoneId.getId())) {</span>
+<span class="fc" id="L96">            offsetSeconds = 0;</span>
+        } else {
+<span class="fc" id="L98">            ZonedDateTime zdt = ZonedDateTime.ofInstant(Instant.ofEpochMilli(millis), zoneId);</span>
+<span class="fc" id="L99">            offsetSeconds = zdt.getOffset().getTotalSeconds();</span>
+        }
+
+        String dateFormat;
+<span class="fc bfc" id="L103" title="All 4 branches covered.">        boolean formatISO8601 = this.formatISO8601 || ctx.isDateFormatISO8601();</span>
+<span class="fc bfc" id="L104" title="All 2 branches covered.">        if (formatISO8601) {</span>
+<span class="fc" id="L105">            dateFormat = null;</span>
+        } else {
+<span class="fc" id="L107">            dateFormat = this.format;</span>
+<span class="fc bfc" id="L108" title="All 2 branches covered.">            if (dateFormat == null) {</span>
+<span class="fc" id="L109">                dateFormat = ctx.getDateFormat();</span>
+            }
+        }
+
+<span class="fc bfc" id="L113" title="All 2 branches covered.">        if (dateFormat == null) {</span>
+<span class="fc" id="L114">            final int SECONDS_PER_DAY = 60 * 60 * 24;</span>
+
+<span class="fc" id="L116">            long epochSecond = Math.floorDiv(millis, 1000L);</span>
+            int offsetTotalSeconds;
+<span class="pc bpc" id="L118" title="1 of 4 branches missed.">            if (zoneId == DateUtils.SHANGHAI_ZONE_ID || zoneId.getRules() == DateUtils.SHANGHAI_ZONE_RULES) {</span>
+<span class="fc" id="L119">                offsetTotalSeconds = DateUtils.getShanghaiZoneOffsetTotalSeconds(epochSecond);</span>
+            } else {
+<span class="fc" id="L121">                Instant instant = Instant.ofEpochMilli(millis);</span>
+<span class="fc" id="L122">                offsetTotalSeconds = zoneId.getRules().getOffset(instant).getTotalSeconds();</span>
+            }
+
+<span class="fc" id="L125">            long localSecond = epochSecond + offsetTotalSeconds;</span>
+<span class="fc" id="L126">            long localEpochDay = Math.floorDiv(localSecond, (long) SECONDS_PER_DAY);</span>
+<span class="fc" id="L127">            int secsOfDay = (int) Math.floorMod(localSecond, (long) SECONDS_PER_DAY);</span>
+            int year, month, dayOfMonth;
+            {
+<span class="fc" id="L130">                final int DAYS_PER_CYCLE = 146097;</span>
+<span class="fc" id="L131">                final long DAYS_0000_TO_1970 = (DAYS_PER_CYCLE * 5L) - (30L * 365L + 7L);</span>
+
+<span class="fc" id="L133">                long zeroDay = localEpochDay + DAYS_0000_TO_1970;</span>
+                // find the march-based year
+<span class="fc" id="L135">                zeroDay -= 60;  // adjust to 0000-03-01 so leap day is at end of four year cycle</span>
+<span class="fc" id="L136">                long adjust = 0;</span>
+<span class="pc bpc" id="L137" title="1 of 2 branches missed.">                if (zeroDay &lt; 0) {</span>
+                    // adjust negative years to positive for calculation
+<span class="nc" id="L139">                    long adjustCycles = (zeroDay + 1) / DAYS_PER_CYCLE - 1;</span>
+<span class="nc" id="L140">                    adjust = adjustCycles * 400;</span>
+<span class="nc" id="L141">                    zeroDay += -adjustCycles * DAYS_PER_CYCLE;</span>
+                }
+<span class="fc" id="L143">                long yearEst = (400 * zeroDay + 591) / DAYS_PER_CYCLE;</span>
+<span class="fc" id="L144">                long doyEst = zeroDay - (365 * yearEst + yearEst / 4 - yearEst / 100 + yearEst / 400);</span>
+<span class="pc bpc" id="L145" title="1 of 2 branches missed.">                if (doyEst &lt; 0) {</span>
+                    // fix estimate
+<span class="nc" id="L147">                    yearEst--;</span>
+<span class="nc" id="L148">                    doyEst = zeroDay - (365 * yearEst + yearEst / 4 - yearEst / 100 + yearEst / 400);</span>
+                }
+<span class="fc" id="L150">                yearEst += adjust;  // reset any negative year</span>
+<span class="fc" id="L151">                int marchDoy0 = (int) doyEst;</span>
+
+                // convert march-based values back to january-based
+<span class="fc" id="L154">                int marchMonth0 = (marchDoy0 * 5 + 2) / 153;</span>
+<span class="fc" id="L155">                month = (marchMonth0 + 2) % 12 + 1;</span>
+<span class="fc" id="L156">                dayOfMonth = marchDoy0 - (marchMonth0 * 306 + 5) / 10 + 1;</span>
+<span class="fc" id="L157">                yearEst += marchMonth0 / 10;</span>
+
+                // check year now we are certain it is correct
+<span class="pc bpc" id="L160" title="2 of 4 branches missed.">                if (yearEst &lt; Year.MIN_VALUE || yearEst &gt; Year.MAX_VALUE) {</span>
+<span class="nc" id="L161">                    throw new DateTimeException(&quot;Invalid year &quot; + yearEst);</span>
+                }
+
+<span class="fc" id="L164">                year = (int) yearEst;</span>
+            }
+
+            int hour, minute, second;
+            {
+<span class="fc" id="L169">                final int MINUTES_PER_HOUR = 60;</span>
+<span class="fc" id="L170">                final int SECONDS_PER_MINUTE = 60;</span>
+<span class="fc" id="L171">                final int SECONDS_PER_HOUR = SECONDS_PER_MINUTE * MINUTES_PER_HOUR;</span>
+
+<span class="fc" id="L173">                long secondOfDay = secsOfDay;</span>
+<span class="pc bpc" id="L174" title="2 of 4 branches missed.">                if (secondOfDay &lt; 0 || secondOfDay &gt; 86399) {</span>
+<span class="nc" id="L175">                    throw new DateTimeException(&quot;Invalid secondOfDay &quot; + secondOfDay);</span>
+                }
+<span class="fc" id="L177">                int hours = (int) (secondOfDay / SECONDS_PER_HOUR);</span>
+<span class="fc" id="L178">                secondOfDay -= hours * SECONDS_PER_HOUR;</span>
+<span class="fc" id="L179">                int minutes = (int) (secondOfDay / SECONDS_PER_MINUTE);</span>
+<span class="fc" id="L180">                secondOfDay -= minutes * SECONDS_PER_MINUTE;</span>
+
+<span class="fc" id="L182">                hour = hours;</span>
+<span class="fc" id="L183">                minute = minutes;</span>
+<span class="fc" id="L184">                second = (int) secondOfDay;</span>
+            }
+
+<span class="pc bpc" id="L187" title="2 of 4 branches missed.">            if (year &gt;= 0 &amp;&amp; year &lt;= 9999) {</span>
+<span class="fc" id="L188">                int mos = (int) Math.floorMod(millis, 1000L);</span>
+<span class="fc bfc" id="L189" title="All 4 branches covered.">                if (mos == 0 &amp;&amp; !formatISO8601) {</span>
+<span class="fc bfc" id="L190" title="All 8 branches covered.">                    if (hour == 0 &amp;&amp; minute == 0 &amp;&amp; second == 0 &amp;&amp; &quot;java.sql.Date&quot;.equals(date.getClass().getName())) {</span>
+<span class="fc" id="L191">                        jsonWriter.writeDateYYYMMDD10(year, month, dayOfMonth);</span>
+                    } else {
+<span class="fc" id="L193">                        jsonWriter.writeDateTime19(year, month, dayOfMonth, hour, minute, second);</span>
+                    }
+                } else {
+<span class="fc" id="L196">                    jsonWriter.writeDateTimeISO8601(year, month, dayOfMonth, hour, minute, second, mos, offsetSeconds, formatISO8601);</span>
+                }
+<span class="fc" id="L198">                return;</span>
+            }
+        }
+
+        DateTimeFormatter formatter;
+<span class="fc bfc" id="L203" title="All 2 branches covered.">        if (this.format != null) {</span>
+<span class="fc" id="L204">            formatter = getDateFormatter();</span>
+        } else {
+<span class="fc" id="L206">            formatter = ctx.getDateFormatter();</span>
+        }
+<span class="fc" id="L208">        ZonedDateTime zdt = ZonedDateTime.ofInstant(Instant.ofEpochMilli(millis), zoneId);</span>
+<span class="fc" id="L209">        String str = formatter.format(zdt);</span>
+<span class="fc" id="L210">        jsonWriter.writeString(str);</span>
+<span class="fc" id="L211">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.8.202204050719</span></div></body></html>

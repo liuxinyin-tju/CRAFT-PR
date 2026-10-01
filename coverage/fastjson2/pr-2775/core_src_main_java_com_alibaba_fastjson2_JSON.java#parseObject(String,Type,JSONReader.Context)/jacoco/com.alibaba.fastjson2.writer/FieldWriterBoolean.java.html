@@ -1,0 +1,169 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>FieldWriterBoolean.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">fastjson2</a> &gt; <a href="index.source.html" class="el_package">com.alibaba.fastjson2.writer</a> &gt; <span class="el_source">FieldWriterBoolean.java</span></div><h1>FieldWriterBoolean.java</h1><pre class="source lang-java linenums">package com.alibaba.fastjson2.writer;
+
+import com.alibaba.fastjson2.JSONWriter;
+
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
+import java.lang.reflect.Type;
+import java.util.Arrays;
+
+abstract class FieldWriterBoolean
+        extends FieldWriter {
+    final byte[] utf8ValueTrue;
+    final byte[] utf8ValueFalse;
+    final byte[] utf8Value1;
+    final byte[] utf8Value0;
+    final char[] utf16ValueTrue;
+    final char[] utf16ValueFalse;
+    final char[] utf16Value1;
+    final char[] utf16Value0;
+
+    FieldWriterBoolean(
+            String name,
+            int ordinal,
+            long features,
+            String format,
+            String label,
+            Type fieldType,
+            Class fieldClass,
+            Field field,
+            Method method
+    ) {
+<span class="fc" id="L32">        super(name, ordinal, features, format, null, label, fieldType, fieldClass, field, method);</span>
+        {
+<span class="fc" id="L34">            byte[] bytes = Arrays.copyOf(nameWithColonUTF8, nameWithColonUTF8.length + 4);</span>
+<span class="fc" id="L35">            bytes[nameWithColonUTF8.length] = 't';</span>
+<span class="fc" id="L36">            bytes[nameWithColonUTF8.length + 1] = 'r';</span>
+<span class="fc" id="L37">            bytes[nameWithColonUTF8.length + 2] = 'u';</span>
+<span class="fc" id="L38">            bytes[nameWithColonUTF8.length + 3] = 'e';</span>
+<span class="fc" id="L39">            utf8ValueTrue = bytes;</span>
+        }
+        {
+<span class="fc" id="L42">            byte[] bytes = Arrays.copyOf(nameWithColonUTF8, nameWithColonUTF8.length + 5);</span>
+<span class="fc" id="L43">            bytes[nameWithColonUTF8.length] = 'f';</span>
+<span class="fc" id="L44">            bytes[nameWithColonUTF8.length + 1] = 'a';</span>
+<span class="fc" id="L45">            bytes[nameWithColonUTF8.length + 2] = 'l';</span>
+<span class="fc" id="L46">            bytes[nameWithColonUTF8.length + 3] = 's';</span>
+<span class="fc" id="L47">            bytes[nameWithColonUTF8.length + 4] = 'e';</span>
+<span class="fc" id="L48">            utf8ValueFalse = bytes;</span>
+        }
+        {
+<span class="fc" id="L51">            byte[] bytes = Arrays.copyOf(nameWithColonUTF8, nameWithColonUTF8.length + 1);</span>
+<span class="fc" id="L52">            bytes[nameWithColonUTF8.length] = '1';</span>
+<span class="fc" id="L53">            utf8Value1 = bytes;</span>
+        }
+        {
+<span class="fc" id="L56">            byte[] bytes = Arrays.copyOf(nameWithColonUTF8, nameWithColonUTF8.length + 1);</span>
+<span class="fc" id="L57">            bytes[nameWithColonUTF8.length] = '0';</span>
+<span class="fc" id="L58">            utf8Value0 = bytes;</span>
+        }
+
+        {
+<span class="fc" id="L62">            char[] chars = Arrays.copyOf(nameWithColonUTF16, nameWithColonUTF16.length + 4);</span>
+<span class="fc" id="L63">            chars[nameWithColonUTF16.length] = 't';</span>
+<span class="fc" id="L64">            chars[nameWithColonUTF16.length + 1] = 'r';</span>
+<span class="fc" id="L65">            chars[nameWithColonUTF16.length + 2] = 'u';</span>
+<span class="fc" id="L66">            chars[nameWithColonUTF16.length + 3] = 'e';</span>
+<span class="fc" id="L67">            utf16ValueTrue = chars;</span>
+        }
+        {
+<span class="fc" id="L70">            char[] chars = Arrays.copyOf(nameWithColonUTF16, nameWithColonUTF16.length + 5);</span>
+<span class="fc" id="L71">            chars[nameWithColonUTF16.length] = 'f';</span>
+<span class="fc" id="L72">            chars[nameWithColonUTF16.length + 1] = 'a';</span>
+<span class="fc" id="L73">            chars[nameWithColonUTF16.length + 2] = 'l';</span>
+<span class="fc" id="L74">            chars[nameWithColonUTF16.length + 3] = 's';</span>
+<span class="fc" id="L75">            chars[nameWithColonUTF16.length + 4] = 'e';</span>
+<span class="fc" id="L76">            utf16ValueFalse = chars;</span>
+        }
+        {
+<span class="fc" id="L79">            char[] chars = Arrays.copyOf(nameWithColonUTF16, nameWithColonUTF16.length + 1);</span>
+<span class="fc" id="L80">            chars[nameWithColonUTF16.length] = '1';</span>
+<span class="fc" id="L81">            utf16Value1 = chars;</span>
+        }
+        {
+<span class="fc" id="L84">            char[] chars = Arrays.copyOf(nameWithColonUTF16, nameWithColonUTF16.length + 1);</span>
+<span class="fc" id="L85">            chars[nameWithColonUTF16.length] = '0';</span>
+<span class="fc" id="L86">            utf16Value0 = chars;</span>
+        }
+<span class="fc" id="L88">    }</span>
+
+    @Override
+    public void writeValue(JSONWriter jsonWriter, Object object) {
+<span class="fc" id="L92">        Boolean value = (Boolean) getFieldValue(object);</span>
+<span class="fc bfc" id="L93" title="All 2 branches covered.">        if (value == null) {</span>
+<span class="fc" id="L94">            jsonWriter.writeNull();</span>
+<span class="fc" id="L95">            return;</span>
+        }
+<span class="fc" id="L97">        jsonWriter.writeBool(value);</span>
+<span class="fc" id="L98">    }</span>
+
+    @Override
+    public final void writeBool(JSONWriter jsonWriter, boolean value) {
+<span class="fc" id="L102">        long features = jsonWriter.getFeatures(this.features);</span>
+<span class="fc bfc" id="L103" title="All 2 branches covered.">        if ((features &amp; JSONWriter.Feature.WriteNonStringValueAsString.mask) != 0) {</span>
+<span class="fc" id="L104">            writeFieldName(jsonWriter);</span>
+<span class="fc bfc" id="L105" title="All 2 branches covered.">            jsonWriter.writeString(value ? &quot;true&quot; : &quot;false&quot;);</span>
+<span class="fc" id="L106">            return;</span>
+        }
+
+<span class="fc bfc" id="L109" title="All 2 branches covered.">        if (jsonWriter.utf8) {</span>
+<span class="fc bfc" id="L110" title="All 6 branches covered.">            jsonWriter.writeNameRaw(</span>
+                    (features &amp; JSONWriter.Feature.WriteBooleanAsNumber.mask) != 0
+                            ? (value ? utf8Value1 : utf8Value0)
+                            : (value ? utf8ValueTrue : utf8ValueFalse)
+            );
+<span class="fc" id="L115">            return;</span>
+        }
+
+<span class="fc bfc" id="L118" title="All 2 branches covered.">        if (jsonWriter.utf16) {</span>
+<span class="fc bfc" id="L119" title="All 6 branches covered.">            jsonWriter.writeNameRaw(</span>
+                    (features &amp; JSONWriter.Feature.WriteBooleanAsNumber.mask) != 0
+                            ? (value ? utf16Value1 : utf16Value0)
+                            : (value ? utf16ValueTrue : utf16ValueFalse)
+            );
+<span class="fc" id="L124">            return;</span>
+        }
+
+<span class="fc" id="L127">        writeFieldName(jsonWriter);</span>
+<span class="fc" id="L128">        jsonWriter.writeBool(value);</span>
+<span class="fc" id="L129">    }</span>
+
+    @Override
+    public boolean write(JSONWriter jsonWriter, Object object) {
+        Boolean value;
+        try {
+<span class="fc" id="L135">            value = (Boolean) getFieldValue(object);</span>
+<span class="fc" id="L136">        } catch (RuntimeException error) {</span>
+<span class="pc bpc" id="L137" title="1 of 2 branches missed.">            if (jsonWriter.isIgnoreErrorGetter()) {</span>
+<span class="fc" id="L138">                return false;</span>
+            }
+<span class="nc" id="L140">            throw error;</span>
+<span class="fc" id="L141">        }</span>
+
+<span class="fc bfc" id="L143" title="All 2 branches covered.">        if (value == null) {</span>
+<span class="fc" id="L144">            long features = this.features | jsonWriter.getFeatures();</span>
+<span class="fc bfc" id="L145" title="All 2 branches covered.">            if ((features &amp; (JSONWriter.Feature.WriteNulls.mask | JSONWriter.Feature.NullAsDefaultValue.mask | JSONWriter.Feature.WriteNullBooleanAsFalse.mask)) == 0) {</span>
+<span class="fc" id="L146">                return false;</span>
+            }
+<span class="fc" id="L148">            writeFieldName(jsonWriter);</span>
+<span class="fc" id="L149">            jsonWriter.writeBooleanNull();</span>
+<span class="fc" id="L150">            return true;</span>
+        }
+
+<span class="pc bpc" id="L153" title="1 of 2 branches missed.">        if (fieldClass == boolean.class</span>
+<span class="nc bnc" id="L154" title="All 2 branches missed.">                &amp;&amp; !value</span>
+<span class="nc bnc" id="L155" title="All 2 branches missed.">                &amp;&amp; (jsonWriter.getFeatures(features) &amp; JSONWriter.Feature.NotWriteDefaultValue.mask) != 0</span>
+        ) {
+<span class="nc" id="L157">            return false;</span>
+        }
+
+<span class="fc" id="L160">        writeBool(jsonWriter, value);</span>
+<span class="fc" id="L161">        return true;</span>
+    }
+
+    @Override
+    public ObjectWriter getObjectWriter(JSONWriter jsonWriter, Class valueClass) {
+<span class="fc" id="L166">        return ObjectWriterImplBoolean.INSTANCE;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.8.202204050719</span></div></body></html>

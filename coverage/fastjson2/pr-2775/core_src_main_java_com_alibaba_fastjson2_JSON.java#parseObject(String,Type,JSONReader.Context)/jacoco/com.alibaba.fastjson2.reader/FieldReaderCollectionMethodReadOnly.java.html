@@ -1,0 +1,119 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>FieldReaderCollectionMethodReadOnly.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">fastjson2</a> &gt; <a href="index.source.html" class="el_package">com.alibaba.fastjson2.reader</a> &gt; <span class="el_source">FieldReaderCollectionMethodReadOnly.java</span></div><h1>FieldReaderCollectionMethodReadOnly.java</h1><pre class="source lang-java linenums">package com.alibaba.fastjson2.reader;
+
+import com.alibaba.fastjson2.JSONException;
+import com.alibaba.fastjson2.JSONFactory;
+import com.alibaba.fastjson2.JSONReader;
+import com.alibaba.fastjson2.schema.JSONSchema;
+
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
+import java.lang.reflect.ParameterizedType;
+import java.lang.reflect.Type;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Map;
+
+class FieldReaderCollectionMethodReadOnly&lt;T&gt;
+        extends FieldReaderObject&lt;T&gt; {
+    FieldReaderCollectionMethodReadOnly(
+            String fieldName,
+            Type fieldType,
+            Class fieldClass,
+            int ordinal,
+            long features,
+            String format,
+            JSONSchema schema,
+            Method setter,
+            Field field
+    ) {
+<span class="fc" id="L29">        super(fieldName, fieldType, fieldClass, ordinal, features, format, null, null, schema, setter, field, null);</span>
+<span class="fc" id="L30">        Type itemType = null;</span>
+<span class="fc bfc" id="L31" title="All 2 branches covered.">        if (fieldType instanceof ParameterizedType) {</span>
+<span class="fc" id="L32">            Type[] actualTypeArguments = ((ParameterizedType) fieldType).getActualTypeArguments();</span>
+<span class="pc bpc" id="L33" title="1 of 2 branches missed.">            if (actualTypeArguments.length &gt; 0) {</span>
+<span class="fc" id="L34">                itemType = actualTypeArguments[0];</span>
+            }
+        }
+<span class="fc" id="L37">        this.itemType = itemType;</span>
+<span class="fc" id="L38">    }</span>
+
+    @Override
+    public void accept(T object, Object value) {
+<span class="fc bfc" id="L42" title="All 2 branches covered.">        if (value == null) {</span>
+<span class="fc" id="L43">            return;</span>
+        }
+
+        Collection collection;
+        try {
+<span class="fc" id="L48">            collection = (Collection) method.invoke(object);</span>
+<span class="nc" id="L49">        } catch (Exception e) {</span>
+<span class="nc" id="L50">            throw new JSONException(&quot;set &quot; + fieldName + &quot; error&quot;, e);</span>
+<span class="fc" id="L51">        }</span>
+
+<span class="fc bfc" id="L53" title="All 6 branches covered.">        if (collection == Collections.EMPTY_LIST</span>
+                || collection == Collections.EMPTY_SET
+                || collection == null
+<span class="fc bfc" id="L56" title="All 2 branches covered.">                || collection.equals(value)) {</span>
+<span class="fc bfc" id="L57" title="All 2 branches covered.">            if (schema != null) {</span>
+<span class="nc" id="L58">                schema.assertValidate(collection);</span>
+            }
+
+<span class="fc" id="L61">            return;</span>
+        }
+
+<span class="fc" id="L64">        String name = collection.getClass().getName();</span>
+<span class="fc bfc" id="L65" title="All 2 branches covered.">        if (&quot;java.util.Collections$UnmodifiableRandomAccessList&quot;.equals(name)</span>
+<span class="pc bpc" id="L66" title="1 of 2 branches missed.">                || &quot;java.util.Arrays$ArrayList&quot;.equals(name)</span>
+<span class="pc bpc" id="L67" title="1 of 2 branches missed.">                || &quot;java.util.Collections$SingletonList&quot;.equals(name)</span>
+<span class="pc bpc" id="L68" title="1 of 2 branches missed.">                || name.startsWith(&quot;java.util.ImmutableCollections$&quot;)) {</span>
+<span class="fc" id="L69">            return;</span>
+        }
+
+<span class="pc bpc" id="L72" title="1 of 2 branches missed.">        if (value == collection) {</span>
+<span class="nc" id="L73">            return;</span>
+        }
+
+<span class="fc" id="L76">        Collection values = (Collection) value;</span>
+<span class="fc bfc" id="L77" title="All 2 branches covered.">        for (Object item : values) {</span>
+<span class="fc bfc" id="L78" title="All 2 branches covered.">            if (item == null) {</span>
+<span class="fc" id="L79">                collection.add(null);</span>
+<span class="fc" id="L80">                continue;</span>
+            }
+
+<span class="pc bpc" id="L83" title="1 of 4 branches missed.">            if (item instanceof Map &amp;&amp; itemType instanceof Class) {</span>
+<span class="nc bnc" id="L84" title="All 2 branches missed.">                if (!((Class) itemType).isAssignableFrom(item.getClass())) {</span>
+<span class="nc bnc" id="L85" title="All 2 branches missed.">                    if (itemReader == null) {</span>
+<span class="nc" id="L86">                        itemReader = JSONFactory</span>
+<span class="nc" id="L87">                                .getDefaultObjectReaderProvider()</span>
+<span class="nc" id="L88">                                .getObjectReader(itemType);</span>
+                    }
+<span class="nc" id="L90">                    item = itemReader.createInstance((Map) item, 0L);</span>
+                }
+            }
+<span class="fc" id="L93">            collection.add(item);</span>
+<span class="fc" id="L94">        }</span>
+
+<span class="fc bfc" id="L96" title="All 2 branches covered.">        if (schema != null) {</span>
+<span class="fc" id="L97">            schema.assertValidate(collection);</span>
+        }
+<span class="fc" id="L99">    }</span>
+
+    @Override
+    public boolean isReadOnly() {
+<span class="fc" id="L103">        return true;</span>
+    }
+
+    @Override
+    public void readFieldValue(JSONReader jsonReader, T object) {
+<span class="fc bfc" id="L108" title="All 2 branches covered.">        if (initReader == null) {</span>
+<span class="fc" id="L109">            initReader = jsonReader</span>
+<span class="fc" id="L110">                    .getContext()</span>
+<span class="fc" id="L111">                    .getObjectReader(fieldType);</span>
+        }
+<span class="fc bfc" id="L113" title="All 2 branches covered.">        Object value = jsonReader.jsonb</span>
+<span class="fc" id="L114">                ? initReader.readJSONBObject(jsonReader, fieldType, fieldName, 0)</span>
+<span class="fc" id="L115">                : initReader.readObject(jsonReader, fieldType, fieldName, 0);</span>
+<span class="fc" id="L116">        accept(object, value);</span>
+<span class="fc" id="L117">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.8.202204050719</span></div></body></html>

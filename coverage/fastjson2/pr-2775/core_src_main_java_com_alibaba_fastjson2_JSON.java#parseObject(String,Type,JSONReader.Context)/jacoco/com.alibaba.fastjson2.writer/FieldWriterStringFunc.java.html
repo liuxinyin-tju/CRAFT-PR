@@ -1,0 +1,114 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>FieldWriterStringFunc.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">fastjson2</a> &gt; <a href="index.source.html" class="el_package">com.alibaba.fastjson2.writer</a> &gt; <span class="el_source">FieldWriterStringFunc.java</span></div><h1>FieldWriterStringFunc.java</h1><pre class="source lang-java linenums">package com.alibaba.fastjson2.writer;
+
+import com.alibaba.fastjson2.JSONWriter;
+import com.alibaba.fastjson2.codec.FieldInfo;
+
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
+import java.util.function.Function;
+
+final class FieldWriterStringFunc&lt;T&gt;
+        extends FieldWriter&lt;T&gt; {
+    final Function&lt;T, String&gt; function;
+    final boolean symbol;
+    final boolean trim;
+    final boolean raw;
+
+    FieldWriterStringFunc(
+            String fieldName,
+            int ordinal,
+            long features,
+            String format,
+            String label,
+            Field field,
+            Method method,
+            Function&lt;T, String&gt; function
+    ) {
+<span class="fc" id="L27">        super(fieldName, ordinal, features, format, null, label, String.class, String.class, field, method);</span>
+<span class="fc" id="L28">        this.function = function;</span>
+<span class="fc" id="L29">        this.symbol = &quot;symbol&quot;.equals(format);</span>
+<span class="fc" id="L30">        this.trim = &quot;trim&quot;.equals(format);</span>
+<span class="fc bfc" id="L31" title="All 2 branches covered.">        this.raw = (features &amp; FieldInfo.RAW_VALUE_MASK) != 0;</span>
+<span class="fc" id="L32">    }</span>
+
+    @Override
+    public Object getFieldValue(T object) {
+<span class="fc" id="L36">        return function.apply(object);</span>
+    }
+
+    @Override
+    public boolean write(JSONWriter jsonWriter, T object) {
+        String value;
+        try {
+<span class="fc" id="L43">            value = function.apply(object);</span>
+<span class="fc" id="L44">        } catch (RuntimeException error) {</span>
+<span class="pc bpc" id="L45" title="1 of 2 branches missed.">            if ((jsonWriter.getFeatures(features) | JSONWriter.Feature.IgnoreNonFieldGetter.mask) != 0) {</span>
+<span class="fc" id="L46">                return false;</span>
+            }
+<span class="nc" id="L48">            throw error;</span>
+<span class="fc" id="L49">        }</span>
+
+<span class="fc" id="L51">        long features = this.features | jsonWriter.getFeatures();</span>
+<span class="fc bfc" id="L52" title="All 2 branches covered.">        if (value == null) {</span>
+<span class="fc bfc" id="L53" title="All 2 branches covered.">            if ((features &amp; (JSONWriter.Feature.WriteNulls.mask | JSONWriter.Feature.NullAsDefaultValue.mask | JSONWriter.Feature.WriteNullStringAsEmpty.mask)) == 0) {</span>
+<span class="fc" id="L54">                return false;</span>
+            }
+<span class="fc bfc" id="L56" title="All 2 branches covered.">        } else if (trim) {</span>
+<span class="fc" id="L57">            value = value.trim();</span>
+        }
+
+<span class="fc bfc" id="L60" title="All 2 branches covered.">        if (value != null</span>
+<span class="fc bfc" id="L61" title="All 4 branches covered.">                &amp;&amp; value.isEmpty()</span>
+                &amp;&amp; (features &amp; JSONWriter.Feature.IgnoreEmpty.mask) != 0
+        ) {
+<span class="fc" id="L64">            return false;</span>
+        }
+
+<span class="fc" id="L67">        writeFieldName(jsonWriter);</span>
+
+<span class="fc bfc" id="L69" title="All 2 branches covered.">        if (value == null) {</span>
+<span class="fc bfc" id="L70" title="All 2 branches covered.">            if ((features &amp; (JSONWriter.Feature.NullAsDefaultValue.mask | JSONWriter.Feature.WriteNullStringAsEmpty.mask)) != 0) {</span>
+<span class="fc" id="L71">                jsonWriter.writeString(&quot;&quot;);</span>
+            } else {
+<span class="fc" id="L73">                jsonWriter.writeNull();</span>
+            }
+<span class="fc" id="L75">            return true;</span>
+        }
+
+<span class="pc bpc" id="L78" title="3 of 4 branches missed.">        if (symbol &amp;&amp; jsonWriter.jsonb) {</span>
+<span class="nc" id="L79">            jsonWriter.writeSymbol(value);</span>
+        } else {
+<span class="fc bfc" id="L81" title="All 2 branches covered.">            if (raw) {</span>
+<span class="fc" id="L82">                jsonWriter.writeRaw(value);</span>
+            } else {
+<span class="fc" id="L84">                jsonWriter.writeString(value);</span>
+            }
+        }
+<span class="fc" id="L87">        return true;</span>
+    }
+
+    @Override
+    public void writeValue(JSONWriter jsonWriter, T object) {
+<span class="fc" id="L92">        String value = function.apply(object);</span>
+
+<span class="pc bpc" id="L94" title="3 of 4 branches missed.">        if (trim &amp;&amp; value != null) {</span>
+<span class="nc" id="L95">            value = value.trim();</span>
+        }
+
+<span class="pc bpc" id="L98" title="3 of 4 branches missed.">        if (symbol &amp;&amp; jsonWriter.jsonb) {</span>
+<span class="nc" id="L99">            jsonWriter.writeSymbol(value);</span>
+        } else {
+<span class="fc bfc" id="L101" title="All 2 branches covered.">            if (raw) {</span>
+<span class="fc" id="L102">                jsonWriter.writeRaw(value);</span>
+            } else {
+<span class="fc" id="L104">                jsonWriter.writeString(value);</span>
+            }
+        }
+<span class="fc" id="L107">    }</span>
+
+    @Override
+    public Function getFunction() {
+<span class="fc" id="L111">        return function;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.8.202204050719</span></div></body></html>

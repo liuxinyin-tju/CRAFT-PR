@@ -1,0 +1,1133 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>JSONPathParser.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">fastjson2</a> &gt; <a href="index.source.html" class="el_package">com.alibaba.fastjson2</a> &gt; <span class="el_source">JSONPathParser.java</span></div><h1>JSONPathParser.java</h1><pre class="source lang-java linenums">package com.alibaba.fastjson2;
+
+import com.alibaba.fastjson2.util.Fnv;
+import com.alibaba.fastjson2.util.TypeUtils;
+
+import java.math.BigDecimal;
+import java.math.BigInteger;
+import java.util.*;
+import java.util.function.Function;
+import java.util.regex.Pattern;
+
+import static com.alibaba.fastjson2.JSONReader.EOI;
+
+class JSONPathParser {
+    final String path;
+    final JSONReader jsonReader;
+
+    boolean dollar;
+    boolean lax;
+    boolean strict;
+
+    int segmentIndex;
+    JSONPathSegment first;
+    JSONPathSegment second;
+
+    List&lt;JSONPathSegment&gt; segments;
+    int filterNests;
+
+    boolean negative;
+
+<span class="fc" id="L31">    public JSONPathParser(String str) {</span>
+<span class="fc" id="L32">        this.jsonReader = JSONReader.of(this.path = str, JSONPath.PARSE_CONTEXT);</span>
+
+<span class="fc bfc" id="L34" title="All 4 branches covered.">        if (jsonReader.ch == 'l' &amp;&amp; jsonReader.nextIfMatchIdent('l', 'a', 'x')) {</span>
+<span class="fc" id="L35">            lax = true;</span>
+<span class="fc bfc" id="L36" title="All 4 branches covered.">        } else if (jsonReader.ch == 's' &amp;&amp; jsonReader.nextIfMatchIdent('s', 't', 'r', 'i', 'c', 't')) {</span>
+<span class="fc" id="L37">            strict = true;</span>
+        }
+
+<span class="fc bfc" id="L40" title="All 2 branches covered.">        if (jsonReader.ch == '-') {</span>
+<span class="fc" id="L41">            jsonReader.next();</span>
+<span class="fc" id="L42">            negative = true;</span>
+        }
+
+<span class="fc bfc" id="L45" title="All 2 branches covered.">        if (jsonReader.ch == '$') {</span>
+<span class="fc" id="L46">            jsonReader.next();</span>
+<span class="fc" id="L47">            dollar = true;</span>
+        }
+<span class="fc" id="L49">    }</span>
+
+    JSONPath parse(JSONPath.Feature... features) {
+<span class="fc bfc" id="L52" title="All 4 branches covered.">        if (dollar &amp;&amp; jsonReader.ch == EOI) {</span>
+<span class="fc bfc" id="L53" title="All 2 branches covered.">            if (negative) {</span>
+<span class="fc" id="L54">                return new JSONPathSingle(JSONPathFunction.FUNC_NEGATIVE, path);</span>
+            } else {
+<span class="fc" id="L56">                return JSONPath.RootPath.INSTANCE;</span>
+            }
+        }
+
+<span class="pc bpc" id="L60" title="1 of 4 branches missed.">        if (jsonReader.ch == 'e' &amp;&amp; jsonReader.nextIfMatchIdent('e', 'x', 'i', 's', 't', 's')) {</span>
+<span class="pc bpc" id="L61" title="1 of 2 branches missed.">            if (!jsonReader.nextIfMatch('(')) {</span>
+<span class="nc" id="L62">                throw new JSONException(&quot;syntax error &quot; + path);</span>
+            }
+
+<span class="pc bpc" id="L65" title="1 of 2 branches missed.">            if (jsonReader.ch == '@') {</span>
+<span class="fc" id="L66">                jsonReader.next();</span>
+<span class="pc bpc" id="L67" title="1 of 2 branches missed.">                if (!jsonReader.nextIfMatch('.')) {</span>
+<span class="nc" id="L68">                    throw new JSONException(&quot;syntax error &quot; + path);</span>
+                }
+            }
+
+<span class="fc" id="L72">            char ch = jsonReader.ch;</span>
+            JSONPathSegment segment;
+<span class="pc bpc" id="L74" title="12 of 14 branches missed.">            if ((ch &gt;= 'a' &amp;&amp; ch &lt;= 'z') || (ch &gt;= 'A' &amp;&amp; ch &lt;= 'Z') || ch == '_' || ch == '@' || Character.isIdeographic(ch)) {</span>
+<span class="fc" id="L75">                segment = parseProperty();</span>
+            } else {
+<span class="nc" id="L77">                throw new JSONException(&quot;syntax error &quot; + path);</span>
+            }
+
+<span class="pc bpc" id="L80" title="1 of 2 branches missed.">            if (!jsonReader.nextIfMatch(')')) {</span>
+<span class="nc" id="L81">                throw new JSONException(&quot;syntax error &quot; + path);</span>
+            }
+
+<span class="fc" id="L84">            return new JSONPathTwoSegment(path, segment, JSONPathFunction.FUNC_EXISTS);</span>
+        }
+
+<span class="fc bfc" id="L87" title="All 2 branches covered.">        while (jsonReader.ch != EOI) {</span>
+            final JSONPathSegment segment;
+
+<span class="fc" id="L90">            char ch = jsonReader.ch;</span>
+<span class="fc bfc" id="L91" title="All 2 branches covered.">            if (ch == '.') {</span>
+<span class="fc" id="L92">                jsonReader.next();</span>
+<span class="fc" id="L93">                segment = parseProperty();</span>
+<span class="fc bfc" id="L94" title="All 2 branches covered.">            } else if (jsonReader.ch == '[') {</span>
+<span class="fc" id="L95">                segment = parseArrayAccess();</span>
+<span class="pc bpc" id="L96" title="2 of 12 branches missed.">            } else if ((ch &gt;= 'a' &amp;&amp; ch &lt;= 'z') || (ch &gt;= 'A' &amp;&amp; ch &lt;= 'Z') || ch == '_' || Character.isIdeographic(ch)) {</span>
+<span class="fc" id="L97">                segment = parseProperty();</span>
+<span class="fc bfc" id="L98" title="All 2 branches covered.">            } else if (ch == '?') {</span>
+<span class="pc bpc" id="L99" title="1 of 4 branches missed.">                if (dollar &amp;&amp; segmentIndex == 0) {</span>
+<span class="fc" id="L100">                    first = JSONPathSegment.RootSegment.INSTANCE;</span>
+<span class="fc" id="L101">                    segmentIndex++;</span>
+                }
+<span class="fc" id="L103">                jsonReader.next();</span>
+<span class="fc" id="L104">                segment = parseFilter();</span>
+<span class="fc bfc" id="L105" title="All 2 branches covered.">            } else if (ch == '@') {</span>
+<span class="fc" id="L106">                jsonReader.next();</span>
+<span class="fc" id="L107">                segment = JSONPathSegment.SelfSegment.INSTANCE;</span>
+            } else {
+<span class="fc" id="L109">                throw new JSONException(&quot;not support &quot; + ch);</span>
+            }
+
+<span class="fc bfc" id="L112" title="All 2 branches covered.">            if (segmentIndex == 0) {</span>
+<span class="fc" id="L113">                first = segment;</span>
+<span class="fc bfc" id="L114" title="All 2 branches covered.">            } else if (segmentIndex == 1) {</span>
+<span class="fc" id="L115">                second = segment;</span>
+<span class="fc bfc" id="L116" title="All 2 branches covered.">            } else if (segmentIndex == 2) {</span>
+<span class="fc" id="L117">                segments = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L118">                segments.add(first);</span>
+<span class="fc" id="L119">                segments.add(second);</span>
+<span class="fc" id="L120">                segments.add(segment);</span>
+            } else {
+<span class="fc" id="L122">                segments.add(segment);</span>
+            }
+<span class="fc" id="L124">            segmentIndex++;</span>
+<span class="fc" id="L125">        }</span>
+
+<span class="fc bfc" id="L127" title="All 2 branches covered.">        if (negative) {</span>
+<span class="fc bfc" id="L128" title="All 2 branches covered.">            if (segmentIndex == 1) {</span>
+<span class="fc" id="L129">                second = JSONPathFunction.FUNC_NEGATIVE;</span>
+<span class="pc bpc" id="L130" title="1 of 2 branches missed.">            } else if (segmentIndex == 2) {</span>
+<span class="fc" id="L131">                segments = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L132">                segments.add(first);</span>
+<span class="fc" id="L133">                segments.add(second);</span>
+<span class="fc" id="L134">                segments.add(JSONPathFunction.FUNC_NEGATIVE);</span>
+            } else {
+<span class="nc" id="L136">                segments.add(JSONPathFunction.FUNC_NEGATIVE);</span>
+            }
+<span class="fc" id="L138">            segmentIndex++;</span>
+        }
+
+<span class="fc bfc" id="L141" title="All 2 branches covered.">        if (segmentIndex == 1) {</span>
+<span class="fc bfc" id="L142" title="All 2 branches covered.">            if (first instanceof JSONPathSegmentName) {</span>
+<span class="fc" id="L143">                return new JSONPathSingleName(path, (JSONPathSegmentName) first, features);</span>
+            }
+
+<span class="fc bfc" id="L146" title="All 2 branches covered.">            if (first instanceof JSONPathSegmentIndex) {</span>
+<span class="fc" id="L147">                JSONPathSegmentIndex firstIndex = (JSONPathSegmentIndex) first;</span>
+<span class="fc bfc" id="L148" title="All 2 branches covered.">                if (firstIndex.index &gt;= 0) {</span>
+<span class="fc" id="L149">                    return new JSONPathSingleIndex(path, firstIndex, features);</span>
+                }
+            }
+
+<span class="fc" id="L153">            return new JSONPathSingle(first, path, features);</span>
+        }
+
+<span class="fc bfc" id="L156" title="All 2 branches covered.">        if (segmentIndex == 2) {</span>
+<span class="fc" id="L157">            return new JSONPathTwoSegment(path, first, second, features);</span>
+        }
+
+<span class="fc" id="L160">        return new JSONPathMulti(path, segments, features);</span>
+    }
+
+    private JSONPathSegment parseArrayAccess() {
+<span class="fc" id="L164">        jsonReader.next();</span>
+
+        JSONPathSegment segment;
+<span class="fc bfc" id="L167" title="All 9 branches covered.">        switch (jsonReader.ch) {</span>
+            case '-':
+            case '0':
+            case '1':
+            case '2':
+            case '3':
+            case '4':
+            case '5':
+            case '6':
+            case '7':
+            case '8':
+            case '9': {
+<span class="fc" id="L179">                int index = jsonReader.readInt32Value();</span>
+<span class="fc" id="L180">                boolean last = false;</span>
+<span class="fc bfc" id="L181" title="All 2 branches covered.">                if (jsonReader.ch == ':') {</span>
+<span class="fc" id="L182">                    jsonReader.next();</span>
+<span class="fc bfc" id="L183" title="All 2 branches covered.">                    if (jsonReader.ch == ']') {</span>
+<span class="fc bfc" id="L184" title="All 2 branches covered.">                        segment = new JSONPathSegment.RangeIndexSegment(index, index &gt;= 0 ? Integer.MAX_VALUE : 0);</span>
+                    } else {
+<span class="fc" id="L186">                        int end = jsonReader.readInt32Value();</span>
+<span class="fc" id="L187">                        segment = new JSONPathSegment.RangeIndexSegment(index, end);</span>
+<span class="fc" id="L188">                    }</span>
+<span class="fc bfc" id="L189" title="All 4 branches covered.">                } else if (jsonReader.isNumber() || (last = jsonReader.nextIfMatchIdent('l', 'a', 's', 't'))) {</span>
+<span class="fc" id="L190">                    List&lt;Integer&gt; list = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L191">                    list.add(index);</span>
+<span class="fc bfc" id="L192" title="All 2 branches covered.">                    if (last) {</span>
+<span class="fc" id="L193">                        list.add(-1);</span>
+<span class="fc" id="L194">                        jsonReader.nextIfComma();</span>
+                    }
+
+                    while (true) {
+<span class="fc bfc" id="L198" title="All 2 branches covered.">                        if (jsonReader.isNumber()) {</span>
+<span class="fc" id="L199">                            index = jsonReader.readInt32Value();</span>
+<span class="fc" id="L200">                            list.add(index);</span>
+<span class="fc bfc" id="L201" title="All 2 branches covered.">                        } else if (jsonReader.nextIfMatchIdent('l', 'a', 's', 't')) {</span>
+<span class="fc" id="L202">                            list.add(-1);</span>
+<span class="fc" id="L203">                            jsonReader.nextIfComma();</span>
+                        } else {
+                            break;
+                        }
+                    }
+
+<span class="fc" id="L209">                    int[] indics = new int[list.size()];</span>
+<span class="fc bfc" id="L210" title="All 2 branches covered.">                    for (int i = 0; i &lt; list.size(); i++) {</span>
+<span class="fc" id="L211">                        indics[i] = list.get(i);</span>
+                    }
+<span class="fc" id="L213">                    segment = new JSONPathSegment.MultiIndexSegment(indics);</span>
+<span class="fc" id="L214">                } else {</span>
+<span class="fc" id="L215">                    segment = JSONPathSegmentIndex.of(index);</span>
+                }
+<span class="fc" id="L217">                break;</span>
+            }
+            case '*':
+<span class="fc" id="L220">                jsonReader.next();</span>
+<span class="fc" id="L221">                segment = JSONPathSegment.AllSegment.INSTANCE_ARRAY;</span>
+<span class="fc" id="L222">                break;</span>
+            case ':': {
+<span class="fc" id="L224">                jsonReader.next();</span>
+<span class="fc bfc" id="L225" title="All 2 branches covered.">                int end = jsonReader.ch == ']' ? 0 : jsonReader.readInt32Value();</span>
+
+<span class="fc bfc" id="L227" title="All 2 branches covered.">                if (end &gt; 0) {</span>
+<span class="fc" id="L228">                    segment = new JSONPathSegment.RangeIndexSegment(0, end);</span>
+                } else {
+<span class="fc" id="L230">                    segment = new JSONPathSegment.RangeIndexSegment(Integer.MIN_VALUE, end);</span>
+                }
+<span class="fc" id="L232">                break;</span>
+            }
+            case '&quot;':
+            case '\'':
+<span class="fc" id="L236">                String name = jsonReader.readString();</span>
+<span class="fc bfc" id="L237" title="All 2 branches covered.">                if (jsonReader.current() == ']') {</span>
+<span class="fc" id="L238">                    segment = new JSONPathSegmentName(name, Fnv.hashCode64(name));</span>
+<span class="fc bfc" id="L239" title="All 2 branches covered.">                } else if (jsonReader.isString()) {</span>
+<span class="fc" id="L240">                    List&lt;String&gt; names = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L241">                    names.add(name);</span>
+                    do {
+<span class="fc" id="L243">                        names.add(jsonReader.readString());</span>
+<span class="pc bpc" id="L244" title="1 of 2 branches missed.">                    } while (jsonReader.isString());</span>
+<span class="fc" id="L245">                    String[] nameArray = new String[names.size()];</span>
+<span class="fc" id="L246">                    names.toArray(nameArray);</span>
+<span class="fc" id="L247">                    segment = new JSONPathSegment.MultiNameSegment(nameArray);</span>
+<span class="fc" id="L248">                } else {</span>
+<span class="fc" id="L249">                    throw new JSONException(&quot;TODO : &quot; + jsonReader.current());</span>
+                }
+                break;
+            case '?':
+<span class="fc" id="L253">                jsonReader.next();</span>
+<span class="fc" id="L254">                segment = parseFilter();</span>
+<span class="fc" id="L255">                break;</span>
+            case 'r': {
+<span class="fc" id="L257">                String fieldName = jsonReader.readFieldNameUnquote();</span>
+<span class="pc bpc" id="L258" title="1 of 2 branches missed.">                if (&quot;randomIndex&quot;.equals(fieldName)) {</span>
+<span class="pc bpc" id="L259" title="1 of 2 branches missed.">                    if (jsonReader.nextIfMatch('(')</span>
+<span class="pc bpc" id="L260" title="2 of 4 branches missed.">                            &amp;&amp; jsonReader.nextIfMatch(')')</span>
+                            &amp;&amp; jsonReader.ch == (']')) {
+<span class="fc" id="L262">                        segment = JSONPathSegment.RandomIndexSegment.INSTANCE;</span>
+<span class="fc" id="L263">                        break;</span>
+                    }
+                }
+<span class="nc" id="L266">                throw new JSONException(&quot;not support : &quot; + fieldName);</span>
+            }
+            case 'l': {
+<span class="fc" id="L269">                String fieldName = jsonReader.readFieldNameUnquote();</span>
+<span class="pc bpc" id="L270" title="1 of 2 branches missed.">                if (&quot;last&quot;.equals(fieldName)) {</span>
+<span class="fc" id="L271">                    segment = JSONPathSegmentIndex.of(-1);</span>
+                } else {
+<span class="nc" id="L273">                    throw new JSONException(&quot;not support : &quot; + fieldName);</span>
+                }
+                break;
+            }
+            case '(': {
+<span class="fc" id="L278">                jsonReader.next();</span>
+<span class="pc bpc" id="L279" title="2 of 4 branches missed.">                if (jsonReader.nextIfMatch('@') &amp;&amp; jsonReader.nextIfMatch('.')) {</span>
+<span class="fc" id="L280">                    String fieldName = jsonReader.readFieldNameUnquote();</span>
+<span class="pc bpc" id="L281" title="1 of 2 branches missed.">                    switch (fieldName) {</span>
+                        case &quot;length&quot;:
+                        case &quot;size&quot;: {
+<span class="fc" id="L284">                            int index = jsonReader.readInt32Value();</span>
+<span class="pc bpc" id="L285" title="1 of 2 branches missed.">                            if (!jsonReader.nextIfMatch(')')) {</span>
+<span class="nc" id="L286">                                throw new JSONException(&quot;not support : &quot; + fieldName);</span>
+                            }
+<span class="pc bpc" id="L288" title="1 of 2 branches missed.">                            if (index &gt; 0) {</span>
+<span class="nc" id="L289">                                throw new JSONException(&quot;not support : &quot; + fieldName);</span>
+                            } else {
+<span class="fc" id="L291">                                segment = JSONPathSegmentIndex.of(index);</span>
+                            }
+<span class="fc" id="L293">                            break;</span>
+                        }
+                        default:
+<span class="nc" id="L296">                            throw new JSONException(&quot;not support : &quot; + path);</span>
+                    }
+<span class="fc" id="L298">                } else {</span>
+<span class="nc" id="L299">                    throw new JSONException(&quot;not support : &quot; + path);</span>
+                }
+                break;
+            }
+            default:
+<span class="fc" id="L304">                throw new JSONException(&quot;TODO : &quot; + jsonReader.current());</span>
+        }
+
+<span class="pc bpc" id="L307" title="2 of 8 branches missed.">        while (jsonReader.ch == '&amp;' || jsonReader.ch == '|' || jsonReader.ch == 'a' || jsonReader.ch == 'o') {</span>
+<span class="fc" id="L308">            filterNests--;</span>
+<span class="fc" id="L309">            segment = parseFilterRest(segment);</span>
+        }
+<span class="fc bfc" id="L311" title="All 2 branches covered.">        while (filterNests &gt; 0) {</span>
+<span class="fc" id="L312">            jsonReader.next();</span>
+<span class="fc" id="L313">            filterNests--;</span>
+        }
+<span class="fc bfc" id="L315" title="All 2 branches covered.">        if (!jsonReader.nextIfArrayEnd()) {</span>
+<span class="fc" id="L316">            throw new JSONException(jsonReader.info(&quot;jsonpath syntax error&quot;));</span>
+        }
+
+<span class="fc" id="L319">        return segment;</span>
+    }
+
+    private JSONPathSegment parseProperty() {
+        final JSONPathSegment segment;
+<span class="fc bfc" id="L324" title="All 2 branches covered.">        if (jsonReader.ch == '*') {</span>
+<span class="fc" id="L325">            jsonReader.next();</span>
+<span class="fc" id="L326">            segment = JSONPathSegment.AllSegment.INSTANCE;</span>
+<span class="fc bfc" id="L327" title="All 2 branches covered.">        } else if (jsonReader.ch == '.') {</span>
+<span class="fc" id="L328">            jsonReader.next();</span>
+<span class="fc bfc" id="L329" title="All 2 branches covered.">            if (jsonReader.ch == '*') {</span>
+<span class="fc" id="L330">                jsonReader.next();</span>
+<span class="fc" id="L331">                segment = new JSONPathSegment.CycleNameSegment(&quot;*&quot;, Fnv.hashCode64(&quot;*&quot;));</span>
+            } else {
+<span class="fc" id="L333">                long hashCode = jsonReader.readFieldNameHashCodeUnquote();</span>
+<span class="fc" id="L334">                String name = jsonReader.getFieldName();</span>
+<span class="fc" id="L335">                segment = new JSONPathSegment.CycleNameSegment(name, hashCode);</span>
+<span class="fc" id="L336">            }</span>
+        } else {
+<span class="fc" id="L338">            boolean isNum = jsonReader.isNumber();</span>
+<span class="fc" id="L339">            long hashCode = jsonReader.readFieldNameHashCodeUnquote();</span>
+<span class="fc" id="L340">            String name = jsonReader.getFieldName();</span>
+<span class="fc bfc" id="L341" title="All 2 branches covered.">            if (isNum) {</span>
+<span class="fc" id="L342">                final int length = name.length();</span>
+<span class="fc bfc" id="L343" title="All 2 branches covered.">                if (length &lt;= 9) {</span>
+<span class="fc bfc" id="L344" title="All 2 branches covered.">                    for (int i = 0; i &lt; length; ++i) {</span>
+<span class="fc" id="L345">                        char ch = name.charAt(i);</span>
+<span class="fc bfc" id="L346" title="All 4 branches covered.">                        if (ch &lt; '0' || ch &gt; '9') {</span>
+<span class="fc" id="L347">                            break;</span>
+                        }
+                    }
+                }
+            }
+
+<span class="fc bfc" id="L353" title="All 2 branches covered.">            if (jsonReader.ch == '(') {</span>
+<span class="fc" id="L354">                jsonReader.next();</span>
+<span class="pc bpc" id="L355" title="2 of 20 branches missed.">                switch (name) {</span>
+                    case &quot;length&quot;:
+                    case &quot;size&quot;:
+<span class="fc" id="L358">                        segment = JSONPathSegment.LengthSegment.INSTANCE;</span>
+<span class="fc" id="L359">                        break;</span>
+                    case &quot;keys&quot;:
+<span class="fc" id="L361">                        segment = JSONPathSegment.KeysSegment.INSTANCE;</span>
+<span class="fc" id="L362">                        break;</span>
+                    case &quot;values&quot;:
+<span class="fc" id="L364">                        segment = JSONPathSegment.ValuesSegment.INSTANCE;</span>
+<span class="fc" id="L365">                        break;</span>
+                    case &quot;entrySet&quot;:
+<span class="fc" id="L367">                        segment = JSONPathSegment.EntrySetSegment.INSTANCE;</span>
+<span class="fc" id="L368">                        break;</span>
+                    case &quot;min&quot;:
+<span class="fc" id="L370">                        segment = JSONPathSegment.MinSegment.INSTANCE;</span>
+<span class="fc" id="L371">                        break;</span>
+                    case &quot;max&quot;:
+<span class="fc" id="L373">                        segment = JSONPathSegment.MaxSegment.INSTANCE;</span>
+<span class="fc" id="L374">                        break;</span>
+                    case &quot;sum&quot;:
+<span class="fc" id="L376">                        segment = JSONPathSegment.SumSegment.INSTANCE;</span>
+<span class="fc" id="L377">                        break;</span>
+                    case &quot;type&quot;:
+<span class="fc" id="L379">                        segment = JSONPathFunction.FUNC_TYPE;</span>
+<span class="fc" id="L380">                        break;</span>
+                    case &quot;floor&quot;:
+<span class="fc" id="L382">                        segment = JSONPathFunction.FUNC_FLOOR;</span>
+<span class="fc" id="L383">                        break;</span>
+                    case &quot;ceil&quot;:
+                    case &quot;ceiling&quot;:
+<span class="fc" id="L386">                        segment = JSONPathFunction.FUNC_CEIL;</span>
+<span class="fc" id="L387">                        break;</span>
+                    case &quot;double&quot;:
+<span class="fc" id="L389">                        segment = JSONPathFunction.FUNC_DOUBLE;</span>
+<span class="fc" id="L390">                        break;</span>
+                    case &quot;abs&quot;:
+<span class="fc" id="L392">                        segment = JSONPathFunction.FUNC_ABS;</span>
+<span class="fc" id="L393">                        break;</span>
+                    case &quot;lower&quot;:
+<span class="fc" id="L395">                        segment = JSONPathFunction.FUNC_LOWER;</span>
+<span class="fc" id="L396">                        break;</span>
+                    case &quot;upper&quot;:
+<span class="fc" id="L398">                        segment = JSONPathFunction.FUNC_UPPER;</span>
+<span class="fc" id="L399">                        break;</span>
+                    case &quot;trim&quot;:
+<span class="fc" id="L401">                        segment = JSONPathFunction.FUNC_TRIM;</span>
+<span class="fc" id="L402">                        break;</span>
+                    case &quot;negative&quot;:
+<span class="nc" id="L404">                        segment = JSONPathFunction.FUNC_NEGATIVE;</span>
+<span class="nc" id="L405">                        break;</span>
+                    case &quot;first&quot;:
+<span class="fc" id="L407">                        segment = JSONPathFunction.FUNC_FIRST;</span>
+<span class="fc" id="L408">                        break;</span>
+                    case &quot;last&quot;:
+<span class="fc" id="L410">                        segment = JSONPathFunction.FUNC_LAST;</span>
+<span class="fc" id="L411">                        break;</span>
+                    case &quot;index&quot;:
+<span class="fc bfc" id="L413" title="All 2 branches covered.">                        if (jsonReader.isNumber()) {</span>
+<span class="fc" id="L414">                            Number number = jsonReader.readNumber();</span>
+<span class="fc bfc" id="L415" title="All 2 branches covered.">                            if (number instanceof BigDecimal) {</span>
+<span class="fc" id="L416">                                BigDecimal decimal = (BigDecimal) number;</span>
+<span class="fc" id="L417">                                decimal = decimal.stripTrailingZeros();</span>
+<span class="pc bpc" id="L418" title="1 of 2 branches missed.">                                if (decimal.scale() != 0) {</span>
+<span class="fc" id="L419">                                    segment = new JSONPathFunction(new JSONPathFunction.IndexDecimal(decimal));</span>
+<span class="fc" id="L420">                                    break;</span>
+                                }
+<span class="nc" id="L422">                                BigInteger unscaledValue = decimal.unscaledValue();</span>
+<span class="nc bnc" id="L423" title="All 2 branches missed.">                                if (unscaledValue.compareTo(TypeUtils.BIGINT_INT64_MIN) &gt;= 0</span>
+<span class="nc bnc" id="L424" title="All 2 branches missed.">                                        &amp;&amp; unscaledValue.compareTo(TypeUtils.BIGINT_INT64_MAX) &lt;= 0) {</span>
+<span class="nc" id="L425">                                    number = unscaledValue.longValue();</span>
+                                } else {
+<span class="nc" id="L427">                                    number = unscaledValue;</span>
+                                }
+                            }
+
+<span class="pc bpc" id="L431" title="3 of 4 branches missed.">                            if (number instanceof Integer</span>
+                                    || number instanceof Long
+                            ) {
+<span class="fc" id="L434">                                long longValue = number.longValue();</span>
+<span class="fc" id="L435">                                segment = new JSONPathFunction(new JSONPathFunction.IndexInt(longValue));</span>
+<span class="fc" id="L436">                                break;</span>
+                            }
+<span class="pc bpc" id="L438" title="1 of 2 branches missed.">                        } else if (jsonReader.isString()) {</span>
+<span class="fc" id="L439">                            String indexValue = jsonReader.readString();</span>
+<span class="fc" id="L440">                            segment = new JSONPathFunction(new JSONPathFunction.IndexString(indexValue));</span>
+<span class="fc" id="L441">                            break;</span>
+                        }
+<span class="nc" id="L443">                        throw new JSONException(&quot;not support syntax, path : &quot; + path);</span>
+                    default:
+<span class="nc" id="L445">                        throw new JSONException(&quot;not support syntax, path : &quot; + path);</span>
+                }
+<span class="pc bpc" id="L447" title="1 of 2 branches missed.">                if (!jsonReader.nextIfMatch(')')) {</span>
+<span class="nc" id="L448">                    throw new JSONException(&quot;not support syntax, path : &quot; + path);</span>
+                }
+            } else {
+<span class="fc" id="L451">                segment = new JSONPathSegmentName(name, hashCode);</span>
+            }
+        }
+<span class="fc" id="L454">        return segment;</span>
+    }
+
+    JSONPathSegment parseFilterRest(JSONPathSegment segment) {
+        boolean and;
+<span class="pc bpc" id="L459" title="1 of 5 branches missed.">        switch (jsonReader.ch) {</span>
+            case '&amp;':
+<span class="fc" id="L461">                jsonReader.next();</span>
+<span class="pc bpc" id="L462" title="1 of 2 branches missed.">                if (!jsonReader.nextIfMatch('&amp;')) {</span>
+<span class="nc" id="L463">                    throw new JSONException(jsonReader.info(&quot;jsonpath syntax error&quot;));</span>
+                }
+<span class="fc" id="L465">                and = true;</span>
+<span class="fc" id="L466">                break;</span>
+            case '|':
+<span class="fc" id="L468">                jsonReader.next();</span>
+<span class="pc bpc" id="L469" title="1 of 2 branches missed.">                if (!jsonReader.nextIfMatch('|')) {</span>
+<span class="nc" id="L470">                    throw new JSONException(jsonReader.info(&quot;jsonpath syntax error&quot;));</span>
+                }
+<span class="fc" id="L472">                and = false;</span>
+<span class="fc" id="L473">                break;</span>
+            case 'a':
+            case 'A': {
+<span class="fc" id="L476">                String fieldName = jsonReader.readFieldNameUnquote();</span>
+<span class="pc bpc" id="L477" title="1 of 2 branches missed.">                if (!&quot;and&quot;.equalsIgnoreCase(fieldName)) {</span>
+<span class="nc" id="L478">                    throw new JSONException(&quot;syntax error : &quot; + fieldName);</span>
+                }
+<span class="fc" id="L480">                and = true;</span>
+<span class="fc" id="L481">                break;</span>
+            }
+            case 'o':
+            case 'O': {
+<span class="fc" id="L485">                String fieldName = jsonReader.readFieldNameUnquote();</span>
+<span class="pc bpc" id="L486" title="1 of 2 branches missed.">                if (!&quot;or&quot;.equalsIgnoreCase(fieldName)) {</span>
+<span class="nc" id="L487">                    throw new JSONException(&quot;syntax error : &quot; + fieldName);</span>
+                }
+<span class="fc" id="L489">                and = false;</span>
+<span class="fc" id="L490">                break;</span>
+            }
+            default:
+<span class="nc" id="L493">                throw new JSONException(&quot;TODO : &quot; + jsonReader.ch);</span>
+        }
+
+<span class="fc" id="L496">        JSONPathSegment right = parseFilter();</span>
+<span class="fc bfc" id="L497" title="All 2 branches covered.">        if (segment instanceof JSONPathFilter.GroupFilter) {</span>
+<span class="fc" id="L498">            JSONPathFilter.GroupFilter group = (JSONPathFilter.GroupFilter) segment;</span>
+<span class="fc" id="L499">            group.filters.add(((JSONPathFilter) right).setAnd(and));</span>
+<span class="fc" id="L500">            return group;</span>
+        }
+
+<span class="fc" id="L503">        List&lt;JSONPathFilter&gt; filters = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L504">        filters.add((JSONPathFilter) segment);</span>
+<span class="fc bfc" id="L505" title="All 2 branches covered.">        if (right instanceof JSONPathFilter.GroupFilter) {</span>
+<span class="fc" id="L506">            JSONPathFilter.GroupFilter group = (JSONPathFilter.GroupFilter) right;</span>
+<span class="fc" id="L507">            List&lt;JSONPathFilter&gt; groupFilters = group.filters;</span>
+<span class="pc bpc" id="L508" title="2 of 4 branches missed.">            if (groupFilters != null &amp;&amp; groupFilters.size() &gt; 0) {</span>
+<span class="fc bfc" id="L509" title="All 2 branches covered.">                for (int i = 0; i &lt; groupFilters.size(); ++i) {</span>
+<span class="fc" id="L510">                    JSONPathFilter filter = groupFilters.get(i);</span>
+<span class="fc bfc" id="L511" title="All 2 branches covered.">                    if (i == 0) {</span>
+<span class="fc" id="L512">                        filter.setAnd(and);</span>
+                    }
+<span class="fc" id="L514">                    filters.add(filter);</span>
+                }
+            }
+<span class="fc" id="L517">        } else {</span>
+<span class="fc" id="L518">            filters.add(((JSONPathFilter) right).setAnd(and));</span>
+        }
+<span class="fc" id="L520">        return new JSONPathFilter.GroupFilter(filters);</span>
+    }
+
+    JSONPathSegment parseFilter() {
+<span class="fc" id="L524">        boolean parentheses = jsonReader.nextIfMatch('(');</span>
+<span class="fc bfc" id="L525" title="All 4 branches covered.">        if (parentheses &amp;&amp; filterNests &gt; 0) {</span>
+<span class="fc" id="L526">            filterNests++;</span>
+        }
+
+<span class="fc bfc" id="L529" title="All 2 branches covered.">        boolean at = jsonReader.ch == '@';</span>
+<span class="fc bfc" id="L530" title="All 2 branches covered.">        if (at) {</span>
+<span class="fc" id="L531">            jsonReader.next();</span>
+<span class="fc bfc" id="L532" title="All 2 branches covered.">        } else if (jsonReader.nextIfMatchIdent('e', 'x', 'i', 's', 't', 's')) {</span>
+<span class="pc bpc" id="L533" title="1 of 2 branches missed.">            if (!jsonReader.nextIfMatch('(')) {</span>
+<span class="nc" id="L534">                throw new JSONException(jsonReader.info(&quot;exists&quot;));</span>
+            }
+
+<span class="pc bpc" id="L537" title="1 of 2 branches missed.">            if (jsonReader.nextIfMatch('@')) {</span>
+<span class="pc bpc" id="L538" title="1 of 2 branches missed.">                if (jsonReader.nextIfMatch('.')) {</span>
+<span class="fc" id="L539">                    long hashCode = jsonReader.readFieldNameHashCodeUnquote();</span>
+<span class="fc" id="L540">                    String fieldName = jsonReader.getFieldName();</span>
+
+<span class="fc bfc" id="L542" title="All 2 branches covered.">                    if (jsonReader.nextIfMatch(')')) {</span>
+<span class="pc bpc" id="L543" title="1 of 2 branches missed.">                        if (parentheses) {</span>
+<span class="pc bpc" id="L544" title="1 of 2 branches missed.">                            if (!jsonReader.nextIfMatch(')')) {</span>
+<span class="nc" id="L545">                                throw new JSONException(jsonReader.info(&quot;jsonpath syntax error&quot;));</span>
+                            }
+                        }
+<span class="fc" id="L548">                        return new JSONPathFilter.NameExistsFilter(fieldName, hashCode);</span>
+<span class="pc bpc" id="L549" title="1 of 2 branches missed.">                    } else if (jsonReader.ch == '.') {</span>
+<span class="fc" id="L550">                        List&lt;String&gt; names = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L551">                        names.add(fieldName);</span>
+                        do {
+<span class="fc" id="L553">                            jsonReader.next();</span>
+<span class="fc" id="L554">                            fieldName = jsonReader.readFieldNameUnquote();</span>
+<span class="fc" id="L555">                            names.add(fieldName);</span>
+<span class="fc bfc" id="L556" title="All 2 branches covered.">                        } while (jsonReader.ch == '.');</span>
+
+<span class="pc bpc" id="L558" title="1 of 2 branches missed.">                        if (jsonReader.nextIfMatch(')')) {</span>
+<span class="pc bpc" id="L559" title="1 of 2 branches missed.">                            if (parentheses) {</span>
+<span class="nc bnc" id="L560" title="All 2 branches missed.">                                if (!jsonReader.nextIfMatch(')')) {</span>
+<span class="nc" id="L561">                                    throw new JSONException(jsonReader.info(&quot;jsonpath syntax error&quot;));</span>
+                                }
+                            }
+                        }
+
+<span class="fc" id="L566">                        return new JSONPathFilter.NamesExistsFilter(names);</span>
+                    }
+                }
+            }
+
+<span class="nc" id="L571">            throw new JSONException(jsonReader.info(&quot;jsonpath syntax error&quot;));</span>
+        }
+
+<span class="fc" id="L574">        boolean starts = jsonReader.nextIfMatchIdent('s', 't', 'a', 'r', 't', 's');</span>
+<span class="fc bfc" id="L575" title="All 4 branches covered.">        boolean ends = (!starts) &amp;&amp; jsonReader.nextIfMatchIdent('e', 'n', 'd', 's');</span>
+<span class="fc bfc" id="L576" title="All 10 branches covered.">        if ((at &amp;&amp; (starts || ends))</span>
+                || (jsonReader.ch != '.'
+                &amp;&amp; jsonReader.ch != '['
+<span class="fc bfc" id="L579" title="All 2 branches covered.">                &amp;&amp; !isOperator(jsonReader.ch)</span>
+<span class="fc bfc" id="L580" title="All 2 branches covered.">                &amp;&amp; !JSONReader.isFirstIdentifier(jsonReader.ch))</span>
+        ) {
+<span class="fc bfc" id="L582" title="All 2 branches covered.">            if (jsonReader.nextIfMatch('(')) {</span>
+<span class="fc" id="L583">                filterNests++;</span>
+<span class="fc" id="L584">                filterNests++;</span>
+<span class="fc" id="L585">                return parseFilter();</span>
+            }
+<span class="fc bfc" id="L587" title="All 2 branches covered.">            if (!at) {</span>
+<span class="fc" id="L588">                throw new JSONException(jsonReader.info(&quot;jsonpath syntax error&quot;));</span>
+            }
+
+            JSONPathFilter.Operator operator;
+<span class="pc bpc" id="L592" title="1 of 4 branches missed.">            if (starts || ends) {</span>
+<span class="fc" id="L593">                jsonReader.readFieldNameHashCodeUnquote();</span>
+<span class="fc" id="L594">                String fieldName = jsonReader.getFieldName();</span>
+<span class="pc bpc" id="L595" title="1 of 2 branches missed.">                if (!&quot;with&quot;.equalsIgnoreCase(fieldName)) {</span>
+<span class="nc" id="L596">                    throw new JSONException(&quot;not support operator : &quot; + fieldName);</span>
+                }
+<span class="fc bfc" id="L598" title="All 2 branches covered.">                operator = starts ? JSONPathFilter.Operator.STARTS_WITH : JSONPathFilter.Operator.ENDS_WITH;</span>
+<span class="fc" id="L599">            } else {</span>
+<span class="nc" id="L600">                operator = JSONPath.parseOperator(jsonReader);</span>
+            }
+
+<span class="fc" id="L603">            JSONPathSegment segment = null;</span>
+<span class="pc bpc" id="L604" title="1 of 2 branches missed.">            if (jsonReader.isNumber()) {</span>
+<span class="nc" id="L605">                Number number = jsonReader.readNumber();</span>
+<span class="nc bnc" id="L606" title="All 4 branches missed.">                if (number instanceof Integer || number instanceof Long) {</span>
+<span class="nc" id="L607">                    segment = new JSONPathFilter.NameIntOpSegment(null, 0, null, null, null, operator, number.longValue());</span>
+                }
+<span class="pc bpc" id="L609" title="1 of 2 branches missed.">            } else if (jsonReader.isString()) {</span>
+<span class="fc" id="L610">                String string = jsonReader.readString();</span>
+
+<span class="pc bpc" id="L612" title="1 of 3 branches missed.">                switch (operator) {</span>
+                    case STARTS_WITH:
+<span class="fc" id="L614">                        segment = new JSONPathFilter.StartsWithSegment(null, 0, string);</span>
+<span class="fc" id="L615">                        break;</span>
+                    case ENDS_WITH:
+<span class="fc" id="L617">                        segment = new JSONPathFilter.EndsWithSegment(null, 0, string);</span>
+<span class="fc" id="L618">                        break;</span>
+                    default:
+<span class="nc" id="L620">                        throw new JSONException(&quot;syntax error, &quot; + string);</span>
+                }
+            }
+
+<span class="pc bpc" id="L624" title="2 of 4 branches missed.">            while (jsonReader.ch == '&amp;' || jsonReader.ch == '|') {</span>
+<span class="nc" id="L625">                filterNests--;</span>
+<span class="nc" id="L626">                segment = parseFilterRest(segment);</span>
+            }
+
+<span class="pc bpc" id="L629" title="1 of 2 branches missed.">            if (segment != null) {</span>
+<span class="pc bpc" id="L630" title="1 of 2 branches missed.">                if (parentheses) {</span>
+<span class="pc bpc" id="L631" title="1 of 2 branches missed.">                    if (!jsonReader.nextIfMatch(')')) {</span>
+<span class="nc" id="L632">                        throw new JSONException(jsonReader.info(&quot;jsonpath syntax error&quot;));</span>
+                    }
+                }
+<span class="fc" id="L635">                return segment;</span>
+            }
+
+<span class="nc" id="L638">            throw new JSONException(jsonReader.info(&quot;jsonpath syntax error&quot;));</span>
+        }
+
+<span class="fc" id="L641">        String fieldName = null;</span>
+<span class="fc" id="L642">        long hashCode = 0;</span>
+<span class="fc bfc" id="L643" title="All 2 branches covered.">        if (at) {</span>
+<span class="fc bfc" id="L644" title="All 2 branches covered.">            if (jsonReader.ch == '[') {</span>
+<span class="fc" id="L645">                JSONPathSegment segment = parseArrayAccess();</span>
+<span class="fc bfc" id="L646" title="All 2 branches covered.">                if (segment instanceof JSONPathSegmentName) {</span>
+<span class="fc" id="L647">                    fieldName = ((JSONPathSegmentName) segment).name;</span>
+<span class="fc" id="L648">                    hashCode = ((JSONPathSegmentName) segment).nameHashCode;</span>
+                } else {
+<span class="fc" id="L650">                    JSONPathFilter.Operator operator = JSONPath.parseOperator(jsonReader);</span>
+<span class="fc bfc" id="L651" title="All 2 branches covered.">                    if (jsonReader.ch == '@') {</span>
+<span class="fc" id="L652">                        JSONPathSegment segment2 = parseSegment();</span>
+<span class="pc bpc" id="L653" title="1 of 2 branches missed.">                        if (parentheses) {</span>
+<span class="nc" id="L654">                            jsonReader.nextIfMatch(')');</span>
+                        }
+<span class="fc" id="L656">                        return new JSONPathFilter.Segment2Filter(segment, operator, segment2);</span>
+                    } else {
+<span class="fc" id="L658">                        Object value = jsonReader.readAny();</span>
+<span class="fc bfc" id="L659" title="All 2 branches covered.">                        if (parentheses) {</span>
+<span class="fc" id="L660">                            jsonReader.nextIfMatch(')');</span>
+                        }
+<span class="fc bfc" id="L662" title="All 2 branches covered.">                        if (segment instanceof JSONPathSegment.RangeIndexSegment) {</span>
+<span class="fc" id="L663">                            return new JSONPathFilter.RangeIndexSegmentFilter((JSONPathSegment.RangeIndexSegment) segment, operator, value);</span>
+                        }
+<span class="fc" id="L665">                        return new JSONPathFilter.SegmentFilter(segment, operator, value);</span>
+                    }
+                }
+<span class="fc bfc" id="L668" title="All 2 branches covered.">            } else if (isOperator(jsonReader.ch)) {</span>
+<span class="fc" id="L669">                JSONPathSegment.SelfSegment self = JSONPathSegment.SelfSegment.INSTANCE;</span>
+<span class="fc" id="L670">                JSONPathFilter.Operator operator = JSONPath.parseOperator(jsonReader);</span>
+<span class="fc bfc" id="L671" title="All 2 branches covered.">                if (jsonReader.ch == '@') {</span>
+<span class="nc" id="L672">                    JSONPathSegment segment2 = parseSegment();</span>
+<span class="nc bnc" id="L673" title="All 2 branches missed.">                    if (parentheses) {</span>
+<span class="nc" id="L674">                        jsonReader.nextIfMatch(')');</span>
+                    }
+<span class="nc" id="L676">                    return new JSONPathFilter.Segment2Filter(self, operator, segment2);</span>
+                } else {
+<span class="fc" id="L678">                    Object value = jsonReader.readAny();</span>
+<span class="fc" id="L679">                    JSONPathSegment segment = new JSONPathFilter.SegmentFilter(self, operator, value);</span>
+<span class="fc bfc" id="L680" title="All 2 branches covered.">                    if (parentheses) {</span>
+<span class="pc bpc" id="L681" title="3 of 8 branches missed.">                        while (jsonReader.ch == '&amp;' || jsonReader.ch == '|' || jsonReader.ch == 'a' || jsonReader.ch == 'o') {</span>
+<span class="fc" id="L682">                            filterNests--;</span>
+<span class="fc" id="L683">                            segment = parseFilterRest(segment);</span>
+                        }
+<span class="fc" id="L685">                        jsonReader.nextIfMatch(')');</span>
+                    }
+<span class="fc" id="L687">                    return segment;</span>
+                }
+            } else {
+<span class="fc" id="L690">                jsonReader.next();</span>
+            }
+        }
+
+<span class="fc bfc" id="L694" title="All 2 branches covered.">        if (fieldName == null) {</span>
+<span class="fc" id="L695">            hashCode = jsonReader.readFieldNameHashCodeUnquote();</span>
+<span class="fc" id="L696">            fieldName = jsonReader.getFieldName();</span>
+        }
+
+<span class="fc bfc" id="L699" title="All 2 branches covered.">        if (parentheses) {</span>
+<span class="fc bfc" id="L700" title="All 2 branches covered.">            if (jsonReader.nextIfMatch(')')) {</span>
+<span class="pc bpc" id="L701" title="1 of 2 branches missed.">                if (filterNests &gt; 0) {</span>
+<span class="nc" id="L702">                    filterNests--;</span>
+                }
+<span class="fc" id="L704">                return new JSONPathFilter.NameExistsFilter(fieldName, hashCode);</span>
+            }
+        }
+
+<span class="fc" id="L708">        String functionName = null;</span>
+
+<span class="fc" id="L710">        long[] hashCode2 = null;</span>
+<span class="fc" id="L711">        String[] fieldName2 = null;</span>
+<span class="fc bfc" id="L712" title="All 2 branches covered.">        while (jsonReader.ch == '.') {</span>
+<span class="fc" id="L713">            jsonReader.next();</span>
+<span class="fc" id="L714">            long hash = jsonReader.readFieldNameHashCodeUnquote();</span>
+<span class="fc" id="L715">            String str = jsonReader.getFieldName();</span>
+
+<span class="fc bfc" id="L717" title="All 2 branches covered.">            if (jsonReader.ch == '(') {</span>
+<span class="fc" id="L718">                functionName = str;</span>
+<span class="fc" id="L719">                break;</span>
+            }
+
+<span class="fc bfc" id="L722" title="All 2 branches covered.">            if (hashCode2 == null) {</span>
+<span class="fc" id="L723">                hashCode2 = new long[]{hash};</span>
+<span class="fc" id="L724">                fieldName2 = new String[]{str};</span>
+            } else {
+<span class="fc" id="L726">                hashCode2 = Arrays.copyOf(hashCode2, hashCode2.length + 1);</span>
+<span class="fc" id="L727">                hashCode2[hashCode2.length - 1] = hash;</span>
+<span class="fc" id="L728">                fieldName2 = Arrays.copyOf(fieldName2, fieldName2.length + 1);</span>
+<span class="fc" id="L729">                fieldName2[fieldName2.length - 1] = str;</span>
+            }
+<span class="fc" id="L731">        }</span>
+
+<span class="fc bfc" id="L733" title="All 10 branches covered.">        if (fieldName2 == null &amp;&amp; !parentheses</span>
+                &amp;&amp; (jsonReader.ch == ']' || jsonReader.ch == '|' || jsonReader.ch == '&amp;')
+        ) {
+<span class="fc" id="L736">            return new JSONPathFilter.NameExistsFilter(fieldName, hashCode);</span>
+        }
+
+<span class="fc" id="L739">        JSONPathFilter.Operator operator = null;</span>
+<span class="fc" id="L740">        Function function = null;</span>
+<span class="fc bfc" id="L741" title="All 2 branches covered.">        if (jsonReader.ch == '(') {</span>
+<span class="fc bfc" id="L742" title="All 2 branches covered.">            if (functionName == null) {</span>
+<span class="fc" id="L743">                functionName = fieldName;</span>
+<span class="fc" id="L744">                fieldName = null;</span>
+            }
+
+<span class="fc bfc" id="L747" title="All 4 branches covered.">            switch (functionName) {</span>
+                case &quot;type&quot;:
+<span class="fc" id="L749">                    hashCode = 0;</span>
+<span class="fc" id="L750">                    function = JSONPathFunction.TypeFunction.INSTANCE;</span>
+<span class="fc" id="L751">                    break;</span>
+                case &quot;size&quot;:
+<span class="fc" id="L753">                    hashCode = 0;</span>
+<span class="fc" id="L754">                    function = JSONPathFunction.SizeFunction.INSTANCE;</span>
+<span class="fc" id="L755">                    break;</span>
+                case &quot;contains&quot;:
+<span class="fc" id="L757">                    hashCode = 0;</span>
+<span class="fc" id="L758">                    operator = JSONPathFilter.Operator.CONTAINS;</span>
+<span class="fc" id="L759">                    break;</span>
+                default:
+<span class="fc" id="L761">                    throw new JSONException(&quot;syntax error, function not support &quot; + fieldName);</span>
+            }
+
+<span class="fc bfc" id="L764" title="All 2 branches covered.">            if (function != null) {</span>
+<span class="fc" id="L765">                jsonReader.next();</span>
+<span class="pc bpc" id="L766" title="1 of 2 branches missed.">                if (!jsonReader.nextIfMatch(')')) {</span>
+<span class="nc" id="L767">                    throw new JSONException(&quot;syntax error, function &quot; + functionName);</span>
+                }
+            }
+        }
+
+<span class="fc bfc" id="L772" title="All 4 branches covered.">        if (function == null &amp;&amp; jsonReader.ch == '[') {</span>
+<span class="fc" id="L773">            jsonReader.next();</span>
+<span class="fc bfc" id="L774" title="All 2 branches covered.">            if (jsonReader.ch == '?') {</span>
+<span class="fc" id="L775">                jsonReader.next();</span>
+<span class="fc" id="L776">                JSONPathFilter subFilter = (JSONPathFilter) parseFilter();</span>
+<span class="fc" id="L777">                function = new JSONPathFunction.FilterFunction(subFilter);</span>
+<span class="fc" id="L778">            } else {</span>
+<span class="fc" id="L779">                int index = jsonReader.readInt32Value();</span>
+<span class="fc" id="L780">                function = new JSONPathFunction.IndexValue(index);</span>
+            }
+<span class="fc bfc" id="L782" title="All 2 branches covered.">            if (!jsonReader.nextIfMatch(']')) {</span>
+<span class="fc" id="L783">                throw new JSONException(&quot;syntax error&quot;);</span>
+            }
+        }
+<span class="fc bfc" id="L786" title="All 2 branches covered.">        if (operator == null) {</span>
+<span class="fc bfc" id="L787" title="All 4 branches covered.">            if (parentheses &amp;&amp; jsonReader.nextIfMatch(')')) {</span>
+<span class="fc" id="L788">                return new JSONPathFilter.NameExistsFilter(fieldName, hashCode);</span>
+            }
+<span class="fc" id="L790">            operator = JSONPath.parseOperator(jsonReader);</span>
+        }
+
+<span class="fc bfc" id="L793" title="All 5 branches covered.">        switch (operator) {</span>
+            case REG_MATCH:
+            case RLIKE:
+            case NOT_RLIKE: {
+                String regex;
+                boolean ignoreCase;
+<span class="fc bfc" id="L799" title="All 2 branches covered.">                if (jsonReader.isString()) {</span>
+<span class="fc" id="L800">                    regex = jsonReader.readString();</span>
+<span class="fc" id="L801">                    ignoreCase = false;</span>
+                } else {
+<span class="fc" id="L803">                    regex = jsonReader.readPattern();</span>
+<span class="fc" id="L804">                    ignoreCase = jsonReader.nextIfMatch('i');</span>
+                }
+
+<span class="fc bfc" id="L807" title="All 2 branches covered.">                Pattern pattern = ignoreCase</span>
+<span class="fc" id="L808">                        ? Pattern.compile(regex, Pattern.CASE_INSENSITIVE)</span>
+<span class="fc" id="L809">                        : Pattern.compile(regex);</span>
+
+<span class="pc bpc" id="L811" title="1 of 2 branches missed.">                JSONPathSegment segment = new JSONPathFilter.NameRLikeSegment(fieldName, hashCode, pattern, operator == JSONPathFilter.Operator.NOT_RLIKE);</span>
+<span class="pc bpc" id="L812" title="3 of 8 branches missed.">                if (jsonReader.ch == '&amp;' || jsonReader.ch == '|' || jsonReader.ch == 'a' || jsonReader.ch == 'o') {</span>
+<span class="fc" id="L813">                    filterNests--;</span>
+<span class="fc" id="L814">                    segment = parseFilterRest(segment);</span>
+                }
+<span class="pc bpc" id="L816" title="1 of 2 branches missed.">                if (!jsonReader.nextIfMatch(')')) {</span>
+<span class="nc" id="L817">                    throw new JSONException(jsonReader.info(&quot;jsonpath syntax error&quot;));</span>
+                }
+<span class="fc" id="L819">                return segment;</span>
+            }
+            case IN:
+            case NOT_IN: {
+<span class="pc bpc" id="L823" title="1 of 2 branches missed.">                if (jsonReader.ch != '(') {</span>
+<span class="nc" id="L824">                    throw new JSONException(jsonReader.info(&quot;jsonpath syntax error&quot;));</span>
+                }
+<span class="fc" id="L826">                jsonReader.next();</span>
+
+                JSONPathSegment segment;
+<span class="fc bfc" id="L829" title="All 2 branches covered.">                if (jsonReader.isString()) {</span>
+<span class="fc" id="L830">                    List&lt;String&gt; list = new ArrayList&lt;&gt;();</span>
+<span class="fc bfc" id="L831" title="All 2 branches covered.">                    while (jsonReader.isString()) {</span>
+<span class="fc" id="L832">                        list.add(jsonReader.readString());</span>
+                    }
+<span class="fc" id="L834">                    String[] strArray = new String[list.size()];</span>
+<span class="fc" id="L835">                    list.toArray(strArray);</span>
+<span class="fc bfc" id="L836" title="All 2 branches covered.">                    segment = new JSONPathFilter.NameStringInSegment(</span>
+                            fieldName,
+                            hashCode,
+                            strArray,
+                            operator == JSONPathFilter.Operator.NOT_IN
+                    );
+<span class="pc bpc" id="L842" title="1 of 2 branches missed.">                } else if (jsonReader.isNumber()) {</span>
+<span class="fc" id="L843">                    List&lt;Number&gt; list = new ArrayList&lt;&gt;();</span>
+<span class="fc bfc" id="L844" title="All 2 branches covered.">                    while (jsonReader.isNumber()) {</span>
+<span class="fc" id="L845">                        list.add(jsonReader.readNumber());</span>
+                    }
+<span class="fc" id="L847">                    long[] values = new long[list.size()];</span>
+<span class="fc bfc" id="L848" title="All 2 branches covered.">                    for (int i = 0; i &lt; list.size(); i++) {</span>
+<span class="fc" id="L849">                        values[i] = list.get(i).longValue();</span>
+                    }
+<span class="fc bfc" id="L851" title="All 2 branches covered.">                    segment = new JSONPathFilter.NameIntInSegment(fieldName, hashCode, fieldName2, hashCode2, function, values, operator == JSONPathFilter.Operator.NOT_IN);</span>
+<span class="fc" id="L852">                } else {</span>
+<span class="nc" id="L853">                    throw new JSONException(jsonReader.info(&quot;jsonpath syntax error&quot;));</span>
+                }
+
+<span class="pc bpc" id="L856" title="1 of 2 branches missed.">                if (!jsonReader.nextIfMatch(')')) {</span>
+<span class="nc" id="L857">                    throw new JSONException(jsonReader.info(&quot;jsonpath syntax error&quot;));</span>
+                }
+<span class="pc bpc" id="L859" title="2 of 8 branches missed.">                if (jsonReader.ch == '&amp;' || jsonReader.ch == '|' || jsonReader.ch == 'a' || jsonReader.ch == 'o') {</span>
+<span class="fc" id="L860">                    filterNests--;</span>
+<span class="fc" id="L861">                    segment = parseFilterRest(segment);</span>
+                }
+<span class="pc bpc" id="L863" title="1 of 2 branches missed.">                if (!jsonReader.nextIfMatch(')')) {</span>
+<span class="nc" id="L864">                    throw new JSONException(jsonReader.info(&quot;jsonpath syntax error&quot;));</span>
+                }
+
+<span class="fc" id="L867">                return segment;</span>
+            }
+            case CONTAINS: {
+<span class="pc bpc" id="L870" title="1 of 2 branches missed.">                if (jsonReader.ch != '(') {</span>
+<span class="nc" id="L871">                    throw new JSONException(jsonReader.info(&quot;jsonpath syntax error&quot;));</span>
+                }
+<span class="fc" id="L873">                jsonReader.next();</span>
+
+                JSONPathSegment segment;
+<span class="fc bfc" id="L876" title="All 2 branches covered.">                if (jsonReader.isString()) {</span>
+<span class="fc" id="L877">                    List&lt;String&gt; list = new ArrayList&lt;&gt;();</span>
+<span class="fc bfc" id="L878" title="All 2 branches covered.">                    while (jsonReader.isString()) {</span>
+<span class="fc" id="L879">                        list.add(jsonReader.readString());</span>
+                    }
+<span class="fc" id="L881">                    String[] strArray = new String[list.size()];</span>
+<span class="fc" id="L882">                    list.toArray(strArray);</span>
+<span class="fc" id="L883">                    segment = new JSONPathFilter.NameStringContainsSegment(</span>
+                            fieldName,
+                            hashCode,
+                            fieldName2,
+                            hashCode2,
+                            strArray,
+                            false
+                    );
+<span class="pc bpc" id="L891" title="1 of 2 branches missed.">                } else if (jsonReader.isNumber()) {</span>
+<span class="fc" id="L892">                    List&lt;Number&gt; list = new ArrayList&lt;&gt;();</span>
+<span class="fc bfc" id="L893" title="All 2 branches covered.">                    while (jsonReader.isNumber()) {</span>
+<span class="fc" id="L894">                        list.add(jsonReader.readNumber());</span>
+                    }
+<span class="fc" id="L896">                    long[] values = new long[list.size()];</span>
+<span class="fc bfc" id="L897" title="All 2 branches covered.">                    for (int i = 0; i &lt; list.size(); i++) {</span>
+<span class="fc" id="L898">                        values[i] = list.get(i).longValue();</span>
+                    }
+<span class="fc" id="L900">                    segment = new JSONPathFilter.NameLongContainsSegment(</span>
+                            fieldName,
+                            hashCode,
+                            fieldName2,
+                            hashCode2,
+                            values,
+                            false
+                    );
+<span class="fc" id="L908">                } else {</span>
+<span class="nc" id="L909">                    throw new JSONException(jsonReader.info(&quot;jsonpath syntax error&quot;));</span>
+                }
+
+<span class="pc bpc" id="L912" title="1 of 2 branches missed.">                if (!jsonReader.nextIfMatch(')')) {</span>
+<span class="nc" id="L913">                    throw new JSONException(jsonReader.info(&quot;jsonpath syntax error&quot;));</span>
+                }
+<span class="pc bpc" id="L915" title="1 of 2 branches missed.">                if (!jsonReader.nextIfMatch(')')) {</span>
+<span class="nc" id="L916">                    throw new JSONException(jsonReader.info(&quot;jsonpath syntax error&quot;));</span>
+                }
+
+<span class="fc" id="L919">                return segment;</span>
+            }
+            case BETWEEN:
+            case NOT_BETWEEN: {
+                JSONPathSegment segment;
+<span class="pc bpc" id="L924" title="1 of 2 branches missed.">                if (jsonReader.isNumber()) {</span>
+<span class="fc" id="L925">                    Number begin = jsonReader.readNumber();</span>
+<span class="fc" id="L926">                    String and = jsonReader.readFieldNameUnquote();</span>
+<span class="pc bpc" id="L927" title="1 of 2 branches missed.">                    if (!&quot;and&quot;.equalsIgnoreCase(and)) {</span>
+<span class="nc" id="L928">                        throw new JSONException(&quot;syntax error, &quot; + and);</span>
+                    }
+<span class="fc" id="L930">                    Number end = jsonReader.readNumber();</span>
+<span class="fc bfc" id="L931" title="All 2 branches covered.">                    segment = new JSONPathFilter.NameIntBetweenSegment(fieldName, hashCode, begin.longValue(), end.longValue(), operator == JSONPathFilter.Operator.NOT_BETWEEN);</span>
+<span class="fc" id="L932">                } else {</span>
+<span class="nc" id="L933">                    throw new JSONException(jsonReader.info(&quot;jsonpath syntax error&quot;));</span>
+                }
+
+<span class="pc bpc" id="L936" title="1 of 2 branches missed.">                if (parentheses) {</span>
+<span class="pc bpc" id="L937" title="1 of 2 branches missed.">                    if (!jsonReader.nextIfMatch(')')) {</span>
+<span class="nc" id="L938">                        throw new JSONException(jsonReader.info(&quot;jsonpath syntax error&quot;));</span>
+                    }
+                }
+
+<span class="fc" id="L942">                return segment;</span>
+            }
+            default:
+                break;
+        }
+
+<span class="fc" id="L948">        JSONPathSegment segment = null;</span>
+<span class="pc bpc" id="L949" title="1 of 9 branches missed.">        switch (jsonReader.ch) {</span>
+            case '-':
+            case '+':
+            case '0':
+            case '1':
+            case '2':
+            case '3':
+            case '4':
+            case '5':
+            case '6':
+            case '7':
+            case '8':
+            case '9': {
+<span class="fc" id="L962">                Number number = jsonReader.readNumber();</span>
+<span class="pc bpc" id="L963" title="1 of 4 branches missed.">                if (number instanceof Integer || number instanceof Long) {</span>
+<span class="fc" id="L964">                    segment = new JSONPathFilter.NameIntOpSegment(fieldName, hashCode, fieldName2, hashCode2, function, operator, number.longValue());</span>
+<span class="fc bfc" id="L965" title="All 2 branches covered.">                } else if (number instanceof BigDecimal) {</span>
+<span class="fc" id="L966">                    segment = new JSONPathFilter.NameDecimalOpSegment(fieldName, hashCode, operator, (BigDecimal) number);</span>
+<span class="pc bpc" id="L967" title="2 of 4 branches missed.">                } else if (number instanceof Float || number instanceof Double) {</span>
+<span class="fc" id="L968">                    segment = new JSONPathFilter.NameDoubleOpSegment(fieldName, hashCode, operator, number.doubleValue());</span>
+                } else {
+<span class="nc" id="L970">                    throw new JSONException(jsonReader.info(&quot;jsonpath syntax error&quot;));</span>
+                }
+                break;
+            }
+            case '&quot;':
+            case '\'': {
+<span class="fc" id="L976">                String strVal = jsonReader.readString();</span>
+<span class="fc" id="L977">                int p0 = strVal.indexOf('%');</span>
+<span class="fc bfc" id="L978" title="All 2 branches covered.">                if (p0 == -1) {</span>
+<span class="fc bfc" id="L979" title="All 2 branches covered.">                    if (operator == JSONPathFilter.Operator.LIKE) {</span>
+<span class="fc" id="L980">                        operator = JSONPathFilter.Operator.EQ;</span>
+<span class="pc bpc" id="L981" title="1 of 2 branches missed.">                    } else if (operator == JSONPathFilter.Operator.NOT_LIKE) {</span>
+<span class="nc" id="L982">                        operator = JSONPathFilter.Operator.NE;</span>
+                    }
+                }
+
+<span class="fc bfc" id="L986" title="All 4 branches covered.">                if (operator == JSONPathFilter.Operator.LIKE || operator == JSONPathFilter.Operator.NOT_LIKE) {</span>
+<span class="fc" id="L987">                    String[] items = strVal.split(&quot;%&quot;);</span>
+
+<span class="fc" id="L989">                    String startsWithValue = null;</span>
+<span class="fc" id="L990">                    String endsWithValue = null;</span>
+<span class="fc" id="L991">                    String[] containsValues = null;</span>
+<span class="fc bfc" id="L992" title="All 2 branches covered.">                    if (p0 == 0) {</span>
+<span class="pc bpc" id="L993" title="1 of 2 branches missed.">                        if (strVal.charAt(strVal.length() - 1) == '%') {</span>
+<span class="nc" id="L994">                            containsValues = new String[items.length - 1];</span>
+<span class="nc" id="L995">                            System.arraycopy(items, 1, containsValues, 0, containsValues.length);</span>
+                        } else {
+<span class="fc" id="L997">                            endsWithValue = items[items.length - 1];</span>
+<span class="pc bpc" id="L998" title="1 of 2 branches missed.">                            if (items.length &gt; 2) {</span>
+<span class="nc" id="L999">                                containsValues = new String[items.length - 2];</span>
+<span class="nc" id="L1000">                                System.arraycopy(items, 1, containsValues, 0, containsValues.length);</span>
+                            }
+                        }
+<span class="fc bfc" id="L1003" title="All 2 branches covered.">                    } else if (strVal.charAt(strVal.length() - 1) == '%') {</span>
+<span class="pc bpc" id="L1004" title="1 of 2 branches missed.">                        if (items.length == 1) {</span>
+<span class="fc" id="L1005">                            startsWithValue = items[0];</span>
+                        } else {
+<span class="nc" id="L1007">                            containsValues = items;</span>
+                        }
+                    } else {
+<span class="pc bpc" id="L1010" title="1 of 2 branches missed.">                        if (items.length == 1) {</span>
+<span class="nc" id="L1011">                            startsWithValue = items[0];</span>
+<span class="pc bpc" id="L1012" title="1 of 2 branches missed.">                        } else if (items.length == 2) {</span>
+<span class="fc" id="L1013">                            startsWithValue = items[0];</span>
+<span class="fc" id="L1014">                            endsWithValue = items[1];</span>
+                        } else {
+<span class="nc" id="L1016">                            startsWithValue = items[0];</span>
+<span class="nc" id="L1017">                            endsWithValue = items[items.length - 1];</span>
+<span class="nc" id="L1018">                            containsValues = new String[items.length - 2];</span>
+<span class="nc" id="L1019">                            System.arraycopy(items, 1, containsValues, 0, containsValues.length);</span>
+                        }
+                    }
+<span class="fc bfc" id="L1022" title="All 2 branches covered.">                    segment = new JSONPathFilter.NameMatchFilter(</span>
+                            fieldName,
+                            hashCode,
+                            startsWithValue,
+                            endsWithValue,
+                            containsValues,
+                            operator == JSONPathFilter.Operator.NOT_LIKE
+                    );
+<span class="fc" id="L1030">                } else {</span>
+<span class="fc" id="L1031">                    segment = new JSONPathFilter.NameStringOpSegment(fieldName, hashCode, fieldName2, hashCode2, function, operator, strVal);</span>
+                }
+<span class="fc" id="L1033">                break;</span>
+            }
+            case 't': {
+<span class="fc" id="L1036">                String ident = jsonReader.readFieldNameUnquote();</span>
+<span class="pc bpc" id="L1037" title="1 of 2 branches missed.">                if (&quot;true&quot;.equalsIgnoreCase(ident)) {</span>
+<span class="fc" id="L1038">                    segment = new JSONPathFilter.NameIntOpSegment(fieldName, hashCode, fieldName2, hashCode2, function, operator, 1);</span>
+<span class="fc" id="L1039">                    break;</span>
+                }
+                break;
+            }
+            case 'f': {
+<span class="fc" id="L1044">                String ident = jsonReader.readFieldNameUnquote();</span>
+<span class="pc bpc" id="L1045" title="1 of 2 branches missed.">                if (&quot;false&quot;.equalsIgnoreCase(ident)) {</span>
+<span class="fc" id="L1046">                    segment = new JSONPathFilter.NameIntOpSegment(fieldName, hashCode, fieldName2, hashCode2, function, operator, 0);</span>
+<span class="fc" id="L1047">                    break;</span>
+                }
+                break;
+            }
+            case '[': {
+<span class="fc" id="L1052">                JSONArray array = jsonReader.read(JSONArray.class);</span>
+<span class="fc" id="L1053">                segment = new JSONPathFilter.NameArrayOpSegment(fieldName, hashCode, fieldName2, hashCode2, function, operator, array);</span>
+<span class="fc" id="L1054">                break;</span>
+            }
+            case '{': {
+<span class="fc" id="L1057">                JSONObject object = jsonReader.read(JSONObject.class);</span>
+<span class="fc" id="L1058">                segment = new JSONPathFilter.NameObjectOpSegment(fieldName, hashCode, fieldName2, hashCode2, function, operator, object);</span>
+<span class="fc" id="L1059">                break;</span>
+            }
+            case 'n':
+<span class="fc" id="L1062">                boolean nextNull = jsonReader.nextIfNull();</span>
+<span class="pc bpc" id="L1063" title="1 of 2 branches missed.">                if (nextNull) {</span>
+<span class="fc" id="L1064">                    segment = new JSONPathFilter.NameIsNull(fieldName, hashCode, fieldName2, hashCode2, function);</span>
+<span class="fc" id="L1065">                    break;</span>
+                }
+<span class="nc" id="L1067">                throw new JSONException(jsonReader.info(&quot;jsonpath syntax error&quot;));</span>
+            case '@':
+<span class="fc" id="L1069">                jsonReader.next();</span>
+<span class="pc bpc" id="L1070" title="1 of 2 branches missed.">                if (!jsonReader.nextIfMatch('.')) {</span>
+<span class="nc" id="L1071">                    throw new JSONException(jsonReader.info(&quot;jsonpath syntax error&quot;));</span>
+                }
+<span class="fc" id="L1073">                String fieldName1 = jsonReader.readFieldNameUnquote();</span>
+<span class="fc" id="L1074">                long fieldName1Hash = Fnv.hashCode64(fieldName1);</span>
+
+<span class="fc" id="L1076">                segment = new JSONPathFilter.NameName(fieldName, hashCode, fieldName1, fieldName1Hash);</span>
+<span class="fc" id="L1077">                break;</span>
+            default:
+<span class="nc" id="L1079">                throw new JSONException(jsonReader.info(&quot;jsonpath syntax error&quot;));</span>
+        }
+
+<span class="fc bfc" id="L1082" title="All 8 branches covered.">        if (jsonReader.ch == '&amp;' || jsonReader.ch == '|' || jsonReader.ch == 'a' || jsonReader.ch == 'o') {</span>
+<span class="fc" id="L1083">            filterNests--;</span>
+<span class="fc" id="L1084">            segment = parseFilterRest(segment);</span>
+        }
+
+<span class="fc bfc" id="L1087" title="All 2 branches covered.">        if (parentheses) {</span>
+<span class="pc bpc" id="L1088" title="1 of 2 branches missed.">            if (!jsonReader.nextIfMatch(')')) {</span>
+<span class="nc" id="L1089">                throw new JSONException(jsonReader.info(&quot;jsonpath syntax error&quot;));</span>
+            }
+        }
+
+<span class="fc" id="L1093">        return segment;</span>
+    }
+
+    public JSONPathSegment parseSegment() {
+<span class="fc" id="L1097">        boolean at = jsonReader.nextIfMatch('@');</span>
+<span class="pc bpc" id="L1098" title="1 of 2 branches missed.">        if (at) {</span>
+<span class="fc" id="L1099">            Object field = null;</span>
+<span class="pc bpc" id="L1100" title="1 of 2 branches missed.">            if (jsonReader.nextIfMatch('.')) {</span>
+<span class="nc bnc" id="L1101" title="All 2 branches missed.">                if (jsonReader.isNumber()) {</span>
+<span class="nc" id="L1102">                    field = jsonReader.readNumber();</span>
+                } else {
+<span class="nc" id="L1104">                    field = jsonReader.readFieldNameUnquote();</span>
+                }
+<span class="fc bfc" id="L1106" title="All 2 branches covered.">            } else if (jsonReader.nextIfArrayStart()) {</span>
+<span class="pc bpc" id="L1107" title="1 of 2 branches missed.">                if (jsonReader.isNumber()) {</span>
+<span class="fc" id="L1108">                    field = jsonReader.readNumber();</span>
+<span class="nc bnc" id="L1109" title="All 2 branches missed.">                } else if (jsonReader.isString()) {</span>
+<span class="nc" id="L1110">                    field = jsonReader.readString();</span>
+                } else {
+<span class="nc" id="L1112">                    throw new JSONException(jsonReader.info(&quot;jsonpath syntax error&quot;));</span>
+                }
+<span class="pc bpc" id="L1114" title="1 of 2 branches missed.">                if (!jsonReader.nextIfArrayEnd()) {</span>
+<span class="nc" id="L1115">                    throw new JSONException(jsonReader.info(&quot;jsonpath syntax error&quot;));</span>
+                }
+            }
+<span class="pc bpc" id="L1118" title="1 of 2 branches missed.">            if (field instanceof String) {</span>
+<span class="nc" id="L1119">                String name = (String) field;</span>
+<span class="nc" id="L1120">                return new JSONPathSegmentName(name, Fnv.hashCode64(name));</span>
+            }
+<span class="fc bfc" id="L1122" title="All 2 branches covered.">            if (field instanceof Integer) {</span>
+<span class="fc" id="L1123">                return new JSONPathSegmentIndex(((Integer) field));</span>
+            }
+        }
+<span class="fc" id="L1126">        throw new JSONException(jsonReader.info(&quot;jsonpath syntax error&quot;));</span>
+    }
+
+    static boolean isOperator(char ch) {
+<span class="fc bfc" id="L1130" title="All 8 branches covered.">        return ch == '=' || ch == '&lt;' || ch == '&gt;' || ch == '!';</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.8.202204050719</span></div></body></html>

@@ -1,0 +1,701 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ObjectSchema.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">fastjson2</a> &gt; <a href="index.source.html" class="el_package">com.alibaba.fastjson2.schema</a> &gt; <span class="el_source">ObjectSchema.java</span></div><h1>ObjectSchema.java</h1><pre class="source lang-java linenums">package com.alibaba.fastjson2.schema;
+
+import com.alibaba.fastjson2.*;
+import com.alibaba.fastjson2.annotation.JSONField;
+import com.alibaba.fastjson2.util.Fnv;
+import com.alibaba.fastjson2.writer.FieldWriter;
+import com.alibaba.fastjson2.writer.ObjectWriter;
+import com.alibaba.fastjson2.writer.ObjectWriterAdapter;
+
+import java.util.*;
+import java.util.function.Predicate;
+import java.util.regex.Pattern;
+
+public final class ObjectSchema
+        extends JSONSchema {
+    final boolean typed;
+    final Map&lt;String, JSONSchema&gt; definitions;
+    final Map&lt;String, JSONSchema&gt; defs;
+    final Map&lt;String, JSONSchema&gt; properties;
+    final Set&lt;String&gt; required;
+    final boolean additionalProperties;
+    final JSONSchema additionalPropertySchema;
+    final long[] requiredHashCode;
+
+    final PatternProperty[] patternProperties;
+    final JSONSchema propertyNames;
+    final int minProperties;
+    final int maxProperties;
+
+    final Map&lt;String, String[]&gt; dependentRequired;
+    final Map&lt;Long, long[]&gt; dependentRequiredHashCodes;
+
+    final Map&lt;String, JSONSchema&gt; dependentSchemas;
+    final Map&lt;Long, JSONSchema&gt; dependentSchemasHashMapping;
+
+    final JSONSchema ifSchema;
+    final JSONSchema thenSchema;
+    final JSONSchema elseSchema;
+    final AllOf allOf;
+    final AnyOf anyOf;
+    final OneOf oneOf;
+    final boolean encoded;
+
+    transient List&lt;UnresolvedReference.ResolveTask&gt; resolveTasks;
+
+    public ObjectSchema(JSONObject input) {
+<span class="fc" id="L47">        this(input, null);</span>
+<span class="fc" id="L48">    }</span>
+
+    public ObjectSchema(JSONObject input, JSONSchema root) {
+<span class="fc" id="L51">        super(input);</span>
+
+<span class="fc" id="L53">        this.typed = &quot;object&quot;.equalsIgnoreCase(input.getString(&quot;type&quot;));</span>
+<span class="fc" id="L54">        this.properties = new LinkedHashMap&lt;&gt;();</span>
+<span class="fc" id="L55">        this.definitions = new LinkedHashMap&lt;&gt;();</span>
+<span class="fc" id="L56">        this.defs = new LinkedHashMap&lt;&gt;();</span>
+<span class="fc" id="L57">        this.encoded = input.getBooleanValue(&quot;encoded&quot;, false);</span>
+
+<span class="fc" id="L59">        JSONObject definitions = input.getJSONObject(&quot;definitions&quot;);</span>
+<span class="pc bpc" id="L60" title="1 of 2 branches missed.">        if (definitions != null) {</span>
+<span class="nc bnc" id="L61" title="All 2 branches missed.">            for (Map.Entry&lt;String, Object&gt; entry : definitions.entrySet()) {</span>
+<span class="nc" id="L62">                String entryKey = entry.getKey();</span>
+<span class="nc" id="L63">                JSONObject entryValue = (JSONObject) entry.getValue();</span>
+<span class="nc bnc" id="L64" title="All 2 branches missed.">                JSONSchema schema = JSONSchema.of(entryValue, root == null ? this : root);</span>
+<span class="nc" id="L65">                this.definitions.put(entryKey, schema);</span>
+<span class="nc" id="L66">            }</span>
+        }
+
+<span class="fc" id="L69">        JSONObject defs = input.getJSONObject(&quot;$defs&quot;);</span>
+<span class="fc bfc" id="L70" title="All 2 branches covered.">        if (defs != null) {</span>
+<span class="fc bfc" id="L71" title="All 2 branches covered.">            for (Map.Entry&lt;String, Object&gt; entry : defs.entrySet()) {</span>
+<span class="fc" id="L72">                String entryKey = entry.getKey();</span>
+<span class="fc" id="L73">                JSONObject entryValue = (JSONObject) entry.getValue();</span>
+<span class="pc bpc" id="L74" title="1 of 2 branches missed.">                JSONSchema schema = JSONSchema.of(entryValue, root == null ? this : root);</span>
+<span class="fc" id="L75">                this.defs.put(entryKey, schema);</span>
+<span class="fc" id="L76">            }</span>
+<span class="fc bfc" id="L77" title="All 2 branches covered.">            if (resolveTasks != null) {</span>
+<span class="fc bfc" id="L78" title="All 2 branches covered.">                for (UnresolvedReference.ResolveTask resolveTask : resolveTasks) {</span>
+<span class="fc" id="L79">                    resolveTask.resolve(this);</span>
+<span class="fc" id="L80">                }</span>
+            }
+        }
+
+<span class="fc" id="L84">        JSONObject properties = input.getJSONObject(&quot;properties&quot;);</span>
+<span class="fc bfc" id="L85" title="All 2 branches covered.">        if (properties != null) {</span>
+<span class="fc bfc" id="L86" title="All 2 branches covered.">            for (Map.Entry&lt;String, Object&gt; entry : properties.entrySet()) {</span>
+<span class="fc" id="L87">                String entryKey = entry.getKey();</span>
+<span class="fc" id="L88">                Object entryValue = entry.getValue();</span>
+                JSONSchema schema;
+<span class="fc bfc" id="L90" title="All 2 branches covered.">                if (entryValue instanceof Boolean) {</span>
+<span class="fc bfc" id="L91" title="All 2 branches covered.">                    schema = (Boolean) entryValue ? Any.INSTANCE : Any.NOT_ANY;</span>
+<span class="pc bpc" id="L92" title="1 of 2 branches missed.">                } else if (entryValue instanceof JSONSchema) {</span>
+<span class="nc" id="L93">                    schema = (JSONSchema) entryValue;</span>
+                } else {
+<span class="fc bfc" id="L95" title="All 2 branches covered.">                    schema = JSONSchema.of((JSONObject) entryValue, root == null ? this : root);</span>
+                }
+<span class="fc" id="L97">                this.properties.put(entryKey, schema);</span>
+<span class="fc bfc" id="L98" title="All 2 branches covered.">                if (schema instanceof UnresolvedReference) {</span>
+<span class="fc" id="L99">                    String refName = ((UnresolvedReference) schema).refName;</span>
+<span class="fc" id="L100">                    UnresolvedReference.PropertyResolveTask task</span>
+                            = new UnresolvedReference.PropertyResolveTask(this.properties, entryKey, refName);
+<span class="fc bfc" id="L102" title="All 2 branches covered.">                    JSONSchema resolveRoot = root == null ? this : root;</span>
+<span class="fc" id="L103">                    resolveRoot.addResolveTask(task);</span>
+                }
+<span class="fc" id="L105">            }</span>
+        }
+
+<span class="fc" id="L108">        JSONObject patternProperties = input.getJSONObject(&quot;patternProperties&quot;);</span>
+<span class="fc bfc" id="L109" title="All 2 branches covered.">        if (patternProperties != null) {</span>
+<span class="fc" id="L110">            this.patternProperties = new PatternProperty[patternProperties.size()];</span>
+
+<span class="fc" id="L112">            int index = 0;</span>
+<span class="fc bfc" id="L113" title="All 2 branches covered.">            for (Map.Entry&lt;String, Object&gt; entry : patternProperties.entrySet()) {</span>
+<span class="fc" id="L114">                String entryKey = entry.getKey();</span>
+<span class="fc" id="L115">                Object entryValue = entry.getValue();</span>
+                JSONSchema schema;
+<span class="fc bfc" id="L117" title="All 2 branches covered.">                if (entryValue instanceof Boolean) {</span>
+<span class="fc bfc" id="L118" title="All 2 branches covered.">                    schema = (Boolean) entryValue ? Any.INSTANCE : Any.NOT_ANY;</span>
+                } else {
+<span class="pc bpc" id="L120" title="1 of 2 branches missed.">                    schema = JSONSchema.of((JSONObject) entryValue, root == null ? this : root);</span>
+                }
+
+<span class="fc" id="L123">                this.patternProperties[index++] = new PatternProperty(Pattern.compile(entryKey), schema);</span>
+<span class="fc" id="L124">            }</span>
+<span class="fc" id="L125">        } else {</span>
+<span class="fc" id="L126">            this.patternProperties = new PatternProperty[0];</span>
+        }
+
+<span class="fc" id="L129">        JSONArray required = input.getJSONArray(&quot;required&quot;);</span>
+<span class="fc bfc" id="L130" title="All 4 branches covered.">        if (required == null || required.isEmpty()) {</span>
+<span class="fc" id="L131">            this.required = Collections.emptySet();</span>
+<span class="fc" id="L132">            this.requiredHashCode = new long[0];</span>
+        } else {
+<span class="fc" id="L134">            this.required = new LinkedHashSet&lt;&gt;(required.size());</span>
+<span class="fc bfc" id="L135" title="All 2 branches covered.">            for (int i = 0; i &lt; required.size(); i++) {</span>
+<span class="fc" id="L136">                this.required.add(</span>
+<span class="fc" id="L137">                        required.getString(i)</span>
+                );
+            }
+<span class="fc" id="L140">            this.requiredHashCode = new long[this.required.size()];</span>
+<span class="fc" id="L141">            int i = 0;</span>
+<span class="fc bfc" id="L142" title="All 2 branches covered.">            for (String item : this.required) {</span>
+<span class="fc" id="L143">                this.requiredHashCode[i++] = Fnv.hashCode64(item);</span>
+<span class="fc" id="L144">            }</span>
+        }
+
+<span class="fc" id="L147">        Object additionalProperties = input.get(&quot;additionalProperties&quot;);</span>
+<span class="fc bfc" id="L148" title="All 2 branches covered.">        if (additionalProperties instanceof Boolean) {</span>
+<span class="fc" id="L149">            this.additionalPropertySchema = null;</span>
+<span class="fc" id="L150">            this.additionalProperties = (Boolean) additionalProperties;</span>
+        } else {
+<span class="fc bfc" id="L152" title="All 2 branches covered.">            if (additionalProperties instanceof JSONObject) {</span>
+<span class="fc" id="L153">                this.additionalPropertySchema = JSONSchema.of((JSONObject) additionalProperties, root);</span>
+<span class="fc" id="L154">                this.additionalProperties = false;</span>
+            } else {
+<span class="fc" id="L156">                this.additionalPropertySchema = null;</span>
+<span class="fc" id="L157">                this.additionalProperties = true;</span>
+            }
+        }
+
+<span class="fc" id="L161">        Object propertyNames = input.get(&quot;propertyNames&quot;);</span>
+<span class="fc bfc" id="L162" title="All 2 branches covered.">        if (propertyNames == null) {</span>
+<span class="fc" id="L163">            this.propertyNames = null;</span>
+<span class="fc bfc" id="L164" title="All 2 branches covered.">        } else if (propertyNames instanceof Boolean) {</span>
+<span class="fc bfc" id="L165" title="All 2 branches covered.">            this.propertyNames = (Boolean) propertyNames ? Any.INSTANCE : Any.NOT_ANY;</span>
+        } else {
+<span class="fc" id="L167">            this.propertyNames = new StringSchema((JSONObject) propertyNames);</span>
+        }
+
+<span class="fc" id="L170">        this.minProperties = input.getIntValue(&quot;minProperties&quot;, -1);</span>
+<span class="fc" id="L171">        this.maxProperties = input.getIntValue(&quot;maxProperties&quot;, -1);</span>
+
+<span class="fc" id="L173">        JSONObject dependentRequired = input.getJSONObject(&quot;dependentRequired&quot;);</span>
+<span class="pc bpc" id="L174" title="1 of 4 branches missed.">        if (dependentRequired != null &amp;&amp; !dependentRequired.isEmpty()) {</span>
+<span class="fc" id="L175">            this.dependentRequired = new LinkedHashMap&lt;&gt;(dependentRequired.size(), 1F);</span>
+<span class="fc" id="L176">            this.dependentRequiredHashCodes = new LinkedHashMap&lt;&gt;(dependentRequired.size(), 1F);</span>
+<span class="fc" id="L177">            Set&lt;String&gt; keys = dependentRequired.keySet();</span>
+<span class="fc bfc" id="L178" title="All 2 branches covered.">            for (String key : keys) {</span>
+<span class="fc" id="L179">                String[] dependentRequiredProperties = dependentRequired.getObject(key, String[].class);</span>
+<span class="fc" id="L180">                long[] dependentRequiredPropertiesHash = new long[dependentRequiredProperties.length];</span>
+<span class="fc bfc" id="L181" title="All 2 branches covered.">                for (int i = 0; i &lt; dependentRequiredProperties.length; i++) {</span>
+<span class="fc" id="L182">                    dependentRequiredPropertiesHash[i] = Fnv.hashCode64(dependentRequiredProperties[i]);</span>
+                }
+<span class="fc" id="L184">                this.dependentRequired.put(key, dependentRequiredProperties);</span>
+<span class="fc" id="L185">                this.dependentRequiredHashCodes.put(Fnv.hashCode64(key), dependentRequiredPropertiesHash);</span>
+<span class="fc" id="L186">            }</span>
+<span class="fc" id="L187">        } else {</span>
+<span class="fc" id="L188">            this.dependentRequired = null;</span>
+<span class="fc" id="L189">            this.dependentRequiredHashCodes = null;</span>
+        }
+
+<span class="fc" id="L192">        JSONObject dependentSchemas = input.getJSONObject(&quot;dependentSchemas&quot;);</span>
+<span class="pc bpc" id="L193" title="1 of 4 branches missed.">        if (dependentSchemas != null &amp;&amp; !dependentSchemas.isEmpty()) {</span>
+<span class="fc" id="L194">            this.dependentSchemas = new LinkedHashMap&lt;&gt;(dependentSchemas.size(), 1F);</span>
+<span class="fc" id="L195">            this.dependentSchemasHashMapping = new LinkedHashMap&lt;&gt;(dependentSchemas.size(), 1F);</span>
+<span class="fc" id="L196">            Set&lt;String&gt; keys = dependentSchemas.keySet();</span>
+<span class="fc bfc" id="L197" title="All 2 branches covered.">            for (String key : keys) {</span>
+<span class="fc" id="L198">                JSONSchema dependentSchema = dependentSchemas.getObject(key, JSONSchema::of);</span>
+<span class="fc" id="L199">                this.dependentSchemas.put(key, dependentSchema);</span>
+<span class="fc" id="L200">                this.dependentSchemasHashMapping.put(Fnv.hashCode64(key), dependentSchema);</span>
+<span class="fc" id="L201">            }</span>
+<span class="fc" id="L202">        } else {</span>
+<span class="fc" id="L203">            this.dependentSchemas = null;</span>
+<span class="fc" id="L204">            this.dependentSchemasHashMapping = null;</span>
+        }
+
+<span class="fc" id="L207">        this.ifSchema = input.getObject(&quot;if&quot;, JSONSchema::of);</span>
+<span class="fc" id="L208">        this.elseSchema = input.getObject(&quot;else&quot;, JSONSchema::of);</span>
+<span class="fc" id="L209">        this.thenSchema = input.getObject(&quot;then&quot;, JSONSchema::of);</span>
+
+<span class="fc" id="L211">        allOf = allOf(input, null);</span>
+<span class="fc" id="L212">        anyOf = anyOf(input, null);</span>
+<span class="fc" id="L213">        oneOf = oneOf(input, null);</span>
+<span class="fc" id="L214">    }</span>
+
+    @Override
+    void addResolveTask(UnresolvedReference.ResolveTask task) {
+<span class="fc bfc" id="L218" title="All 2 branches covered.">        if (resolveTasks == null) {</span>
+<span class="fc" id="L219">            resolveTasks = new ArrayList&lt;&gt;();</span>
+        }
+<span class="fc" id="L221">        resolveTasks.add(task);</span>
+<span class="fc" id="L222">    }</span>
+
+    @Override
+    public Type getType() {
+<span class="fc" id="L226">        return Type.Object;</span>
+    }
+
+    public ValidateResult validate(Map map) {
+<span class="fc bfc" id="L230" title="All 2 branches covered.">        for (String item : required) {</span>
+<span class="fc bfc" id="L231" title="All 2 branches covered.">            if (!map.containsKey(item)) {</span>
+<span class="fc" id="L232">                return new ValidateResult(false, &quot;required %s&quot;, item);</span>
+            }
+<span class="fc" id="L234">        }</span>
+
+<span class="fc bfc" id="L236" title="All 2 branches covered.">        for (Map.Entry&lt;String, JSONSchema&gt; entry : properties.entrySet()) {</span>
+<span class="fc" id="L237">            String key = entry.getKey();</span>
+<span class="fc" id="L238">            JSONSchema schema = entry.getValue();</span>
+
+<span class="fc" id="L240">            Object propertyValue = map.get(key);</span>
+<span class="fc bfc" id="L241" title="All 4 branches covered.">            if (propertyValue == null &amp;&amp; !map.containsKey(key)) {</span>
+<span class="fc" id="L242">                continue;</span>
+            }
+
+<span class="fc" id="L245">            ValidateResult result = schema.validate(propertyValue);</span>
+<span class="fc bfc" id="L246" title="All 2 branches covered.">            if (!result.isSuccess()) {</span>
+<span class="fc" id="L247">                return new ValidateResult(result, &quot;property %s invalid&quot;, key);</span>
+            }
+<span class="fc" id="L249">        }</span>
+
+<span class="fc bfc" id="L251" title="All 2 branches covered.">        for (PatternProperty patternProperty : patternProperties) {</span>
+<span class="fc bfc" id="L252" title="All 2 branches covered.">            for (Map.Entry entry : (Iterable&lt;Map.Entry&gt;) map.entrySet()) {</span>
+<span class="fc" id="L253">                Object entryKey = entry.getKey();</span>
+<span class="pc bpc" id="L254" title="1 of 2 branches missed.">                if (entryKey instanceof String) {</span>
+<span class="fc" id="L255">                    String strKey = (String) entryKey;</span>
+<span class="fc bfc" id="L256" title="All 2 branches covered.">                    if (patternProperty.pattern.matcher(strKey).find()) {</span>
+<span class="fc" id="L257">                        ValidateResult result = patternProperty.schema.validate(entry.getValue());</span>
+<span class="fc bfc" id="L258" title="All 2 branches covered.">                        if (!result.isSuccess()) {</span>
+<span class="fc" id="L259">                            return result;</span>
+                        }
+                    }
+                }
+<span class="fc" id="L263">            }</span>
+        }
+
+<span class="fc bfc" id="L266" title="All 2 branches covered.">        if (!additionalProperties) {</span>
+            for_:
+<span class="fc bfc" id="L268" title="All 2 branches covered.">            for (Map.Entry entry : (Set&lt;Map.Entry&gt;) map.entrySet()) {</span>
+<span class="fc" id="L269">                Object key = entry.getKey();</span>
+
+<span class="fc bfc" id="L271" title="All 2 branches covered.">                if (properties.containsKey(key)) {</span>
+<span class="fc" id="L272">                    continue;</span>
+                }
+
+<span class="fc bfc" id="L275" title="All 2 branches covered.">                for (PatternProperty patternProperty : patternProperties) {</span>
+<span class="pc bpc" id="L276" title="1 of 2 branches missed.">                    if (key instanceof String) {</span>
+<span class="fc" id="L277">                        String strKey = (String) key;</span>
+<span class="fc bfc" id="L278" title="All 2 branches covered.">                        if (patternProperty.pattern.matcher(strKey).find()) {</span>
+<span class="fc" id="L279">                            continue for_;</span>
+                        }
+                    }
+                }
+
+<span class="fc bfc" id="L284" title="All 2 branches covered.">                if (additionalPropertySchema != null) {</span>
+<span class="fc" id="L285">                    ValidateResult result = additionalPropertySchema.validate(entry.getValue());</span>
+<span class="fc bfc" id="L286" title="All 2 branches covered.">                    if (!result.isSuccess()) {</span>
+<span class="fc" id="L287">                        return result;</span>
+                    }
+                    continue;
+                }
+
+<span class="fc" id="L292">                return new ValidateResult(false, &quot;add additionalProperties %s&quot;, key);</span>
+            }
+        }
+
+<span class="fc bfc" id="L296" title="All 2 branches covered.">        if (propertyNames != null) {</span>
+<span class="fc bfc" id="L297" title="All 2 branches covered.">            for (Object key : map.keySet()) {</span>
+<span class="fc" id="L298">                ValidateResult result = propertyNames.validate(key);</span>
+<span class="fc bfc" id="L299" title="All 2 branches covered.">                if (!result.isSuccess()) {</span>
+<span class="fc" id="L300">                    return FAIL_PROPERTY_NAME;</span>
+                }
+<span class="fc" id="L302">            }</span>
+        }
+
+<span class="fc bfc" id="L305" title="All 2 branches covered.">        if (minProperties &gt;= 0) {</span>
+<span class="fc bfc" id="L306" title="All 2 branches covered.">            if (map.size() &lt; minProperties) {</span>
+<span class="fc" id="L307">                return new ValidateResult(false, &quot;minProperties not match, expect %s, but %s&quot;, minProperties, map.size());</span>
+            }
+        }
+
+<span class="fc bfc" id="L311" title="All 2 branches covered.">        if (maxProperties &gt;= 0) {</span>
+<span class="fc bfc" id="L312" title="All 2 branches covered.">            if (map.size() &gt; maxProperties) {</span>
+<span class="fc" id="L313">                return new ValidateResult(false, &quot;maxProperties not match, expect %s, but %s&quot;, maxProperties, map.size());</span>
+            }
+        }
+
+<span class="fc bfc" id="L317" title="All 2 branches covered.">        if (dependentRequired != null) {</span>
+<span class="fc bfc" id="L318" title="All 2 branches covered.">            for (Map.Entry&lt;String, String[]&gt; entry : dependentRequired.entrySet()) {</span>
+<span class="fc" id="L319">                String key = entry.getKey();</span>
+<span class="fc" id="L320">                Object value = map.get(key);</span>
+<span class="fc bfc" id="L321" title="All 2 branches covered.">                if (value != null) {</span>
+<span class="fc" id="L322">                    String[] dependentRequiredProperties = entry.getValue();</span>
+<span class="fc bfc" id="L323" title="All 2 branches covered.">                    for (String dependentRequiredProperty : dependentRequiredProperties) {</span>
+<span class="fc bfc" id="L324" title="All 2 branches covered.">                        if (!map.containsKey(dependentRequiredProperty)) {</span>
+<span class="fc" id="L325">                            return new ValidateResult(false, &quot;property %s, dependentRequired property %s&quot;, key, dependentRequiredProperty);</span>
+                        }
+                    }
+                }
+<span class="fc" id="L329">            }</span>
+        }
+
+<span class="fc bfc" id="L332" title="All 2 branches covered.">        if (dependentSchemas != null) {</span>
+<span class="fc bfc" id="L333" title="All 2 branches covered.">            for (Map.Entry&lt;String, JSONSchema&gt; entry : dependentSchemas.entrySet()) {</span>
+<span class="fc" id="L334">                String key = entry.getKey();</span>
+<span class="fc" id="L335">                Object fieldValue = map.get(key);</span>
+<span class="fc bfc" id="L336" title="All 2 branches covered.">                if (fieldValue == null) {</span>
+<span class="fc" id="L337">                    continue;</span>
+                }
+
+<span class="fc" id="L340">                JSONSchema schema = entry.getValue();</span>
+<span class="fc" id="L341">                ValidateResult result = schema.validate(map);</span>
+<span class="fc bfc" id="L342" title="All 2 branches covered.">                if (!result.isSuccess()) {</span>
+<span class="fc" id="L343">                    return result;</span>
+                }
+<span class="fc" id="L345">            }</span>
+        }
+
+<span class="fc bfc" id="L348" title="All 2 branches covered.">        if (ifSchema != null) {</span>
+<span class="fc" id="L349">            ValidateResult ifResult = ifSchema.validate(map);</span>
+<span class="fc bfc" id="L350" title="All 2 branches covered.">            if (ifResult == SUCCESS) {</span>
+<span class="pc bpc" id="L351" title="1 of 2 branches missed.">                if (thenSchema != null) {</span>
+<span class="fc" id="L352">                    ValidateResult thenResult = thenSchema.validate(map);</span>
+<span class="fc bfc" id="L353" title="All 2 branches covered.">                    if (!thenResult.isSuccess()) {</span>
+<span class="fc" id="L354">                        return thenResult;</span>
+                    }
+<span class="fc" id="L356">                }</span>
+            } else {
+<span class="fc bfc" id="L358" title="All 2 branches covered.">                if (elseSchema != null) {</span>
+<span class="fc" id="L359">                    ValidateResult elseResult = elseSchema.validate(map);</span>
+<span class="fc bfc" id="L360" title="All 2 branches covered.">                    if (!elseResult.isSuccess()) {</span>
+<span class="fc" id="L361">                        return elseResult;</span>
+                    }
+                }
+            }
+        }
+
+<span class="fc bfc" id="L367" title="All 2 branches covered.">        if (allOf != null) {</span>
+<span class="fc" id="L368">            ValidateResult result = allOf.validate(map);</span>
+<span class="fc bfc" id="L369" title="All 2 branches covered.">            if (!result.isSuccess()) {</span>
+<span class="fc" id="L370">                return result;</span>
+            }
+        }
+
+<span class="fc bfc" id="L374" title="All 2 branches covered.">        if (anyOf != null) {</span>
+<span class="fc" id="L375">            ValidateResult result = anyOf.validate(map);</span>
+<span class="fc bfc" id="L376" title="All 2 branches covered.">            if (!result.isSuccess()) {</span>
+<span class="fc" id="L377">                return result;</span>
+            }
+        }
+
+<span class="fc bfc" id="L381" title="All 2 branches covered.">        if (oneOf != null) {</span>
+<span class="fc" id="L382">            ValidateResult result = oneOf.validate(map);</span>
+<span class="fc bfc" id="L383" title="All 2 branches covered.">            if (!result.isSuccess()) {</span>
+<span class="fc" id="L384">                return result;</span>
+            }
+        }
+
+<span class="fc" id="L388">        return SUCCESS;</span>
+    }
+
+    @Override
+    public ValidateResult validate(Object value) {
+<span class="fc bfc" id="L393" title="All 2 branches covered.">        if (value == null) {</span>
+<span class="pc bpc" id="L394" title="1 of 2 branches missed.">            return typed ? FAIL_INPUT_NULL : SUCCESS;</span>
+        }
+
+<span class="fc bfc" id="L397" title="All 2 branches covered.">        if (encoded) {</span>
+<span class="fc bfc" id="L398" title="All 2 branches covered.">            if (value instanceof String) {</span>
+                try {
+<span class="fc" id="L400">                    value = JSON.parseObject((String) value);</span>
+<span class="nc" id="L401">                } catch (JSONException e) {</span>
+<span class="nc" id="L402">                    return FAIL_INPUT_NOT_ENCODED;</span>
+<span class="fc" id="L403">                }</span>
+            } else {
+<span class="fc" id="L405">                return FAIL_INPUT_NOT_ENCODED;</span>
+            }
+        }
+
+<span class="fc bfc" id="L409" title="All 2 branches covered.">        if (value instanceof Map) {</span>
+<span class="fc" id="L410">            return validate((Map) value);</span>
+        }
+
+<span class="fc" id="L413">        Class valueClass = value.getClass();</span>
+<span class="fc" id="L414">        ObjectWriter objectWriter = JSONFactory.getDefaultObjectWriterProvider().getObjectWriter(valueClass);</span>
+
+<span class="fc bfc" id="L416" title="All 2 branches covered.">        if (!(objectWriter instanceof ObjectWriterAdapter)) {</span>
+<span class="fc bfc" id="L417" title="All 2 branches covered.">            return typed ? new ValidateResult(false, &quot;expect type %s, but %s&quot;, Type.Object, valueClass) : SUCCESS;</span>
+        }
+
+<span class="fc bfc" id="L420" title="All 2 branches covered.">        for (int i = 0; i &lt; this.requiredHashCode.length; i++) {</span>
+<span class="fc" id="L421">            long nameHash = requiredHashCode[i];</span>
+<span class="fc" id="L422">            FieldWriter fieldWriter = objectWriter.getFieldWriter(nameHash);</span>
+
+<span class="fc" id="L424">            Object fieldValue = null;</span>
+<span class="pc bpc" id="L425" title="1 of 2 branches missed.">            if (fieldWriter != null) {</span>
+<span class="fc" id="L426">                fieldValue = fieldWriter.getFieldValue(value);</span>
+            }
+
+<span class="fc bfc" id="L429" title="All 2 branches covered.">            if (fieldValue == null) {</span>
+<span class="fc" id="L430">                String fieldName = null;</span>
+<span class="fc" id="L431">                int j = 0;</span>
+<span class="fc bfc" id="L432" title="All 2 branches covered.">                for (String itemName : this.required) {</span>
+<span class="fc bfc" id="L433" title="All 2 branches covered.">                    if (j == i) {</span>
+<span class="fc" id="L434">                        fieldName = itemName;</span>
+                    }
+<span class="fc" id="L436">                    j++;</span>
+<span class="fc" id="L437">                }</span>
+<span class="fc" id="L438">                return new ValidateResult(false, &quot;required property %s&quot;, fieldName);</span>
+            }
+        }
+
+<span class="fc bfc" id="L442" title="All 2 branches covered.">        for (Map.Entry&lt;String, JSONSchema&gt; entry : properties.entrySet()) {</span>
+<span class="fc" id="L443">            String key = entry.getKey();</span>
+<span class="fc" id="L444">            long keyHash = Fnv.hashCode64(key);</span>
+
+<span class="fc" id="L446">            JSONSchema schema = entry.getValue();</span>
+
+<span class="fc" id="L448">            FieldWriter fieldWriter = objectWriter.getFieldWriter(keyHash);</span>
+<span class="pc bpc" id="L449" title="1 of 2 branches missed.">            if (fieldWriter != null) {</span>
+<span class="fc" id="L450">                Object propertyValue = fieldWriter.getFieldValue(value);</span>
+<span class="fc bfc" id="L451" title="All 2 branches covered.">                if (propertyValue == null) {</span>
+<span class="fc" id="L452">                    continue;</span>
+                }
+
+<span class="fc" id="L455">                ValidateResult result = schema.validate(propertyValue);</span>
+<span class="fc bfc" id="L456" title="All 2 branches covered.">                if (!result.isSuccess()) {</span>
+<span class="fc" id="L457">                    return result;</span>
+                }
+            }
+<span class="fc" id="L460">        }</span>
+
+<span class="fc bfc" id="L462" title="All 4 branches covered.">        if (minProperties &gt;= 0 || maxProperties &gt;= 0) {</span>
+<span class="fc" id="L463">            int fieldValueCount = 0;</span>
+<span class="fc" id="L464">            List&lt;FieldWriter&gt; fieldWriters = objectWriter.getFieldWriters();</span>
+<span class="fc bfc" id="L465" title="All 2 branches covered.">            for (FieldWriter fieldWriter : fieldWriters) {</span>
+<span class="fc" id="L466">                Object fieldValue = fieldWriter.getFieldValue(value);</span>
+<span class="fc bfc" id="L467" title="All 2 branches covered.">                if (fieldValue != null) {</span>
+<span class="fc" id="L468">                    fieldValueCount++;</span>
+                }
+<span class="fc" id="L470">            }</span>
+
+<span class="fc bfc" id="L472" title="All 2 branches covered.">            if (minProperties &gt;= 0) {</span>
+<span class="fc bfc" id="L473" title="All 2 branches covered.">                if (fieldValueCount &lt; minProperties) {</span>
+<span class="fc" id="L474">                    return new ValidateResult(false, &quot;minProperties not match, expect %s, but %s&quot;, minProperties, fieldValueCount);</span>
+                }
+            }
+
+<span class="fc bfc" id="L478" title="All 2 branches covered.">            if (maxProperties &gt;= 0) {</span>
+<span class="fc bfc" id="L479" title="All 2 branches covered.">                if (fieldValueCount &gt; maxProperties) {</span>
+<span class="fc" id="L480">                    return new ValidateResult(false, &quot;maxProperties not match, expect %s, but %s&quot;, maxProperties, fieldValueCount);</span>
+                }
+            }
+        }
+
+<span class="fc bfc" id="L485" title="All 2 branches covered.">        if (dependentRequiredHashCodes != null) {</span>
+<span class="fc" id="L486">            int propertyIndex = 0;</span>
+<span class="fc bfc" id="L487" title="All 2 branches covered.">            for (Map.Entry&lt;Long, long[]&gt; entry : dependentRequiredHashCodes.entrySet()) {</span>
+<span class="fc" id="L488">                Long keyHash = entry.getKey();</span>
+<span class="fc" id="L489">                long[] dependentRequiredProperties = entry.getValue();</span>
+
+<span class="fc" id="L491">                FieldWriter fieldWriter = objectWriter.getFieldWriter(keyHash);</span>
+<span class="fc" id="L492">                Object fieldValue = fieldWriter.getFieldValue(value);</span>
+<span class="fc bfc" id="L493" title="All 2 branches covered.">                if (fieldValue == null) {</span>
+<span class="fc" id="L494">                    propertyIndex++;</span>
+<span class="fc" id="L495">                    continue;</span>
+                }
+
+<span class="fc bfc" id="L498" title="All 2 branches covered.">                for (int requiredIndex = 0; requiredIndex &lt; dependentRequiredProperties.length; requiredIndex++) {</span>
+<span class="fc" id="L499">                    long dependentRequiredHash = dependentRequiredProperties[requiredIndex];</span>
+<span class="fc" id="L500">                    FieldWriter dependentFieldWriter = objectWriter.getFieldWriter(dependentRequiredHash);</span>
+
+<span class="pc bpc" id="L502" title="1 of 4 branches missed.">                    if (dependentFieldWriter == null || dependentFieldWriter.getFieldValue(value) == null) {</span>
+<span class="fc" id="L503">                        int i = 0;</span>
+<span class="fc" id="L504">                        String property = null, dependentRequiredProperty = null;</span>
+<span class="fc bfc" id="L505" title="All 2 branches covered.">                        for (Iterator&lt;Map.Entry&lt;String, String[]&gt;&gt; it = this.dependentRequired.entrySet().iterator(); it.hasNext(); ++i) {</span>
+<span class="pc bpc" id="L506" title="1 of 2 branches missed.">                            if (propertyIndex == i) {</span>
+<span class="fc" id="L507">                                Map.Entry&lt;String, String[]&gt; dependentRequiredEntry = it.next();</span>
+<span class="fc" id="L508">                                property = dependentRequiredEntry.getKey();</span>
+<span class="fc" id="L509">                                dependentRequiredProperty = dependentRequiredEntry.getValue()[requiredIndex];</span>
+                            }
+                        }
+<span class="fc" id="L512">                        return new ValidateResult(false, &quot;property %s, dependentRequired property %s&quot;, property, dependentRequiredProperty);</span>
+                    }
+                }
+
+<span class="fc" id="L516">                propertyIndex++;</span>
+<span class="fc" id="L517">            }</span>
+        }
+
+<span class="fc bfc" id="L520" title="All 2 branches covered.">        if (dependentSchemasHashMapping != null) {</span>
+<span class="fc bfc" id="L521" title="All 2 branches covered.">            for (Map.Entry&lt;Long, JSONSchema&gt; entry : dependentSchemasHashMapping.entrySet()) {</span>
+<span class="fc" id="L522">                Long keyHash = entry.getKey();</span>
+
+<span class="fc" id="L524">                FieldWriter fieldWriter = objectWriter.getFieldWriter(keyHash);</span>
+<span class="pc bpc" id="L525" title="1 of 4 branches missed.">                if (fieldWriter == null || fieldWriter.getFieldValue(value) == null) {</span>
+<span class="fc" id="L526">                    continue;</span>
+                }
+
+<span class="fc" id="L529">                JSONSchema schema = entry.getValue();</span>
+<span class="fc" id="L530">                ValidateResult result = schema.validate(value);</span>
+<span class="fc bfc" id="L531" title="All 2 branches covered.">                if (!result.isSuccess()) {</span>
+<span class="fc" id="L532">                    return result;</span>
+                }
+<span class="fc" id="L534">            }</span>
+        }
+
+<span class="fc bfc" id="L537" title="All 2 branches covered.">        if (ifSchema != null) {</span>
+<span class="fc" id="L538">            ValidateResult ifResult = ifSchema.validate(value);</span>
+<span class="fc bfc" id="L539" title="All 2 branches covered.">            if (ifResult.isSuccess()) {</span>
+<span class="pc bpc" id="L540" title="1 of 2 branches missed.">                if (thenSchema != null) {</span>
+<span class="fc" id="L541">                    ValidateResult thenResult = thenSchema.validate(value);</span>
+<span class="fc bfc" id="L542" title="All 2 branches covered.">                    if (!thenResult.isSuccess()) {</span>
+<span class="fc" id="L543">                        return thenResult;</span>
+                    }
+<span class="fc" id="L545">                }</span>
+            } else {
+<span class="pc bpc" id="L547" title="1 of 2 branches missed.">                if (elseSchema != null) {</span>
+<span class="fc" id="L548">                    ValidateResult elseResult = elseSchema.validate(value);</span>
+<span class="fc bfc" id="L549" title="All 2 branches covered.">                    if (!elseResult.isSuccess()) {</span>
+<span class="fc" id="L550">                        return elseResult;</span>
+                    }
+                }
+            }
+        }
+
+<span class="pc bpc" id="L556" title="1 of 2 branches missed.">        if (allOf != null) {</span>
+<span class="nc" id="L557">            ValidateResult result = allOf.validate(value);</span>
+<span class="nc bnc" id="L558" title="All 2 branches missed.">            if (!result.isSuccess()) {</span>
+<span class="nc" id="L559">                return result;</span>
+            }
+        }
+
+<span class="fc bfc" id="L563" title="All 2 branches covered.">        if (anyOf != null) {</span>
+<span class="fc" id="L564">            ValidateResult result = anyOf.validate(value);</span>
+<span class="fc bfc" id="L565" title="All 2 branches covered.">            if (!result.isSuccess()) {</span>
+<span class="fc" id="L566">                return result;</span>
+            }
+        }
+
+<span class="pc bpc" id="L570" title="1 of 2 branches missed.">        if (oneOf != null) {</span>
+<span class="nc" id="L571">            ValidateResult result = oneOf.validate(value);</span>
+<span class="nc bnc" id="L572" title="All 2 branches missed.">            if (!result.isSuccess()) {</span>
+<span class="nc" id="L573">                return result;</span>
+            }
+        }
+
+<span class="fc" id="L577">        return SUCCESS;</span>
+    }
+
+    public Map&lt;String, JSONSchema&gt; getProperties() {
+<span class="fc" id="L581">        return properties;</span>
+    }
+
+    public JSONSchema getProperty(String key) {
+<span class="fc" id="L585">        return properties.get(key);</span>
+    }
+
+    public Set&lt;String&gt; getRequired() {
+<span class="fc" id="L589">        return required;</span>
+    }
+
+    static final class PatternProperty {
+        final Pattern pattern;
+        final JSONSchema schema;
+
+<span class="fc" id="L596">        public PatternProperty(Pattern pattern, JSONSchema schema) {</span>
+<span class="fc" id="L597">            this.pattern = pattern;</span>
+<span class="fc" id="L598">            this.schema = schema;</span>
+<span class="fc" id="L599">        }</span>
+    }
+
+    @JSONField(value = true)
+    public JSONObject toJSONObject() {
+<span class="fc" id="L604">        JSONObject object = new JSONObject();</span>
+
+<span class="fc" id="L606">        object.put(&quot;type&quot;, &quot;object&quot;);</span>
+
+<span class="fc bfc" id="L608" title="All 2 branches covered.">        if (title != null) {</span>
+<span class="fc" id="L609">            object.put(&quot;title&quot;, title);</span>
+        }
+
+<span class="fc bfc" id="L612" title="All 2 branches covered.">        if (description != null) {</span>
+<span class="fc" id="L613">            object.put(&quot;description&quot;, description);</span>
+        }
+
+<span class="pc bpc" id="L616" title="1 of 2 branches missed.">        if (!definitions.isEmpty()) {</span>
+<span class="nc" id="L617">            object.put(&quot;definitions&quot;, definitions);</span>
+        }
+
+<span class="pc bpc" id="L620" title="1 of 2 branches missed.">        if (!defs.isEmpty()) {</span>
+<span class="nc" id="L621">            object.put(&quot;defs&quot;, defs);</span>
+        }
+
+<span class="fc bfc" id="L624" title="All 2 branches covered.">        if (!properties.isEmpty()) {</span>
+<span class="fc" id="L625">            object.put(&quot;properties&quot;, properties);</span>
+        }
+
+<span class="fc bfc" id="L628" title="All 2 branches covered.">        if (!required.isEmpty()) {</span>
+<span class="fc" id="L629">            object.put(&quot;required&quot;, required);</span>
+        }
+
+<span class="pc bpc" id="L632" title="1 of 2 branches missed.">        if (!additionalProperties) {</span>
+<span class="nc bnc" id="L633" title="All 2 branches missed.">            if (additionalPropertySchema != null) {</span>
+<span class="nc" id="L634">                object.put(&quot;additionalProperties&quot;, additionalPropertySchema);</span>
+            } else {
+<span class="nc" id="L636">                object.put(&quot;additionalProperties&quot;, additionalProperties);</span>
+            }
+        }
+
+<span class="pc bpc" id="L640" title="2 of 4 branches missed.">        if (patternProperties != null &amp;&amp; patternProperties.length != 0) {</span>
+<span class="nc" id="L641">            object.put(&quot;patternProperties&quot;, patternProperties);</span>
+        }
+
+<span class="pc bpc" id="L644" title="1 of 2 branches missed.">        if (propertyNames != null) {</span>
+<span class="nc" id="L645">            object.put(&quot;propertyNames&quot;, propertyNames);</span>
+        }
+
+<span class="pc bpc" id="L648" title="1 of 2 branches missed.">        if (minProperties != -1) {</span>
+<span class="nc" id="L649">            object.put(&quot;minProperties&quot;, minProperties);</span>
+        }
+
+<span class="pc bpc" id="L652" title="1 of 2 branches missed.">        if (maxProperties != -1) {</span>
+<span class="nc" id="L653">            object.put(&quot;maxProperties&quot;, maxProperties);</span>
+        }
+
+<span class="pc bpc" id="L656" title="3 of 4 branches missed.">        if (dependentRequired != null &amp;&amp; !dependentRequired.isEmpty()) {</span>
+<span class="nc" id="L657">            object.put(&quot;dependentRequired&quot;, dependentRequired);</span>
+        }
+
+<span class="pc bpc" id="L660" title="3 of 4 branches missed.">        if (dependentSchemas != null &amp;&amp; !dependentSchemas.isEmpty()) {</span>
+<span class="nc" id="L661">            object.put(&quot;dependentSchemas&quot;, dependentSchemas);</span>
+        }
+
+<span class="pc bpc" id="L664" title="1 of 2 branches missed.">        if (ifSchema != null) {</span>
+<span class="nc" id="L665">            object.put(&quot;if&quot;, ifSchema);</span>
+        }
+
+<span class="pc bpc" id="L668" title="1 of 2 branches missed.">        if (thenSchema != null) {</span>
+<span class="nc" id="L669">            object.put(&quot;then&quot;, thenSchema);</span>
+        }
+
+<span class="pc bpc" id="L672" title="1 of 2 branches missed.">        if (elseSchema != null) {</span>
+<span class="nc" id="L673">            object.put(&quot;else&quot;, elseSchema);</span>
+        }
+
+<span class="pc bpc" id="L676" title="1 of 2 branches missed.">        if (allOf != null) {</span>
+<span class="nc" id="L677">            object.put(&quot;allOf&quot;, allOf);</span>
+        }
+
+<span class="pc bpc" id="L680" title="1 of 2 branches missed.">        if (anyOf != null) {</span>
+<span class="nc" id="L681">            object.put(&quot;anyOf&quot;, anyOf);</span>
+        }
+
+<span class="pc bpc" id="L684" title="1 of 2 branches missed.">        if (oneOf != null) {</span>
+<span class="nc" id="L685">            object.put(&quot;oneOf&quot;, oneOf);</span>
+        }
+
+<span class="fc" id="L688">        return object;</span>
+    }
+
+    public void accept(Predicate&lt;JSONSchema&gt; v) {
+<span class="nc bnc" id="L692" title="All 2 branches missed.">        if (v.test(this)) {</span>
+<span class="nc" id="L693">            this.properties.values().forEach(v::test);</span>
+        }
+<span class="nc" id="L695">    }</span>
+
+    public JSONSchema getDefs(String def) {
+<span class="fc" id="L698">        return this.defs.get(def);</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.8.202204050719</span></div></body></html>

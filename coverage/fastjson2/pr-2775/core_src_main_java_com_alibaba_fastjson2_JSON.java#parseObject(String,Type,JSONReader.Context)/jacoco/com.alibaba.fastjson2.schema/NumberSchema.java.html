@@ -1,0 +1,297 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>NumberSchema.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">fastjson2</a> &gt; <a href="index.source.html" class="el_package">com.alibaba.fastjson2.schema</a> &gt; <span class="el_source">NumberSchema.java</span></div><h1>NumberSchema.java</h1><pre class="source lang-java linenums">package com.alibaba.fastjson2.schema;
+
+import com.alibaba.fastjson2.JSONObject;
+
+import java.math.BigDecimal;
+import java.math.BigInteger;
+
+public final class NumberSchema
+        extends JSONSchema {
+    final BigDecimal minimum;
+    final long minimumLongValue;
+    final boolean exclusiveMinimum;
+
+    final BigDecimal maximum;
+    final long maximumLongValue;
+    final boolean exclusiveMaximum;
+
+    final BigDecimal multipleOf;
+    final long multipleOfLongValue;
+    final boolean typed;
+
+    NumberSchema(JSONObject input) {
+<span class="fc" id="L23">        super(input);</span>
+
+<span class="fc" id="L25">        this.typed = &quot;number&quot;.equals(input.get(&quot;type&quot;));</span>
+
+<span class="fc" id="L27">        Object exclusiveMinimum = input.get(&quot;exclusiveMinimum&quot;);</span>
+<span class="fc" id="L28">        BigDecimal minimum = input.getBigDecimal(&quot;minimum&quot;);</span>
+<span class="fc bfc" id="L29" title="All 2 branches covered.">        if (exclusiveMinimum == Boolean.TRUE) {</span>
+<span class="fc" id="L30">            this.minimum = minimum;</span>
+<span class="fc" id="L31">            this.exclusiveMinimum = true;</span>
+<span class="fc bfc" id="L32" title="All 2 branches covered.">        } else if (exclusiveMinimum instanceof Number) {</span>
+<span class="fc" id="L33">            this.minimum = input.getBigDecimal(&quot;exclusiveMinimum&quot;);</span>
+<span class="fc" id="L34">            this.exclusiveMinimum = true;</span>
+        } else {
+<span class="fc" id="L36">            this.minimum = minimum;</span>
+<span class="fc" id="L37">            this.exclusiveMinimum = false;</span>
+        }
+
+<span class="fc bfc" id="L40" title="All 4 branches covered.">        if (this.minimum == null || !(this.minimum.compareTo(BigDecimal.valueOf(this.minimum.longValue())) == 0)) {</span>
+<span class="fc" id="L41">            minimumLongValue = Long.MIN_VALUE;</span>
+        } else {
+<span class="fc" id="L43">            minimumLongValue = this.minimum.longValue();</span>
+        }
+
+<span class="fc" id="L46">        BigDecimal maximum = input.getBigDecimal(&quot;maximum&quot;);</span>
+<span class="fc" id="L47">        Object exclusiveMaximum = input.get(&quot;exclusiveMaximum&quot;);</span>
+<span class="fc bfc" id="L48" title="All 2 branches covered.">        if (exclusiveMaximum == Boolean.TRUE) {</span>
+<span class="fc" id="L49">            this.maximum = maximum;</span>
+<span class="fc" id="L50">            this.exclusiveMaximum = true;</span>
+<span class="fc bfc" id="L51" title="All 2 branches covered.">        } else if (exclusiveMaximum instanceof Number) {</span>
+<span class="fc" id="L52">            this.maximum = input.getBigDecimal(&quot;exclusiveMaximum&quot;);</span>
+<span class="fc" id="L53">            this.exclusiveMaximum = true;</span>
+        } else {
+<span class="fc" id="L55">            this.maximum = maximum;</span>
+<span class="fc" id="L56">            this.exclusiveMaximum = false;</span>
+        }
+
+<span class="pc bpc" id="L59" title="1 of 4 branches missed.">        if (this.maximum == null || !(this.maximum.compareTo(BigDecimal.valueOf(this.maximum.longValue())) == 0)) {</span>
+<span class="fc" id="L60">            maximumLongValue = Long.MIN_VALUE;</span>
+        } else {
+<span class="fc" id="L62">            maximumLongValue = this.maximum.longValue();</span>
+        }
+
+<span class="fc" id="L65">        this.multipleOf = input.getBigDecimal(&quot;multipleOf&quot;);</span>
+<span class="fc bfc" id="L66" title="All 2 branches covered.">        if (this.multipleOf == null) {</span>
+<span class="fc" id="L67">            this.multipleOfLongValue = Long.MIN_VALUE;</span>
+        } else {
+<span class="fc" id="L69">            long longValue = multipleOf.longValue();</span>
+<span class="fc bfc" id="L70" title="All 2 branches covered.">            if (multipleOf.compareTo(BigDecimal.valueOf(longValue)) == 0) {</span>
+<span class="fc" id="L71">                this.multipleOfLongValue = longValue;</span>
+            } else {
+<span class="fc" id="L73">                this.multipleOfLongValue = Long.MIN_VALUE;</span>
+            }
+        }
+<span class="fc" id="L76">    }</span>
+
+    @Override
+    public Type getType() {
+<span class="fc" id="L80">        return Type.Number;</span>
+    }
+
+    @Override
+    public ValidateResult validate(Object value) {
+<span class="fc bfc" id="L85" title="All 2 branches covered.">        if (value == null) {</span>
+<span class="fc bfc" id="L86" title="All 2 branches covered.">            return typed ? FAIL_INPUT_NULL : SUCCESS;</span>
+        }
+
+<span class="fc bfc" id="L89" title="All 2 branches covered.">        if (value instanceof Number) {</span>
+<span class="fc" id="L90">            Number number = (Number) value;</span>
+
+<span class="pc bpc" id="L92" title="2 of 8 branches missed.">            if (number instanceof Byte || number instanceof Short || number instanceof Integer || number instanceof Long) {</span>
+<span class="fc" id="L93">                return validate(number.longValue());</span>
+            }
+
+<span class="fc bfc" id="L96" title="All 4 branches covered.">            if (number instanceof Float || number instanceof Double) {</span>
+<span class="fc" id="L97">                return validate(number.doubleValue());</span>
+            }
+
+            BigDecimal decimalValue;
+<span class="fc bfc" id="L101" title="All 2 branches covered.">            if (number instanceof BigInteger) {</span>
+<span class="fc" id="L102">                decimalValue = new BigDecimal((BigInteger) number);</span>
+<span class="pc bpc" id="L103" title="1 of 2 branches missed.">            } else if (number instanceof BigDecimal) {</span>
+<span class="fc" id="L104">                decimalValue = (BigDecimal) number;</span>
+            } else {
+<span class="nc" id="L106">                return new ValidateResult(false, &quot;expect type %s, but %s&quot;, Type.Number, value.getClass());</span>
+            }
+
+<span class="fc bfc" id="L109" title="All 2 branches covered.">            if (minimum != null) {</span>
+<span class="fc bfc" id="L110" title="All 2 branches covered.">                if (exclusiveMinimum</span>
+<span class="fc bfc" id="L111" title="All 2 branches covered.">                        ? minimum.compareTo(decimalValue) &gt;= 0</span>
+<span class="fc bfc" id="L112" title="All 2 branches covered.">                        : minimum.compareTo(decimalValue) &gt; 0) {</span>
+<span class="fc bfc" id="L113" title="All 2 branches covered.">                    return new ValidateResult(false, exclusiveMinimum ? &quot;exclusiveMinimum not match, expect &gt; %s, but %s&quot; : &quot;minimum not match, expect &gt;= %s, but %s&quot;, minimum, value);</span>
+                }
+            }
+
+<span class="fc bfc" id="L117" title="All 2 branches covered.">            if (maximum != null) {</span>
+<span class="fc bfc" id="L118" title="All 2 branches covered.">                if (exclusiveMaximum</span>
+<span class="fc bfc" id="L119" title="All 2 branches covered.">                        ? maximum.compareTo(decimalValue) &lt;= 0</span>
+<span class="fc bfc" id="L120" title="All 2 branches covered.">                        : maximum.compareTo(decimalValue) &lt; 0) {</span>
+<span class="fc bfc" id="L121" title="All 2 branches covered.">                    return new ValidateResult(false, exclusiveMaximum ? &quot;exclusiveMaximum not match, expect &lt; %s, but %s&quot; : &quot;maximum not match, expect &lt;= %s, but %s&quot;, maximum, value);</span>
+                }
+            }
+
+<span class="fc bfc" id="L125" title="All 2 branches covered.">            if (multipleOf != null) {</span>
+<span class="fc bfc" id="L126" title="All 2 branches covered.">                if (decimalValue.divideAndRemainder(multipleOf)[1].abs().compareTo(BigDecimal.ZERO) &gt; 0) {</span>
+<span class="fc" id="L127">                    return new ValidateResult(false, &quot;multipleOf not match, expect multipleOf %s, but %s&quot;, multipleOf, decimalValue);</span>
+                }
+            }
+
+<span class="fc" id="L131">            return SUCCESS;</span>
+        }
+
+<span class="fc bfc" id="L134" title="All 2 branches covered.">        return typed ? FAIL_TYPE_NOT_MATCH : SUCCESS;</span>
+    }
+
+    @Override
+    public ValidateResult validate(Integer value) {
+<span class="fc bfc" id="L139" title="All 2 branches covered.">        if (value == null) {</span>
+<span class="fc" id="L140">            return SUCCESS;</span>
+        }
+
+<span class="fc" id="L143">        return validate(value.longValue());</span>
+    }
+
+    @Override
+    public ValidateResult validate(Float value) {
+<span class="fc bfc" id="L148" title="All 2 branches covered.">        if (value == null) {</span>
+<span class="fc" id="L149">            return SUCCESS;</span>
+        }
+
+<span class="fc" id="L152">        return validate(value.doubleValue());</span>
+    }
+
+    @Override
+    public ValidateResult validate(Double value) {
+<span class="fc bfc" id="L157" title="All 2 branches covered.">        if (value == null) {</span>
+<span class="fc" id="L158">            return SUCCESS;</span>
+        }
+
+<span class="fc" id="L161">        return validate(value.doubleValue());</span>
+    }
+
+    @Override
+    public ValidateResult validate(Long value) {
+<span class="fc bfc" id="L166" title="All 2 branches covered.">        if (value == null) {</span>
+<span class="fc" id="L167">            return SUCCESS;</span>
+        }
+
+<span class="fc" id="L170">        return validate(value.longValue());</span>
+    }
+
+    @Override
+    public ValidateResult validate(long value) {
+<span class="fc" id="L175">        BigDecimal decimalValue = null;</span>
+
+<span class="fc bfc" id="L177" title="All 2 branches covered.">        if (minimum != null) {</span>
+<span class="pc bpc" id="L178" title="1 of 2 branches missed.">            if (minimumLongValue != Long.MIN_VALUE) {</span>
+<span class="fc bfc" id="L179" title="All 6 branches covered.">                if (exclusiveMinimum ? value &lt;= minimumLongValue : value &lt; minimumLongValue) {</span>
+<span class="fc bfc" id="L180" title="All 2 branches covered.">                    return new ValidateResult(false, exclusiveMinimum ? &quot;exclusiveMinimum not match, expect &gt; %s, but %s&quot; : &quot;minimum not match, expect &gt;= %s, but %s&quot;, minimum, value);</span>
+                }
+            } else {
+<span class="nc" id="L183">                decimalValue = BigDecimal.valueOf(value);</span>
+<span class="nc bnc" id="L184" title="All 2 branches missed.">                if (exclusiveMinimum</span>
+<span class="nc bnc" id="L185" title="All 2 branches missed.">                        ? minimum.compareTo(decimalValue) &gt;= 0</span>
+<span class="nc bnc" id="L186" title="All 2 branches missed.">                        : minimum.compareTo(decimalValue) &gt; 0) {</span>
+<span class="nc bnc" id="L187" title="All 2 branches missed.">                    return new ValidateResult(false, exclusiveMinimum ? &quot;exclusiveMinimum not match, expect &gt; %s, but %s&quot; : &quot;minimum not match, expect &gt;= %s, but %s&quot;, minimum, value);</span>
+                }
+            }
+        }
+
+<span class="fc bfc" id="L192" title="All 2 branches covered.">        if (maximum != null) {</span>
+<span class="pc bpc" id="L193" title="1 of 2 branches missed.">            if (maximumLongValue != Long.MIN_VALUE) {</span>
+<span class="fc bfc" id="L194" title="All 6 branches covered.">                if (exclusiveMaximum ? value &gt;= maximumLongValue : value &gt; maximumLongValue) {</span>
+<span class="fc bfc" id="L195" title="All 2 branches covered.">                    return new ValidateResult(false, exclusiveMaximum ? &quot;exclusiveMaximum not match, expect &lt; %s, but %s&quot; : &quot;maximum not match, expect &lt;= %s, but %s&quot;, maximum, value);</span>
+                }
+            } else {
+<span class="nc bnc" id="L198" title="All 2 branches missed.">                if (decimalValue == null) {</span>
+<span class="nc" id="L199">                    decimalValue = BigDecimal.valueOf(value);</span>
+                }
+
+<span class="nc bnc" id="L202" title="All 2 branches missed.">                if (exclusiveMaximum</span>
+<span class="nc bnc" id="L203" title="All 2 branches missed.">                        ? maximum.compareTo(decimalValue) &lt;= 0</span>
+<span class="nc bnc" id="L204" title="All 2 branches missed.">                        : maximum.compareTo(decimalValue) &lt; 0) {</span>
+<span class="nc bnc" id="L205" title="All 2 branches missed.">                    return new ValidateResult(false, exclusiveMaximum ? &quot;exclusiveMaximum not match, expect &lt; %s, but %s&quot; : &quot;maximum not match, expect &lt;= %s, but %s&quot;, maximum, value);</span>
+                }
+            }
+        }
+
+<span class="fc bfc" id="L210" title="All 2 branches covered.">        if (multipleOf != null) {</span>
+<span class="fc bfc" id="L211" title="All 2 branches covered.">            if (multipleOfLongValue != Long.MIN_VALUE) {</span>
+<span class="fc bfc" id="L212" title="All 2 branches covered.">                if (value % multipleOfLongValue != 0) {</span>
+<span class="fc" id="L213">                    return new ValidateResult(false, &quot;multipleOf not match, expect multipleOf %s, but %s&quot;, multipleOf, decimalValue);</span>
+                }
+            }
+
+<span class="pc bpc" id="L217" title="1 of 2 branches missed.">            if (decimalValue == null) {</span>
+<span class="fc" id="L218">                decimalValue = BigDecimal.valueOf(value);</span>
+            }
+
+<span class="fc bfc" id="L221" title="All 2 branches covered.">            if (decimalValue.divideAndRemainder(multipleOf)[1].abs().compareTo(BigDecimal.ZERO) &gt; 0) {</span>
+<span class="fc" id="L222">                return new ValidateResult(false, &quot;multipleOf not match, expect multipleOf %s, but %s&quot;, multipleOf, value);</span>
+            }
+        }
+
+<span class="fc" id="L226">        return SUCCESS;</span>
+    }
+
+    @Override
+    public ValidateResult validate(double value) {
+<span class="fc bfc" id="L231" title="All 2 branches covered.">        if (minimum != null) {</span>
+<span class="pc bpc" id="L232" title="1 of 2 branches missed.">            if (minimumLongValue != Long.MIN_VALUE) {</span>
+<span class="pc bpc" id="L233" title="1 of 6 branches missed.">                if (exclusiveMinimum ? value &lt;= minimumLongValue : value &lt; minimumLongValue) {</span>
+<span class="fc bfc" id="L234" title="All 2 branches covered.">                    return new ValidateResult(false, exclusiveMinimum ? &quot;exclusiveMinimum not match, expect &gt; %s, but %s&quot; : &quot;minimum not match, expect &gt;= %s, but %s&quot;, minimum, value);</span>
+                }
+            } else {
+<span class="nc" id="L237">                double minimumDoubleValue = minimum.doubleValue();</span>
+<span class="nc bnc" id="L238" title="All 6 branches missed.">                if (exclusiveMinimum ? value &lt;= minimumDoubleValue : value &lt; minimumDoubleValue) {</span>
+<span class="nc bnc" id="L239" title="All 2 branches missed.">                    return new ValidateResult(false, exclusiveMinimum ? &quot;exclusiveMinimum not match, expect &gt; %s, but %s&quot; : &quot;minimum not match, expect &gt;= %s, but %s&quot;, minimum, value);</span>
+                }
+            }
+        }
+
+<span class="fc bfc" id="L244" title="All 2 branches covered.">        if (maximum != null) {</span>
+<span class="pc bpc" id="L245" title="1 of 2 branches missed.">            if (maximumLongValue != Long.MIN_VALUE) {</span>
+<span class="pc bpc" id="L246" title="1 of 6 branches missed.">                if (exclusiveMaximum ? value &gt;= maximumLongValue : value &gt; maximumLongValue) {</span>
+<span class="fc bfc" id="L247" title="All 2 branches covered.">                    return new ValidateResult(false, exclusiveMaximum ? &quot;exclusiveMaximum not match, expect &lt; %s, but %s&quot; : &quot;maximum not match, expect &lt;= %s, but %s&quot;, maximum, value);</span>
+                }
+            } else {
+<span class="nc" id="L250">                double maximumDoubleValue = maximum.doubleValue();</span>
+<span class="nc bnc" id="L251" title="All 6 branches missed.">                if (exclusiveMaximum ? value &gt;= maximumDoubleValue : value &gt; maximumDoubleValue) {</span>
+<span class="nc bnc" id="L252" title="All 2 branches missed.">                    return new ValidateResult(false, exclusiveMaximum ? &quot;exclusiveMaximum not match, expect &lt; %s, but %s&quot; : &quot;maximum not match, expect &lt;= %s, but %s&quot;, maximum, value);</span>
+                }
+            }
+        }
+
+<span class="pc bpc" id="L257" title="1 of 2 branches missed.">        if (multipleOf != null) {</span>
+<span class="nc bnc" id="L258" title="All 2 branches missed.">            if (multipleOfLongValue != Long.MIN_VALUE) {</span>
+<span class="nc bnc" id="L259" title="All 2 branches missed.">                if (value % multipleOfLongValue != 0) {</span>
+<span class="nc" id="L260">                    return new ValidateResult(false, &quot;multipleOf not match, expect multipleOf %s, but %s&quot;, multipleOf, value);</span>
+                }
+            }
+
+<span class="nc" id="L264">            BigDecimal decimalValue = BigDecimal.valueOf(value);</span>
+<span class="nc bnc" id="L265" title="All 2 branches missed.">            if (decimalValue.divideAndRemainder(multipleOf)[1].abs().compareTo(BigDecimal.ZERO) &gt; 0) {</span>
+<span class="nc" id="L266">                return new ValidateResult(false, &quot;multipleOf not match, expect multipleOf %s, but %s&quot;, multipleOf, decimalValue);</span>
+            }
+        }
+<span class="fc" id="L269">        return SUCCESS;</span>
+    }
+
+    @Override
+    public JSONObject toJSONObject() {
+<span class="fc" id="L274">        JSONObject object = JSONObject.of(&quot;type&quot;, &quot;number&quot;);</span>
+
+<span class="fc bfc" id="L276" title="All 2 branches covered.">        if (minimumLongValue != Long.MIN_VALUE) {</span>
+<span class="pc bpc" id="L277" title="1 of 2 branches missed.">            object.put(exclusiveMinimum ? &quot;exclusiveMinimum&quot; : &quot;minimum&quot;, minimumLongValue);</span>
+<span class="pc bpc" id="L278" title="1 of 2 branches missed.">        } else if (minimum != null) {</span>
+<span class="nc bnc" id="L279" title="All 2 branches missed.">            object.put(exclusiveMinimum ? &quot;exclusiveMinimum&quot; : &quot;minimum&quot;, minimum);</span>
+        }
+
+<span class="pc bpc" id="L282" title="1 of 2 branches missed.">        if (maximumLongValue != Long.MIN_VALUE) {</span>
+<span class="nc bnc" id="L283" title="All 2 branches missed.">            object.put(exclusiveMaximum ? &quot;exclusiveMaximum&quot; : &quot;maximum&quot;, minimumLongValue);</span>
+<span class="pc bpc" id="L284" title="1 of 2 branches missed.">        } else if (maximum != null) {</span>
+<span class="nc bnc" id="L285" title="All 2 branches missed.">            object.put(exclusiveMaximum ? &quot;exclusiveMaximum&quot; : &quot;maximum&quot;, maximum);</span>
+        }
+
+<span class="pc bpc" id="L288" title="1 of 2 branches missed.">        if (multipleOfLongValue != Long.MIN_VALUE) {</span>
+<span class="nc" id="L289">            object.put(&quot;multipleOf&quot;, multipleOfLongValue);</span>
+<span class="pc bpc" id="L290" title="1 of 2 branches missed.">        } else if (multipleOf != null) {</span>
+<span class="nc" id="L291">            object.put(&quot;multipleOf&quot;, multipleOf);</span>
+        }
+
+<span class="fc" id="L294">        return object;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.8.202204050719</span></div></body></html>

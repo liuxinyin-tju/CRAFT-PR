@@ -1,0 +1,265 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>JSONPathTwoSegment.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">fastjson2</a> &gt; <a href="index.source.html" class="el_package">com.alibaba.fastjson2</a> &gt; <span class="el_source">JSONPathTwoSegment.java</span></div><h1>JSONPathTwoSegment.java</h1><pre class="source lang-java linenums">package com.alibaba.fastjson2;
+
+import com.alibaba.fastjson2.reader.FieldReader;
+import com.alibaba.fastjson2.reader.ObjectReader;
+
+import java.util.List;
+import java.util.Map;
+import java.util.function.BiFunction;
+
+class JSONPathTwoSegment
+        extends JSONPath {
+    final JSONPathSegment first;
+    final JSONPathSegment second;
+    final boolean ref;
+    final boolean extractSupport;
+
+    JSONPathTwoSegment(String path, JSONPathSegment first, JSONPathSegment second, Feature... features) {
+<span class="fc" id="L18">        super(path, features);</span>
+<span class="fc" id="L19">        this.first = first;</span>
+<span class="fc" id="L20">        this.second = second;</span>
+<span class="fc bfc" id="L21" title="All 8 branches covered.">        this.ref = (first instanceof JSONPathSegmentIndex || first instanceof JSONPathSegmentName)</span>
+                &amp;&amp; (second instanceof JSONPathSegmentIndex || second instanceof JSONPathSegmentName);
+
+<span class="fc" id="L24">        boolean extractSupport = true;</span>
+<span class="fc bfc" id="L25" title="All 2 branches covered.">        if (first instanceof JSONPathSegment.EvalSegment) {</span>
+<span class="fc" id="L26">            extractSupport = false;</span>
+<span class="fc bfc" id="L27" title="All 4 branches covered.">        } else if (first instanceof JSONPathSegmentIndex &amp;&amp; ((JSONPathSegmentIndex) first).index &lt; 0) {</span>
+<span class="fc" id="L28">            extractSupport = false;</span>
+<span class="fc bfc" id="L29" title="All 2 branches covered.">        } else if (second instanceof JSONPathSegment.EvalSegment) {</span>
+<span class="fc" id="L30">            extractSupport = false;</span>
+<span class="fc bfc" id="L31" title="All 4 branches covered.">        } else if (second instanceof JSONPathSegmentIndex &amp;&amp; ((JSONPathSegmentIndex) second).index &lt; 0) {</span>
+<span class="fc" id="L32">            extractSupport = false;</span>
+        }
+<span class="fc" id="L34">        this.extractSupport = extractSupport;</span>
+
+<span class="fc bfc" id="L36" title="All 6 branches covered.">        if (first instanceof JSONPathSegment.CycleNameSegment &amp;&amp; ((JSONPathSegment.CycleNameSegment) first).shouldRecursive()</span>
+                &amp;&amp; second instanceof JSONPathFilter.NameFilter) {
+<span class="fc" id="L38">            ((JSONPathFilter.NameFilter) second).excludeArray();</span>
+        }
+<span class="fc" id="L40">    }</span>
+
+    @Override
+    public boolean endsWithFilter() {
+<span class="fc" id="L44">        return second instanceof JSONPathFilter;</span>
+    }
+
+    @Override
+    public JSONPath getParent() {
+<span class="fc" id="L49">        return JSONPathSingle.of(first);</span>
+    }
+
+    @Override
+    public boolean remove(Object root) {
+<span class="fc" id="L54">        Context context0 = new Context(this, null, first, second, 0);</span>
+<span class="fc" id="L55">        context0.root = root;</span>
+<span class="fc" id="L56">        first.eval(context0);</span>
+<span class="pc bpc" id="L57" title="1 of 2 branches missed.">        if (context0.value == null) {</span>
+<span class="nc" id="L58">            return false;</span>
+        }
+
+<span class="fc" id="L61">        Context context1 = new Context(this, context0, second, null, 0);</span>
+<span class="fc" id="L62">        return second.remove(context1);</span>
+    }
+
+    @Override
+    public boolean contains(Object root) {
+<span class="fc" id="L67">        Context context0 = new Context(this, null, first, second, 0);</span>
+<span class="fc" id="L68">        context0.root = root;</span>
+<span class="fc" id="L69">        first.eval(context0);</span>
+<span class="pc bpc" id="L70" title="1 of 2 branches missed.">        if (context0.value == null) {</span>
+<span class="nc" id="L71">            return false;</span>
+        }
+
+<span class="fc" id="L74">        Context context1 = new Context(this, context0, second, null, 0);</span>
+<span class="fc" id="L75">        return second.contains(context1);</span>
+    }
+
+    @Override
+    public boolean isRef() {
+<span class="fc" id="L80">        return ref;</span>
+    }
+
+    @Override
+    public Object eval(Object root) {
+<span class="fc" id="L85">        Context context0 = new Context(this, null, first, second, 0);</span>
+<span class="fc" id="L86">        context0.root = root;</span>
+<span class="fc" id="L87">        first.eval(context0);</span>
+<span class="fc bfc" id="L88" title="All 2 branches covered.">        if (context0.value == null) {</span>
+<span class="fc" id="L89">            return null;</span>
+        }
+
+<span class="fc bfc" id="L92" title="All 6 branches covered.">        if (first instanceof JSONPathSegment.CycleNameSegment &amp;&amp; ((JSONPathSegment.CycleNameSegment) first).shouldRecursive()</span>
+                &amp;&amp; second instanceof JSONPathFilter.NameFilter) {
+<span class="fc" id="L94">            ((JSONPathFilter.NameFilter) second).excludeArray();</span>
+        }
+
+<span class="fc" id="L97">        Context context1 = new Context(this, context0, second, null, 0);</span>
+<span class="fc" id="L98">        second.eval(context1);</span>
+<span class="fc" id="L99">        Object contextValue = context1.value;</span>
+<span class="fc bfc" id="L100" title="All 2 branches covered.">        if ((features &amp; Feature.AlwaysReturnList.mask) != 0) {</span>
+<span class="fc bfc" id="L101" title="All 2 branches covered.">            if (contextValue == null) {</span>
+<span class="fc" id="L102">                contextValue = new JSONArray();</span>
+<span class="fc bfc" id="L103" title="All 2 branches covered.">            } else if (!(contextValue instanceof List)) {</span>
+<span class="fc" id="L104">                contextValue = JSONArray.of(contextValue);</span>
+            }
+        }
+<span class="fc" id="L107">        return contextValue;</span>
+    }
+
+    @Override
+    public void set(Object root, Object value) {
+<span class="fc" id="L112">        Context context0 = new Context(this, null, first, second, 0);</span>
+<span class="fc" id="L113">        context0.root = root;</span>
+<span class="fc" id="L114">        first.eval(context0);</span>
+<span class="fc bfc" id="L115" title="All 2 branches covered.">        if (context0.value == null) {</span>
+            Object emptyValue;
+<span class="fc bfc" id="L117" title="All 2 branches covered.">            if (second instanceof JSONPathSegmentIndex) {</span>
+<span class="pc bpc" id="L118" title="3 of 4 branches missed.">                if (readerContext != null &amp;&amp; readerContext.arraySupplier != null) {</span>
+<span class="nc" id="L119">                    emptyValue = readerContext.arraySupplier.get();</span>
+                } else {
+<span class="fc" id="L121">                    emptyValue = new JSONArray();</span>
+                }
+<span class="pc bpc" id="L123" title="1 of 2 branches missed.">            } else if (second instanceof JSONPathSegmentName) {</span>
+<span class="pc bpc" id="L124" title="3 of 4 branches missed.">                if (readerContext != null &amp;&amp; readerContext.objectSupplier != null) {</span>
+<span class="nc" id="L125">                    emptyValue = readerContext.objectSupplier.get();</span>
+                } else {
+<span class="fc" id="L127">                    emptyValue = new JSONObject();</span>
+                }
+            } else {
+<span class="nc" id="L130">                return;</span>
+            }
+
+<span class="fc" id="L133">            context0.value = emptyValue;</span>
+<span class="pc bpc" id="L134" title="1 of 4 branches missed.">            if (root instanceof Map &amp;&amp; first instanceof JSONPathSegmentName) {</span>
+<span class="fc" id="L135">                ((Map) root).put(((JSONPathSegmentName) first).name, emptyValue);</span>
+<span class="pc bpc" id="L136" title="3 of 4 branches missed.">            } else if (root instanceof List &amp;&amp; first instanceof JSONPathSegmentIndex) {</span>
+<span class="nc" id="L137">                ((List) root).set(((JSONPathSegmentIndex) first).index, emptyValue);</span>
+<span class="pc bpc" id="L138" title="1 of 2 branches missed.">            } else if (root != null) {</span>
+<span class="fc" id="L139">                Class&lt;?&gt; parentObjectClass = root.getClass();</span>
+<span class="fc" id="L140">                JSONReader.Context readerContext = getReaderContext();</span>
+<span class="fc" id="L141">                ObjectReader&lt;?&gt; objectReader = readerContext.getObjectReader(parentObjectClass);</span>
+<span class="pc bpc" id="L142" title="1 of 2 branches missed.">                if (first instanceof JSONPathSegmentName) {</span>
+<span class="fc" id="L143">                    FieldReader fieldReader = objectReader.getFieldReader(((JSONPathSegmentName) first).nameHashCode);</span>
+<span class="pc bpc" id="L144" title="1 of 2 branches missed.">                    if (fieldReader != null) {</span>
+<span class="fc" id="L145">                        ObjectReader fieldObjectReader = fieldReader.getObjectReader(readerContext);</span>
+<span class="fc" id="L146">                        Object fieldValue = fieldObjectReader.createInstance();</span>
+<span class="fc" id="L147">                        fieldReader.accept(root, fieldValue);</span>
+<span class="fc" id="L148">                        context0.value = fieldValue;</span>
+                    }
+                }
+            }
+        }
+
+<span class="fc" id="L154">        Context context1 = new Context(this, context0, second, null, 0);</span>
+<span class="fc" id="L155">        second.set(context1, value);</span>
+<span class="fc" id="L156">    }</span>
+
+    @Override
+    public void set(Object root, Object value, JSONReader.Feature... readerFeatures) {
+<span class="fc" id="L160">        long features = 0;</span>
+<span class="fc bfc" id="L161" title="All 2 branches covered.">        for (JSONReader.Feature feature : readerFeatures) {</span>
+<span class="fc" id="L162">            features |= feature.mask;</span>
+        }
+
+<span class="fc" id="L165">        Context context0 = new Context(this, null, first, second, features);</span>
+<span class="fc" id="L166">        context0.root = root;</span>
+<span class="fc" id="L167">        first.eval(context0);</span>
+<span class="pc bpc" id="L168" title="1 of 2 branches missed.">        if (context0.value == null) {</span>
+<span class="nc" id="L169">            return;</span>
+        }
+
+<span class="fc" id="L172">        Context context1 = new Context(this, context0, second, null, features);</span>
+<span class="fc" id="L173">        second.set(context1, value);</span>
+<span class="fc" id="L174">    }</span>
+
+    @Override
+    public void setCallback(Object root, BiFunction callback) {
+<span class="fc" id="L178">        Context context0 = new Context(this, null, first, second, 0);</span>
+<span class="fc" id="L179">        context0.root = root;</span>
+<span class="fc" id="L180">        first.eval(context0);</span>
+<span class="pc bpc" id="L181" title="1 of 2 branches missed.">        if (context0.value == null) {</span>
+<span class="nc" id="L182">            return;</span>
+        }
+
+<span class="fc" id="L185">        Context context1 = new Context(this, context0, second, null, 0);</span>
+<span class="fc" id="L186">        second.setCallback(context1, callback);</span>
+<span class="fc" id="L187">    }</span>
+
+    @Override
+    public void setInt(Object root, int value) {
+<span class="fc" id="L191">        Context context0 = new Context(this, null, first, second, 0);</span>
+<span class="fc" id="L192">        context0.root = root;</span>
+<span class="fc" id="L193">        first.eval(context0);</span>
+<span class="pc bpc" id="L194" title="1 of 2 branches missed.">        if (context0.value == null) {</span>
+<span class="nc" id="L195">            return;</span>
+        }
+
+<span class="fc" id="L198">        Context context1 = new Context(this, context0, second, null, 0);</span>
+<span class="fc" id="L199">        second.setInt(context1, value);</span>
+<span class="fc" id="L200">    }</span>
+
+    @Override
+    public void setLong(Object root, long value) {
+<span class="fc" id="L204">        Context context0 = new Context(this, null, first, second, 0);</span>
+<span class="fc" id="L205">        context0.root = root;</span>
+<span class="fc" id="L206">        first.eval(context0);</span>
+<span class="pc bpc" id="L207" title="1 of 2 branches missed.">        if (context0.value == null) {</span>
+<span class="nc" id="L208">            return;</span>
+        }
+
+<span class="fc" id="L211">        Context context1 = new Context(this, context0, second, null, 0);</span>
+<span class="fc" id="L212">        second.setLong(context1, value);</span>
+<span class="fc" id="L213">    }</span>
+
+    @Override
+    public Object extract(JSONReader jsonReader) {
+<span class="pc bpc" id="L217" title="1 of 2 branches missed.">        if (jsonReader == null) {</span>
+<span class="nc" id="L218">            return null;</span>
+        }
+
+<span class="fc bfc" id="L221" title="All 2 branches covered.">        if (!extractSupport) {</span>
+<span class="fc" id="L222">            Object root = jsonReader.readAny();</span>
+<span class="fc" id="L223">            return eval(root);</span>
+        }
+
+<span class="fc" id="L226">        Context context0 = new Context(this, null, first, second, 0);</span>
+<span class="fc" id="L227">        first.accept(jsonReader, context0);</span>
+
+<span class="fc" id="L229">        Context context1 = new Context(this, context0, second, null, 0);</span>
+
+<span class="fc bfc" id="L231" title="All 2 branches covered.">        if (context0.eval) {</span>
+<span class="fc" id="L232">            second.eval(context1);</span>
+        } else {
+<span class="fc" id="L234">            second.accept(jsonReader, context1);</span>
+        }
+
+<span class="fc" id="L237">        Object contextValue = context1.value;</span>
+
+<span class="fc bfc" id="L239" title="All 2 branches covered.">        if ((features &amp; Feature.AlwaysReturnList.mask) != 0) {</span>
+<span class="fc bfc" id="L240" title="All 2 branches covered.">            if (contextValue == null) {</span>
+<span class="fc" id="L241">                contextValue = new JSONArray();</span>
+<span class="fc bfc" id="L242" title="All 2 branches covered.">            } else if (!(contextValue instanceof List)) {</span>
+<span class="fc" id="L243">                contextValue = JSONArray.of(contextValue);</span>
+            }
+        }
+
+<span class="pc bpc" id="L247" title="1 of 2 branches missed.">        if (contextValue instanceof Sequence) {</span>
+<span class="nc" id="L248">            contextValue = ((Sequence) contextValue).values;</span>
+        }
+
+<span class="fc" id="L251">        return contextValue;</span>
+    }
+
+    @Override
+    public String extractScalar(JSONReader jsonReader) {
+<span class="fc" id="L256">        Context context0 = new Context(this, null, first, second, 0);</span>
+<span class="fc" id="L257">        first.accept(jsonReader, context0);</span>
+
+<span class="fc" id="L259">        Context context1 = new Context(this, context0, second, null, 0);</span>
+<span class="fc" id="L260">        second.accept(jsonReader, context1);</span>
+
+<span class="fc" id="L262">        return JSON.toJSONString(context1.value);</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.8.202204050719</span></div></body></html>

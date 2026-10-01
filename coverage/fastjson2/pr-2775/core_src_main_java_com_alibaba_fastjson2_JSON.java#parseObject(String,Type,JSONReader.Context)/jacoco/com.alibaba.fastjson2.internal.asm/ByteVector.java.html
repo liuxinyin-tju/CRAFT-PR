@@ -1,0 +1,314 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ByteVector.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">fastjson2</a> &gt; <a href="index.source.html" class="el_package">com.alibaba.fastjson2.internal.asm</a> &gt; <span class="el_source">ByteVector.java</span></div><h1>ByteVector.java</h1><pre class="source lang-java linenums">// ASM: a very small and fast Java bytecode manipulation framework
+// Copyright (c) 2000-2011 INRIA, France Telecom
+// All rights reserved.
+//
+// Redistribution and use in source and binary forms, with or without
+// modification, are permitted provided that the following conditions
+// are met:
+// 1. Redistributions of source code must retain the above copyright
+//    notice, this list of conditions and the following disclaimer.
+// 2. Redistributions in binary form must reproduce the above copyright
+//    notice, this list of conditions and the following disclaimer in the
+//    documentation and/or other materials provided with the distribution.
+// 3. Neither the name of the copyright holders nor the names of its
+//    contributors may be used to endorse or promote products derived from
+//    this software without specific prior written permission.
+//
+// THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS &quot;AS IS&quot;
+// AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+// IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+// ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE
+// LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+// CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+// SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+// INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+// CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+// ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF
+// THE POSSIBILITY OF SUCH DAMAGE.
+package com.alibaba.fastjson2.internal.asm;
+
+/**
+ * A dynamically extensible vector of bytes. This class is roughly equivalent to a DataOutputStream
+ * on top of a ByteArrayOutputStream, but is more efficient.
+ *
+ * @author Eric Bruneton
+ */
+public class ByteVector {
+    /**
+     * The content of this vector. Only the first {@link #length} bytes contain real data.
+     */
+    byte[] data;
+
+    /**
+     * The actual number of bytes in this vector.
+     */
+    int length;
+
+    /**
+     * Constructs a new {@link ByteVector} with the given initial capacity.
+     *
+     * @param initialCapacity the initial capacity of the byte vector to be constructed.
+     */
+<span class="fc" id="L52">    public ByteVector(final int initialCapacity) {</span>
+<span class="fc" id="L53">        data = new byte[initialCapacity];</span>
+<span class="fc" id="L54">    }</span>
+
+    /**
+     * Puts a byte into this byte vector. The byte vector is automatically enlarged if necessary.
+     *
+     * @param byteValue a byte.
+     * @return this byte vector.
+     */
+    public ByteVector putByte(final int byteValue) {
+<span class="fc" id="L63">        int currentLength = length;</span>
+<span class="fc bfc" id="L64" title="All 2 branches covered.">        if (currentLength + 1 &gt; data.length) {</span>
+<span class="fc" id="L65">            enlarge(1);</span>
+        }
+<span class="fc" id="L67">        data[currentLength++] = (byte) byteValue;</span>
+<span class="fc" id="L68">        length = currentLength;</span>
+<span class="fc" id="L69">        return this;</span>
+    }
+
+    /**
+     * Puts two bytes into this byte vector. The byte vector is automatically enlarged if necessary.
+     *
+     * @param byteValue1 a byte.
+     * @param byteValue2 another byte.
+     */
+    final void put11(final int byteValue1, final int byteValue2) {
+<span class="fc" id="L79">        int currentLength = length;</span>
+<span class="fc bfc" id="L80" title="All 2 branches covered.">        if (currentLength + 2 &gt; data.length) {</span>
+<span class="fc" id="L81">            enlarge(2);</span>
+        }
+<span class="fc" id="L83">        byte[] currentData = data;</span>
+<span class="fc" id="L84">        currentData[currentLength++] = (byte) byteValue1;</span>
+<span class="fc" id="L85">        currentData[currentLength++] = (byte) byteValue2;</span>
+<span class="fc" id="L86">        length = currentLength;</span>
+<span class="fc" id="L87">    }</span>
+
+    /**
+     * Puts a short into this byte vector. The byte vector is automatically enlarged if necessary.
+     *
+     * @param shortValue a short.
+     * @return this byte vector.
+     */
+    public ByteVector putShort(final int shortValue) {
+<span class="fc" id="L96">        int currentLength = length;</span>
+<span class="fc bfc" id="L97" title="All 2 branches covered.">        if (currentLength + 2 &gt; data.length) {</span>
+<span class="fc" id="L98">            enlarge(2);</span>
+        }
+<span class="fc" id="L100">        byte[] currentData = data;</span>
+<span class="fc" id="L101">        currentData[currentLength++] = (byte) (shortValue &gt;&gt;&gt; 8);</span>
+<span class="fc" id="L102">        currentData[currentLength++] = (byte) shortValue;</span>
+<span class="fc" id="L103">        length = currentLength;</span>
+<span class="fc" id="L104">        return this;</span>
+    }
+
+    /**
+     * Puts a byte and a short into this byte vector. The byte vector is automatically enlarged if
+     * necessary.
+     *
+     * @param byteValue  a byte.
+     * @param shortValue a short.
+     * @return this byte vector.
+     */
+    final ByteVector put12(final int byteValue, final int shortValue) {
+<span class="fc" id="L116">        int currentLength = length;</span>
+<span class="fc bfc" id="L117" title="All 2 branches covered.">        if (currentLength + 3 &gt; data.length) {</span>
+<span class="fc" id="L118">            enlarge(3);</span>
+        }
+<span class="fc" id="L120">        byte[] currentData = data;</span>
+<span class="fc" id="L121">        currentData[currentLength++] = (byte) byteValue;</span>
+<span class="fc" id="L122">        currentData[currentLength++] = (byte) (shortValue &gt;&gt;&gt; 8);</span>
+<span class="fc" id="L123">        currentData[currentLength++] = (byte) shortValue;</span>
+<span class="fc" id="L124">        length = currentLength;</span>
+<span class="fc" id="L125">        return this;</span>
+    }
+
+    /**
+     * Puts an int into this byte vector. The byte vector is automatically enlarged if necessary.
+     *
+     * @param intValue an int.
+     * @return this byte vector.
+     */
+    public ByteVector putInt(final int intValue) {
+<span class="fc" id="L135">        int currentLength = length;</span>
+<span class="fc bfc" id="L136" title="All 2 branches covered.">        if (currentLength + 4 &gt; data.length) {</span>
+<span class="fc" id="L137">            enlarge(4);</span>
+        }
+<span class="fc" id="L139">        byte[] currentData = data;</span>
+<span class="fc" id="L140">        currentData[currentLength++] = (byte) (intValue &gt;&gt;&gt; 24);</span>
+<span class="fc" id="L141">        currentData[currentLength++] = (byte) (intValue &gt;&gt;&gt; 16);</span>
+<span class="fc" id="L142">        currentData[currentLength++] = (byte) (intValue &gt;&gt;&gt; 8);</span>
+<span class="fc" id="L143">        currentData[currentLength++] = (byte) intValue;</span>
+<span class="fc" id="L144">        length = currentLength;</span>
+<span class="fc" id="L145">        return this;</span>
+    }
+
+    /**
+     * Puts one byte and two shorts into this byte vector. The byte vector is automatically enlarged
+     * if necessary.
+     *
+     * @param byteValue a byte.
+     * @param shortValue1 a short.
+     * @param shortValue2 another short.
+     */
+    final void put122(final int byteValue, final int shortValue1, final int shortValue2) {
+<span class="fc" id="L157">        int currentLength = length;</span>
+<span class="fc bfc" id="L158" title="All 2 branches covered.">        if (currentLength + 5 &gt; data.length) {</span>
+<span class="fc" id="L159">            enlarge(5);</span>
+        }
+<span class="fc" id="L161">        byte[] currentData = data;</span>
+<span class="fc" id="L162">        currentData[currentLength++] = (byte) byteValue;</span>
+<span class="fc" id="L163">        currentData[currentLength++] = (byte) (shortValue1 &gt;&gt;&gt; 8);</span>
+<span class="fc" id="L164">        currentData[currentLength++] = (byte) shortValue1;</span>
+<span class="fc" id="L165">        currentData[currentLength++] = (byte) (shortValue2 &gt;&gt;&gt; 8);</span>
+<span class="fc" id="L166">        currentData[currentLength++] = (byte) shortValue2;</span>
+<span class="fc" id="L167">        length = currentLength;</span>
+<span class="fc" id="L168">    }</span>
+
+    /**
+     * Puts a long into this byte vector. The byte vector is automatically enlarged if necessary.
+     *
+     * @param longValue a long.
+     */
+    public void putLong(final long longValue) {
+<span class="fc" id="L176">        int currentLength = length;</span>
+<span class="fc bfc" id="L177" title="All 2 branches covered.">        if (currentLength + 8 &gt; data.length) {</span>
+<span class="fc" id="L178">            enlarge(8);</span>
+        }
+<span class="fc" id="L180">        byte[] currentData = data;</span>
+<span class="fc" id="L181">        int intValue = (int) (longValue &gt;&gt;&gt; 32);</span>
+<span class="fc" id="L182">        currentData[currentLength++] = (byte) (intValue &gt;&gt;&gt; 24);</span>
+<span class="fc" id="L183">        currentData[currentLength++] = (byte) (intValue &gt;&gt;&gt; 16);</span>
+<span class="fc" id="L184">        currentData[currentLength++] = (byte) (intValue &gt;&gt;&gt; 8);</span>
+<span class="fc" id="L185">        currentData[currentLength++] = (byte) intValue;</span>
+<span class="fc" id="L186">        intValue = (int) longValue;</span>
+<span class="fc" id="L187">        currentData[currentLength++] = (byte) (intValue &gt;&gt;&gt; 24);</span>
+<span class="fc" id="L188">        currentData[currentLength++] = (byte) (intValue &gt;&gt;&gt; 16);</span>
+<span class="fc" id="L189">        currentData[currentLength++] = (byte) (intValue &gt;&gt;&gt; 8);</span>
+<span class="fc" id="L190">        currentData[currentLength++] = (byte) intValue;</span>
+<span class="fc" id="L191">        length = currentLength;</span>
+<span class="fc" id="L192">    }</span>
+
+    /**
+     * Puts an UTF8 string into this byte vector. The byte vector is automatically enlarged if
+     * necessary.
+     *
+     * @param stringValue a String whose UTF8 encoded length must be less than 65536.
+     */
+    // DontCheck(AbbreviationAsWordInName): can't be renamed (for backward binary compatibility).
+    public void putUTF8(final String stringValue) {
+<span class="fc" id="L202">        int charLength = stringValue.length();</span>
+<span class="pc bpc" id="L203" title="1 of 2 branches missed.">        if (charLength &gt; 65535) {</span>
+<span class="nc" id="L204">            throw new IllegalArgumentException(&quot;UTF8 string too large&quot;);</span>
+        }
+<span class="fc" id="L206">        int currentLength = length;</span>
+<span class="fc bfc" id="L207" title="All 2 branches covered.">        if (currentLength + 2 + charLength &gt; data.length) {</span>
+<span class="fc" id="L208">            enlarge(2 + charLength);</span>
+        }
+<span class="fc" id="L210">        byte[] currentData = data;</span>
+        // Optimistic algorithm: instead of computing the byte length and then serializing the string
+        // (which requires two loops), we assume the byte length is equal to char length (which is the
+        // most frequent case), and we start serializing the string right away. During the
+        // serialization, if we find that this assumption is wrong, we continue with the general method.
+<span class="fc" id="L215">        currentData[currentLength++] = (byte) (charLength &gt;&gt;&gt; 8);</span>
+<span class="fc" id="L216">        currentData[currentLength++] = (byte) charLength;</span>
+<span class="fc bfc" id="L217" title="All 2 branches covered.">        for (int i = 0; i &lt; charLength; ++i) {</span>
+<span class="fc" id="L218">            char charValue = stringValue.charAt(i);</span>
+<span class="pc bpc" id="L219" title="1 of 4 branches missed.">            if (charValue &gt;= '\u0001' &amp;&amp; charValue &lt;= '\u007F') {</span>
+<span class="fc" id="L220">                currentData[currentLength++] = (byte) charValue;</span>
+            } else {
+<span class="fc" id="L222">                length = currentLength;</span>
+<span class="fc" id="L223">                encodeUtf8(stringValue, i);</span>
+<span class="fc" id="L224">                return;</span>
+            }
+        }
+<span class="fc" id="L227">        length = currentLength;</span>
+<span class="fc" id="L228">    }</span>
+
+    /**
+     * Puts an UTF8 string into this byte vector. The byte vector is automatically enlarged if
+     * necessary. The string length is encoded in two bytes before the encoded characters, if there is
+     * space for that (i.e. if this.length - offset - 2 &amp;gt;= 0).
+     *
+     * @param stringValue the String to encode.
+     * @param offset the index of the first character to encode. The previous characters are supposed
+     * to have already been encoded, using only one byte per character.
+     */
+    final void encodeUtf8(final String stringValue, final int offset) {
+<span class="fc" id="L240">        int charLength = stringValue.length();</span>
+<span class="fc" id="L241">        int byteLength = offset;</span>
+<span class="fc bfc" id="L242" title="All 2 branches covered.">        for (int i = offset; i &lt; charLength; ++i) {</span>
+<span class="fc" id="L243">            char charValue = stringValue.charAt(i);</span>
+<span class="pc bpc" id="L244" title="2 of 4 branches missed.">            if (charValue &gt;= 0x0001 &amp;&amp; charValue &lt;= 0x007F) {</span>
+<span class="nc" id="L245">                byteLength++;</span>
+<span class="pc bpc" id="L246" title="1 of 2 branches missed.">            } else if (charValue &lt;= 0x07FF) {</span>
+<span class="nc" id="L247">                byteLength += 2;</span>
+            } else {
+<span class="fc" id="L249">                byteLength += 3;</span>
+            }
+        }
+<span class="pc bpc" id="L252" title="1 of 2 branches missed.">        if (byteLength &gt; 65535) {</span>
+<span class="nc" id="L253">            throw new IllegalArgumentException(&quot;UTF8 string too large&quot;);</span>
+        }
+        // Compute where 'byteLength' must be stored in 'data', and store it at this location.
+<span class="fc" id="L256">        int byteLengthOffset = length - offset - 2;</span>
+<span class="pc bpc" id="L257" title="1 of 2 branches missed.">        if (byteLengthOffset &gt;= 0) {</span>
+<span class="fc" id="L258">            data[byteLengthOffset] = (byte) (byteLength &gt;&gt;&gt; 8);</span>
+<span class="fc" id="L259">            data[byteLengthOffset + 1] = (byte) byteLength;</span>
+        }
+<span class="pc bpc" id="L261" title="1 of 2 branches missed.">        if (length + byteLength - offset &gt; data.length) {</span>
+<span class="nc" id="L262">            enlarge(byteLength - offset);</span>
+        }
+<span class="fc" id="L264">        int currentLength = length;</span>
+<span class="fc bfc" id="L265" title="All 2 branches covered.">        for (int i = offset; i &lt; charLength; ++i) {</span>
+<span class="fc" id="L266">            char charValue = stringValue.charAt(i);</span>
+<span class="pc bpc" id="L267" title="2 of 4 branches missed.">            if (charValue &gt;= 0x0001 &amp;&amp; charValue &lt;= 0x007F) {</span>
+<span class="nc" id="L268">                data[currentLength++] = (byte) charValue;</span>
+<span class="pc bpc" id="L269" title="1 of 2 branches missed.">            } else if (charValue &lt;= 0x07FF) {</span>
+<span class="nc" id="L270">                data[currentLength++] = (byte) (0xC0 | charValue &gt;&gt; 6 &amp; 0x1F);</span>
+<span class="nc" id="L271">                data[currentLength++] = (byte) (0x80 | charValue &amp; 0x3F);</span>
+            } else {
+<span class="fc" id="L273">                data[currentLength++] = (byte) (0xE0 | charValue &gt;&gt; 12 &amp; 0xF);</span>
+<span class="fc" id="L274">                data[currentLength++] = (byte) (0x80 | charValue &gt;&gt; 6 &amp; 0x3F);</span>
+<span class="fc" id="L275">                data[currentLength++] = (byte) (0x80 | charValue &amp; 0x3F);</span>
+            }
+        }
+<span class="fc" id="L278">        length = currentLength;</span>
+<span class="fc" id="L279">    }</span>
+
+    /**
+     * Puts an array of bytes into this byte vector. The byte vector is automatically enlarged if
+     * necessary.
+     *
+     * @param byteArrayValue an array of bytes. May be {@literal null} to put {@code byteLength} null
+     * bytes into this byte vector.
+     * @param byteOffset index of the first byte of byteArrayValue that must be copied.
+     * @param byteLength number of bytes of byteArrayValue that must be copied.
+     */
+    public void putByteArray(
+            final byte[] byteArrayValue, final int byteOffset, final int byteLength) {
+<span class="pc bpc" id="L292" title="1 of 2 branches missed.">        if (length + byteLength &gt; data.length) {</span>
+<span class="nc" id="L293">            enlarge(byteLength);</span>
+        }
+<span class="fc bfc" id="L295" title="All 2 branches covered.">        if (byteArrayValue != null) {</span>
+<span class="fc" id="L296">            System.arraycopy(byteArrayValue, byteOffset, data, length, byteLength);</span>
+        }
+<span class="fc" id="L298">        length += byteLength;</span>
+<span class="fc" id="L299">    }</span>
+
+    /**
+     * Enlarges this byte vector so that it can receive 'size' more bytes.
+     *
+     * @param size number of additional bytes that this byte vector should be able to receive.
+     */
+    private void enlarge(final int size) {
+<span class="fc" id="L307">        int doubleCapacity = 2 * data.length;</span>
+<span class="fc" id="L308">        int minimalCapacity = length + size;</span>
+<span class="fc" id="L309">        byte[] newData = new byte[Math.max(doubleCapacity, minimalCapacity)];</span>
+<span class="fc" id="L310">        System.arraycopy(data, 0, newData, 0, length);</span>
+<span class="fc" id="L311">        data = newData;</span>
+<span class="fc" id="L312">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.8.202204050719</span></div></body></html>

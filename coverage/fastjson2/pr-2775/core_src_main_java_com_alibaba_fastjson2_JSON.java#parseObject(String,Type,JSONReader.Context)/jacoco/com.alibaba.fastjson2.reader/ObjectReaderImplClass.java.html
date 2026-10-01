@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ObjectReaderImplClass.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">fastjson2</a> &gt; <a href="index.source.html" class="el_package">com.alibaba.fastjson2.reader</a> &gt; <span class="el_source">ObjectReaderImplClass.java</span></div><h1>ObjectReaderImplClass.java</h1><pre class="source lang-java linenums">package com.alibaba.fastjson2.reader;
+
+import com.alibaba.fastjson2.JSONB;
+import com.alibaba.fastjson2.JSONException;
+import com.alibaba.fastjson2.JSONReader;
+import com.alibaba.fastjson2.util.Fnv;
+import com.alibaba.fastjson2.util.TypeUtils;
+
+import java.lang.reflect.Type;
+
+final class ObjectReaderImplClass
+        extends ObjectReaderPrimitive {
+<span class="fc" id="L13">    static final ObjectReaderImplClass INSTANCE = new ObjectReaderImplClass();</span>
+<span class="fc" id="L14">    static final long TYPE_HASH = Fnv.hashCode64(&quot;java.lang.Class&quot;);</span>
+
+    ObjectReaderImplClass() {
+<span class="fc" id="L17">        super(Class.class);</span>
+<span class="fc" id="L18">    }</span>
+
+    @Override
+    public Object readJSONBObject(JSONReader jsonReader, Type fieldType, Object fieldName, long features) {
+<span class="pc bpc" id="L22" title="1 of 2 branches missed.">        if (jsonReader.nextIfMatch(JSONB.Constants.BC_TYPED_ANY)) {</span>
+<span class="nc" id="L23">            long valueHashCode = jsonReader.readTypeHashCode();</span>
+<span class="nc bnc" id="L24" title="All 2 branches missed.">            if (valueHashCode != TYPE_HASH) {</span>
+<span class="nc" id="L25">                throw new JSONException(jsonReader.info(&quot;not support autoType : &quot; + jsonReader.getString()));</span>
+            }
+        }
+<span class="fc" id="L28">        return readObject(jsonReader, fieldType, fieldName, features);</span>
+    }
+
+    @Override
+    public Object readObject(JSONReader jsonReader, Type fieldType, Object fieldName, long features) {
+<span class="fc" id="L33">        long classNameHash = jsonReader.readValueHashCode();</span>
+
+<span class="fc" id="L35">        JSONReader.Context context = jsonReader.getContext();</span>
+<span class="fc" id="L36">        JSONReader.AutoTypeBeforeHandler typeFilter = context.getContextAutoTypeBeforeHandler();</span>
+<span class="fc bfc" id="L37" title="All 2 branches covered.">        if (typeFilter != null) {</span>
+<span class="fc" id="L38">            Class&lt;?&gt; filterClass = typeFilter.apply(classNameHash, Class.class, features);</span>
+<span class="fc bfc" id="L39" title="All 2 branches covered.">            if (filterClass == null) {</span>
+<span class="fc" id="L40">                String className = jsonReader.getString();</span>
+<span class="fc" id="L41">                filterClass = typeFilter.apply(className, Class.class, features);</span>
+            }
+
+<span class="pc bpc" id="L44" title="1 of 2 branches missed.">            if (filterClass != null) {</span>
+<span class="fc" id="L45">                return filterClass;</span>
+            }
+        }
+
+<span class="fc" id="L49">        String className = jsonReader.getString();</span>
+<span class="fc bfc" id="L50" title="All 2 branches covered.">        boolean classForName = ((context.getFeatures() | features) &amp; JSONReader.Feature.SupportClassForName.mask) != 0;</span>
+<span class="fc bfc" id="L51" title="All 2 branches covered.">        if (!classForName) {</span>
+<span class="fc" id="L52">            String msg = jsonReader.info(&quot;not support ClassForName : &quot; + className + &quot;, you can config 'JSONReader.Feature.SupportClassForName'&quot;);</span>
+<span class="fc" id="L53">            throw new JSONException(msg);</span>
+        }
+
+<span class="fc" id="L56">        Class mappingClass = TypeUtils.getMapping(className);</span>
+<span class="fc bfc" id="L57" title="All 2 branches covered.">        if (mappingClass != null) {</span>
+<span class="fc" id="L58">            return mappingClass;</span>
+        }
+
+<span class="fc" id="L61">        ObjectReaderProvider provider = context.getProvider();</span>
+<span class="fc" id="L62">        Class&lt;?&gt; resolvedClass = provider.checkAutoType(className, null, JSONReader.Feature.SupportAutoType.mask);</span>
+<span class="pc bpc" id="L63" title="1 of 2 branches missed.">        if (resolvedClass == null) {</span>
+<span class="nc" id="L64">            throw new JSONException(jsonReader.info(&quot;class not found &quot; + className));</span>
+        }
+<span class="fc" id="L66">        return resolvedClass;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.8.202204050719</span></div></body></html>

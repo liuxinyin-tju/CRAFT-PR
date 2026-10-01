@@ -1,0 +1,110 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ObjectArrayReaderMultiType.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">fastjson2</a> &gt; <a href="index.source.html" class="el_package">com.alibaba.fastjson2.reader</a> &gt; <span class="el_source">ObjectArrayReaderMultiType.java</span></div><h1>ObjectArrayReaderMultiType.java</h1><pre class="source lang-java linenums">package com.alibaba.fastjson2.reader;
+
+import com.alibaba.fastjson2.*;
+import com.alibaba.fastjson2.util.MultiType;
+
+import java.lang.reflect.Type;
+import java.util.Collection;
+
+final class ObjectArrayReaderMultiType
+        implements ObjectReader {
+    final Type[] types;
+    final ObjectReader[] readers;
+
+<span class="fc" id="L14">    ObjectArrayReaderMultiType(MultiType multiType) {</span>
+<span class="fc" id="L15">        Type[] types = new Type[multiType.size()];</span>
+<span class="fc bfc" id="L16" title="All 2 branches covered.">        for (int i = 0; i &lt; multiType.size(); i++) {</span>
+<span class="fc" id="L17">            types[i] = multiType.getType(i);</span>
+        }
+<span class="fc" id="L19">        this.types = types;</span>
+<span class="fc" id="L20">        this.readers = new ObjectReader[types.length];</span>
+<span class="fc" id="L21">    }</span>
+
+    ObjectReader getObjectReader(JSONReader jsonReader, int index) {
+<span class="fc" id="L24">        ObjectReader objectReader = readers[index];</span>
+<span class="pc bpc" id="L25" title="1 of 2 branches missed.">        if (objectReader == null) {</span>
+<span class="fc" id="L26">            Type type = types[index];</span>
+<span class="fc" id="L27">            objectReader = jsonReader.getObjectReader(type);</span>
+<span class="fc" id="L28">            readers[index] = objectReader;</span>
+        }
+<span class="fc" id="L30">        return objectReader;</span>
+    }
+
+    @Override
+    public Object readObject(JSONReader jsonReader, Type fieldType, Object fieldName, long features) {
+<span class="pc bpc" id="L35" title="1 of 2 branches missed.">        if (jsonReader.jsonb) {</span>
+<span class="nc" id="L36">            return readJSONBObject(jsonReader, fieldType, fieldName, 0);</span>
+        }
+
+<span class="pc bpc" id="L39" title="1 of 2 branches missed.">        if (jsonReader.nextIfNullOrEmptyString()) {</span>
+<span class="nc" id="L40">            return null;</span>
+        }
+
+<span class="fc" id="L43">        Object[] values = new Object[types.length];</span>
+<span class="pc bpc" id="L44" title="1 of 2 branches missed.">        if (jsonReader.nextIfArrayStart()) {</span>
+<span class="fc" id="L45">            for (int i = 0; ; ++i) {</span>
+<span class="fc bfc" id="L46" title="All 2 branches covered.">                if (jsonReader.nextIfArrayEnd()) {</span>
+<span class="fc" id="L47">                    break;</span>
+                }
+
+                Object value;
+
+<span class="pc bpc" id="L52" title="1 of 2 branches missed.">                if (jsonReader.isReference()) {</span>
+<span class="nc" id="L53">                    String reference = jsonReader.readReference();</span>
+<span class="nc bnc" id="L54" title="All 2 branches missed.">                    if (&quot;..&quot;.equals(reference)) {</span>
+<span class="nc" id="L55">                        value = values;</span>
+                    } else {
+<span class="nc" id="L57">                        value = null;</span>
+<span class="nc" id="L58">                        jsonReader.addResolveTask(values, i, JSONPath.of(reference));</span>
+                    }
+<span class="nc" id="L60">                } else {</span>
+<span class="fc" id="L61">                    ObjectReader objectReader = getObjectReader(jsonReader, i);</span>
+<span class="fc" id="L62">                    value = objectReader.readObject(jsonReader, types[i], i, features);</span>
+                }
+<span class="fc" id="L64">                values[i] = value;</span>
+
+<span class="fc" id="L66">                jsonReader.nextIfComma();</span>
+            }
+<span class="fc" id="L68">            jsonReader.nextIfComma();</span>
+
+<span class="fc" id="L70">            return values;</span>
+        }
+
+<span class="nc" id="L73">        throw new JSONException(jsonReader.info(&quot;TODO&quot;));</span>
+    }
+
+    @Override
+    public Object readJSONBObject(JSONReader jsonReader, Type fieldType, Object fieldName, long features) {
+<span class="fc" id="L78">        int entryCnt = jsonReader.startArray();</span>
+<span class="pc bpc" id="L79" title="1 of 2 branches missed.">        if (entryCnt == -1) {</span>
+<span class="nc" id="L80">            return null;</span>
+        }
+
+<span class="fc" id="L83">        Object[] values = new Object[types.length];</span>
+<span class="fc bfc" id="L84" title="All 2 branches covered.">        for (int i = 0; i &lt; entryCnt; ++i) {</span>
+            Object value;
+
+<span class="pc bpc" id="L87" title="1 of 2 branches missed.">            if (jsonReader.isReference()) {</span>
+<span class="nc" id="L88">                String reference = jsonReader.readReference();</span>
+<span class="nc bnc" id="L89" title="All 2 branches missed.">                if (&quot;..&quot;.equals(reference)) {</span>
+<span class="nc" id="L90">                    value = values;</span>
+                } else {
+<span class="nc" id="L92">                    value = null;</span>
+<span class="nc" id="L93">                    jsonReader.addResolveTask(values, i, JSONPath.of(reference));</span>
+                }
+<span class="nc" id="L95">            } else {</span>
+<span class="fc" id="L96">                ObjectReader objectReader = getObjectReader(jsonReader, i);</span>
+<span class="fc" id="L97">                value = objectReader.readObject(jsonReader, types[i], i, features);</span>
+            }
+
+<span class="fc" id="L100">            values[i] = value;</span>
+        }
+<span class="fc" id="L102">        return values;</span>
+    }
+
+    @Override
+    public Object createInstance(Collection collection, long features) {
+<span class="nc" id="L107">        return new Object[types.length];</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.8.202204050719</span></div></body></html>

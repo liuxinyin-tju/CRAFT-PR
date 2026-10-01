@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ObjectWriter1.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">fastjson2</a> &gt; <a href="index.source.html" class="el_package">com.alibaba.fastjson2.writer</a> &gt; <span class="el_source">ObjectWriter1.java</span></div><h1>ObjectWriter1.java</h1><pre class="source lang-java linenums">package com.alibaba.fastjson2.writer;
+
+import com.alibaba.fastjson2.JSONWriter;
+
+import java.lang.reflect.Type;
+import java.util.List;
+
+import static com.alibaba.fastjson2.JSONWriter.Feature.BeanToArray;
+import static com.alibaba.fastjson2.JSONWriter.Feature.WriteClassName;
+
+public class ObjectWriter1&lt;T&gt;
+        extends ObjectWriterAdapter&lt;T&gt; {
+    public final FieldWriter fieldWriter0;
+
+    public ObjectWriter1(
+            Class&lt;T&gt; objectClass,
+            String typeKey,
+            String typeName,
+            long features,
+            List&lt;FieldWriter&gt; fieldWriters
+    ) {
+<span class="fc" id="L22">        super(objectClass, typeKey, typeName, features, fieldWriters);</span>
+<span class="fc" id="L23">        this.fieldWriter0 = fieldWriters.get(0);</span>
+<span class="fc" id="L24">    }</span>
+
+    @Override
+    public void write(JSONWriter jsonWriter, Object object, Object fieldName, Type fieldType, long features) {
+<span class="fc" id="L28">        long featuresAll = features | this.features | jsonWriter.getFeatures();</span>
+
+<span class="fc bfc" id="L30" title="All 2 branches covered.">        if (jsonWriter.jsonb) {</span>
+<span class="fc bfc" id="L31" title="All 2 branches covered.">            if ((featuresAll &amp; BeanToArray.mask) != 0) {</span>
+<span class="fc" id="L32">                writeArrayMappingJSONB(jsonWriter, object, fieldName, fieldType, features);</span>
+<span class="fc" id="L33">                return;</span>
+            }
+
+<span class="fc" id="L36">            writeJSONB(jsonWriter, object, fieldName, fieldType, features);</span>
+<span class="fc" id="L37">            return;</span>
+        }
+
+<span class="fc bfc" id="L40" title="All 2 branches covered.">        if ((featuresAll &amp; BeanToArray.mask) != 0) {</span>
+<span class="fc" id="L41">            writeArrayMapping(jsonWriter, object, fieldName, fieldType, features);</span>
+<span class="fc" id="L42">            return;</span>
+        }
+
+<span class="fc bfc" id="L45" title="All 2 branches covered.">        if (!serializable) {</span>
+<span class="fc bfc" id="L46" title="All 2 branches covered.">            if ((featuresAll &amp; JSONWriter.Feature.ErrorOnNoneSerializable.mask) != 0) {</span>
+<span class="nc" id="L47">                errorOnNoneSerializable();</span>
+<span class="nc" id="L48">                return;</span>
+            }
+
+<span class="pc bpc" id="L51" title="1 of 2 branches missed.">            if ((featuresAll &amp; JSONWriter.Feature.IgnoreNoneSerializable.mask) != 0) {</span>
+<span class="nc" id="L52">                jsonWriter.writeNull();</span>
+<span class="nc" id="L53">                return;</span>
+            }
+        }
+
+<span class="fc bfc" id="L57" title="All 2 branches covered.">        if (hasFilter(jsonWriter)) {</span>
+<span class="fc" id="L58">            writeWithFilter(jsonWriter, object, fieldName, fieldType, 0);</span>
+<span class="fc" id="L59">            return;</span>
+        }
+
+<span class="fc" id="L62">        jsonWriter.startObject();</span>
+
+<span class="fc bfc" id="L64" title="All 4 branches covered.">        if (((features | this.features) &amp; WriteClassName.mask) != 0 || jsonWriter.isWriteTypeInfo(object, features)) {</span>
+<span class="fc" id="L65">            writeTypeInfo(jsonWriter);</span>
+        }
+
+<span class="fc" id="L68">        fieldWriter0.write(jsonWriter, object);</span>
+
+<span class="fc" id="L70">        jsonWriter.endObject();</span>
+<span class="fc" id="L71">    }</span>
+
+    @Override
+    public final FieldWriter getFieldWriter(long hashCode) {
+<span class="fc bfc" id="L75" title="All 2 branches covered.">        if (hashCode == fieldWriter0.hashCode) {</span>
+<span class="fc" id="L76">            return fieldWriter0;</span>
+        }
+
+<span class="fc" id="L79">        return null;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.8.202204050719</span></div></body></html>

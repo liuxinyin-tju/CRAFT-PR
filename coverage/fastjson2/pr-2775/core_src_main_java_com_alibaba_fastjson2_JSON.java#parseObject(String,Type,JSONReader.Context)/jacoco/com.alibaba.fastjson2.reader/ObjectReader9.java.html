@@ -1,0 +1,187 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ObjectReader9.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">fastjson2</a> &gt; <a href="index.source.html" class="el_package">com.alibaba.fastjson2.reader</a> &gt; <span class="el_source">ObjectReader9.java</span></div><h1>ObjectReader9.java</h1><pre class="source lang-java linenums">package com.alibaba.fastjson2.reader;
+
+import com.alibaba.fastjson2.schema.JSONSchema;
+
+import java.util.function.Function;
+import java.util.function.Supplier;
+
+public class ObjectReader9&lt;T&gt;
+        extends ObjectReaderAdapter&lt;T&gt; {
+    protected final FieldReader fieldReader0;
+    protected final FieldReader fieldReader1;
+    protected final FieldReader fieldReader2;
+    protected final FieldReader fieldReader3;
+    protected final FieldReader fieldReader4;
+    protected final FieldReader fieldReader5;
+    protected final FieldReader fieldReader6;
+    protected final FieldReader fieldReader7;
+    protected final FieldReader fieldReader8;
+
+    final long hashCode0;
+    final long hashCode1;
+    final long hashCode2;
+    final long hashCode3;
+    final long hashCode4;
+    final long hashCode5;
+    final long hashCode6;
+    final long hashCode7;
+    final long hashCode8;
+
+    final long hashCode0LCase;
+    final long hashCode1LCase;
+    final long hashCode2LCase;
+    final long hashCode3LCase;
+    final long hashCode4LCase;
+    final long hashCode5LCase;
+    final long hashCode6LCase;
+    final long hashCode7LCase;
+    final long hashCode8LCase;
+
+    protected ObjectReader objectReader0;
+    protected ObjectReader objectReader1;
+    protected ObjectReader objectReader2;
+    protected ObjectReader objectReader3;
+    protected ObjectReader objectReader4;
+    protected ObjectReader objectReader5;
+    protected ObjectReader objectReader6;
+    protected ObjectReader objectReader7;
+    protected ObjectReader objectReader8;
+
+    public ObjectReader9(
+            Class objectClass,
+            String typeKey,
+            String typeName,
+            long features,
+            Supplier&lt;T&gt; creator,
+            Function buildFunction,
+            FieldReader... fieldReaders
+    ) {
+<span class="nc" id="L59">        this(objectClass, typeKey, typeName, features, null, creator, buildFunction, fieldReaders);</span>
+<span class="nc" id="L60">    }</span>
+
+    public ObjectReader9(
+            Class objectClass,
+            String typeKey,
+            String typeName,
+            long features,
+            JSONSchema schema,
+            Supplier&lt;T&gt; creator,
+            Function buildFunction,
+            FieldReader... fieldReaders
+    ) {
+<span class="fc" id="L72">        super(objectClass, typeKey, typeName, features, schema, creator, buildFunction, fieldReaders);</span>
+
+<span class="fc" id="L74">        this.fieldReader0 = fieldReaders[0];</span>
+<span class="fc" id="L75">        this.fieldReader1 = fieldReaders[1];</span>
+<span class="fc" id="L76">        this.fieldReader2 = fieldReaders[2];</span>
+<span class="fc" id="L77">        this.fieldReader3 = fieldReaders[3];</span>
+<span class="fc" id="L78">        this.fieldReader4 = fieldReaders[4];</span>
+<span class="fc" id="L79">        this.fieldReader5 = fieldReaders[5];</span>
+<span class="fc" id="L80">        this.fieldReader6 = fieldReaders[6];</span>
+<span class="fc" id="L81">        this.fieldReader7 = fieldReaders[7];</span>
+<span class="fc" id="L82">        this.fieldReader8 = fieldReaders[8];</span>
+
+<span class="fc" id="L84">        this.hashCode0 = fieldReader0.fieldNameHash;</span>
+<span class="fc" id="L85">        this.hashCode1 = fieldReader1.fieldNameHash;</span>
+<span class="fc" id="L86">        this.hashCode2 = fieldReader2.fieldNameHash;</span>
+<span class="fc" id="L87">        this.hashCode3 = fieldReader3.fieldNameHash;</span>
+<span class="fc" id="L88">        this.hashCode4 = fieldReader4.fieldNameHash;</span>
+<span class="fc" id="L89">        this.hashCode5 = fieldReader5.fieldNameHash;</span>
+<span class="fc" id="L90">        this.hashCode6 = fieldReader6.fieldNameHash;</span>
+<span class="fc" id="L91">        this.hashCode7 = fieldReader7.fieldNameHash;</span>
+<span class="fc" id="L92">        this.hashCode8 = fieldReader8.fieldNameHash;</span>
+
+<span class="fc" id="L94">        this.hashCode0LCase = fieldReader0.fieldNameHashLCase;</span>
+<span class="fc" id="L95">        this.hashCode1LCase = fieldReader1.fieldNameHashLCase;</span>
+<span class="fc" id="L96">        this.hashCode2LCase = fieldReader2.fieldNameHashLCase;</span>
+<span class="fc" id="L97">        this.hashCode3LCase = fieldReader3.fieldNameHashLCase;</span>
+<span class="fc" id="L98">        this.hashCode4LCase = fieldReader4.fieldNameHashLCase;</span>
+<span class="fc" id="L99">        this.hashCode5LCase = fieldReader5.fieldNameHashLCase;</span>
+<span class="fc" id="L100">        this.hashCode6LCase = fieldReader6.fieldNameHashLCase;</span>
+<span class="fc" id="L101">        this.hashCode7LCase = fieldReader7.fieldNameHashLCase;</span>
+<span class="fc" id="L102">        this.hashCode8LCase = fieldReader8.fieldNameHashLCase;</span>
+<span class="fc" id="L103">    }</span>
+
+    @Override
+    public FieldReader getFieldReader(long hashCode) {
+<span class="fc bfc" id="L107" title="All 2 branches covered.">        if (hashCode == hashCode0) {</span>
+<span class="fc" id="L108">            return fieldReader0;</span>
+        }
+
+<span class="fc bfc" id="L111" title="All 2 branches covered.">        if (hashCode == hashCode1) {</span>
+<span class="fc" id="L112">            return fieldReader1;</span>
+        }
+
+<span class="fc bfc" id="L115" title="All 2 branches covered.">        if (hashCode == hashCode2) {</span>
+<span class="fc" id="L116">            return fieldReader2;</span>
+        }
+
+<span class="fc bfc" id="L119" title="All 2 branches covered.">        if (hashCode == hashCode3) {</span>
+<span class="fc" id="L120">            return fieldReader3;</span>
+        }
+
+<span class="fc bfc" id="L123" title="All 2 branches covered.">        if (hashCode == hashCode4) {</span>
+<span class="fc" id="L124">            return fieldReader4;</span>
+        }
+
+<span class="fc bfc" id="L127" title="All 2 branches covered.">        if (hashCode == hashCode5) {</span>
+<span class="fc" id="L128">            return fieldReader5;</span>
+        }
+
+<span class="fc bfc" id="L131" title="All 2 branches covered.">        if (hashCode == hashCode6) {</span>
+<span class="fc" id="L132">            return fieldReader6;</span>
+        }
+
+<span class="fc bfc" id="L135" title="All 2 branches covered.">        if (hashCode == hashCode7) {</span>
+<span class="fc" id="L136">            return fieldReader7;</span>
+        }
+
+<span class="fc bfc" id="L139" title="All 2 branches covered.">        if (hashCode == hashCode8) {</span>
+<span class="fc" id="L140">            return fieldReader8;</span>
+        }
+
+<span class="fc" id="L143">        return null;</span>
+    }
+
+    @Override
+    public FieldReader getFieldReaderLCase(long hashCode) {
+<span class="fc bfc" id="L148" title="All 2 branches covered.">        if (hashCode == hashCode0LCase) {</span>
+<span class="fc" id="L149">            return fieldReader0;</span>
+        }
+
+<span class="fc bfc" id="L152" title="All 2 branches covered.">        if (hashCode == hashCode1LCase) {</span>
+<span class="fc" id="L153">            return fieldReader1;</span>
+        }
+
+<span class="fc bfc" id="L156" title="All 2 branches covered.">        if (hashCode == hashCode2LCase) {</span>
+<span class="fc" id="L157">            return fieldReader2;</span>
+        }
+
+<span class="fc bfc" id="L160" title="All 2 branches covered.">        if (hashCode == hashCode3LCase) {</span>
+<span class="fc" id="L161">            return fieldReader3;</span>
+        }
+
+<span class="fc bfc" id="L164" title="All 2 branches covered.">        if (hashCode == hashCode4LCase) {</span>
+<span class="fc" id="L165">            return fieldReader4;</span>
+        }
+
+<span class="fc bfc" id="L168" title="All 2 branches covered.">        if (hashCode == hashCode5LCase) {</span>
+<span class="fc" id="L169">            return fieldReader5;</span>
+        }
+
+<span class="fc bfc" id="L172" title="All 2 branches covered.">        if (hashCode == hashCode6LCase) {</span>
+<span class="fc" id="L173">            return fieldReader6;</span>
+        }
+
+<span class="fc bfc" id="L176" title="All 2 branches covered.">        if (hashCode == hashCode7LCase) {</span>
+<span class="fc" id="L177">            return fieldReader7;</span>
+        }
+
+<span class="fc bfc" id="L180" title="All 2 branches covered.">        if (hashCode == hashCode8LCase) {</span>
+<span class="fc" id="L181">            return fieldReader8;</span>
+        }
+
+<span class="fc" id="L184">        return null;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.8.202204050719</span></div></body></html>

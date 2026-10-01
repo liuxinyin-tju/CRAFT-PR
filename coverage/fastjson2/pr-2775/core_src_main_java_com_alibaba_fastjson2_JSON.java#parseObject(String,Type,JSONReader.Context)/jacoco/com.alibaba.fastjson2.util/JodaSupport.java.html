@@ -1,0 +1,930 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>JodaSupport.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">fastjson2</a> &gt; <a href="index.source.html" class="el_package">com.alibaba.fastjson2.util</a> &gt; <span class="el_source">JodaSupport.java</span></div><h1>JodaSupport.java</h1><pre class="source lang-java linenums">package com.alibaba.fastjson2.util;
+
+import com.alibaba.fastjson2.JSONB;
+import com.alibaba.fastjson2.JSONException;
+import com.alibaba.fastjson2.JSONReader;
+import com.alibaba.fastjson2.JSONWriter;
+import com.alibaba.fastjson2.codec.DateTimeCodec;
+import com.alibaba.fastjson2.reader.ObjectReader;
+import com.alibaba.fastjson2.support.LambdaMiscCodec;
+import com.alibaba.fastjson2.writer.ObjectWriter;
+
+import java.lang.reflect.Constructor;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
+import java.lang.reflect.Type;
+import java.time.*;
+import java.time.format.DateTimeFormatter;
+import java.util.Map;
+import java.util.function.*;
+
+import static com.alibaba.fastjson2.JSONB.Constants.BC_LOCAL_DATE;
+import static com.alibaba.fastjson2.JSONB.Constants.BC_LOCAL_DATETIME;
+
+<span class="nc" id="L24">public class JodaSupport {</span>
+<span class="fc" id="L25">    static final long HASH_YEAR = Fnv.hashCode64(&quot;year&quot;);</span>
+<span class="fc" id="L26">    static final long HASH_MONTH = Fnv.hashCode64(&quot;month&quot;);</span>
+<span class="fc" id="L27">    static final long HASH_DAY = Fnv.hashCode64(&quot;day&quot;);</span>
+<span class="fc" id="L28">    static final long HASH_HOUR = Fnv.hashCode64(&quot;hour&quot;);</span>
+<span class="fc" id="L29">    static final long HASH_MINUTE = Fnv.hashCode64(&quot;minute&quot;);</span>
+<span class="fc" id="L30">    static final long HASH_SECOND = Fnv.hashCode64(&quot;second&quot;);</span>
+<span class="fc" id="L31">    static final long HASH_MILLIS = Fnv.hashCode64(&quot;millis&quot;);</span>
+<span class="fc" id="L32">    static final long HASH_CHRONOLOGY = Fnv.hashCode64(&quot;chronology&quot;);</span>
+
+    public static ObjectWriter createLocalDateTimeWriter(Class objectClass, String format) {
+<span class="fc" id="L35">        return new LocalDateTimeWriter(objectClass, format);</span>
+    }
+
+    public static ObjectWriter createLocalDateWriter(Class objectClass, String format) {
+<span class="fc" id="L39">        return new LocalDateWriter(objectClass, format);</span>
+    }
+
+    public static ObjectReader createChronologyReader(Class objectClass) {
+<span class="fc" id="L43">        return new ChronologyReader(objectClass);</span>
+    }
+
+    public static ObjectReader createLocalDateReader(Class objectClass) {
+<span class="fc" id="L47">        return new LocalDateReader(objectClass);</span>
+    }
+
+    public static ObjectReader createLocalDateTimeReader(Class objectClass) {
+<span class="fc" id="L51">        return new LocalDateTimeReader(objectClass);</span>
+    }
+
+    public static ObjectReader createInstantReader(Class objectClass) {
+<span class="fc" id="L55">        return new InstantReader(objectClass);</span>
+    }
+
+    public static ObjectWriter createGregorianChronologyWriter(Class objectClass) {
+<span class="fc" id="L59">        return new GregorianChronologyWriter(objectClass);</span>
+    }
+
+    public static ObjectWriter createISOChronologyWriter(Class objectClass) {
+<span class="fc" id="L63">        return new ISOChronologyWriter(objectClass);</span>
+    }
+
+    static class InstantReader
+            implements ObjectReader {
+        final Class objectClass;
+        final LongFunction constructor;
+
+<span class="fc" id="L71">        InstantReader(Class objectClass) {</span>
+<span class="fc" id="L72">            this.objectClass = objectClass;</span>
+            try {
+<span class="fc" id="L74">                this.constructor = LambdaMiscCodec.createLongFunction(</span>
+<span class="fc" id="L75">                        objectClass.getConstructor(long.class)</span>
+                );
+<span class="nc" id="L77">            } catch (NoSuchMethodException e) {</span>
+<span class="nc" id="L78">                throw new JSONException(&quot;create joda instant reader error&quot;, e);</span>
+<span class="fc" id="L79">            }</span>
+<span class="fc" id="L80">        }</span>
+
+        @Override
+        public Class getObjectClass() {
+<span class="nc" id="L84">            return objectClass;</span>
+        }
+
+        @Override
+        public Object createInstance(Map map, long features) {
+<span class="fc" id="L89">            Number millis = (Long) map.get(&quot;millis&quot;);</span>
+<span class="fc bfc" id="L90" title="All 2 branches covered.">            if (millis != null) {</span>
+<span class="fc" id="L91">                return createInstanceFromMillis(millis.longValue());</span>
+            }
+
+<span class="fc" id="L94">            Number epochSecond = (Number) map.get(&quot;epochSecond&quot;);</span>
+<span class="pc bpc" id="L95" title="1 of 2 branches missed.">            if (epochSecond != null) {</span>
+<span class="fc" id="L96">                long epochMillis = epochSecond.longValue() * 1000L;</span>
+<span class="fc" id="L97">                return createInstanceFromMillis(epochMillis);</span>
+            }
+
+<span class="nc" id="L100">            throw new JSONException(&quot;create joda instant error&quot;);</span>
+        }
+
+        public Object createInstanceFromMillis(long millis) {
+<span class="fc" id="L104">            return constructor.apply(millis);</span>
+        }
+
+        @Override
+        public Object readObject(JSONReader jsonReader, Type fieldType, Object fieldName, long features) {
+<span class="pc bpc" id="L109" title="1 of 2 branches missed.">            if (jsonReader.nextIfNull()) {</span>
+<span class="nc" id="L110">                return null;</span>
+            }
+
+<span class="fc bfc" id="L113" title="All 2 branches covered.">            if (jsonReader.isInt()) {</span>
+<span class="fc" id="L114">                long millis = jsonReader.readInt64Value();</span>
+<span class="fc" id="L115">                return createInstanceFromMillis(millis);</span>
+            }
+
+<span class="fc bfc" id="L118" title="All 2 branches covered.">            if (jsonReader.isString()) {</span>
+<span class="fc" id="L119">                Instant jdkInstant = jsonReader.readInstant();</span>
+<span class="fc bfc" id="L120" title="All 2 branches covered.">                if (jdkInstant == null) {</span>
+<span class="fc" id="L121">                    return null;</span>
+                }
+
+<span class="fc" id="L124">                long millis = jdkInstant.toEpochMilli();</span>
+<span class="fc" id="L125">                return createInstanceFromMillis(millis);</span>
+            }
+
+<span class="pc bpc" id="L128" title="1 of 2 branches missed.">            if (jsonReader.isObject()) {</span>
+<span class="fc" id="L129">                Map object = jsonReader.readObject();</span>
+<span class="fc" id="L130">                return createInstance(object, features);</span>
+            }
+
+<span class="nc" id="L133">            throw new JSONException(jsonReader.info(&quot;not support&quot;));</span>
+        }
+
+        @Override
+        public Object readJSONBObject(JSONReader jsonReader, Type fieldType, Object fieldName, long features) {
+<span class="nc" id="L138">            return readObject(jsonReader, fieldType, fieldName, features);</span>
+        }
+    }
+
+    static class ChronologyReader
+            implements ObjectReader {
+<span class="fc" id="L144">        static final long HASH_ZONE_ID = Fnv.hashCode64(&quot;zoneId&quot;);</span>
+
+        final Class objectClass;
+        final Class gregorianChronology;
+        final Class dateTimeZone;
+        final Function forID;
+        final Function getInstance;
+        final Object utc;
+
+<span class="fc" id="L153">        ChronologyReader(Class objectClass) {</span>
+<span class="fc" id="L154">            this.objectClass = objectClass;</span>
+<span class="fc" id="L155">            ClassLoader classLoader = objectClass.getClassLoader();</span>
+            try {
+<span class="fc" id="L157">                gregorianChronology = classLoader.loadClass(&quot;org.joda.time.chrono.GregorianChronology&quot;);</span>
+<span class="fc" id="L158">                dateTimeZone = classLoader.loadClass(&quot;org.joda.time.DateTimeZone&quot;);</span>
+
+<span class="fc" id="L160">                utc = gregorianChronology.getMethod(&quot;getInstanceUTC&quot;).invoke(null);</span>
+<span class="fc" id="L161">                forID = LambdaMiscCodec.createFunction(</span>
+<span class="fc" id="L162">                        dateTimeZone.getMethod(&quot;forID&quot;, String.class)</span>
+                );
+<span class="fc" id="L164">                getInstance = LambdaMiscCodec.createFunction(</span>
+<span class="fc" id="L165">                        gregorianChronology.getMethod(&quot;getInstance&quot;, dateTimeZone)</span>
+                );
+<span class="nc" id="L167">            } catch (ClassNotFoundException | IllegalAccessException | InvocationTargetException | NoSuchMethodException e) {</span>
+<span class="nc" id="L168">                throw new JSONException(&quot;create ChronologyReader error&quot;, e);</span>
+<span class="fc" id="L169">            }</span>
+<span class="fc" id="L170">        }</span>
+
+        @Override
+        public Class getObjectClass() {
+<span class="nc" id="L174">            return objectClass;</span>
+        }
+
+        @Override
+        public Object readObject(JSONReader jsonReader, Type fieldType, Object fieldName, long features) {
+<span class="nc" id="L179">            throw new JSONException(jsonReader.info(&quot;not support&quot;));</span>
+        }
+
+        @Override
+        public Object readJSONBObject(JSONReader jsonReader, Type fieldType, Object fieldName, long features) {
+<span class="fc" id="L184">            Integer minimumDaysInFirstWeek = null;</span>
+<span class="fc" id="L185">            String zoneId = null;</span>
+<span class="fc" id="L186">            jsonReader.nextIfObjectStart();</span>
+<span class="fc bfc" id="L187" title="All 2 branches covered.">            while (!jsonReader.nextIfObjectEnd()) {</span>
+<span class="fc" id="L188">                final long HASH_MINIMUM_DAYS_IN_FIRST_WEEK = 8244232525129275563L; // Fnv.hashCode64(&quot;minimumDaysInFirstWeek&quot;);</span>
+<span class="fc" id="L189">                long fieldNameHashCode = jsonReader.readFieldNameHashCode();</span>
+<span class="pc bpc" id="L190" title="1 of 2 branches missed.">                if (fieldNameHashCode == HASH_MINIMUM_DAYS_IN_FIRST_WEEK) {</span>
+<span class="nc" id="L191">                    minimumDaysInFirstWeek = jsonReader.readInt32Value();</span>
+<span class="pc bpc" id="L192" title="1 of 2 branches missed.">                } else if (fieldNameHashCode == HASH_ZONE_ID) {</span>
+<span class="fc" id="L193">                    zoneId = jsonReader.readString();</span>
+                } else {
+<span class="nc" id="L195">                    throw new JSONException(jsonReader.info(&quot;not support fieldName &quot; + jsonReader.getFieldName()));</span>
+                }
+<span class="fc" id="L197">            }</span>
+
+<span class="pc bpc" id="L199" title="1 of 2 branches missed.">            if (minimumDaysInFirstWeek == null) {</span>
+<span class="pc bpc" id="L200" title="1 of 2 branches missed.">                if (&quot;UTC&quot;.equals(zoneId)) {</span>
+<span class="fc" id="L201">                    return utc;</span>
+                }
+
+<span class="nc" id="L204">                Object datetimeZone = forID.apply(zoneId);</span>
+<span class="nc" id="L205">                return getInstance.apply(datetimeZone);</span>
+            }
+
+<span class="nc" id="L208">            throw new JSONException(jsonReader.info(&quot;not support&quot;));</span>
+        }
+    }
+
+    static class GregorianChronologyWriter
+            implements ObjectWriter {
+        final Class objectClass;
+        final ToIntFunction getMinimumDaysInFirstWeek;
+        final Function getZone;
+        final Function getID;
+
+<span class="fc" id="L219">        GregorianChronologyWriter(Class objectClass) {</span>
+<span class="fc" id="L220">            this.objectClass = objectClass;</span>
+            try {
+<span class="fc" id="L222">                this.getMinimumDaysInFirstWeek = LambdaMiscCodec.createToIntFunction(</span>
+<span class="fc" id="L223">                        objectClass.getMethod(&quot;getMinimumDaysInFirstWeek&quot;)</span>
+                );
+<span class="fc" id="L225">                Method method = objectClass.getMethod(&quot;getZone&quot;);</span>
+<span class="fc" id="L226">                this.getZone = LambdaMiscCodec.createFunction(method);</span>
+<span class="fc" id="L227">                this.getID = LambdaMiscCodec.createFunction(</span>
+<span class="fc" id="L228">                        method.getReturnType().getMethod(&quot;getID&quot;)</span>
+                );
+<span class="nc" id="L230">            } catch (NoSuchMethodException e) {</span>
+<span class="nc" id="L231">                throw new JSONException(&quot;getMethod error&quot;, e);</span>
+<span class="fc" id="L232">            }</span>
+<span class="fc" id="L233">        }</span>
+
+        @Override
+        public void writeJSONB(JSONWriter jsonWriter, Object object, Object fieldName, Type fieldType, long features) {
+<span class="fc" id="L237">            Object zone = getZone.apply(object);</span>
+<span class="fc" id="L238">            String zoneId = (String) getID.apply(zone);</span>
+
+<span class="fc" id="L240">            int minDaysInFirstWeek = getMinimumDaysInFirstWeek.applyAsInt(object);</span>
+
+<span class="fc" id="L242">            jsonWriter.startObject();</span>
+<span class="pc bpc" id="L243" title="1 of 2 branches missed.">            if (minDaysInFirstWeek != 4) {</span>
+<span class="nc" id="L244">                jsonWriter.writeName(&quot;minimumDaysInFirstWeek&quot;);</span>
+<span class="nc" id="L245">                jsonWriter.writeInt32(minDaysInFirstWeek);</span>
+            }
+<span class="fc" id="L247">            jsonWriter.writeName(&quot;zoneId&quot;);</span>
+<span class="fc" id="L248">            jsonWriter.writeString(zoneId);</span>
+<span class="fc" id="L249">            jsonWriter.endObject();</span>
+<span class="fc" id="L250">        }</span>
+
+        @Override
+        public void write(JSONWriter jsonWriter, Object object, Object fieldName, Type fieldType, long features) {
+<span class="nc" id="L254">            Object zone = getZone.apply(object);</span>
+<span class="nc" id="L255">            String zoneId = (String) getID.apply(zone);</span>
+
+<span class="nc" id="L257">            int minDaysInFirstWeek = getMinimumDaysInFirstWeek.applyAsInt(object);</span>
+<span class="nc" id="L258">            jsonWriter.startObject();</span>
+<span class="nc" id="L259">            jsonWriter.writeName(&quot;minimumDaysInFirstWeek&quot;);</span>
+<span class="nc" id="L260">            jsonWriter.writeInt32(minDaysInFirstWeek);</span>
+<span class="nc" id="L261">            jsonWriter.writeName(&quot;zoneId&quot;);</span>
+<span class="nc" id="L262">            jsonWriter.writeString(zoneId);</span>
+<span class="nc" id="L263">            jsonWriter.endObject();</span>
+<span class="nc" id="L264">        }</span>
+    }
+
+    static class ISOChronologyWriter
+            implements ObjectWriter {
+        final Class objectClass;
+        final Function getZone;
+        final Function getID;
+
+<span class="fc" id="L273">        ISOChronologyWriter(Class objectClass) {</span>
+<span class="fc" id="L274">            this.objectClass = objectClass;</span>
+            try {
+<span class="fc" id="L276">                Method method = objectClass.getMethod(&quot;getZone&quot;);</span>
+<span class="fc" id="L277">                this.getZone = LambdaMiscCodec.createFunction(method);</span>
+<span class="fc" id="L278">                this.getID = LambdaMiscCodec.createFunction(</span>
+<span class="fc" id="L279">                        method.getReturnType().getMethod(&quot;getID&quot;)</span>
+                );
+<span class="nc" id="L281">            } catch (NoSuchMethodException e) {</span>
+<span class="nc" id="L282">                throw new JSONException(&quot;getMethod error&quot;, e);</span>
+<span class="fc" id="L283">            }</span>
+<span class="fc" id="L284">        }</span>
+
+        @Override
+        public void writeJSONB(JSONWriter jsonWriter, Object object, Object fieldName, Type fieldType, long features) {
+<span class="nc" id="L288">            Object zone = getZone.apply(object);</span>
+<span class="nc" id="L289">            String zoneId = (String) getID.apply(zone);</span>
+
+<span class="nc" id="L291">            jsonWriter.startObject();</span>
+<span class="nc" id="L292">            jsonWriter.writeName(&quot;zoneId&quot;);</span>
+<span class="nc" id="L293">            jsonWriter.writeString(zoneId);</span>
+<span class="nc" id="L294">            jsonWriter.endObject();</span>
+<span class="nc" id="L295">        }</span>
+
+        @Override
+        public void write(JSONWriter jsonWriter, Object object, Object fieldName, Type fieldType, long features) {
+<span class="fc" id="L299">            Object zone = getZone.apply(object);</span>
+<span class="fc" id="L300">            String zoneId = (String) getID.apply(zone);</span>
+
+<span class="fc" id="L302">            jsonWriter.startObject();</span>
+<span class="fc" id="L303">            jsonWriter.writeName(&quot;zoneId&quot;);</span>
+<span class="fc" id="L304">            jsonWriter.writeString(zoneId);</span>
+<span class="fc" id="L305">            jsonWriter.endObject();</span>
+<span class="fc" id="L306">        }</span>
+    }
+
+    static class LocalDateReader
+            implements ObjectReader {
+        final Class objectClass;
+        final Constructor constructor3;
+        final Constructor constructor4;
+
+        final Class classISOChronology;
+        final Class classChronology;
+        final Object utc;
+
+<span class="fc" id="L319">        LocalDateReader(Class objectClass) {</span>
+<span class="fc" id="L320">            this.objectClass = objectClass;</span>
+            try {
+<span class="fc" id="L322">                ClassLoader classLoader = objectClass.getClassLoader();</span>
+<span class="fc" id="L323">                classChronology = classLoader.loadClass(&quot;org.joda.time.Chronology&quot;);</span>
+
+<span class="fc" id="L325">                constructor3 = objectClass.getConstructor(int.class, int.class, int.class);</span>
+<span class="fc" id="L326">                constructor4 = objectClass.getConstructor(int.class, int.class, int.class, classChronology);</span>
+
+<span class="fc" id="L328">                classISOChronology = classLoader.loadClass(&quot;org.joda.time.chrono.ISOChronology&quot;);</span>
+<span class="fc" id="L329">                utc = classISOChronology.getMethod(&quot;getInstance&quot;).invoke(null);</span>
+<span class="nc" id="L330">            } catch (ClassNotFoundException</span>
+                    | NoSuchMethodException
+                    | IllegalAccessException
+                    | IllegalArgumentException
+                    | InvocationTargetException e) {
+<span class="nc" id="L335">                throw new JSONException(&quot;create LocalDateWriter error&quot;, e);</span>
+<span class="fc" id="L336">            }</span>
+<span class="fc" id="L337">        }</span>
+
+        @Override
+        public Class getObjectClass() {
+<span class="fc" id="L341">            return objectClass;</span>
+        }
+
+        @Override
+        public Object readObject(JSONReader jsonReader, Type fieldType, Object fieldName, long features) {
+<span class="pc bpc" id="L346" title="1 of 2 branches missed.">            if (jsonReader.nextIfNull()) {</span>
+<span class="nc" id="L347">                return null;</span>
+            }
+
+<span class="fc" id="L350">            LocalDate localDate = jsonReader.readLocalDate();</span>
+<span class="fc bfc" id="L351" title="All 2 branches covered.">            if (localDate == null) {</span>
+<span class="fc" id="L352">                return null;</span>
+            }
+
+            try {
+<span class="fc" id="L356">                return constructor4.newInstance(localDate.getYear(), localDate.getMonthValue(), localDate.getDayOfMonth(), null);</span>
+<span class="nc" id="L357">            } catch (InstantiationException | IllegalAccessException | InvocationTargetException e) {</span>
+<span class="nc" id="L358">                throw new JSONException(jsonReader.info(&quot;read org.joda.time.LocalDate error&quot;), e);</span>
+            }
+        }
+
+        @Override
+        public Object readJSONBObject(JSONReader jsonReader, Type fieldType, Object fieldName, long features) {
+<span class="fc" id="L364">            byte type = jsonReader.getType();</span>
+
+<span class="fc bfc" id="L366" title="All 2 branches covered.">            if (type == BC_LOCAL_DATE) {</span>
+<span class="fc" id="L367">                LocalDate localDate = jsonReader.readLocalDate();</span>
+                try {
+<span class="fc" id="L369">                    return constructor3.newInstance(localDate.getYear(), localDate.getMonthValue(), localDate.getDayOfMonth());</span>
+<span class="nc" id="L370">                } catch (InstantiationException | IllegalAccessException | InvocationTargetException e) {</span>
+<span class="nc" id="L371">                    throw new JSONException(jsonReader.info(&quot;read org.joda.time.LocalDate error&quot;), e);</span>
+                }
+            }
+
+<span class="pc bpc" id="L375" title="1 of 2 branches missed.">            if (jsonReader.isObject()) {</span>
+<span class="fc" id="L376">                Integer year = null, month = null, day = null;</span>
+<span class="fc" id="L377">                Object chronology = null;</span>
+<span class="fc" id="L378">                jsonReader.nextIfObjectStart();</span>
+<span class="fc bfc" id="L379" title="All 2 branches covered.">                while (!jsonReader.nextIfObjectEnd()) {</span>
+<span class="fc" id="L380">                    long fieldNameHashCode = jsonReader.readFieldNameHashCode();</span>
+<span class="fc bfc" id="L381" title="All 2 branches covered.">                    if (fieldNameHashCode == HASH_YEAR) {</span>
+<span class="fc" id="L382">                        year = jsonReader.readInt32Value();</span>
+<span class="fc bfc" id="L383" title="All 2 branches covered.">                    } else if (fieldNameHashCode == HASH_MONTH) {</span>
+<span class="fc" id="L384">                        month = jsonReader.readInt32Value();</span>
+<span class="fc bfc" id="L385" title="All 2 branches covered.">                    } else if (fieldNameHashCode == HASH_DAY) {</span>
+<span class="fc" id="L386">                        day = jsonReader.readInt32Value();</span>
+<span class="pc bpc" id="L387" title="1 of 2 branches missed.">                    } else if (fieldNameHashCode == HASH_CHRONOLOGY) {</span>
+<span class="fc" id="L388">                        chronology = jsonReader.read(classChronology);</span>
+                    } else {
+<span class="nc" id="L390">                        throw new JSONException(jsonReader.info(&quot;not support fieldName &quot; + jsonReader.getFieldName()));</span>
+                    }
+<span class="fc" id="L392">                }</span>
+
+                try {
+<span class="fc" id="L395">                    return constructor4.newInstance(year, month, day, chronology);</span>
+<span class="nc" id="L396">                } catch (InstantiationException | IllegalAccessException | InvocationTargetException e) {</span>
+<span class="nc" id="L397">                    throw new JSONException(jsonReader.info(&quot;read org.joda.time.LocalDate error&quot;), e);</span>
+                }
+            }
+
+<span class="nc" id="L401">            throw new JSONException(jsonReader.info(&quot;not support &quot; + JSONB.typeName(type)));</span>
+        }
+    }
+
+    static class LocalDateWriter
+            extends DateTimeCodec
+            implements ObjectWriter {
+        final Class objectClass;
+        final ToIntFunction getYear;
+        final ToIntFunction getMonthOfYear;
+        final ToIntFunction getDayOfMonth;
+        final Function getChronology;
+
+        final Class isoChronology;
+        final Object utc;
+
+        LocalDateWriter(Class objectClass, String format) {
+<span class="fc" id="L418">            super(format);</span>
+
+<span class="fc" id="L420">            this.objectClass = objectClass;</span>
+            try {
+<span class="fc" id="L422">                ClassLoader classLoader = objectClass.getClassLoader();</span>
+<span class="fc" id="L423">                isoChronology = classLoader.loadClass(&quot;org.joda.time.chrono.ISOChronology&quot;);</span>
+<span class="fc" id="L424">                Object instance = isoChronology.getMethod(&quot;getInstance&quot;).invoke(null);</span>
+<span class="fc" id="L425">                utc = isoChronology.getMethod(&quot;withUTC&quot;).invoke(instance);</span>
+
+<span class="fc" id="L427">                getYear = LambdaMiscCodec.createToIntFunction(</span>
+<span class="fc" id="L428">                        objectClass.getMethod(&quot;getYear&quot;)</span>
+                );
+<span class="fc" id="L430">                getMonthOfYear = LambdaMiscCodec.createToIntFunction(</span>
+<span class="fc" id="L431">                        objectClass.getMethod(&quot;getMonthOfYear&quot;)</span>
+                );
+<span class="fc" id="L433">                getDayOfMonth = LambdaMiscCodec.createToIntFunction(</span>
+<span class="fc" id="L434">                        objectClass.getMethod(&quot;getDayOfMonth&quot;)</span>
+                );
+<span class="fc" id="L436">                getChronology = LambdaMiscCodec.createFunction(</span>
+<span class="fc" id="L437">                        objectClass.getMethod(&quot;getChronology&quot;)</span>
+                );
+<span class="nc" id="L439">            } catch (ClassNotFoundException</span>
+                    | NoSuchMethodException
+                    | IllegalAccessException
+                    | IllegalArgumentException
+                    | InvocationTargetException e) {
+<span class="nc" id="L444">                throw new JSONException(&quot;create LocalDateWriter error&quot;, e);</span>
+<span class="fc" id="L445">            }</span>
+<span class="fc" id="L446">        }</span>
+
+        @Override
+        public void writeJSONB(JSONWriter jsonWriter, Object object, Object fieldName, Type fieldType, long features) {
+<span class="fc" id="L450">            int year = getYear.applyAsInt(object);</span>
+<span class="fc" id="L451">            int monthOfYear = getMonthOfYear.applyAsInt(object);</span>
+<span class="fc" id="L452">            int dayOfMonth = getDayOfMonth.applyAsInt(object);</span>
+<span class="fc" id="L453">            Object chronology = getChronology.apply(object);</span>
+
+<span class="pc bpc" id="L455" title="1 of 2 branches missed.">            if (jsonWriter.isWriteTypeInfo(object, fieldType, features)) {</span>
+<span class="fc" id="L456">                jsonWriter.writeTypeName(TypeUtils.getTypeName(object.getClass()));</span>
+            }
+
+<span class="pc bpc" id="L459" title="1 of 4 branches missed.">            if (chronology == utc || chronology == null) {</span>
+<span class="fc" id="L460">                jsonWriter.writeLocalDate(LocalDate.of(year, monthOfYear, dayOfMonth));</span>
+<span class="fc" id="L461">                return;</span>
+            }
+
+<span class="fc" id="L464">            jsonWriter.startObject();</span>
+
+<span class="fc" id="L466">            jsonWriter.writeName(&quot;year&quot;);</span>
+<span class="fc" id="L467">            jsonWriter.writeInt32(year);</span>
+
+<span class="fc" id="L469">            jsonWriter.writeName(&quot;month&quot;);</span>
+<span class="fc" id="L470">            jsonWriter.writeInt32(monthOfYear);</span>
+
+<span class="fc" id="L472">            jsonWriter.writeName(&quot;day&quot;);</span>
+<span class="fc" id="L473">            jsonWriter.writeInt32(dayOfMonth);</span>
+
+<span class="fc" id="L475">            jsonWriter.writeName(&quot;chronology&quot;);</span>
+<span class="fc" id="L476">            jsonWriter.writeAny(chronology);</span>
+
+<span class="fc" id="L478">            jsonWriter.endObject();</span>
+<span class="fc" id="L479">        }</span>
+
+        @Override
+        public void write(JSONWriter jsonWriter, Object object, Object fieldName, Type fieldType, long features) {
+<span class="fc" id="L483">            int year = getYear.applyAsInt(object);</span>
+<span class="fc" id="L484">            int monthOfYear = getMonthOfYear.applyAsInt(object);</span>
+<span class="fc" id="L485">            int dayOfMonth = getDayOfMonth.applyAsInt(object);</span>
+<span class="fc" id="L486">            Object chronology = getChronology.apply(object);</span>
+
+<span class="pc bpc" id="L488" title="3 of 4 branches missed.">            if (chronology == utc || chronology == null) {</span>
+<span class="fc" id="L489">                LocalDate localDate = LocalDate.of(year, monthOfYear, dayOfMonth);</span>
+
+<span class="fc" id="L491">                DateTimeFormatter formatter = this.getDateFormatter();</span>
+<span class="fc bfc" id="L492" title="All 2 branches covered.">                if (formatter == null) {</span>
+<span class="fc" id="L493">                    formatter = jsonWriter.context.getDateFormatter();</span>
+                }
+
+<span class="pc bpc" id="L496" title="1 of 2 branches missed.">                if (formatter == null) {</span>
+<span class="nc" id="L497">                    jsonWriter.writeLocalDate(localDate);</span>
+<span class="nc" id="L498">                    return;</span>
+                }
+
+<span class="fc" id="L501">                String str = formatter.format(localDate);</span>
+<span class="fc" id="L502">                jsonWriter.writeString(str);</span>
+<span class="fc" id="L503">                return;</span>
+            }
+
+<span class="nc" id="L506">            jsonWriter.startObject();</span>
+
+<span class="nc" id="L508">            jsonWriter.writeName(&quot;year&quot;);</span>
+<span class="nc" id="L509">            jsonWriter.writeInt32(year);</span>
+
+<span class="nc" id="L511">            jsonWriter.writeName(&quot;month&quot;);</span>
+<span class="nc" id="L512">            jsonWriter.writeInt32(monthOfYear);</span>
+
+<span class="nc" id="L514">            jsonWriter.writeName(&quot;day&quot;);</span>
+<span class="nc" id="L515">            jsonWriter.writeInt32(dayOfMonth);</span>
+
+<span class="nc" id="L517">            jsonWriter.writeName(&quot;chronology&quot;);</span>
+<span class="nc" id="L518">            jsonWriter.writeAny(chronology);</span>
+
+<span class="nc" id="L520">            jsonWriter.endObject();</span>
+<span class="nc" id="L521">        }</span>
+    }
+
+    static class LocalDateTimeReader
+            implements ObjectReader {
+        final Class objectClass;
+        final Constructor constructor7;
+        final Constructor constructor8;
+
+        final Class classISOChronology;
+        final Class classChronology;
+        final Object utc;
+
+<span class="fc" id="L534">        LocalDateTimeReader(Class objectClass) {</span>
+<span class="fc" id="L535">            this.objectClass = objectClass;</span>
+            try {
+<span class="fc" id="L537">                ClassLoader classLoader = objectClass.getClassLoader();</span>
+<span class="fc" id="L538">                classChronology = classLoader.loadClass(&quot;org.joda.time.Chronology&quot;);</span>
+
+<span class="fc" id="L540">                constructor7 = objectClass.getConstructor(int.class, int.class, int.class, int.class, int.class, int.class, int.class);</span>
+<span class="fc" id="L541">                constructor8 = objectClass.getConstructor(int.class, int.class, int.class, int.class, int.class, int.class, int.class, classChronology);</span>
+
+<span class="fc" id="L543">                classISOChronology = classLoader.loadClass(&quot;org.joda.time.chrono.ISOChronology&quot;);</span>
+<span class="fc" id="L544">                utc = classISOChronology.getMethod(&quot;getInstance&quot;).invoke(null);</span>
+<span class="nc" id="L545">            } catch (ClassNotFoundException</span>
+                    | NoSuchMethodException
+                    | IllegalAccessException
+                    | IllegalArgumentException
+                    | InvocationTargetException e) {
+<span class="nc" id="L550">                throw new JSONException(&quot;create LocalDateWriter error&quot;, e);</span>
+<span class="fc" id="L551">            }</span>
+<span class="fc" id="L552">        }</span>
+
+        @Override
+        public Class getObjectClass() {
+<span class="fc" id="L556">            return objectClass;</span>
+        }
+
+        @Override
+        public Object readObject(JSONReader jsonReader, Type fieldType, Object fieldName, long features) {
+<span class="pc bpc" id="L561" title="1 of 4 branches missed.">            if (jsonReader.isString() || jsonReader.isInt()) {</span>
+<span class="fc" id="L562">                LocalDateTime ldt = jsonReader.readLocalDateTime();</span>
+<span class="fc bfc" id="L563" title="All 2 branches covered.">                if (ldt == null) {</span>
+<span class="fc" id="L564">                    return null;</span>
+                }
+
+                try {
+<span class="fc" id="L568">                    return constructor7.newInstance(ldt.getYear(), ldt.getMonthValue(), ldt.getDayOfMonth(), ldt.getHour(), ldt.getMinute(), ldt.getSecond(), ldt.getNano() / 1000_000);</span>
+<span class="nc" id="L569">                } catch (InstantiationException | IllegalAccessException | InvocationTargetException e) {</span>
+<span class="nc" id="L570">                    throw new JSONException(jsonReader.info(&quot;read org.joda.time.LocalDate error&quot;), e);</span>
+                }
+            }
+
+<span class="nc" id="L574">            throw new JSONException(jsonReader.info(&quot;not support&quot;));</span>
+        }
+
+        @Override
+        public Object readJSONBObject(JSONReader jsonReader, Type fieldType, Object fieldName, long features) {
+<span class="fc" id="L579">            byte type = jsonReader.getType();</span>
+
+<span class="pc bpc" id="L581" title="1 of 2 branches missed.">            if (type == BC_LOCAL_DATE) {</span>
+<span class="nc" id="L582">                LocalDate localDate = jsonReader.readLocalDate();</span>
+                try {
+<span class="nc" id="L584">                    return constructor7.newInstance(localDate.getYear(), localDate.getMonthValue(), localDate.getDayOfMonth(), 0, 0, 0, 0);</span>
+<span class="nc" id="L585">                } catch (InstantiationException | IllegalAccessException | InvocationTargetException e) {</span>
+<span class="nc" id="L586">                    throw new JSONException(jsonReader.info(&quot;read org.joda.time.LocalDate error&quot;), e);</span>
+                }
+            }
+
+<span class="fc bfc" id="L590" title="All 2 branches covered.">            if (type == BC_LOCAL_DATETIME) {</span>
+<span class="fc" id="L591">                LocalDateTime ldt = jsonReader.readLocalDateTime();</span>
+                try {
+<span class="fc" id="L593">                    return constructor7.newInstance(ldt.getYear(), ldt.getMonthValue(), ldt.getDayOfMonth(), ldt.getHour(), ldt.getMinute(), ldt.getSecond(), ldt.getNano() / 1000_000);</span>
+<span class="nc" id="L594">                } catch (InstantiationException | IllegalAccessException | InvocationTargetException e) {</span>
+<span class="nc" id="L595">                    throw new JSONException(jsonReader.info(&quot;read org.joda.time.LocalDate error&quot;), e);</span>
+                }
+            }
+
+<span class="pc bpc" id="L599" title="1 of 2 branches missed.">            if (jsonReader.isObject()) {</span>
+<span class="fc" id="L600">                Integer year = null, month = null, day = null, hour = null, minute = null, second = null, millis = null;</span>
+<span class="fc" id="L601">                Object chronology = null;</span>
+<span class="fc" id="L602">                jsonReader.nextIfObjectStart();</span>
+<span class="fc bfc" id="L603" title="All 2 branches covered.">                while (!jsonReader.nextIfObjectEnd()) {</span>
+<span class="fc" id="L604">                    long fieldNameHashCode = jsonReader.readFieldNameHashCode();</span>
+<span class="fc bfc" id="L605" title="All 2 branches covered.">                    if (fieldNameHashCode == HASH_YEAR) {</span>
+<span class="fc" id="L606">                        year = jsonReader.readInt32Value();</span>
+<span class="fc bfc" id="L607" title="All 2 branches covered.">                    } else if (fieldNameHashCode == HASH_MONTH) {</span>
+<span class="fc" id="L608">                        month = jsonReader.readInt32Value();</span>
+<span class="fc bfc" id="L609" title="All 2 branches covered.">                    } else if (fieldNameHashCode == HASH_DAY) {</span>
+<span class="fc" id="L610">                        day = jsonReader.readInt32Value();</span>
+<span class="fc bfc" id="L611" title="All 2 branches covered.">                    } else if (fieldNameHashCode == HASH_HOUR) {</span>
+<span class="fc" id="L612">                        hour = jsonReader.readInt32Value();</span>
+<span class="fc bfc" id="L613" title="All 2 branches covered.">                    } else if (fieldNameHashCode == HASH_MINUTE) {</span>
+<span class="fc" id="L614">                        minute = jsonReader.readInt32Value();</span>
+<span class="fc bfc" id="L615" title="All 2 branches covered.">                    } else if (fieldNameHashCode == HASH_SECOND) {</span>
+<span class="fc" id="L616">                        second = jsonReader.readInt32Value();</span>
+<span class="fc bfc" id="L617" title="All 2 branches covered.">                    } else if (fieldNameHashCode == HASH_MILLIS) {</span>
+<span class="fc" id="L618">                        millis = jsonReader.readInt32Value();</span>
+<span class="pc bpc" id="L619" title="1 of 2 branches missed.">                    } else if (fieldNameHashCode == HASH_CHRONOLOGY) {</span>
+<span class="fc" id="L620">                        chronology = jsonReader.read(classChronology);</span>
+                    } else {
+<span class="nc" id="L622">                        throw new JSONException(jsonReader.info(&quot;not support fieldName &quot; + jsonReader.getFieldName()));</span>
+                    }
+<span class="fc" id="L624">                }</span>
+
+                try {
+<span class="fc" id="L627">                    return constructor8.newInstance(year, month, day, hour, minute, second, millis, chronology);</span>
+<span class="nc" id="L628">                } catch (InstantiationException | IllegalAccessException | InvocationTargetException e) {</span>
+<span class="nc" id="L629">                    throw new JSONException(jsonReader.info(&quot;read org.joda.time.LocalDate error&quot;), e);</span>
+                }
+            }
+
+<span class="nc" id="L633">            throw new JSONException(jsonReader.info(&quot;not support &quot; + JSONB.typeName(type)));</span>
+        }
+    }
+
+    static class LocalDateTimeWriter
+            extends DateTimeCodec
+            implements ObjectWriter {
+        final Class objectClass;
+
+        final Method getYear;
+        final Method getMonthOfYear;
+        final Method getDayOfMonth;
+
+        final ToIntFunction getHourOfDay;
+        final ToIntFunction getMinuteOfHour;
+        final ToIntFunction getSecondOfMinute;
+        final ToIntFunction getMillisOfSecond;
+
+        final Function getChronology;
+
+        final Class isoChronology;
+        final Object utc;
+
+        LocalDateTimeWriter(Class objectClass, String format) {
+<span class="fc" id="L657">            super(format);</span>
+
+<span class="fc" id="L659">            this.objectClass = objectClass;</span>
+            try {
+<span class="fc" id="L661">                ClassLoader classLoader = objectClass.getClassLoader();</span>
+<span class="fc" id="L662">                isoChronology = classLoader.loadClass(&quot;org.joda.time.chrono.ISOChronology&quot;);</span>
+<span class="fc" id="L663">                Object instance = isoChronology.getMethod(&quot;getInstance&quot;).invoke(null);</span>
+<span class="fc" id="L664">                utc = isoChronology.getMethod(&quot;withUTC&quot;).invoke(instance);</span>
+
+<span class="fc" id="L666">                getYear = objectClass.getMethod(&quot;getYear&quot;);</span>
+<span class="fc" id="L667">                getMonthOfYear = objectClass.getMethod(&quot;getMonthOfYear&quot;);</span>
+<span class="fc" id="L668">                getDayOfMonth = objectClass.getMethod(&quot;getDayOfMonth&quot;);</span>
+
+<span class="fc" id="L670">                getHourOfDay = LambdaMiscCodec.createToIntFunction(</span>
+<span class="fc" id="L671">                        objectClass.getMethod(&quot;getHourOfDay&quot;)</span>
+                );
+<span class="fc" id="L673">                getMinuteOfHour = LambdaMiscCodec.createToIntFunction(</span>
+<span class="fc" id="L674">                        objectClass.getMethod(&quot;getMinuteOfHour&quot;)</span>
+                );
+<span class="fc" id="L676">                getSecondOfMinute = LambdaMiscCodec.createToIntFunction(</span>
+<span class="fc" id="L677">                        objectClass.getMethod(&quot;getSecondOfMinute&quot;)</span>
+                );
+<span class="fc" id="L679">                getMillisOfSecond = LambdaMiscCodec.createToIntFunction(</span>
+<span class="fc" id="L680">                        objectClass.getMethod(&quot;getMillisOfSecond&quot;)</span>
+                );
+
+<span class="fc" id="L683">                getChronology = LambdaMiscCodec.createFunction(</span>
+<span class="fc" id="L684">                        objectClass.getMethod(&quot;getChronology&quot;)</span>
+                );
+<span class="nc" id="L686">            } catch (ClassNotFoundException</span>
+                    | NoSuchMethodException
+                    | IllegalAccessException
+                    | IllegalArgumentException
+                    | InvocationTargetException e) {
+<span class="nc" id="L691">                throw new JSONException(&quot;create LocalDateWriter error&quot;, e);</span>
+<span class="fc" id="L692">            }</span>
+<span class="fc" id="L693">        }</span>
+
+        @Override
+        public void writeJSONB(JSONWriter jsonWriter, Object object, Object fieldName, Type fieldType, long features) {
+            try {
+<span class="fc" id="L698">                int year = (Integer) getYear.invoke(object);</span>
+<span class="fc" id="L699">                int monthOfYear = (Integer) getMonthOfYear.invoke(object);</span>
+<span class="fc" id="L700">                int dayOfMonth = (Integer) getDayOfMonth.invoke(object);</span>
+
+<span class="fc" id="L702">                int hour = getHourOfDay.applyAsInt(object);</span>
+<span class="fc" id="L703">                int minute = getMinuteOfHour.applyAsInt(object);</span>
+<span class="fc" id="L704">                int second = getSecondOfMinute.applyAsInt(object);</span>
+<span class="fc" id="L705">                int millis = getMillisOfSecond.applyAsInt(object);</span>
+
+<span class="fc" id="L707">                Object chronology = getChronology.apply(object);</span>
+
+<span class="pc bpc" id="L709" title="1 of 2 branches missed.">                if (jsonWriter.isWriteTypeInfo(object, fieldType, features)) {</span>
+<span class="fc" id="L710">                    jsonWriter.writeTypeName(TypeUtils.getTypeName(object.getClass()));</span>
+                }
+
+<span class="pc bpc" id="L713" title="1 of 4 branches missed.">                if (chronology == utc || chronology == null) {</span>
+<span class="fc" id="L714">                    jsonWriter.writeLocalDateTime(</span>
+<span class="fc" id="L715">                            LocalDateTime.of(year, monthOfYear, dayOfMonth, hour, minute, second, millis * 1000000));</span>
+<span class="fc" id="L716">                    return;</span>
+                }
+
+<span class="fc" id="L719">                jsonWriter.startObject();</span>
+
+<span class="fc" id="L721">                jsonWriter.writeName(&quot;year&quot;);</span>
+<span class="fc" id="L722">                jsonWriter.writeInt32(year);</span>
+
+<span class="fc" id="L724">                jsonWriter.writeName(&quot;month&quot;);</span>
+<span class="fc" id="L725">                jsonWriter.writeInt32(monthOfYear);</span>
+
+<span class="fc" id="L727">                jsonWriter.writeName(&quot;day&quot;);</span>
+<span class="fc" id="L728">                jsonWriter.writeInt32(dayOfMonth);</span>
+
+<span class="fc" id="L730">                jsonWriter.writeName(&quot;hour&quot;);</span>
+<span class="fc" id="L731">                jsonWriter.writeInt32(hour);</span>
+
+<span class="fc" id="L733">                jsonWriter.writeName(&quot;minute&quot;);</span>
+<span class="fc" id="L734">                jsonWriter.writeInt32(minute);</span>
+
+<span class="fc" id="L736">                jsonWriter.writeName(&quot;second&quot;);</span>
+<span class="fc" id="L737">                jsonWriter.writeInt32(second);</span>
+
+<span class="fc" id="L739">                jsonWriter.writeName(&quot;millis&quot;);</span>
+<span class="fc" id="L740">                jsonWriter.writeInt32(millis);</span>
+
+<span class="fc" id="L742">                jsonWriter.writeName(&quot;chronology&quot;);</span>
+<span class="fc" id="L743">                jsonWriter.writeAny(chronology);</span>
+
+<span class="fc" id="L745">                jsonWriter.endObject();</span>
+<span class="nc" id="L746">            } catch (IllegalAccessException | InvocationTargetException e) {</span>
+<span class="nc" id="L747">                throw new JSONException(&quot;write LocalDateWriter error&quot;, e);</span>
+<span class="fc" id="L748">            }</span>
+<span class="fc" id="L749">        }</span>
+
+        @Override
+        public void write(JSONWriter jsonWriter, Object object, Object fieldName, Type fieldType, long features) {
+            try {
+<span class="fc" id="L754">                int year = (Integer) getYear.invoke(object);</span>
+<span class="fc" id="L755">                int monthOfYear = (Integer) getMonthOfYear.invoke(object);</span>
+<span class="fc" id="L756">                int dayOfMonth = (Integer) getDayOfMonth.invoke(object);</span>
+
+<span class="fc" id="L758">                int hour = getHourOfDay.applyAsInt(object);</span>
+<span class="fc" id="L759">                int minute = getMinuteOfHour.applyAsInt(object);</span>
+<span class="fc" id="L760">                int second = getSecondOfMinute.applyAsInt(object);</span>
+<span class="fc" id="L761">                int millis = getMillisOfSecond.applyAsInt(object);</span>
+
+<span class="fc" id="L763">                Object chronology = getChronology.apply(object);</span>
+
+<span class="pc bpc" id="L765" title="1 of 2 branches missed.">                if (jsonWriter.isWriteTypeInfo(object, fieldType, features)) {</span>
+<span class="nc" id="L766">                    jsonWriter.writeTypeName(TypeUtils.getTypeName(object.getClass()));</span>
+                }
+
+<span class="pc bpc" id="L769" title="3 of 4 branches missed.">                if (chronology == utc || chronology == null) {</span>
+<span class="fc" id="L770">                    int nanoOfSecond = millis * 1000_000;</span>
+<span class="fc" id="L771">                    LocalDateTime ldt = LocalDateTime.of(year, monthOfYear, dayOfMonth, hour, minute, second, nanoOfSecond);</span>
+
+<span class="fc" id="L773">                    DateTimeFormatter formatter = this.getDateFormatter();</span>
+<span class="fc bfc" id="L774" title="All 2 branches covered.">                    if (formatter == null) {</span>
+<span class="fc" id="L775">                        formatter = jsonWriter.context.getDateFormatter();</span>
+                    }
+
+<span class="fc bfc" id="L778" title="All 2 branches covered.">                    if (formatter == null) {</span>
+<span class="fc" id="L779">                        jsonWriter.writeLocalDateTime(ldt);</span>
+<span class="fc" id="L780">                        return;</span>
+                    }
+
+<span class="fc" id="L783">                    String str = formatter.format(ldt);</span>
+<span class="fc" id="L784">                    jsonWriter.writeString(str);</span>
+<span class="fc" id="L785">                    return;</span>
+                }
+
+<span class="nc" id="L788">                jsonWriter.startObject();</span>
+
+<span class="nc" id="L790">                jsonWriter.writeName(&quot;year&quot;);</span>
+<span class="nc" id="L791">                jsonWriter.writeInt32(year);</span>
+
+<span class="nc" id="L793">                jsonWriter.writeName(&quot;month&quot;);</span>
+<span class="nc" id="L794">                jsonWriter.writeInt32(monthOfYear);</span>
+
+<span class="nc" id="L796">                jsonWriter.writeName(&quot;day&quot;);</span>
+<span class="nc" id="L797">                jsonWriter.writeInt32(dayOfMonth);</span>
+
+<span class="nc" id="L799">                jsonWriter.writeName(&quot;hour&quot;);</span>
+<span class="nc" id="L800">                jsonWriter.writeInt32(hour);</span>
+
+<span class="nc" id="L802">                jsonWriter.writeName(&quot;minute&quot;);</span>
+<span class="nc" id="L803">                jsonWriter.writeInt32(minute);</span>
+
+<span class="nc" id="L805">                jsonWriter.writeName(&quot;second&quot;);</span>
+<span class="nc" id="L806">                jsonWriter.writeInt32(second);</span>
+
+<span class="nc" id="L808">                jsonWriter.writeName(&quot;millis&quot;);</span>
+<span class="nc" id="L809">                jsonWriter.writeInt32(millis);</span>
+
+<span class="nc" id="L811">                jsonWriter.writeName(&quot;chronology&quot;);</span>
+<span class="nc" id="L812">                jsonWriter.writeAny(chronology);</span>
+
+<span class="nc" id="L814">                jsonWriter.endObject();</span>
+<span class="nc" id="L815">            } catch (IllegalAccessException | InvocationTargetException e) {</span>
+<span class="nc" id="L816">                throw new JSONException(&quot;write LocalDateWriter error&quot;, e);</span>
+<span class="nc" id="L817">            }</span>
+<span class="nc" id="L818">        }</span>
+    }
+
+<span class="fc" id="L821">    public static final class DateTimeFromZDT</span>
+            implements Function {
+        static Constructor CONS;
+        static Method FOR_ID;
+
+        @Override
+        public Object apply(Object o) {
+<span class="fc" id="L828">            ZonedDateTime zdt = (ZonedDateTime) o;</span>
+            try {
+<span class="fc bfc" id="L830" title="All 2 branches covered.">                if (FOR_ID == null) {</span>
+<span class="fc" id="L831">                    Class&lt;?&gt; zoneClass = Class.forName(&quot;org.joda.time.DateTimeZone&quot;);</span>
+<span class="fc" id="L832">                    FOR_ID = zoneClass.getMethod(&quot;forID&quot;, String.class);</span>
+                }
+
+<span class="fc bfc" id="L835" title="All 2 branches covered.">                if (CONS == null) {</span>
+<span class="fc" id="L836">                    CONS = Class.forName(&quot;org.joda.time.DateTime&quot;)</span>
+<span class="fc" id="L837">                            .getConstructor(</span>
+                                    int.class, int.class, int.class, int.class, int.class, int.class, int.class,
+<span class="fc" id="L839">                                    FOR_ID.getDeclaringClass()</span>
+                            );
+                }
+
+<span class="fc" id="L843">                String zondId = zdt.getZone().getId();</span>
+<span class="fc bfc" id="L844" title="All 2 branches covered.">                if (&quot;Z&quot;.equals(zondId)) {</span>
+<span class="fc" id="L845">                    zondId = &quot;UTC&quot;;</span>
+                }
+
+<span class="fc" id="L848">                return CONS.newInstance(</span>
+<span class="fc" id="L849">                        zdt.getYear(),</span>
+<span class="fc" id="L850">                        zdt.getMonthValue(),</span>
+<span class="fc" id="L851">                        zdt.getDayOfMonth(),</span>
+<span class="fc" id="L852">                        zdt.getHour(),</span>
+<span class="fc" id="L853">                        zdt.getMinute(),</span>
+<span class="fc" id="L854">                        zdt.getSecond(),</span>
+<span class="fc" id="L855">                        zdt.getNano() / 1_000_000,</span>
+<span class="fc" id="L856">                        FOR_ID.invoke(null, zondId)</span>
+                        );
+<span class="nc" id="L858">            } catch (Exception e) {</span>
+<span class="nc" id="L859">                throw new JSONException(&quot;build DateTime error&quot;, e);</span>
+            }
+        }
+    }
+
+<span class="fc" id="L864">    public static final class DateTime2ZDT</span>
+            implements Function {
+        static Class CLASS;
+        static ToIntFunction YEAR;
+        static ToIntFunction MONTH;
+        static ToIntFunction DAY_OF_MONTH;
+        static ToIntFunction HOUR;
+        static ToIntFunction MINUTE;
+        static ToIntFunction SECOND;
+        static ToIntFunction MILLIS;
+        static Function GET_ZONE;
+        static Function GET_ID;
+
+        @Override
+        public Object apply(Object o) {
+            try {
+<span class="fc bfc" id="L880" title="All 2 branches covered.">                if (CLASS == null) {</span>
+<span class="fc" id="L881">                    CLASS = Class.forName(&quot;org.joda.time.DateTime&quot;);</span>
+                }
+<span class="fc bfc" id="L883" title="All 2 branches covered.">                if (YEAR == null) {</span>
+<span class="fc" id="L884">                    YEAR = LambdaMiscCodec.createToIntFunction(CLASS.getMethod(&quot;getYear&quot;));</span>
+                }
+<span class="fc bfc" id="L886" title="All 2 branches covered.">                if (MONTH == null) {</span>
+<span class="fc" id="L887">                    MONTH = LambdaMiscCodec.createToIntFunction(CLASS.getMethod(&quot;getMonthOfYear&quot;));</span>
+                }
+<span class="fc bfc" id="L889" title="All 2 branches covered.">                if (DAY_OF_MONTH == null) {</span>
+<span class="fc" id="L890">                    DAY_OF_MONTH = LambdaMiscCodec.createToIntFunction(CLASS.getMethod(&quot;getDayOfMonth&quot;));</span>
+                }
+<span class="fc bfc" id="L892" title="All 2 branches covered.">                if (HOUR == null) {</span>
+<span class="fc" id="L893">                    HOUR = LambdaMiscCodec.createToIntFunction(CLASS.getMethod(&quot;getHourOfDay&quot;));</span>
+                }
+<span class="fc bfc" id="L895" title="All 2 branches covered.">                if (MINUTE == null) {</span>
+<span class="fc" id="L896">                    MINUTE = LambdaMiscCodec.createToIntFunction(CLASS.getMethod(&quot;getMinuteOfHour&quot;));</span>
+                }
+<span class="fc bfc" id="L898" title="All 2 branches covered.">                if (SECOND == null) {</span>
+<span class="fc" id="L899">                    SECOND = LambdaMiscCodec.createToIntFunction(CLASS.getMethod(&quot;getSecondOfMinute&quot;));</span>
+                }
+<span class="fc bfc" id="L901" title="All 2 branches covered.">                if (MILLIS == null) {</span>
+<span class="fc" id="L902">                    MILLIS = LambdaMiscCodec.createToIntFunction(CLASS.getMethod(&quot;getMillisOfSecond&quot;));</span>
+                }
+<span class="fc bfc" id="L904" title="All 2 branches covered.">                if (GET_ZONE == null) {</span>
+<span class="fc" id="L905">                    GET_ZONE = LambdaMiscCodec.createFunction(CLASS.getMethod(&quot;getZone&quot;));</span>
+                }
+<span class="fc bfc" id="L907" title="All 2 branches covered.">                if (GET_ID == null) {</span>
+<span class="fc" id="L908">                    GET_ID = LambdaMiscCodec.createFunction(Class.forName(&quot;org.joda.time.DateTimeZone&quot;).getMethod(&quot;getID&quot;));</span>
+                }
+
+<span class="fc" id="L911">                Object zone = GET_ZONE.apply(o);</span>
+<span class="fc" id="L912">                String zonIdStr = (String) GET_ID.apply(zone);</span>
+<span class="fc" id="L913">                ZoneId zoneId = ZoneId.of(zonIdStr);</span>
+<span class="fc" id="L914">                return ZonedDateTime.of(</span>
+<span class="fc" id="L915">                        YEAR.applyAsInt(o),</span>
+<span class="fc" id="L916">                        MONTH.applyAsInt(o),</span>
+<span class="fc" id="L917">                        DAY_OF_MONTH.applyAsInt(o),</span>
+<span class="fc" id="L918">                        HOUR.applyAsInt(o),</span>
+<span class="fc" id="L919">                        MINUTE.applyAsInt(o),</span>
+<span class="fc" id="L920">                        SECOND.applyAsInt(o),</span>
+<span class="fc" id="L921">                        MILLIS.applyAsInt(o) * 1_000_000,</span>
+                        zoneId
+                );
+<span class="nc" id="L924">            } catch (Exception e) {</span>
+<span class="nc" id="L925">                throw new JSONException(&quot;convert joda org.joda.time.DateTime to java.time.ZonedDateTime error&quot;, e);</span>
+            }
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.8.202204050719</span></div></body></html>

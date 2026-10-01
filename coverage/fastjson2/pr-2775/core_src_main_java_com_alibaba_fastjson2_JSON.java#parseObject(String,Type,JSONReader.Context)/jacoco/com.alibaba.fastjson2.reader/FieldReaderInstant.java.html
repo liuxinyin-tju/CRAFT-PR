@@ -1,0 +1,161 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>FieldReaderInstant.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">fastjson2</a> &gt; <a href="index.source.html" class="el_package">com.alibaba.fastjson2.reader</a> &gt; <span class="el_source">FieldReaderInstant.java</span></div><h1>FieldReaderInstant.java</h1><pre class="source lang-java linenums">package com.alibaba.fastjson2.reader;
+
+import com.alibaba.fastjson2.JSONException;
+import com.alibaba.fastjson2.JSONReader;
+import com.alibaba.fastjson2.schema.JSONSchema;
+import com.alibaba.fastjson2.util.DateUtils;
+
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
+import java.lang.reflect.Type;
+import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
+import java.util.Date;
+import java.util.Locale;
+import java.util.function.BiConsumer;
+
+import static com.alibaba.fastjson2.util.JDKUtils.UNSAFE;
+
+public final class FieldReaderInstant&lt;T&gt;
+        extends FieldReaderDateTimeCodec&lt;T&gt; {
+    final BiConsumer&lt;T, Instant&gt; function;
+
+    FieldReaderInstant(
+            String fieldName,
+            Type fieldType,
+            Class fieldClass,
+            int ordinal,
+            long features,
+            String format,
+            Locale locale,
+            Object defaultValue,
+            JSONSchema schema,
+            Field field,
+            Method method,
+            BiConsumer&lt;T, Instant&gt; function
+    ) {
+<span class="fc" id="L39">        super(</span>
+                fieldName,
+                fieldType,
+                fieldClass,
+                ordinal,
+                features,
+                format,
+                locale,
+                defaultValue,
+                schema,
+                method,
+                field,
+<span class="fc" id="L51">                ObjectReaderImplInstant.of(format, locale)</span>
+        );
+<span class="fc" id="L53">        this.function = function;</span>
+<span class="fc" id="L54">    }</span>
+
+    @Override
+    public void readFieldValue(JSONReader jsonReader, T object) {
+<span class="nc" id="L58">        Instant date = (Instant) dateReader.readObject(jsonReader, fieldType, fieldName, features);</span>
+<span class="nc" id="L59">        accept(object, date);</span>
+<span class="nc" id="L60">    }</span>
+
+    @Override
+    public void readFieldValueJSONB(JSONReader jsonReader, T object) {
+<span class="nc" id="L64">        Instant instant = jsonReader.readInstant();</span>
+<span class="nc" id="L65">        accept(object, instant);</span>
+<span class="nc" id="L66">    }</span>
+
+    @Override
+    protected void accept(T object, LocalDateTime ldt) {
+<span class="fc" id="L70">        ZoneOffset offset = DateUtils.DEFAULT_ZONE_ID.getRules().getOffset(ldt);</span>
+<span class="fc" id="L71">        Instant instant = ldt.toInstant(offset);</span>
+<span class="fc" id="L72">        accept(object, instant);</span>
+<span class="fc" id="L73">    }</span>
+
+    @Override
+    protected void accept(T object, Date value) {
+<span class="fc" id="L77">        accept(object, value.toInstant());</span>
+<span class="fc" id="L78">    }</span>
+
+    @Override
+    protected void accept(T object, ZonedDateTime zdt) {
+<span class="fc" id="L82">        accept(object, zdt.toInstant());</span>
+<span class="fc" id="L83">    }</span>
+
+    @Override
+    protected Object apply(Date value) {
+<span class="fc" id="L87">        return value.toInstant();</span>
+    }
+
+    @Override
+    protected Object apply(Instant value) {
+<span class="fc" id="L92">        return value;</span>
+    }
+
+    @Override
+    protected Object apply(ZonedDateTime zdt) {
+<span class="fc" id="L97">        return zdt.toInstant();</span>
+    }
+
+    @Override
+    protected Object apply(LocalDateTime ldt) {
+<span class="fc" id="L102">        ZoneOffset offset = DateUtils.DEFAULT_ZONE_ID.getRules().getOffset(ldt);</span>
+<span class="fc" id="L103">        return ldt.toInstant(offset);</span>
+    }
+
+    @Override
+    protected Object apply(long millis) {
+<span class="fc" id="L108">        return Instant.ofEpochMilli(millis);</span>
+    }
+
+    @Override
+    protected void acceptNull(T object) {
+<span class="fc" id="L113">        accept(object, (Instant) null);</span>
+<span class="fc" id="L114">    }</span>
+
+    @Override
+    public void accept(T object, long milli) {
+<span class="fc" id="L118">        accept(object, Instant.ofEpochMilli(milli));</span>
+<span class="fc" id="L119">    }</span>
+
+    @Override
+    protected void accept(T object, Instant instant) {
+<span class="pc bpc" id="L123" title="1 of 2 branches missed.">        if (schema != null) {</span>
+<span class="nc" id="L124">            schema.assertValidate(instant);</span>
+        }
+
+<span class="fc bfc" id="L127" title="All 2 branches covered.">        if (object == null) {</span>
+<span class="fc" id="L128">            throw new JSONException(&quot;set &quot; + fieldName + &quot; error, object is null&quot;);</span>
+        }
+
+<span class="pc bpc" id="L131" title="1 of 4 branches missed.">        if (instant == null &amp;&amp; (features &amp; JSONReader.Feature.IgnoreSetNullValue.mask) != 0) {</span>
+<span class="nc" id="L132">            return;</span>
+        }
+
+<span class="pc bpc" id="L135" title="1 of 2 branches missed.">        if (function != null) {</span>
+<span class="nc" id="L136">            function.accept(object, instant);</span>
+<span class="nc" id="L137">            return;</span>
+        }
+
+<span class="pc bpc" id="L140" title="1 of 2 branches missed.">        if (method != null) {</span>
+            try {
+<span class="nc" id="L142">                method.invoke(object, instant);</span>
+<span class="nc" id="L143">            } catch (Exception e) {</span>
+<span class="nc" id="L144">                throw new JSONException(&quot;set &quot; + fieldName + &quot; error&quot;, e);</span>
+<span class="nc" id="L145">            }</span>
+<span class="nc" id="L146">            return;</span>
+        }
+
+<span class="fc bfc" id="L149" title="All 2 branches covered.">        if (fieldOffset != -1) {</span>
+<span class="fc" id="L150">            UNSAFE.putObject(object, fieldOffset, instant);</span>
+<span class="fc" id="L151">            return;</span>
+        }
+
+        try {
+<span class="fc" id="L155">            field.set(object, instant);</span>
+<span class="fc" id="L156">        } catch (Exception e) {</span>
+<span class="fc" id="L157">            throw new JSONException(&quot;set &quot; + fieldName + &quot; error&quot;, e);</span>
+<span class="fc" id="L158">        }</span>
+<span class="fc" id="L159">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.8.202204050719</span></div></body></html>

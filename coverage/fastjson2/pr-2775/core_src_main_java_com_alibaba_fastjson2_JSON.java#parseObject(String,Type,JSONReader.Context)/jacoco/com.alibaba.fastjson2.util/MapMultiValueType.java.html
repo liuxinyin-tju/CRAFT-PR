@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>MapMultiValueType.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">fastjson2</a> &gt; <a href="index.source.html" class="el_package">com.alibaba.fastjson2.util</a> &gt; <span class="el_source">MapMultiValueType.java</span></div><h1>MapMultiValueType.java</h1><pre class="source lang-java linenums">package com.alibaba.fastjson2.util;
+
+import com.alibaba.fastjson2.JSONObject;
+
+import java.lang.reflect.Type;
+import java.util.HashMap;
+import java.util.Map;
+
+/**
+ * @since 2.0.34
+ */
+public class MapMultiValueType&lt;T extends Map&gt;
+        implements Type {
+    private final Class&lt;T&gt; mapType;
+<span class="fc" id="L15">    private final Map&lt;String, Type&gt; valueTypes = new HashMap&lt;&gt;();</span>
+
+<span class="fc" id="L17">    MapMultiValueType(Class&lt;T&gt; mapType, String name, Type type) {</span>
+<span class="fc" id="L18">        this.mapType = mapType;</span>
+<span class="fc" id="L19">        this.valueTypes.put(name, type);</span>
+<span class="fc" id="L20">    }</span>
+
+<span class="fc" id="L22">    MapMultiValueType(Class&lt;T&gt; mapType, Map&lt;String, Type&gt; types) {</span>
+<span class="fc" id="L23">        this.mapType = mapType;</span>
+<span class="fc" id="L24">        this.valueTypes.putAll(types);</span>
+<span class="fc" id="L25">    }</span>
+
+    public Class&lt;T&gt; getMapType() {
+<span class="fc" id="L28">        return mapType;</span>
+    }
+
+    public Type getType(String name) {
+<span class="fc" id="L32">        return this.valueTypes.get(name);</span>
+    }
+
+    public static MapMultiValueType&lt;JSONObject&gt; of(String name, Type type) {
+<span class="fc" id="L36">        return new MapMultiValueType&lt;&gt;(JSONObject.class, name, type);</span>
+    }
+
+    public static MapMultiValueType&lt;JSONObject&gt; of(Map&lt;String, Type&gt; types) {
+<span class="fc" id="L40">        return new MapMultiValueType&lt;&gt;(JSONObject.class, types);</span>
+    }
+
+    public static &lt;T extends Map&gt; MapMultiValueType&lt;T&gt; of(
+            Class&lt;T&gt; mapType,
+            String name,
+            Type type
+    ) {
+<span class="fc" id="L48">        return new MapMultiValueType&lt;&gt;(mapType, name, type);</span>
+    }
+
+    public static &lt;T extends Map&gt; MapMultiValueType&lt;T&gt; of(
+            Class&lt;T&gt; mapType,
+            Map&lt;String, Type&gt; types
+    ) {
+<span class="nc" id="L55">        return new MapMultiValueType&lt;&gt;(mapType, types);</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.8.202204050719</span></div></body></html>

@@ -1,0 +1,22 @@
+{
+  "mode": "compile",
+  "workdir": "./multi_swe_bench/tmp/workdir",
+  "raw_dataset_files": [
+    "./multi_swe_bench/tmp/raw_dataset/alibaba__fastjson2_dataset.jsonl"
+  ],
+  "force_build": false,
+  "output_dir": "./multi_swe_bench/tmp/dataset",
+  "specifics": [],
+  "skips": [],
+  "repo_dir": "./multi_swe_bench/tmp/repos",
+  "need_clone": true,
+  "global_env": [],
+  "clear_env": false,
+  "stop_on_error": true,
+  "max_workers": 8,
+  "max_workers_build_image": 8,
+  "max_workers_run_instance": 4,
+  "log_dir": "./multi_swe_bench/tmp/logs",
+  "log_level": "DEBUG",
+  "test_case_files": "./output/DeepSeek-V3.2/testcases_with_requirement/compile_error/fastjson2_0.json"
+}

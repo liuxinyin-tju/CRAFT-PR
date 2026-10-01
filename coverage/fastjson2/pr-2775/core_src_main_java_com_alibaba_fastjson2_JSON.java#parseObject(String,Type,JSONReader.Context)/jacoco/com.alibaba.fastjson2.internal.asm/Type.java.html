@@ -1,0 +1,531 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>Type.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">fastjson2</a> &gt; <a href="index.source.html" class="el_package">com.alibaba.fastjson2.internal.asm</a> &gt; <span class="el_source">Type.java</span></div><h1>Type.java</h1><pre class="source lang-java linenums">// ASM: a very small and fast Java bytecode manipulation framework
+// Copyright (c) 2000-2011 INRIA, France Telecom
+// All rights reserved.
+//
+// Redistribution and use in source and binary forms, with or without
+// modification, are permitted provided that the following conditions
+// are met:
+// 1. Redistributions of source code must retain the above copyright
+//    notice, this list of conditions and the following disclaimer.
+// 2. Redistributions in binary form must reproduce the above copyright
+//    notice, this list of conditions and the following disclaimer in the
+//    documentation and/or other materials provided with the distribution.
+// 3. Neither the name of the copyright holders nor the names of its
+//    contributors may be used to endorse or promote products derived from
+//    this software without specific prior written permission.
+//
+// THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS &quot;AS IS&quot;
+// AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+// IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+// ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE
+// LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+// CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+// SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+// INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+// CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+// ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF
+// THE POSSIBILITY OF SUCH DAMAGE.
+package com.alibaba.fastjson2.internal.asm;
+
+/**
+ * A Java field or method type. This class can be used to make it easier to manipulate type and
+ * method descriptors.
+ *
+ * @author Eric Bruneton
+ * @author Chris Nokleberg
+ */
+public final class Type {
+    static final int VOID = 0;
+    static final int BOOLEAN = 1;
+    static final int CHAR = 2;
+    static final int BYTE = 3;
+    static final int SHORT = 4;
+    static final int INT = 5;
+    static final int FLOAT = 6;
+    static final int LONG = 7;
+    static final int DOUBLE = 8;
+    static final int ARRAY = 9;
+    static final int OBJECT = 10;
+    static final int METHOD = 11;
+    static final int INTERNAL = 12;
+
+<span class="fc" id="L52">    static final Type VOID_TYPE = new Type(VOID, &quot;VZCBSIFJD&quot;, VOID, VOID + 1);</span>
+<span class="fc" id="L53">    static final Type BOOLEAN_TYPE = new Type(BOOLEAN, &quot;VZCBSIFJD&quot;, BOOLEAN, BOOLEAN + 1);</span>
+<span class="fc" id="L54">    static final Type CHAR_TYPE = new Type(CHAR, &quot;VZCBSIFJD&quot;, CHAR, CHAR + 1);</span>
+<span class="fc" id="L55">    static final Type BYTE_TYPE = new Type(BYTE, &quot;VZCBSIFJD&quot;, BYTE, BYTE + 1);</span>
+<span class="fc" id="L56">    static final Type SHORT_TYPE = new Type(SHORT, &quot;VZCBSIFJD&quot;, SHORT, SHORT + 1);</span>
+<span class="fc" id="L57">    static final Type INT_TYPE = new Type(INT, &quot;VZCBSIFJD&quot;, INT, INT + 1);</span>
+<span class="fc" id="L58">    static final Type FLOAT_TYPE = new Type(FLOAT, &quot;VZCBSIFJD&quot;, FLOAT, FLOAT + 1);</span>
+<span class="fc" id="L59">    static final Type LONG_TYPE = new Type(LONG, &quot;VZCBSIFJD&quot;, LONG, LONG + 1);</span>
+<span class="fc" id="L60">    static final Type DOUBLE_TYPE = new Type(DOUBLE, &quot;VZCBSIFJD&quot;, DOUBLE, DOUBLE + 1);</span>
+
+<span class="fc" id="L62">    static final Type TYPE_CLASS = new Type(10, &quot;Ljava/lang/Class;&quot;, 1, 16);</span>
+<span class="fc" id="L63">    static final Type TYPE_TYPE = new Type(10, &quot;Ljava/lang/reflect/Type;&quot;, 1, 23);</span>
+<span class="fc" id="L64">    static final Type TYPE_OBJECT = new Type(10, &quot;Ljava/lang/Object;&quot;, 1, 17);</span>
+<span class="fc" id="L65">    static final Type TYPE_STRING = new Type(10, &quot;Ljava/lang/String;&quot;, 1, 17);</span>
+<span class="fc" id="L66">    static final Type TYPE_LIST = new Type(10, &quot;Ljava/util/List;&quot;, 1, 15);</span>
+<span class="fc" id="L67">    static final Type TYPE_JSON_READER = new Type(10, &quot;Lcom/alibaba/fastjson2/JSONReader;&quot;, 1, 33);</span>
+<span class="fc" id="L68">    static final Type TYPE_JSON_WRITER = new Type(10, &quot;Lcom/alibaba/fastjson2/JSONWriter;&quot;, 1, 33);</span>
+<span class="fc" id="L69">    static final Type TYPE_SUPPLIER = new Type(10, &quot;Ljava/util/function/Supplier;&quot;, 1, 28);</span>
+
+<span class="fc" id="L71">    static final Type[] TYPES_0 = new Type[] {TYPE_CLASS, TYPE_STRING, TYPE_STRING, LONG_TYPE, TYPE_LIST};</span>
+<span class="fc" id="L72">    static final Type[] TYPES_1 = new Type[] {TYPE_JSON_WRITER, TYPE_OBJECT, TYPE_OBJECT, TYPE_TYPE, LONG_TYPE};</span>
+<span class="fc" id="L73">    static final Type[] TYPES_2 = new Type[] {TYPE_CLASS, TYPE_SUPPLIER, TYPE_JSON_READER};</span>
+<span class="fc" id="L74">    static final Type[] TYPES_3 = new Type[] {LONG_TYPE};</span>
+<span class="fc" id="L75">    static final Type[] TYPES_4 = new Type[] {TYPE_JSON_READER, TYPE_TYPE, TYPE_OBJECT, LONG_TYPE};</span>
+
+    final int sort;
+    final String valueBuffer;
+    final int valueBegin;
+    final int valueEnd;
+
+<span class="fc" id="L82">    private Type(final int sort, final String valueBuffer, final int valueBegin, final int valueEnd) {</span>
+<span class="fc" id="L83">        this.sort = sort;</span>
+<span class="fc" id="L84">        this.valueBuffer = valueBuffer;</span>
+<span class="fc" id="L85">        this.valueBegin = valueBegin;</span>
+<span class="fc" id="L86">        this.valueEnd = valueEnd;</span>
+<span class="fc" id="L87">    }</span>
+
+    // -----------------------------------------------------------------------------------------------
+    // Methods to get Type(s) from a descriptor, a reflected Method or Constructor, other types, etc.
+    // -----------------------------------------------------------------------------------------------
+//
+//    /**
+//     * Returns the {@link Type} corresponding to the given type descriptor.
+//     *
+//     * @param typeDescriptor a field or method type descriptor.
+//     * @return the {@link Type} corresponding to the given type descriptor.
+//     */
+//    public static Type getType(final String typeDescriptor) {
+//        return getTypeInternal(typeDescriptor, 0, typeDescriptor.length());
+//    }
+
+    /**
+     * Returns the {@link Type} values corresponding to the argument types of the given method
+     * descriptor.
+     *
+     * @param methodDescriptor a method descriptor.
+     * @return the {@link Type} values corresponding to the argument types of the given method
+     * descriptor.
+     */
+    static Type[] getArgumentTypes(final String methodDescriptor) {
+<span class="fc bfc" id="L112" title="All 7 branches covered.">        switch (methodDescriptor) {</span>
+            case &quot;()V&quot;:
+<span class="fc" id="L114">                return new Type[0];</span>
+            case &quot;(J)Lcom/alibaba/fastjson2/reader/FieldReader;&quot;:
+            case &quot;(J)Ljava/lang/Object;&quot;:
+<span class="fc" id="L117">                return TYPES_3;</span>
+            case &quot;(Ljava/lang/Class;Ljava/lang/String;Ljava/lang/String;JLjava/util/List;)V&quot;:
+<span class="fc" id="L119">                return TYPES_0;</span>
+            case &quot;(Lcom/alibaba/fastjson2/JSONWriter;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/reflect/Type;J)V&quot;:
+<span class="fc" id="L121">                return TYPES_1;</span>
+            case &quot;(Ljava/lang/Class;Ljava/util/function/Supplier;[Lcom/alibaba/fastjson2/reader/FieldReader;)V&quot;:
+<span class="fc" id="L123">                return TYPES_2;</span>
+            case &quot;(Lcom/alibaba/fastjson2/JSONReader;Ljava/lang/reflect/Type;Ljava/lang/Object;J)Ljava/lang/Object;&quot;:
+<span class="fc" id="L125">                return TYPES_4;</span>
+            default:
+                break;
+        }
+
+        // First step: compute the number of argument types in methodDescriptor.
+<span class="fc" id="L131">        int numArgumentTypes = 0;</span>
+        // Skip the first character, which is always a '('.
+<span class="fc" id="L133">        int currentOffset = 1;</span>
+        // Parse the argument types, one at a each loop iteration.
+<span class="fc bfc" id="L135" title="All 2 branches covered.">        while (methodDescriptor.charAt(currentOffset) != ')') {</span>
+<span class="fc bfc" id="L136" title="All 2 branches covered.">            while (methodDescriptor.charAt(currentOffset) == '[') {</span>
+<span class="fc" id="L137">                currentOffset++;</span>
+            }
+<span class="fc bfc" id="L139" title="All 2 branches covered.">            if (methodDescriptor.charAt(currentOffset++) == 'L') {</span>
+                // Skip the argument descriptor content.
+<span class="fc" id="L141">                int semiColumnOffset = methodDescriptor.indexOf(';', currentOffset);</span>
+<span class="fc" id="L142">                currentOffset = Math.max(currentOffset, semiColumnOffset + 1);</span>
+            }
+<span class="fc" id="L144">            ++numArgumentTypes;</span>
+        }
+
+        // Second step: create a Type instance for each argument type.
+<span class="fc" id="L148">        Type[] argumentTypes = new Type[numArgumentTypes];</span>
+        // Skip the first character, which is always a '('.
+<span class="fc" id="L150">        currentOffset = 1;</span>
+        // Parse and create the argument types, one at each loop iteration.
+<span class="fc" id="L152">        int currentArgumentTypeIndex = 0;</span>
+<span class="fc bfc" id="L153" title="All 2 branches covered.">        while (methodDescriptor.charAt(currentOffset) != ')') {</span>
+<span class="fc" id="L154">            final int currentArgumentTypeOffset = currentOffset;</span>
+<span class="fc bfc" id="L155" title="All 2 branches covered.">            while (methodDescriptor.charAt(currentOffset) == '[') {</span>
+<span class="fc" id="L156">                currentOffset++;</span>
+            }
+<span class="fc bfc" id="L158" title="All 2 branches covered.">            if (methodDescriptor.charAt(currentOffset++) == 'L') {</span>
+                // Skip the argument descriptor content.
+<span class="fc" id="L160">                int semiColumnOffset = methodDescriptor.indexOf(';', currentOffset);</span>
+<span class="fc" id="L161">                currentOffset = Math.max(currentOffset, semiColumnOffset + 1);</span>
+            }
+<span class="fc" id="L163">            argumentTypes[currentArgumentTypeIndex++] =</span>
+<span class="fc" id="L164">                    getTypeInternal(methodDescriptor, currentArgumentTypeOffset, currentOffset);</span>
+<span class="fc" id="L165">        }</span>
+<span class="fc" id="L166">        return argumentTypes;</span>
+    }
+//
+//    /**
+//     * Returns the start index of the return type of the given method descriptor.
+//     *
+//     * @param descriptor a method descriptor.
+//     * @return the start index of the return type of the given method descriptor.
+//     */
+//    static int getReturnTypeOffset(final String descriptor) {
+//        // Skip the first character, which is always a '('.
+//        int currentOffset = 1;
+//        // Skip the argument types, one at a each loop iteration.
+//        while (descriptor.charAt(currentOffset) != ')') {
+//            while (descriptor.charAt(currentOffset) == '[') {
+//                currentOffset++;
+//            }
+//            if (descriptor.charAt(currentOffset++) == 'L') {
+//                // Skip the argument descriptor content.
+//                int semiColumnOffset = descriptor.indexOf(';', currentOffset);
+//                currentOffset = Math.max(currentOffset, semiColumnOffset + 1);
+//            }
+//        }
+//        return currentOffset + 1;
+//    }
+
+    /**
+     * Returns the {@link Type} corresponding to the given field or method descriptor.
+     *
+     * @param descriptorBuffer a buffer containing the field or method descriptor.
+     * @param descriptorBegin  the beginning index, inclusive, of the field or method descriptor in
+     *                         descriptorBuffer.
+     * @param descriptorEnd    the end index, exclusive, of the field or method descriptor in
+     *                         descriptorBuffer.
+     * @return the {@link Type} corresponding to the given type descriptor.
+     */
+    static Type getTypeInternal(
+            final String descriptorBuffer, final int descriptorBegin, final int descriptorEnd) {
+<span class="pc bpc" id="L204" title="4 of 13 branches missed.">        switch (descriptorBuffer.charAt(descriptorBegin)) {</span>
+            case 'V':
+<span class="nc" id="L206">                return VOID_TYPE;</span>
+            case 'Z':
+<span class="fc" id="L208">                return BOOLEAN_TYPE;</span>
+            case 'C':
+<span class="nc" id="L210">                return CHAR_TYPE;</span>
+            case 'B':
+<span class="fc" id="L212">                return BYTE_TYPE;</span>
+            case 'S':
+<span class="fc" id="L214">                return SHORT_TYPE;</span>
+            case 'I':
+<span class="fc" id="L216">                return INT_TYPE;</span>
+            case 'F':
+<span class="fc" id="L218">                return FLOAT_TYPE;</span>
+            case 'J':
+<span class="fc" id="L220">                return LONG_TYPE;</span>
+            case 'D':
+<span class="fc" id="L222">                return DOUBLE_TYPE;</span>
+            case '[':
+<span class="fc" id="L224">                return new Type(ARRAY, descriptorBuffer, descriptorBegin, descriptorEnd);</span>
+            case 'L':
+<span class="fc" id="L226">                int len = descriptorEnd - descriptorBegin;</span>
+<span class="fc bfc" id="L227" title="All 7 branches covered.">                switch (len) {</span>
+                    case 16:
+<span class="fc bfc" id="L229" title="All 2 branches covered.">                        if (descriptorBuffer.regionMatches(descriptorBegin, TYPE_LIST.valueBuffer, 0, len)) {</span>
+<span class="fc" id="L230">                            return TYPE_LIST;</span>
+                        }
+                        break;
+                    case 17:
+<span class="fc bfc" id="L234" title="All 2 branches covered.">                        if (descriptorBuffer.regionMatches(descriptorBegin, TYPE_CLASS.valueBuffer, 0, len)) {</span>
+<span class="fc" id="L235">                            return TYPE_CLASS;</span>
+                        }
+                        break;
+                    case 18:
+<span class="fc bfc" id="L239" title="All 2 branches covered.">                        if (descriptorBuffer.regionMatches(descriptorBegin, TYPE_STRING.valueBuffer, 0, len)) {</span>
+<span class="fc" id="L240">                            return TYPE_STRING;</span>
+                        }
+<span class="fc bfc" id="L242" title="All 2 branches covered.">                        if (descriptorBuffer.regionMatches(descriptorBegin, TYPE_OBJECT.valueBuffer, 0, len)) {</span>
+<span class="fc" id="L243">                            return TYPE_OBJECT;</span>
+                        }
+                        break;
+                    case 24:
+<span class="fc bfc" id="L247" title="All 2 branches covered.">                        if (descriptorBuffer.regionMatches(descriptorBegin, TYPE_TYPE.valueBuffer, 0, len)) {</span>
+<span class="fc" id="L248">                            return TYPE_TYPE;</span>
+                        }
+                        break;
+                    case 29:
+<span class="pc bpc" id="L252" title="1 of 2 branches missed.">                        if (descriptorBuffer.regionMatches(descriptorBegin, TYPE_SUPPLIER.valueBuffer, 0, len)) {</span>
+<span class="nc" id="L253">                            return TYPE_SUPPLIER;</span>
+                        }
+                        break;
+                    case 34:
+<span class="pc bpc" id="L257" title="1 of 2 branches missed.">                        if (descriptorBuffer.regionMatches(descriptorBegin, TYPE_JSON_WRITER.valueBuffer, 0, len)) {</span>
+<span class="nc" id="L258">                            return TYPE_JSON_WRITER;</span>
+                        }
+<span class="pc bpc" id="L260" title="1 of 2 branches missed.">                        if (descriptorBuffer.regionMatches(descriptorBegin, TYPE_JSON_READER.valueBuffer, 0, len)) {</span>
+<span class="nc" id="L261">                            return TYPE_JSON_READER;</span>
+                        }
+                        break;
+                    default:
+                        break;
+                }
+
+<span class="fc" id="L268">                return new Type(OBJECT, descriptorBuffer, descriptorBegin + 1, descriptorEnd - 1);</span>
+            case '(':
+<span class="nc" id="L270">                return new Type(METHOD, descriptorBuffer, descriptorBegin, descriptorEnd);</span>
+            default:
+<span class="nc" id="L272">                throw new IllegalArgumentException();</span>
+        }
+    }
+
+    // -----------------------------------------------------------------------------------------------
+    // Methods to get class names, internal names or descriptors.
+    // -----------------------------------------------------------------------------------------------
+//
+//    /**
+//     * Returns the internal name of the class corresponding to this object or array type. The internal
+//     * name of a class is its fully qualified name (as returned by Class.getName(), where '.' are
+//     * replaced by '/'). This method should only be used for an object or array type.
+//     *
+//     * @return the internal name of the class corresponding to this object type.
+//     */
+//    public String getInternalName() {
+//        return valueBuffer.substring(valueBegin, valueEnd);
+//    }
+
+    /**
+     * Returns the descriptor corresponding to this type.
+     *
+     * @return the descriptor corresponding to this type.
+     */
+    public String getDescriptor() {
+<span class="fc bfc" id="L297" title="All 2 branches covered.">        if (sort == OBJECT) {</span>
+<span class="pc bpc" id="L298" title="4 of 5 branches missed.">            switch (valueBuffer) {</span>
+                case &quot;(Ljava/lang/Class;Ljava/util/function/Supplier;[Lcom/alibaba/fastjson2/reader/FieldReader;)V&quot;:
+<span class="nc bnc" id="L300" title="All 4 branches missed.">                    if (valueBegin == 2 &amp;&amp; valueEnd == 17) {</span>
+<span class="nc" id="L301">                        return &quot;Ljava/lang/Class;&quot;;</span>
+                    }
+<span class="nc bnc" id="L303" title="All 4 branches missed.">                    if (valueBegin == 19 &amp;&amp; valueEnd == 46) {</span>
+<span class="nc" id="L304">                        return &quot;Ljava/util/function/Supplier;&quot;;</span>
+                    }
+                    break;
+                case &quot;(Lcom/alibaba/fastjson2/JSONReader;Ljava/lang/reflect/Type;Ljava/lang/Object;J)Ljava/lang/Object;&quot;:
+<span class="nc bnc" id="L308" title="All 4 branches missed.">                    if (valueBegin == 2 &amp;&amp; valueEnd == 34) {</span>
+<span class="nc" id="L309">                        return &quot;Lcom/alibaba/fastjson2/JSONReader;&quot;;</span>
+                    }
+<span class="nc bnc" id="L311" title="All 4 branches missed.">                    if (valueBegin == 36 &amp;&amp; valueEnd == 58) {</span>
+<span class="nc" id="L312">                        return &quot;Ljava/lang/reflect/Type;&quot;;</span>
+                    }
+<span class="nc bnc" id="L314" title="All 4 branches missed.">                    if (valueBegin == 60 &amp;&amp; valueEnd == 76) {</span>
+<span class="nc" id="L315">                        return &quot;Ljava/lang/Object;&quot;;</span>
+                    }
+                    break;
+                case &quot;(Ljava/lang/Class;Ljava/lang/String;Ljava/lang/String;JLjava/util/List;)V&quot;:
+<span class="nc bnc" id="L319" title="All 4 branches missed.">                    if (valueBegin == 2 &amp;&amp; valueEnd == 17) {</span>
+<span class="nc" id="L320">                        return &quot;Ljava/lang/Class;&quot;;</span>
+                    }
+<span class="nc bnc" id="L322" title="All 4 branches missed.">                    if (valueBegin == 19 &amp;&amp; valueEnd == 35) {</span>
+<span class="nc" id="L323">                        return &quot;Ljava/lang/String;&quot;;</span>
+                    }
+<span class="nc bnc" id="L325" title="All 4 branches missed.">                    if (valueBegin == 37 &amp;&amp; valueEnd == 53) {</span>
+<span class="nc" id="L326">                        return &quot;Ljava/lang/String;&quot;;</span>
+                    }
+<span class="nc bnc" id="L328" title="All 4 branches missed.">                    if (valueBegin == 56 &amp;&amp; valueEnd == 70) {</span>
+<span class="nc" id="L329">                        return &quot;Ljava/util/List;&quot;;</span>
+                    }
+                    break;
+                case &quot;(Lcom/alibaba/fastjson2/JSONWriter;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/reflect/Type;J)V&quot;:
+<span class="nc bnc" id="L333" title="All 4 branches missed.">                    if (valueBegin == 2 &amp;&amp; valueEnd == 34) {</span>
+<span class="nc" id="L334">                        return &quot;Lcom/alibaba/fastjson2/JSONWriter;&quot;;</span>
+                    }
+<span class="nc bnc" id="L336" title="All 4 branches missed.">                    if (valueBegin == 36 &amp;&amp; valueEnd == 52) {</span>
+<span class="nc" id="L337">                        return &quot;Ljava/lang/Object;&quot;;</span>
+                    }
+<span class="nc bnc" id="L339" title="All 4 branches missed.">                    if (valueBegin == 54 &amp;&amp; valueEnd == 70) {</span>
+<span class="nc" id="L340">                        return &quot;Ljava/lang/Object;&quot;;</span>
+                    }
+<span class="nc bnc" id="L342" title="All 4 branches missed.">                    if (valueBegin == 72 &amp;&amp; valueEnd == 94) {</span>
+<span class="nc" id="L343">                        return &quot;Ljava/lang/reflect/Type;&quot;;</span>
+                    }
+                    break;
+                default:
+                    break;
+            }
+
+<span class="pc bpc" id="L350" title="1 of 4 branches missed.">            if (valueBegin == 1 &amp;&amp; valueEnd + 1 == valueBuffer.length()) {</span>
+<span class="fc" id="L351">                return valueBuffer;</span>
+            }
+<span class="fc" id="L353">            return valueBuffer.substring(valueBegin - 1, valueEnd + 1);</span>
+<span class="pc bpc" id="L354" title="1 of 2 branches missed.">        } else if (sort == INTERNAL) {</span>
+<span class="nc" id="L355">            return 'L' + valueBuffer.substring(valueBegin, valueEnd) + ';';</span>
+        } else {
+<span class="pc bpc" id="L357" title="1 of 3 branches missed.">            switch (valueBuffer) {</span>
+                case &quot;VZCBSIFJD&quot;:
+<span class="pc bpc" id="L359" title="1 of 4 branches missed.">                    if (valueBegin == 7 &amp;&amp; valueEnd == 8) {</span>
+<span class="fc" id="L360">                        return &quot;J&quot;;</span>
+                    }
+                    break;
+                case &quot;(Ljava/lang/Class;Ljava/util/function/Supplier;[Lcom/alibaba/fastjson2/reader/FieldReader;)V&quot;:
+<span class="nc bnc" id="L364" title="All 4 branches missed.">                    if (valueBegin == 47 &amp;&amp; valueEnd == 90) {</span>
+<span class="nc" id="L365">                        return &quot;[Lcom/alibaba/fastjson2/reader/FieldReader;&quot;;</span>
+                    }
+                    break;
+                default:
+                    break;
+            }
+<span class="fc" id="L371">            return valueBuffer.substring(valueBegin, valueEnd);</span>
+        }
+    }
+
+    // -----------------------------------------------------------------------------------------------
+    // Methods to get the sort, dimension, size, and opcodes corresponding to a Type or descriptor.
+    // -----------------------------------------------------------------------------------------------
+//
+//    public int getSort() {
+//        return sort == INTERNAL ? OBJECT : sort;
+//    }
+
+    /**
+     * Computes the size of the arguments and of the return value of a method.
+     *
+     * @param methodDescriptor a method descriptor.
+     * @return the size of the arguments of the method (plus one for the implicit this argument),
+     * argumentsSize, and the size of its return value, returnSize, packed into a single int i =
+     * {@code (argumentsSize &amp;lt;&amp;lt; 2) | returnSize} (argumentsSize is therefore equal to {@code
+     * i &amp;gt;&amp;gt; 2}, and returnSize to {@code i &amp;amp; 0x03}).
+     */
+    public static int getArgumentsAndReturnSizes(final String methodDescriptor) {
+<span class="fc bfc" id="L393" title="All 14 branches covered.">        switch (methodDescriptor) {</span>
+            case &quot;()V&quot;:
+<span class="fc" id="L395">                return 4;</span>
+            case &quot;()I&quot;:
+            case &quot;()Z&quot;:
+            case &quot;()Ljava/lang/String;&quot;:
+            case &quot;()Ljava/lang/Class;&quot;:
+<span class="fc" id="L400">                return 5;</span>
+            case &quot;()J&quot;:
+<span class="fc" id="L402">                return 6;</span>
+            case &quot;(I)V&quot;:
+            case &quot;(Ljava/lang/String;)V&quot;:
+            case &quot;(Lcom/alibaba/fastjson2/JSONWriter;)V&quot;:
+            case &quot;(Ljava/lang/Object;)V&quot;:
+            case &quot;(Ljava/lang/Enum;)V&quot;:
+<span class="fc" id="L408">                return 8;</span>
+            case &quot;(C)Z&quot;:
+            case &quot;(Lcom/alibaba/fastjson2/JSONReader;)Lcom/alibaba/fastjson2/reader/ObjectReader;&quot;:
+            case &quot;(Ljava/lang/Object;)Z&quot;:
+            case &quot;(I)Ljava/lang/Object;&quot;:
+            case &quot;(Lcom/alibaba/fastjson2/JSONReader;)Ljava/lang/Object;&quot;:
+            case &quot;(Lcom/alibaba/fastjson2/JSONWriter;)Z&quot;:
+            case &quot;(I)Ljava/lang/Integer;&quot;:
+<span class="fc" id="L416">                return 9;</span>
+            case &quot;(J)V&quot;:
+            case &quot;(Lcom/alibaba/fastjson2/JSONReader;Ljava/lang/Object;)V&quot;:
+            case &quot;(Ljava/util/List;Ljava/lang/reflect/Type;)V&quot;:
+            case &quot;(Lcom/alibaba/fastjson2/JSONWriter;Ljava/lang/Enum;)V&quot;:
+            case &quot;(Lcom/alibaba/fastjson2/JSONWriter;I)V&quot;:
+<span class="fc" id="L422">                return 12;</span>
+            case &quot;(J)Z&quot;:
+            case &quot;(J)Ljava/lang/Object;&quot;:
+            case &quot;(J)Lcom/alibaba/fastjson2/reader/FieldReader;&quot;:
+            case &quot;(Ljava/lang/Object;Ljava/lang/reflect/Type;)Z&quot;:
+            case &quot;(Lcom/alibaba/fastjson2/writer/FieldWriter;Ljava/lang/Object;)Ljava/lang/String;&quot;:
+            case &quot;(Lcom/alibaba/fastjson2/JSONWriter;Ljava/lang/Class;)Lcom/alibaba/fastjson2/writer/ObjectWriter;&quot;:
+            case &quot;(Lcom/alibaba/fastjson2/JSONWriter;Ljava/lang/reflect/Type;)Lcom/alibaba/fastjson2/writer/ObjectWriter;&quot;:
+<span class="fc" id="L430">                return 13;</span>
+            case &quot;(Lcom/alibaba/fastjson2/JSONReader;Ljava/lang/Object;Ljava/lang/String;)V&quot;:
+            case &quot;(Ljava/lang/Class;Ljava/util/function/Supplier;[Lcom/alibaba/fastjson2/reader/FieldReader;)V&quot;:
+            case &quot;(Lcom/alibaba/fastjson2/JSONWriter;ZLjava/util/List;)V&quot;:
+            case &quot;(Lcom/alibaba/fastjson2/JSONWriter;J)V&quot;:
+<span class="fc" id="L435">                return 16;</span>
+            case &quot;(Ljava/lang/Object;JLjava/lang/Object;)V&quot;:
+            case &quot;(Lcom/alibaba/fastjson2/JSONReader;Ljava/util/List;ILjava/lang/String;)V&quot;:
+<span class="fc" id="L438">                return 20;</span>
+            case &quot;(Lcom/alibaba/fastjson2/JSONReader;Ljava/lang/Class;J)Ljava/lang/Object;&quot;:
+            case &quot;(Lcom/alibaba/fastjson2/JSONReader;Ljava/lang/Class;J)Lcom/alibaba/fastjson2/reader/ObjectReader;&quot;:
+<span class="fc" id="L441">                return 21;</span>
+            case &quot;(Lcom/alibaba/fastjson2/JSONReader;Ljava/lang/reflect/Type;Ljava/lang/Object;J)Ljava/lang/Object;&quot;:
+<span class="fc" id="L443">                return 25;</span>
+            case &quot;(Ljava/lang/Class;Ljava/lang/String;Ljava/lang/String;JLjava/util/List;)V&quot;:
+            case &quot;(Lcom/alibaba/fastjson2/JSONWriter;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/reflect/Type;J)V&quot;:
+<span class="fc" id="L446">                return 28;</span>
+            case &quot;(Ljava/lang/Class;Ljava/lang/String;Ljava/lang/String;JLcom/alibaba/fastjson2/schema/JSONSchema;Ljava/util/function/Supplier;Ljava/util/function/Function;[Lcom/alibaba/fastjson2/reader/FieldReader;)V&quot;:
+<span class="fc" id="L448">                return 40;</span>
+            default:
+                break;
+        }
+
+<span class="fc" id="L453">        int argumentsSize = 1;</span>
+        // Skip the first character, which is always a '('.
+<span class="fc" id="L455">        int currentOffset = 1;</span>
+<span class="fc" id="L456">        int currentChar = methodDescriptor.charAt(currentOffset);</span>
+        // Parse the argument types and compute their size, one at a each loop iteration.
+<span class="fc bfc" id="L458" title="All 2 branches covered.">        while (currentChar != ')') {</span>
+<span class="fc bfc" id="L459" title="All 4 branches covered.">            if (currentChar == 'J' || currentChar == 'D') {</span>
+<span class="fc" id="L460">                currentOffset++;</span>
+<span class="fc" id="L461">                argumentsSize += 2;</span>
+            } else {
+<span class="fc bfc" id="L463" title="All 2 branches covered.">                while (methodDescriptor.charAt(currentOffset) == '[') {</span>
+<span class="fc" id="L464">                    currentOffset++;</span>
+                }
+<span class="fc bfc" id="L466" title="All 2 branches covered.">                if (methodDescriptor.charAt(currentOffset++) == 'L') {</span>
+                    // Skip the argument descriptor content.
+<span class="fc" id="L468">                    int semiColumnOffset = methodDescriptor.indexOf(';', currentOffset);</span>
+<span class="fc" id="L469">                    currentOffset = Math.max(currentOffset, semiColumnOffset + 1);</span>
+                }
+<span class="fc" id="L471">                argumentsSize += 1;</span>
+            }
+<span class="fc" id="L473">            currentChar = methodDescriptor.charAt(currentOffset);</span>
+        }
+<span class="fc" id="L475">        currentChar = methodDescriptor.charAt(currentOffset + 1);</span>
+<span class="fc bfc" id="L476" title="All 2 branches covered.">        if (currentChar == 'V') {</span>
+<span class="fc" id="L477">            return argumentsSize &lt;&lt; 2;</span>
+        } else {
+<span class="fc bfc" id="L479" title="All 4 branches covered.">            int returnSize = (currentChar == 'J' || currentChar == 'D') ? 2 : 1;</span>
+<span class="fc" id="L480">            return argumentsSize &lt;&lt; 2 | returnSize;</span>
+        }
+    }
+
+    public String getClassName() {
+<span class="pc bpc" id="L485" title="3 of 12 branches missed.">        switch (sort) {</span>
+            case VOID:
+<span class="nc" id="L487">                return &quot;void&quot;;</span>
+            case BOOLEAN:
+<span class="fc" id="L489">                return &quot;boolean&quot;;</span>
+            case CHAR:
+<span class="nc" id="L491">                return &quot;char&quot;;</span>
+            case BYTE:
+<span class="fc" id="L493">                return &quot;byte&quot;;</span>
+            case SHORT:
+<span class="fc" id="L495">                return &quot;short&quot;;</span>
+            case INT:
+<span class="fc" id="L497">                return &quot;int&quot;;</span>
+            case FLOAT:
+<span class="fc" id="L499">                return &quot;float&quot;;</span>
+            case LONG:
+<span class="fc" id="L501">                return &quot;long&quot;;</span>
+            case DOUBLE:
+<span class="fc" id="L503">                return &quot;double&quot;;</span>
+            case ARRAY:
+<span class="fc" id="L505">                Type elementType = getTypeInternal(valueBuffer, valueBegin + getDimensions(), valueEnd);</span>
+<span class="fc" id="L506">                StringBuilder stringBuilder = new StringBuilder(elementType.getClassName());</span>
+<span class="fc bfc" id="L507" title="All 2 branches covered.">                for (int i = getDimensions(); i &gt; 0; --i) {</span>
+<span class="fc" id="L508">                    stringBuilder.append(&quot;[]&quot;);</span>
+                }
+<span class="fc" id="L510">                return stringBuilder.toString();</span>
+            case OBJECT:
+            case INTERNAL:
+<span class="fc" id="L513">                return valueBuffer.substring(valueBegin, valueEnd).replace('/', '.');</span>
+            default:
+<span class="nc" id="L515">                throw new AssertionError();</span>
+        }
+    }
+//
+//    public Type getElementType() {
+//        return getTypeInternal(valueBuffer, valueBegin + getDimensions(), valueEnd);
+//    }
+
+    public int getDimensions() {
+<span class="fc" id="L524">        int numDimensions = 1;</span>
+<span class="pc bpc" id="L525" title="1 of 2 branches missed.">        while (valueBuffer.charAt(valueBegin + numDimensions) == '[') {</span>
+<span class="nc" id="L526">            numDimensions++;</span>
+        }
+<span class="fc" id="L528">        return numDimensions;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.8.202204050719</span></div></body></html>

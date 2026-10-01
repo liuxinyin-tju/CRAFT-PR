@@ -1,0 +1,1415 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ObjectWriterCreator.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">fastjson2</a> &gt; <a href="index.source.html" class="el_package">com.alibaba.fastjson2.writer</a> &gt; <span class="el_source">ObjectWriterCreator.java</span></div><h1>ObjectWriterCreator.java</h1><pre class="source lang-java linenums">package com.alibaba.fastjson2.writer;
+
+import com.alibaba.fastjson2.JSONException;
+import com.alibaba.fastjson2.JSONFactory;
+import com.alibaba.fastjson2.JSONWriter;
+import com.alibaba.fastjson2.codec.BeanInfo;
+import com.alibaba.fastjson2.codec.FieldInfo;
+import com.alibaba.fastjson2.filter.*;
+import com.alibaba.fastjson2.function.*;
+import com.alibaba.fastjson2.modules.ObjectWriterModule;
+import com.alibaba.fastjson2.util.BeanUtils;
+import com.alibaba.fastjson2.util.JDKUtils;
+import com.alibaba.fastjson2.util.TypeUtils;
+
+import java.lang.invoke.*;
+import java.lang.reflect.*;
+import java.math.BigDecimal;
+import java.math.BigInteger;
+import java.time.LocalDate;
+import java.time.OffsetDateTime;
+import java.util.*;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.*;
+
+import static com.alibaba.fastjson2.JSONWriter.Feature.WriteClassName;
+import static com.alibaba.fastjson2.util.BeanUtils.SUPER;
+import static com.alibaba.fastjson2.util.TypeUtils.*;
+import static com.alibaba.fastjson2.writer.ObjectWriterProvider.NAME_COMPATIBLE_WITH_FILED;
+
+public class ObjectWriterCreator {
+<span class="fc" id="L31">    public static final ObjectWriterCreator INSTANCE = new ObjectWriterCreator();</span>
+
+<span class="fc" id="L33">    static final Map&lt;Class, LambdaInfo&gt; lambdaMapping = new HashMap&lt;&gt;();</span>
+
+    static {
+<span class="fc" id="L36">        lambdaMapping.put(boolean.class, new LambdaInfo(boolean.class, Predicate.class, &quot;test&quot;));</span>
+<span class="fc" id="L37">        lambdaMapping.put(char.class, new LambdaInfo(char.class, ToCharFunction.class, &quot;applyAsChar&quot;));</span>
+<span class="fc" id="L38">        lambdaMapping.put(byte.class, new LambdaInfo(byte.class, ToByteFunction.class, &quot;applyAsByte&quot;));</span>
+<span class="fc" id="L39">        lambdaMapping.put(short.class, new LambdaInfo(short.class, ToShortFunction.class, &quot;applyAsShort&quot;));</span>
+<span class="fc" id="L40">        lambdaMapping.put(int.class, new LambdaInfo(int.class, ToIntFunction.class, &quot;applyAsInt&quot;));</span>
+<span class="fc" id="L41">        lambdaMapping.put(long.class, new LambdaInfo(long.class, ToLongFunction.class, &quot;applyAsLong&quot;));</span>
+<span class="fc" id="L42">        lambdaMapping.put(float.class, new LambdaInfo(float.class, ToFloatFunction.class, &quot;applyAsFloat&quot;));</span>
+<span class="fc" id="L43">        lambdaMapping.put(double.class, new LambdaInfo(double.class, ToDoubleFunction.class, &quot;applyAsDouble&quot;));</span>
+<span class="fc" id="L44">    }</span>
+
+<span class="fc" id="L46">    protected final AtomicInteger jitErrorCount = new AtomicInteger();</span>
+    protected volatile Throwable jitErrorLast;
+
+<span class="fc" id="L49">    public ObjectWriterCreator() {</span>
+<span class="fc" id="L50">    }</span>
+
+    public ObjectWriter createObjectWriter(List&lt;FieldWriter&gt; fieldWriters) {
+<span class="fc" id="L53">        return new ObjectWriterAdapter(null, null, null, 0, fieldWriters);</span>
+    }
+
+    public ObjectWriter createObjectWriter(FieldWriter... fieldWriters) {
+<span class="fc" id="L57">        return createObjectWriter(Arrays.asList(fieldWriters));</span>
+    }
+
+    public &lt;T&gt; ObjectWriter&lt;T&gt; createObjectWriter(String[] names, Type[] types, FieldSupplier&lt;T&gt; supplier) {
+<span class="fc" id="L61">        FieldWriter[] fieldWriters = new FieldWriter[names.length];</span>
+<span class="fc bfc" id="L62" title="All 2 branches covered.">        for (int i = 0; i &lt; names.length; i++) {</span>
+<span class="fc" id="L63">            String fieldName = names[i];</span>
+<span class="fc" id="L64">            Type fieldType = types[i];</span>
+<span class="fc" id="L65">            Function&lt;T, Object&gt; function = new FieldSupplierFunction&lt;&gt;(supplier, i);</span>
+<span class="fc" id="L66">            fieldWriters[i] = createFieldWriter(fieldName, fieldType, TypeUtils.getClass(fieldType), function);</span>
+        }
+<span class="fc" id="L68">        return createObjectWriter(fieldWriters);</span>
+    }
+
+    public ObjectWriter createObjectWriter(Class objectType) {
+<span class="fc" id="L72">        return createObjectWriter(</span>
+                objectType,
+                0,
+<span class="fc" id="L75">                JSONFactory.getDefaultObjectWriterProvider()</span>
+        );
+    }
+
+    public ObjectWriter createObjectWriter(Class objectType,
+                                           FieldWriter... fieldWriters) {
+<span class="fc" id="L81">        return createObjectWriter(objectType, 0, fieldWriters);</span>
+    }
+
+    public ObjectWriter createObjectWriter(
+            Class objectClass,
+            long features,
+            FieldWriter... fieldWriters
+    ) {
+<span class="fc bfc" id="L89" title="All 2 branches covered.">        if (fieldWriters.length == 0) {</span>
+<span class="fc" id="L90">            return createObjectWriter(objectClass, features, JSONFactory.getDefaultObjectWriterProvider());</span>
+        }
+
+<span class="fc" id="L93">        boolean googleCollection = false;</span>
+<span class="pc bpc" id="L94" title="1 of 2 branches missed.">        if (objectClass != null) {</span>
+<span class="fc" id="L95">            String typeName = objectClass.getName();</span>
+<span class="fc" id="L96">            googleCollection =</span>
+<span class="pc bpc" id="L97" title="1 of 2 branches missed.">                    &quot;com.google.common.collect.AbstractMapBasedMultimap$RandomAccessWrappedList&quot;.equals(typeName)</span>
+<span class="pc bpc" id="L98" title="1 of 2 branches missed.">                            || &quot;com.google.common.collect.AbstractMapBasedMultimap$WrappedSet&quot;.equals(typeName);</span>
+        }
+
+<span class="pc bpc" id="L101" title="1 of 2 branches missed.">        if (!googleCollection) {</span>
+<span class="pc bpc" id="L102" title="11 of 13 branches missed.">            switch (fieldWriters.length) {</span>
+                case 1:
+<span class="pc bpc" id="L104" title="1 of 2 branches missed.">                    if ((fieldWriters[0].features &amp; FieldInfo.VALUE_MASK) == 0) {</span>
+<span class="fc" id="L105">                        return new ObjectWriter1(objectClass, null, null, features, Arrays.asList(fieldWriters));</span>
+                    }
+<span class="nc" id="L107">                    return new ObjectWriterAdapter(objectClass, null, null, features, Arrays.asList(fieldWriters));</span>
+                case 2:
+<span class="nc" id="L109">                    return new ObjectWriter2(objectClass, null, null, features, Arrays.asList(fieldWriters));</span>
+                case 3:
+<span class="fc" id="L111">                    return new ObjectWriter3(objectClass, null, null, features, Arrays.asList(fieldWriters));</span>
+                case 4:
+<span class="nc" id="L113">                    return new ObjectWriter4(objectClass, null, null, features, Arrays.asList(fieldWriters));</span>
+                case 5:
+<span class="nc" id="L115">                    return new ObjectWriter5(objectClass, null, null, features, Arrays.asList(fieldWriters));</span>
+                case 6:
+<span class="nc" id="L117">                    return new ObjectWriter6(objectClass, null, null, features, Arrays.asList(fieldWriters));</span>
+                case 7:
+<span class="nc" id="L119">                    return new ObjectWriter7(objectClass, null, null, features, Arrays.asList(fieldWriters));</span>
+                case 8:
+<span class="nc" id="L121">                    return new ObjectWriter8(objectClass, null, null, features, Arrays.asList(fieldWriters));</span>
+                case 9:
+<span class="nc" id="L123">                    return new ObjectWriter9(objectClass, null, null, features, Arrays.asList(fieldWriters));</span>
+                case 10:
+<span class="nc" id="L125">                    return new ObjectWriter10(objectClass, null, null, features, Arrays.asList(fieldWriters));</span>
+                case 11:
+<span class="nc" id="L127">                    return new ObjectWriter11(objectClass, null, null, features, Arrays.asList(fieldWriters));</span>
+                case 12:
+<span class="nc" id="L129">                    return new ObjectWriter12(objectClass, null, null, features, Arrays.asList(fieldWriters));</span>
+                default:
+<span class="nc" id="L131">                    return new ObjectWriterAdapter(objectClass, null, null, features, Arrays.asList(fieldWriters));</span>
+            }
+        }
+
+<span class="nc" id="L135">        return new ObjectWriterAdapter(objectClass, null, null, features, Arrays.asList(fieldWriters));</span>
+    }
+
+    protected FieldWriter creteFieldWriter(
+            Class objectClass,
+            long writerFeatures,
+            ObjectWriterProvider provider,
+            BeanInfo beanInfo,
+            FieldInfo fieldInfo,
+            Field field
+    ) {
+<span class="fc" id="L146">        fieldInfo.features = writerFeatures;</span>
+<span class="fc" id="L147">        provider.getFieldInfo(beanInfo, fieldInfo, objectClass, field);</span>
+
+<span class="fc bfc" id="L149" title="All 4 branches covered.">        if (fieldInfo.ignore || isFunction(field.getType())) {</span>
+<span class="fc" id="L150">            return null;</span>
+        }
+
+        String fieldName;
+<span class="pc bpc" id="L154" title="1 of 4 branches missed.">        if (fieldInfo.fieldName == null || fieldInfo.fieldName.isEmpty()) {</span>
+<span class="fc" id="L155">            fieldName = field.getName();</span>
+
+<span class="fc bfc" id="L157" title="All 2 branches covered.">            if (beanInfo.namingStrategy != null) {</span>
+<span class="fc" id="L158">                fieldName = BeanUtils.fieldName(fieldName, beanInfo.namingStrategy);</span>
+            }
+        } else {
+<span class="fc" id="L161">            fieldName = fieldInfo.fieldName;</span>
+        }
+
+<span class="fc bfc" id="L164" title="All 2 branches covered.">        if (beanInfo.orders != null) {</span>
+<span class="fc" id="L165">            boolean match = false;</span>
+<span class="fc bfc" id="L166" title="All 2 branches covered.">            for (int i = 0; i &lt; beanInfo.orders.length; i++) {</span>
+<span class="fc bfc" id="L167" title="All 2 branches covered.">                if (fieldName.equals(beanInfo.orders[i])) {</span>
+<span class="fc" id="L168">                    fieldInfo.ordinal = i;</span>
+<span class="fc" id="L169">                    match = true;</span>
+                }
+            }
+<span class="pc bpc" id="L172" title="1 of 2 branches missed.">            if (!match) {</span>
+<span class="nc bnc" id="L173" title="All 2 branches missed.">                if (fieldInfo.ordinal == 0) {</span>
+<span class="nc" id="L174">                    fieldInfo.ordinal = beanInfo.orders.length;</span>
+                }
+            }
+        }
+
+<span class="pc bpc" id="L179" title="1 of 4 branches missed.">        if (beanInfo.includes != null &amp;&amp; beanInfo.includes.length &gt; 0) {</span>
+<span class="fc" id="L180">            boolean match = false;</span>
+<span class="fc bfc" id="L181" title="All 2 branches covered.">            for (String include : beanInfo.includes) {</span>
+<span class="fc bfc" id="L182" title="All 2 branches covered.">                if (include.equals(fieldName)) {</span>
+<span class="fc" id="L183">                    match = true;</span>
+<span class="fc" id="L184">                    break;</span>
+                }
+            }
+<span class="fc bfc" id="L187" title="All 2 branches covered.">            if (!match) {</span>
+<span class="fc" id="L188">                return null;</span>
+            }
+        }
+
+<span class="fc" id="L192">        ObjectWriter writeUsingWriter = null;</span>
+<span class="fc bfc" id="L193" title="All 2 branches covered.">        if (fieldInfo.writeUsing != null) {</span>
+            try {
+<span class="fc" id="L195">                Constructor&lt;?&gt; constructor = fieldInfo.writeUsing.getDeclaredConstructor();</span>
+<span class="fc" id="L196">                constructor.setAccessible(true);</span>
+<span class="fc" id="L197">                writeUsingWriter = (ObjectWriter) constructor.newInstance();</span>
+<span class="nc" id="L198">            } catch (InstantiationException | IllegalAccessException | InvocationTargetException |</span>
+                     NoSuchMethodException e) {
+<span class="nc" id="L200">                throw new JSONException(&quot;create writeUsing Writer error&quot;, e);</span>
+<span class="fc" id="L201">            }</span>
+        }
+
+        try {
+<span class="fc" id="L205">            field.setAccessible(true);</span>
+<span class="nc" id="L206">        } catch (Throwable ignored) {</span>
+            // ignored
+<span class="fc" id="L208">        }</span>
+
+<span class="fc bfc" id="L210" title="All 4 branches covered.">        if (writeUsingWriter == null &amp;&amp; fieldInfo.fieldClassMixIn) {</span>
+<span class="fc" id="L211">            writeUsingWriter = ObjectWriterBaseModule.VoidObjectWriter.INSTANCE;</span>
+        }
+
+<span class="fc bfc" id="L214" title="All 2 branches covered.">        if (writeUsingWriter == null) {</span>
+<span class="fc" id="L215">            Class&lt;?&gt; fieldClass = field.getType();</span>
+<span class="fc bfc" id="L216" title="All 2 branches covered.">            if (fieldClass == Date.class) {</span>
+<span class="fc" id="L217">                ObjectWriter objectWriter = provider.cache.get(fieldClass);</span>
+<span class="fc bfc" id="L218" title="All 2 branches covered.">                if (objectWriter != ObjectWriterImplDate.INSTANCE) {</span>
+<span class="fc" id="L219">                    writeUsingWriter = objectWriter;</span>
+                }
+<span class="pc bpc" id="L221" title="2 of 6 branches missed.">            } else if (Map.class.isAssignableFrom(fieldClass)</span>
+                    &amp;&amp; (fieldInfo.keyUsing != null || fieldInfo.valueUsing != null)) {
+<span class="nc" id="L223">                ObjectWriter keyWriter = null;</span>
+<span class="nc" id="L224">                ObjectWriter valueWriter = null;</span>
+<span class="nc bnc" id="L225" title="All 2 branches missed.">                if (fieldInfo.keyUsing != null) {</span>
+                    try {
+<span class="nc" id="L227">                        Constructor&lt;?&gt; constructor = fieldInfo.keyUsing.getDeclaredConstructor();</span>
+<span class="nc" id="L228">                        constructor.setAccessible(true);</span>
+<span class="nc" id="L229">                        keyWriter = (ObjectWriter) constructor.newInstance();</span>
+<span class="nc" id="L230">                    } catch (Exception ignored) {</span>
+                        // ignored
+<span class="nc" id="L232">                    }</span>
+                }
+<span class="nc bnc" id="L234" title="All 2 branches missed.">                if (fieldInfo.valueUsing != null) {</span>
+                    try {
+<span class="nc" id="L236">                        Constructor&lt;?&gt; constructor = fieldInfo.valueUsing.getDeclaredConstructor();</span>
+<span class="nc" id="L237">                        constructor.setAccessible(true);</span>
+<span class="nc" id="L238">                        valueWriter = (ObjectWriter) constructor.newInstance();</span>
+<span class="nc" id="L239">                    } catch (Exception ignored) {</span>
+                        // ignored
+<span class="nc" id="L241">                    }</span>
+                }
+
+<span class="nc bnc" id="L244" title="All 4 branches missed.">                if (keyWriter != null || valueWriter != null) {</span>
+<span class="nc" id="L245">                    ObjectWriterImplMap mapWriter = ObjectWriterImplMap.of(field.getType(), fieldClass);</span>
+<span class="nc" id="L246">                    mapWriter.keyWriter = keyWriter;</span>
+<span class="nc" id="L247">                    mapWriter.valueWriter = valueWriter;</span>
+<span class="nc" id="L248">                    writeUsingWriter = mapWriter;</span>
+                }
+            }
+        }
+
+<span class="fc" id="L253">        String format = fieldInfo.format;</span>
+<span class="fc bfc" id="L254" title="All 4 branches covered.">        if (format == null &amp;&amp; beanInfo.format != null) {</span>
+<span class="fc" id="L255">            format = beanInfo.format;</span>
+        }
+
+<span class="fc" id="L258">        return createFieldWriter(provider, fieldName, fieldInfo.ordinal, fieldInfo.features, format, fieldInfo.locale, fieldInfo.label, field, writeUsingWriter);</span>
+    }
+
+    public ObjectWriter createObjectWriter(
+            Class objectClass,
+            long features,
+            final List&lt;ObjectWriterModule&gt; modules
+    ) {
+<span class="nc" id="L266">        ObjectWriterProvider provider = null;</span>
+<span class="nc bnc" id="L267" title="All 2 branches missed.">        for (ObjectWriterModule module : modules) {</span>
+<span class="nc bnc" id="L268" title="All 2 branches missed.">            if (provider == null) {</span>
+<span class="nc" id="L269">                provider = module.getProvider();</span>
+            }
+<span class="nc" id="L271">        }</span>
+<span class="nc" id="L272">        return createObjectWriter(objectClass, features, provider);</span>
+    }
+
+    protected void setDefaultValue(List&lt;FieldWriter&gt; fieldWriters, Class objectClass) {
+<span class="fc" id="L276">        Constructor constructor = BeanUtils.getDefaultConstructor(objectClass, true);</span>
+<span class="fc bfc" id="L277" title="All 2 branches covered.">        if (constructor == null) {</span>
+<span class="fc" id="L278">            return;</span>
+        }
+
+<span class="fc" id="L281">        int parameterCount = constructor.getParameterCount();</span>
+        Object object;
+        try {
+<span class="fc" id="L284">            constructor.setAccessible(true);</span>
+<span class="fc bfc" id="L285" title="All 2 branches covered.">            if (parameterCount == 0) {</span>
+<span class="fc" id="L286">                object = constructor.newInstance();</span>
+<span class="pc bpc" id="L287" title="1 of 2 branches missed.">            } else if (parameterCount == 1) {</span>
+<span class="nc" id="L288">                object = constructor.newInstance(true);</span>
+            } else {
+<span class="nc" id="L290">                return;</span>
+            }
+<span class="fc" id="L292">        } catch (Exception ignored) {</span>
+            // ignored
+<span class="fc" id="L294">            return;</span>
+<span class="fc" id="L295">        }</span>
+
+<span class="fc bfc" id="L297" title="All 2 branches covered.">        for (FieldWriter fieldWriter : fieldWriters) {</span>
+<span class="fc" id="L298">            fieldWriter.setDefaultValue(object);</span>
+<span class="fc" id="L299">        }</span>
+<span class="fc" id="L300">    }</span>
+
+    public ObjectWriter createObjectWriter(
+            final Class objectClass,
+            final long features,
+            final ObjectWriterProvider provider
+    ) {
+<span class="fc" id="L307">        BeanInfo beanInfo = provider.createBeanInfo();</span>
+<span class="fc" id="L308">        beanInfo.readerFeatures |= FieldInfo.JIT;</span>
+
+<span class="fc" id="L310">        provider.getBeanInfo(beanInfo, objectClass);</span>
+
+<span class="pc bpc" id="L312" title="1 of 4 branches missed.">        if (beanInfo.serializer != null &amp;&amp; ObjectWriter.class.isAssignableFrom(beanInfo.serializer)) {</span>
+            try {
+<span class="fc" id="L314">                return (ObjectWriter) beanInfo.serializer.newInstance();</span>
+<span class="nc" id="L315">            } catch (InstantiationException | IllegalAccessException e) {</span>
+<span class="nc" id="L316">                throw new JSONException(&quot;create serializer error&quot;, e);</span>
+            }
+        }
+
+<span class="fc" id="L320">        boolean record = BeanUtils.isRecord(objectClass);</span>
+
+<span class="fc" id="L322">        long beanFeatures = beanInfo.writerFeatures;</span>
+<span class="fc bfc" id="L323" title="All 2 branches covered.">        if (beanInfo.seeAlso != null) {</span>
+<span class="fc" id="L324">            beanFeatures &amp;= ~JSONWriter.Feature.WriteClassName.mask;</span>
+        }
+
+<span class="fc" id="L327">        long writerFieldFeatures = features | beanFeatures;</span>
+<span class="fc bfc" id="L328" title="All 2 branches covered.">        boolean fieldBased = (writerFieldFeatures &amp; JSONWriter.Feature.FieldBased.mask) != 0;</span>
+
+<span class="pc bpc" id="L330" title="2 of 6 branches missed.">        if (fieldBased &amp;&amp; (record || objectClass.isInterface())) {</span>
+<span class="nc" id="L331">            fieldBased = false;</span>
+        }
+
+        List&lt;FieldWriter&gt; fieldWriters;
+<span class="fc" id="L335">        final FieldInfo fieldInfo = new FieldInfo();</span>
+
+<span class="fc bfc" id="L337" title="All 2 branches covered.">        if (fieldBased) {</span>
+<span class="fc" id="L338">            Map&lt;String, FieldWriter&gt; fieldWriterMap = new TreeMap&lt;&gt;();</span>
+<span class="fc" id="L339">            BeanUtils.declaredFields(objectClass, field -&gt; {</span>
+<span class="fc" id="L340">                fieldInfo.init();</span>
+<span class="fc" id="L341">                FieldWriter fieldWriter = creteFieldWriter(objectClass, writerFieldFeatures, provider, beanInfo, fieldInfo, field);</span>
+<span class="pc bpc" id="L342" title="1 of 2 branches missed.">                if (fieldWriter != null) {</span>
+<span class="fc" id="L343">                    fieldWriterMap.put(fieldWriter.fieldName, fieldWriter);</span>
+                }
+<span class="fc" id="L345">            });</span>
+<span class="fc" id="L346">            fieldWriters = new ArrayList&lt;&gt;(fieldWriterMap.values());</span>
+<span class="fc" id="L347">        } else {</span>
+<span class="fc" id="L348">            boolean fieldWritersCreated = false;</span>
+<span class="fc" id="L349">            fieldWriters = new ArrayList&lt;&gt;();</span>
+<span class="fc bfc" id="L350" title="All 2 branches covered.">            for (ObjectWriterModule module : provider.modules) {</span>
+<span class="pc bpc" id="L351" title="1 of 2 branches missed.">                if (module.createFieldWriters(this, objectClass, fieldWriters)) {</span>
+<span class="nc" id="L352">                    fieldWritersCreated = true;</span>
+<span class="nc" id="L353">                    break;</span>
+                }
+<span class="fc" id="L355">            }</span>
+
+<span class="pc bpc" id="L357" title="1 of 2 branches missed.">            if (!fieldWritersCreated) {</span>
+<span class="fc" id="L358">                Map&lt;String, FieldWriter&gt; fieldWriterMap = new TreeMap&lt;&gt;();</span>
+
+<span class="pc bpc" id="L360" title="1 of 2 branches missed.">                if (!record) {</span>
+<span class="fc" id="L361">                    BeanUtils.declaredFields(objectClass, field -&gt; {</span>
+<span class="fc" id="L362">                        fieldInfo.init();</span>
+<span class="fc bfc" id="L363" title="All 2 branches covered.">                        fieldInfo.ignore = (field.getModifiers() &amp; Modifier.PUBLIC) == 0;</span>
+<span class="fc" id="L364">                        FieldWriter fieldWriter = creteFieldWriter(objectClass, writerFieldFeatures, provider, beanInfo, fieldInfo, field);</span>
+<span class="fc bfc" id="L365" title="All 2 branches covered.">                        if (fieldWriter != null) {</span>
+<span class="fc" id="L366">                            FieldWriter origin = fieldWriterMap.putIfAbsent(fieldWriter.fieldName, fieldWriter);</span>
+
+<span class="pc bpc" id="L368" title="1 of 4 branches missed.">                            if (origin != null &amp;&amp; origin.compareTo(fieldWriter) &gt; 0) {</span>
+<span class="fc" id="L369">                                fieldWriterMap.put(fieldWriter.fieldName, fieldWriter);</span>
+                            }
+                        }
+<span class="fc" id="L372">                    });</span>
+                }
+
+<span class="fc" id="L375">                Class mixIn = provider.getMixIn(objectClass);</span>
+
+<span class="fc" id="L377">                BeanUtils.getters(objectClass, mixIn, beanInfo.kotlin, method -&gt; {</span>
+<span class="fc" id="L378">                    fieldInfo.init();</span>
+<span class="fc" id="L379">                    fieldInfo.features = writerFieldFeatures;</span>
+<span class="fc" id="L380">                    fieldInfo.format = beanInfo.format;</span>
+<span class="fc" id="L381">                    provider.getFieldInfo(beanInfo, fieldInfo, objectClass, method);</span>
+<span class="fc bfc" id="L382" title="All 2 branches covered.">                    if (fieldInfo.ignore) {</span>
+<span class="fc" id="L383">                        return;</span>
+                    }
+
+<span class="fc" id="L386">                    String fieldName = getFieldName(objectClass, provider, beanInfo, record, fieldInfo, method);</span>
+
+<span class="pc bpc" id="L388" title="1 of 4 branches missed.">                    if (beanInfo.includes != null &amp;&amp; beanInfo.includes.length &gt; 0) {</span>
+<span class="fc" id="L389">                        boolean match = false;</span>
+<span class="fc bfc" id="L390" title="All 2 branches covered.">                        for (String include : beanInfo.includes) {</span>
+<span class="fc bfc" id="L391" title="All 2 branches covered.">                            if (include.equals(fieldName)) {</span>
+<span class="fc" id="L392">                                match = true;</span>
+<span class="fc" id="L393">                                break;</span>
+                            }
+                        }
+<span class="fc bfc" id="L396" title="All 2 branches covered.">                        if (!match) {</span>
+<span class="fc" id="L397">                            return;</span>
+                        }
+                    }
+
+                    // skip typeKey field
+<span class="fc bfc" id="L402" title="All 2 branches covered.">                    if ((beanInfo.writerFeatures &amp; WriteClassName.mask) != 0</span>
+<span class="fc bfc" id="L403" title="All 2 branches covered.">                            &amp;&amp; fieldName.equals(beanInfo.typeKey)) {</span>
+<span class="fc" id="L404">                        return;</span>
+                    }
+
+<span class="fc bfc" id="L407" title="All 2 branches covered.">                    if (beanInfo.orders != null) {</span>
+<span class="fc" id="L408">                        boolean match = false;</span>
+<span class="fc bfc" id="L409" title="All 2 branches covered.">                        for (int i = 0; i &lt; beanInfo.orders.length; i++) {</span>
+<span class="fc bfc" id="L410" title="All 2 branches covered.">                            if (fieldName.equals(beanInfo.orders[i])) {</span>
+<span class="fc" id="L411">                                fieldInfo.ordinal = i;</span>
+<span class="fc" id="L412">                                match = true;</span>
+                            }
+                        }
+<span class="pc bpc" id="L415" title="1 of 2 branches missed.">                        if (!match) {</span>
+<span class="nc bnc" id="L416" title="All 2 branches missed.">                            if (fieldInfo.ordinal == 0) {</span>
+<span class="nc" id="L417">                                fieldInfo.ordinal = beanInfo.orders.length;</span>
+                            }
+                        }
+                    }
+
+<span class="fc" id="L422">                    Class&lt;?&gt; returnType = method.getReturnType();</span>
+                    // skip function
+<span class="pc bpc" id="L424" title="1 of 2 branches missed.">                    if (isFunction(returnType)) {</span>
+<span class="nc" id="L425">                        return;</span>
+                    }
+
+<span class="fc" id="L428">                    ObjectWriter writeUsingWriter = null;</span>
+<span class="fc bfc" id="L429" title="All 2 branches covered.">                    if (fieldInfo.writeUsing != null) {</span>
+                        try {
+<span class="fc" id="L431">                            Constructor&lt;?&gt; constructor = fieldInfo.writeUsing.getDeclaredConstructor();</span>
+<span class="fc" id="L432">                            constructor.setAccessible(true);</span>
+<span class="fc" id="L433">                            writeUsingWriter = (ObjectWriter) constructor.newInstance();</span>
+<span class="nc" id="L434">                        } catch (InstantiationException | IllegalAccessException | InvocationTargetException |</span>
+                                 NoSuchMethodException e) {
+<span class="nc" id="L436">                            throw new JSONException(&quot;create writeUsing Writer error&quot;, e);</span>
+<span class="fc" id="L437">                        }</span>
+                    }
+
+<span class="fc bfc" id="L440" title="All 4 branches covered.">                    if (writeUsingWriter == null &amp;&amp; fieldInfo.fieldClassMixIn) {</span>
+<span class="fc" id="L441">                        writeUsingWriter = ObjectWriterBaseModule.VoidObjectWriter.INSTANCE;</span>
+                    }
+
+<span class="fc" id="L444">                    FieldWriter fieldWriter = null;</span>
+<span class="pc bpc" id="L445" title="1 of 2 branches missed.">                    if ((beanInfo.readerFeatures &amp; FieldInfo.JIT) != 0) {</span>
+                        try {
+<span class="fc" id="L447">                            fieldWriter = createFieldWriterLambda(</span>
+                                    provider,
+                                    objectClass,
+                                    fieldName,
+                                    fieldInfo.ordinal,
+                                    fieldInfo.features,
+                                    fieldInfo.format,
+                                    fieldInfo.label,
+                                    method,
+                                    writeUsingWriter
+                            );
+<span class="nc" id="L458">                        } catch (Throwable ignored) {</span>
+<span class="nc" id="L459">                            jitErrorCount.incrementAndGet();</span>
+<span class="nc" id="L460">                            jitErrorLast = ignored;</span>
+<span class="fc" id="L461">                        }</span>
+                    }
+<span class="fc bfc" id="L463" title="All 2 branches covered.">                    if (fieldWriter == null) {</span>
+<span class="fc" id="L464">                        fieldWriter = createFieldWriter(</span>
+                                provider,
+                                objectClass,
+                                fieldName,
+                                fieldInfo.ordinal,
+                                fieldInfo.features,
+                                fieldInfo.format,
+                                fieldInfo.label,
+                                method,
+                                writeUsingWriter
+                        );
+                    }
+
+<span class="fc" id="L477">                    FieldWriter origin = fieldWriterMap.putIfAbsent(fieldWriter.fieldName, fieldWriter);</span>
+
+<span class="pc bpc" id="L479" title="1 of 4 branches missed.">                    if (origin != null &amp;&amp; origin.compareTo(fieldWriter) &gt; 0) {</span>
+<span class="nc" id="L480">                        fieldWriterMap.put(fieldName, fieldWriter);</span>
+                    }
+<span class="fc" id="L482">                });</span>
+
+<span class="fc" id="L484">                fieldWriters = new ArrayList&lt;&gt;(fieldWriterMap.values());</span>
+            }
+        }
+
+<span class="fc" id="L488">        long writerFeatures = features | beanInfo.writerFeatures;</span>
+<span class="fc bfc" id="L489" title="All 4 branches covered.">        if ((!fieldBased) &amp;&amp; Throwable.class.isAssignableFrom(objectClass)) {</span>
+<span class="fc" id="L490">            return new ObjectWriterException(objectClass, writerFeatures, fieldWriters);</span>
+        }
+
+<span class="fc" id="L493">        handleIgnores(beanInfo, fieldWriters);</span>
+
+<span class="pc bpc" id="L495" title="1 of 2 branches missed.">        if (beanInfo.alphabetic) {</span>
+<span class="fc" id="L496">            Collections.sort(fieldWriters);</span>
+        }
+
+<span class="fc bfc" id="L499" title="All 2 branches covered.">        if (BeanUtils.isExtendedMap(objectClass)) {</span>
+<span class="fc" id="L500">            Type superType = objectClass.getGenericSuperclass();</span>
+<span class="fc" id="L501">            FieldWriter superWriter = ObjectWriters.fieldWriter(</span>
+                    SUPER,
+                    superType,
+<span class="fc" id="L504">                    objectClass.getSuperclass(),</span>
+<span class="fc" id="L505">                    o -&gt; o</span>
+            );
+<span class="fc" id="L507">            fieldWriters.add(superWriter);</span>
+        }
+
+<span class="fc" id="L510">        setDefaultValue(fieldWriters, objectClass);</span>
+
+<span class="fc" id="L512">        ObjectWriterAdapter writerAdapter = null;</span>
+
+        boolean googleCollection;
+<span class="fc" id="L515">        String typeName = objectClass.getName();</span>
+<span class="fc" id="L516">        googleCollection =</span>
+<span class="pc bpc" id="L517" title="1 of 2 branches missed.">                &quot;com.google.common.collect.AbstractMapBasedMultimap$RandomAccessWrappedList&quot;.equals(typeName)</span>
+<span class="fc bfc" id="L518" title="All 2 branches covered.">                        || &quot;com.google.common.collect.AbstractMapBasedMultimap$WrappedSet&quot;.equals(typeName);</span>
+<span class="fc bfc" id="L519" title="All 2 branches covered.">        if (!googleCollection) {</span>
+<span class="fc bfc" id="L520" title="All 13 branches covered.">            switch (fieldWriters.size()) {</span>
+                case 1:
+<span class="fc bfc" id="L522" title="All 2 branches covered.">                    if ((fieldWriters.get(0).features &amp; FieldInfo.VALUE_MASK) == 0) {</span>
+<span class="fc" id="L523">                        writerAdapter = new ObjectWriter1(objectClass, beanInfo.typeKey, beanInfo.typeName, writerFeatures, fieldWriters);</span>
+                    }
+                    break;
+                case 2:
+<span class="fc" id="L527">                    writerAdapter = new ObjectWriter2(objectClass, beanInfo.typeKey, beanInfo.typeName, writerFeatures, fieldWriters);</span>
+<span class="fc" id="L528">                    break;</span>
+                case 3:
+<span class="fc" id="L530">                    writerAdapter = new ObjectWriter3(objectClass, beanInfo.typeKey, beanInfo.typeName, writerFeatures, fieldWriters);</span>
+<span class="fc" id="L531">                    break;</span>
+                case 4:
+<span class="fc" id="L533">                    writerAdapter = new ObjectWriter4(objectClass, beanInfo.typeKey, beanInfo.typeName, writerFeatures, fieldWriters);</span>
+<span class="fc" id="L534">                    break;</span>
+                case 5:
+<span class="fc" id="L536">                    writerAdapter = new ObjectWriter5(objectClass, beanInfo.typeKey, beanInfo.typeName, writerFeatures, fieldWriters);</span>
+<span class="fc" id="L537">                    break;</span>
+                case 6:
+<span class="fc" id="L539">                    writerAdapter = new ObjectWriter6(objectClass, beanInfo.typeKey, beanInfo.typeName, writerFeatures, fieldWriters);</span>
+<span class="fc" id="L540">                    break;</span>
+                case 7:
+<span class="fc" id="L542">                    writerAdapter = new ObjectWriter7(objectClass, beanInfo.typeKey, beanInfo.typeName, writerFeatures, fieldWriters);</span>
+<span class="fc" id="L543">                    break;</span>
+                case 8:
+<span class="fc" id="L545">                    writerAdapter = new ObjectWriter8(objectClass, beanInfo.typeKey, beanInfo.typeName, writerFeatures, fieldWriters);</span>
+<span class="fc" id="L546">                    break;</span>
+                case 9:
+<span class="fc" id="L548">                    writerAdapter = new ObjectWriter9(objectClass, beanInfo.typeKey, beanInfo.typeName, writerFeatures, fieldWriters);</span>
+<span class="fc" id="L549">                    break;</span>
+                case 10:
+<span class="fc" id="L551">                    writerAdapter = new ObjectWriter10(objectClass, beanInfo.typeKey, beanInfo.typeName, writerFeatures, fieldWriters);</span>
+<span class="fc" id="L552">                    break;</span>
+                case 11:
+<span class="fc" id="L554">                    writerAdapter = new ObjectWriter11(objectClass, beanInfo.typeKey, beanInfo.typeName, writerFeatures, fieldWriters);</span>
+<span class="fc" id="L555">                    break;</span>
+                case 12:
+<span class="fc" id="L557">                    writerAdapter = new ObjectWriter12(objectClass, beanInfo.typeKey, beanInfo.typeName, writerFeatures, fieldWriters);</span>
+<span class="fc" id="L558">                    break;</span>
+                default:
+                    break;
+            }
+        }
+<span class="fc bfc" id="L563" title="All 2 branches covered.">        if (writerAdapter == null) {</span>
+<span class="fc" id="L564">            writerAdapter = new ObjectWriterAdapter(objectClass, beanInfo.typeKey, beanInfo.typeName, writerFeatures, fieldWriters);</span>
+        }
+
+<span class="pc bpc" id="L567" title="1 of 2 branches missed.">        if (beanInfo.serializeFilters != null) {</span>
+<span class="nc" id="L568">            configSerializeFilters(beanInfo, writerAdapter);</span>
+        }
+
+<span class="fc" id="L571">        return writerAdapter;</span>
+    }
+
+    protected static String getFieldName(
+            Class objectClass,
+            ObjectWriterProvider provider,
+            BeanInfo beanInfo,
+            boolean record,
+            FieldInfo fieldInfo,
+            Method method
+    ) {
+        String fieldName;
+<span class="pc bpc" id="L583" title="1 of 4 branches missed.">        if (fieldInfo.fieldName == null || fieldInfo.fieldName.isEmpty()) {</span>
+<span class="pc bpc" id="L584" title="1 of 2 branches missed.">            if (record) {</span>
+<span class="nc" id="L585">                fieldName = method.getName();</span>
+            } else {
+<span class="fc" id="L587">                fieldName = BeanUtils.getterName(method, beanInfo.kotlin, beanInfo.namingStrategy);</span>
+
+                Field field;
+<span class="pc bpc" id="L590" title="1 of 2 branches missed.">                if ((provider.userDefineMask &amp; NAME_COMPATIBLE_WITH_FILED) != 0</span>
+<span class="nc bnc" id="L591" title="All 2 branches missed.">                        &amp;&amp; (field = BeanUtils.getField(objectClass, method)) != null) {</span>
+<span class="nc" id="L592">                    fieldName = field.getName();</span>
+                } else {
+<span class="fc" id="L594">                    char c0 = '\0', c1;</span>
+<span class="fc" id="L595">                    int len = fieldName.length();</span>
+<span class="pc bpc" id="L596" title="1 of 2 branches missed.">                    if (len &gt; 0) {</span>
+<span class="fc" id="L597">                        c0 = fieldName.charAt(0);</span>
+                    }
+
+<span class="pc bpc" id="L600" title="3 of 12 branches missed.">                    if ((len == 1 &amp;&amp; c0 &gt;= 'a' &amp;&amp; c0 &lt;= 'z')</span>
+<span class="pc bpc" id="L601" title="1 of 4 branches missed.">                            || (len &gt; 2 &amp;&amp; c0 &gt;= 'A' &amp;&amp; c0 &lt;= 'Z' &amp;&amp; (c1 = fieldName.charAt(1)) &gt;= 'A' &amp;&amp; c1 &lt;= 'Z')</span>
+                    ) {
+<span class="fc" id="L603">                        char[] chars = fieldName.toCharArray();</span>
+<span class="fc bfc" id="L604" title="All 2 branches covered.">                        if (c0 &gt;= 'a') {</span>
+<span class="fc" id="L605">                            chars[0] = (char) (chars[0] - 32);</span>
+                        } else {
+<span class="fc" id="L607">                            chars[0] = (char) (chars[0] + 32);</span>
+                        }
+<span class="fc" id="L609">                        String fieldName1 = new String(chars);</span>
+<span class="fc" id="L610">                        field = BeanUtils.getDeclaredField(objectClass, fieldName1);</span>
+
+<span class="pc bpc" id="L612" title="1 of 6 branches missed.">                        if (field != null &amp;&amp; (len == 1 || Modifier.isPublic(field.getModifiers()))) {</span>
+<span class="fc" id="L613">                            fieldName = field.getName();</span>
+                        }
+                    }
+<span class="fc" id="L616">                }</span>
+            }
+        } else {
+<span class="fc" id="L619">            fieldName = fieldInfo.fieldName;</span>
+        }
+<span class="fc" id="L621">        return fieldName;</span>
+    }
+
+    protected static void configSerializeFilters(BeanInfo beanInfo, ObjectWriterAdapter writerAdapter) {
+<span class="fc bfc" id="L625" title="All 2 branches covered.">        for (Class&lt;? extends Filter&gt; filterClass : beanInfo.serializeFilters) {</span>
+<span class="pc bpc" id="L626" title="1 of 2 branches missed.">            if (!Filter.class.isAssignableFrom(filterClass)) {</span>
+<span class="nc" id="L627">                continue;</span>
+            }
+
+            try {
+<span class="fc" id="L631">                Filter filter = filterClass.newInstance();</span>
+<span class="fc" id="L632">                writerAdapter.setFilter(filter);</span>
+<span class="nc" id="L633">            } catch (InstantiationException | IllegalAccessException ignored) {</span>
+                //ignored
+<span class="fc" id="L635">            }</span>
+        }
+<span class="fc" id="L637">    }</span>
+
+    protected void handleIgnores(BeanInfo beanInfo, List&lt;FieldWriter&gt; fieldWriters) {
+<span class="pc bpc" id="L640" title="1 of 4 branches missed.">        if (beanInfo.ignores == null || beanInfo.ignores.length == 0) {</span>
+<span class="fc" id="L641">            return;</span>
+        }
+
+<span class="fc bfc" id="L644" title="All 2 branches covered.">        for (int i = fieldWriters.size() - 1; i &gt;= 0; i--) {</span>
+<span class="fc" id="L645">            FieldWriter fieldWriter = fieldWriters.get(i);</span>
+<span class="fc bfc" id="L646" title="All 2 branches covered.">            for (String ignore : beanInfo.ignores) {</span>
+<span class="fc bfc" id="L647" title="All 2 branches covered.">                if (ignore.equals(fieldWriter.fieldName)) {</span>
+<span class="fc" id="L648">                    fieldWriters.remove(i);</span>
+<span class="fc" id="L649">                    break;</span>
+                }
+            }
+        }
+<span class="fc" id="L653">    }</span>
+
+    public &lt;T&gt; FieldWriter&lt;T&gt; createFieldWriter(String fieldName, String format, Field field) {
+<span class="fc" id="L656">        return createFieldWriter(JSONFactory.getDefaultObjectWriterProvider(), fieldName, 0, 0L, format, null, field, null);</span>
+    }
+
+    public &lt;T&gt; FieldWriter&lt;T&gt; createFieldWriter(
+            String fieldName,
+            int ordinal,
+            long features,
+            String format,
+            Field field
+    ) {
+<span class="fc" id="L666">        return createFieldWriter(JSONFactory.getDefaultObjectWriterProvider(), fieldName, ordinal, features, format, null, field, null);</span>
+    }
+
+    public &lt;T&gt; FieldWriter&lt;T&gt; createFieldWriter(
+            String fieldName,
+            int ordinal,
+            long features,
+            String format,
+            String label,
+            Field field,
+            ObjectWriter initObjectWriter
+    ) {
+<span class="nc" id="L678">        return createFieldWriter(JSONFactory.getDefaultObjectWriterProvider(), fieldName, ordinal, features, format, label, field, initObjectWriter);</span>
+    }
+
+    public final &lt;T&gt; FieldWriter&lt;T&gt; createFieldWriter(
+            ObjectWriterProvider provider,
+            String fieldName,
+            int ordinal,
+            long features,
+            String format,
+            String label,
+            Field field,
+            ObjectWriter initObjectWriter
+    ) {
+<span class="fc" id="L691">        return createFieldWriter(</span>
+                provider,
+                fieldName,
+                ordinal,
+                features,
+                format,
+                null,
+                label,
+                field,
+                initObjectWriter
+        );
+    }
+
+    public &lt;T&gt; FieldWriter&lt;T&gt; createFieldWriter(
+            ObjectWriterProvider provider,
+            String fieldName,
+            int ordinal,
+            long features,
+            String format,
+            Locale locale,
+            String label,
+            Field field,
+            ObjectWriter initObjectWriter
+    ) {
+<span class="fc" id="L715">        Class&lt;?&gt; declaringClass = field.getDeclaringClass();</span>
+<span class="fc" id="L716">        Method method = null;</span>
+
+<span class="fc bfc" id="L718" title="All 2 branches covered.">        if (declaringClass == Throwable.class) {</span>
+<span class="fc bfc" id="L719" title="All 2 branches covered.">            if (&quot;stackTrace&quot;.equals(field.getName())) {</span>
+<span class="fc" id="L720">                method = BeanUtils.getMethod(Throwable.class, &quot;getStackTrace&quot;);</span>
+            }
+        }
+
+<span class="fc bfc" id="L724" title="All 2 branches covered.">        if (method != null) {</span>
+<span class="fc" id="L725">            return createFieldWriter(provider, (Class&lt;T&gt;) Throwable.class, fieldName, ordinal, features, format, label, method, initObjectWriter);</span>
+        }
+
+<span class="fc" id="L728">        Class&lt;?&gt; fieldClass = field.getType();</span>
+<span class="fc" id="L729">        Type fieldType = field.getGenericType();</span>
+
+<span class="pc bpc" id="L731" title="1 of 2 branches missed.">        if (initObjectWriter != null) {</span>
+//            if (fieldClass == byte.class) {
+//                fieldType = fieldClass = Byte.class;
+//            } else if (fieldClass == short.class) {
+//                fieldType = fieldClass = Short.class;
+//            } else if (fieldClass == int.class) {
+//                fieldType = fieldClass = Integer.class;
+//            } else if (fieldClass == long.class) {
+//                fieldType = fieldClass = Long.class;
+//            } else if (fieldClass == float.class) {
+//                fieldType = fieldClass = Float.class;
+//            } else if (fieldClass == double.class) {
+//                fieldType = fieldClass = Double.class;
+//            } else if (fieldClass == boolean.class) {
+//                fieldType = fieldClass = Boolean.class;
+//            }
+
+<span class="nc" id="L748">            FieldWriterObject objImp = new FieldWriterObject(fieldName, ordinal, features, format, null, label, fieldType, fieldClass, field, null);</span>
+<span class="nc" id="L749">            objImp.initValueClass = fieldClass;</span>
+<span class="nc bnc" id="L750" title="All 2 branches missed.">            if (initObjectWriter != ObjectWriterBaseModule.VoidObjectWriter.INSTANCE) {</span>
+<span class="nc" id="L751">                objImp.initObjectWriter = initObjectWriter;</span>
+            }
+<span class="nc" id="L753">            return objImp;</span>
+        }
+
+<span class="fc bfc" id="L756" title="All 2 branches covered.">        if (fieldClass == boolean.class) {</span>
+<span class="fc" id="L757">            return new FieldWriterBoolValField(fieldName, ordinal, features, format, label, field, fieldClass);</span>
+        }
+
+<span class="fc bfc" id="L760" title="All 2 branches covered.">        if (fieldClass == byte.class) {</span>
+<span class="fc" id="L761">            return new FieldWriterInt8ValField(fieldName, ordinal, features, format, label, field);</span>
+        }
+
+<span class="fc bfc" id="L764" title="All 2 branches covered.">        if (fieldClass == short.class) {</span>
+<span class="fc" id="L765">            return new FieldWriterInt16ValField(fieldName, ordinal, features, format, label, field);</span>
+        }
+
+<span class="fc bfc" id="L768" title="All 2 branches covered.">        if (fieldClass == int.class) {</span>
+<span class="fc" id="L769">            return new FieldWriterInt32Val(fieldName, ordinal, features, format, label, field);</span>
+        }
+
+<span class="fc bfc" id="L772" title="All 2 branches covered.">        if (fieldClass == long.class) {</span>
+<span class="pc bpc" id="L773" title="2 of 6 branches missed.">            if (format == null || format.isEmpty() || &quot;string&quot;.equals(format)) {</span>
+<span class="fc" id="L774">                return new FieldWriterInt64ValField(fieldName, ordinal, features, format, label, field);</span>
+            }
+<span class="fc" id="L776">            return new FieldWriterMillisField(fieldName, ordinal, features, format, label, field);</span>
+        }
+
+<span class="fc bfc" id="L779" title="All 2 branches covered.">        if (fieldClass == float.class) {</span>
+<span class="fc" id="L780">            return new FieldWriterFloatValField(fieldName, ordinal, features, format, label, field);</span>
+        }
+
+<span class="fc bfc" id="L783" title="All 2 branches covered.">        if (fieldClass == Float.class) {</span>
+<span class="fc" id="L784">            return new FieldWriterFloatField(fieldName, ordinal, features, format, label, field);</span>
+        }
+
+<span class="fc bfc" id="L787" title="All 2 branches covered.">        if (fieldClass == double.class) {</span>
+<span class="fc" id="L788">            return new FieldWriterDoubleValField(fieldName, ordinal, format, label, field);</span>
+        }
+
+<span class="fc bfc" id="L791" title="All 2 branches covered.">        if (fieldClass == Double.class) {</span>
+<span class="fc" id="L792">            return new FieldWriterDoubleField(fieldName, ordinal, features, format, label, field);</span>
+        }
+
+<span class="fc bfc" id="L795" title="All 2 branches covered.">        if (fieldClass == char.class) {</span>
+<span class="fc" id="L796">            return new FieldWriterCharValField(fieldName, ordinal, features, format, label, field);</span>
+        }
+
+<span class="fc bfc" id="L799" title="All 2 branches covered.">        if (fieldClass == BigInteger.class) {</span>
+<span class="fc" id="L800">            return new FieldWriterBigIntField(fieldName, ordinal, features, format, label, field);</span>
+        }
+
+<span class="fc bfc" id="L803" title="All 2 branches covered.">        if (fieldClass == BigDecimal.class) {</span>
+<span class="fc" id="L804">            return new FieldWriterBigDecimalField(fieldName, ordinal, features, format, label, field);</span>
+        }
+
+<span class="fc bfc" id="L807" title="All 2 branches covered.">        if (fieldClass == java.util.Date.class) {</span>
+<span class="fc" id="L808">            return new FieldWriterDateField(fieldName, ordinal, features, format, label, field);</span>
+        }
+
+<span class="fc bfc" id="L811" title="All 2 branches covered.">        if (fieldClass == String.class) {</span>
+<span class="fc" id="L812">            return new FieldWriterStringField(fieldName, ordinal, features, format, label, field);</span>
+        }
+
+<span class="fc bfc" id="L815" title="All 2 branches covered.">        if (fieldClass.isEnum()) {</span>
+<span class="fc" id="L816">            BeanInfo beanInfo = provider.createBeanInfo();</span>
+<span class="fc" id="L817">            provider.getBeanInfo(beanInfo, fieldClass);</span>
+
+<span class="fc" id="L819">            boolean writeEnumAsJavaBean = beanInfo.writeEnumAsJavaBean;</span>
+<span class="pc bpc" id="L820" title="1 of 2 branches missed.">            if (!writeEnumAsJavaBean) {</span>
+<span class="fc" id="L821">                ObjectWriter objectWriter = provider.cache.get(fieldClass);</span>
+<span class="pc bpc" id="L822" title="2 of 4 branches missed.">                if (objectWriter != null &amp;&amp; !(objectWriter instanceof ObjectWriterImplEnum)) {</span>
+<span class="nc" id="L823">                    writeEnumAsJavaBean = true;</span>
+                }
+            }
+
+<span class="fc" id="L827">            Member enumValueField = BeanUtils.getEnumValueField(fieldClass, provider);</span>
+<span class="pc bpc" id="L828" title="2 of 4 branches missed.">            if (enumValueField == null &amp;&amp; !writeEnumAsJavaBean) {</span>
+<span class="fc" id="L829">                String[] enumAnnotationNames = BeanUtils.getEnumAnnotationNames(fieldClass);</span>
+<span class="pc bpc" id="L830" title="1 of 2 branches missed.">                if (enumAnnotationNames == null) {</span>
+<span class="fc" id="L831">                    return new FieldWriterEnum(fieldName, ordinal, features, format, label, fieldType, (Class&lt;? extends Enum&gt;) fieldClass, field, null);</span>
+                }
+            }
+        }
+
+<span class="pc bpc" id="L836" title="1 of 4 branches missed.">        if (fieldClass == List.class || fieldClass == ArrayList.class) {</span>
+<span class="fc" id="L837">            Type itemType = null;</span>
+<span class="fc bfc" id="L838" title="All 2 branches covered.">            if (fieldType instanceof ParameterizedType) {</span>
+<span class="fc" id="L839">                itemType = ((ParameterizedType) fieldType).getActualTypeArguments()[0];</span>
+            }
+<span class="fc" id="L841">            return new FieldWriterListField(fieldName, itemType, ordinal, features, format, label, fieldType, fieldClass, field);</span>
+        }
+
+<span class="pc bpc" id="L844" title="1 of 4 branches missed.">        if (fieldClass.isArray() &amp;&amp; !fieldClass.getComponentType().isPrimitive()) {</span>
+<span class="fc" id="L845">            Class&lt;?&gt; itemClass = fieldClass.getComponentType();</span>
+<span class="fc" id="L846">            return new FieldWriterObjectArrayField(fieldName, itemClass, ordinal, features, format, label, itemClass, fieldClass, field);</span>
+        }
+
+<span class="fc" id="L849">        return new FieldWriterObject(fieldName, ordinal, features, format, null, label, field.getGenericType(), fieldClass, field, null);</span>
+    }
+
+    public &lt;T&gt; FieldWriter&lt;T&gt; createFieldWriter(Class&lt;T&gt; objectType,
+                                                String fieldName,
+                                                String dateFormat,
+                                                Method method) {
+<span class="fc" id="L856">        return createFieldWriter(objectType, fieldName, 0, 0, dateFormat, method);</span>
+    }
+
+    public &lt;T&gt; FieldWriter&lt;T&gt; createFieldWriter(
+            Class&lt;T&gt; objectType,
+            String fieldName,
+            int ordinal,
+            long features,
+            String format,
+            Method method) {
+<span class="fc" id="L866">        return createFieldWriter(null, objectType, fieldName, ordinal, features, format, null, method, null);</span>
+    }
+
+    public &lt;T&gt; FieldWriter&lt;T&gt; createFieldWriter(
+            ObjectWriterProvider provider,
+            Class&lt;T&gt; objectType,
+            String fieldName,
+            int ordinal,
+            long features,
+            String format,
+            String label,
+            Method method,
+            ObjectWriter initObjectWriter
+    ) {
+<span class="fc" id="L880">        return createFieldWriter(</span>
+                provider,
+                objectType,
+                fieldName,
+                ordinal,
+                features,
+                format,
+                null,
+                label,
+                method, initObjectWriter
+        );
+    }
+
+    public &lt;T&gt; FieldWriter&lt;T&gt; createFieldWriter(
+            ObjectWriterProvider provider,
+            Class&lt;T&gt; objectType,
+            String fieldName,
+            int ordinal,
+            long features,
+            String format,
+            Locale locale,
+            String label,
+            Method method,
+            ObjectWriter initObjectWriter
+    ) {
+<span class="fc" id="L905">        method.setAccessible(true);</span>
+<span class="fc" id="L906">        Class&lt;?&gt; fieldClass = method.getReturnType();</span>
+<span class="fc" id="L907">        Type fieldType = method.getGenericReturnType();</span>
+
+<span class="fc bfc" id="L909" title="All 4 branches covered.">        if (initObjectWriter == null &amp;&amp; provider != null) {</span>
+<span class="fc" id="L910">            initObjectWriter = getInitWriter(provider, fieldClass);</span>
+        }
+
+<span class="fc bfc" id="L913" title="All 2 branches covered.">        if (initObjectWriter != null) {</span>
+<span class="fc" id="L914">            FieldWriterObjectMethod objMethod = new FieldWriterObjectMethod(fieldName, ordinal, features, format, locale, label, fieldType, fieldClass, null, method);</span>
+<span class="fc" id="L915">            objMethod.initValueClass = fieldClass;</span>
+<span class="fc bfc" id="L916" title="All 2 branches covered.">            if (initObjectWriter != ObjectWriterBaseModule.VoidObjectWriter.INSTANCE) {</span>
+<span class="fc" id="L917">                objMethod.initObjectWriter = initObjectWriter;</span>
+            }
+<span class="fc" id="L919">            return objMethod;</span>
+        }
+
+<span class="pc bpc" id="L922" title="1 of 2 branches missed.">        if (fieldName == null) {</span>
+<span class="nc" id="L923">            fieldName = BeanUtils.getterName(method, false, null);</span>
+        }
+
+<span class="fc" id="L926">        Field field = BeanUtils.getField(objectType, method);</span>
+
+<span class="fc bfc" id="L928" title="All 4 branches covered.">        if (fieldClass == boolean.class || fieldClass == Boolean.class) {</span>
+<span class="fc" id="L929">            return new FieldWriterBoolMethod(fieldName, ordinal, features, format, label, field, method, fieldClass);</span>
+        }
+
+<span class="fc bfc" id="L932" title="All 4 branches covered.">        if (fieldClass == int.class || fieldClass == Integer.class) {</span>
+<span class="fc" id="L933">            return new FieldWriterInt32Method(fieldName, ordinal, features, format, label, field, method, fieldClass);</span>
+        }
+
+<span class="fc bfc" id="L936" title="All 4 branches covered.">        if (fieldClass == float.class || fieldClass == Float.class) {</span>
+<span class="fc" id="L937">            return new FieldWriterFloatMethod&lt;&gt;(fieldName, ordinal, features, format, label, fieldClass, fieldClass, field, method);</span>
+        }
+
+<span class="fc bfc" id="L940" title="All 4 branches covered.">        if (fieldClass == double.class || fieldClass == Double.class) {</span>
+<span class="fc" id="L941">            return new FieldWriterDoubleMethod&lt;&gt;(fieldName, ordinal, features, format, label, fieldClass, fieldClass, field, method);</span>
+        }
+
+<span class="fc bfc" id="L944" title="All 4 branches covered.">        if (fieldClass == long.class || fieldClass == Long.class) {</span>
+<span class="pc bpc" id="L945" title="1 of 6 branches missed.">            if (format == null || format.isEmpty() || &quot;string&quot;.equals(format)) {</span>
+<span class="fc" id="L946">                return new FieldWriterInt64Method(fieldName, ordinal, features, format, label, field, method, fieldClass);</span>
+            }
+
+<span class="fc" id="L949">            return new FieldWriterMillisMethod(fieldName, ordinal, features, format, label, fieldClass, field, method);</span>
+        }
+
+<span class="fc bfc" id="L952" title="All 4 branches covered.">        if (fieldClass == short.class || fieldClass == Short.class) {</span>
+<span class="fc" id="L953">            return new FieldWriterInt16Method(fieldName, ordinal, features, format, label, field, method, fieldClass);</span>
+        }
+
+<span class="fc bfc" id="L956" title="All 4 branches covered.">        if (fieldClass == byte.class || fieldClass == Byte.class) {</span>
+<span class="fc" id="L957">            return new FieldWriterInt8Method(fieldName, ordinal, features, format, label, field, method, fieldClass);</span>
+        }
+
+<span class="fc bfc" id="L960" title="All 4 branches covered.">        if (fieldClass == char.class || fieldClass == Character.class) {</span>
+<span class="fc" id="L961">            return new FieldWriterCharMethod(fieldName, ordinal, features, format, label, field, method, fieldClass);</span>
+        }
+
+<span class="fc bfc" id="L964" title="All 2 branches covered.">        if (fieldClass == BigDecimal.class) {</span>
+<span class="fc" id="L965">            return new FieldWriterBigDecimalMethod&lt;&gt;(fieldName, ordinal, features, format, label, field, method);</span>
+        }
+
+<span class="fc bfc" id="L968" title="All 2 branches covered.">        if (fieldClass.isEnum()</span>
+<span class="fc bfc" id="L969" title="All 2 branches covered.">                &amp;&amp; BeanUtils.getEnumValueField(fieldClass, provider) == null</span>
+<span class="fc bfc" id="L970" title="All 2 branches covered.">                &amp;&amp; !BeanUtils.isWriteEnumAsJavaBean(fieldClass)</span>
+        ) {
+<span class="fc" id="L972">            String[] enumAnnotationNames = BeanUtils.getEnumAnnotationNames(fieldClass);</span>
+<span class="pc bpc" id="L973" title="1 of 2 branches missed.">            if (enumAnnotationNames == null) {</span>
+<span class="fc" id="L974">                return new FieldWriterEnumMethod(fieldName, ordinal, features, format, label, fieldClass, field, method);</span>
+            }
+        }
+
+<span class="fc bfc" id="L978" title="All 2 branches covered.">        if (fieldClass == Date.class) {</span>
+<span class="fc bfc" id="L979" title="All 2 branches covered.">            if (format != null) {</span>
+<span class="fc" id="L980">                format = format.trim();</span>
+
+<span class="pc bpc" id="L982" title="1 of 2 branches missed.">                if (format.isEmpty()) {</span>
+<span class="nc" id="L983">                    format = null;</span>
+                }
+            }
+
+<span class="fc" id="L987">            return new FieldWriterDateMethod(fieldName, ordinal, features, format, label, fieldClass, field, method);</span>
+        }
+
+<span class="fc bfc" id="L990" title="All 2 branches covered.">        if (fieldClass == String.class) {</span>
+<span class="fc" id="L991">            return new FieldWriterStringMethod(fieldName, ordinal, format, label, features, field, method);</span>
+        }
+
+<span class="fc bfc" id="L994" title="All 4 branches covered.">        if (fieldClass == List.class || fieldClass == Iterable.class) {</span>
+            Type itemType;
+<span class="fc bfc" id="L996" title="All 2 branches covered.">            if (fieldType instanceof ParameterizedType) {</span>
+<span class="fc" id="L997">                itemType = ((ParameterizedType) fieldType).getActualTypeArguments()[0];</span>
+            } else {
+<span class="fc" id="L999">                itemType = Object.class;</span>
+            }
+<span class="fc" id="L1001">            return new FieldWriterListMethod(fieldName, itemType, ordinal, features, format, label, null, method, fieldType, fieldClass);</span>
+        }
+
+<span class="fc bfc" id="L1004" title="All 6 branches covered.">        if (fieldClass == Float[].class || fieldClass == Double[].class || fieldClass == BigDecimal[].class) {</span>
+<span class="fc" id="L1005">            return new FieldWriterObjectArrayMethod(fieldName, fieldClass.getComponentType(), ordinal, features, format, label, fieldType, fieldClass, field, method);</span>
+        }
+
+<span class="fc" id="L1008">        return new FieldWriterObjectMethod(fieldName, ordinal, features, format, locale, label, fieldType, fieldClass, null, method);</span>
+    }
+
+    public &lt;T&gt; FieldWriter createFieldWriter(String fieldName, ToLongFunction&lt;T&gt; function) {
+<span class="fc" id="L1012">        return new FieldWriterInt64ValFunc(fieldName, 0, 0, null, null, null, null, function);</span>
+    }
+
+    public &lt;T&gt; FieldWriter createFieldWriter(String fieldName, ToIntFunction&lt;T&gt; function) {
+<span class="fc" id="L1016">        return new FieldWriterInt32ValFunc(fieldName, 0, 0, null, null, null, null, function);</span>
+    }
+
+    public &lt;T&gt; FieldWriter createFieldWriter(String fieldName, Field field, Method method, ToIntFunction&lt;T&gt; function) {
+<span class="fc" id="L1020">        return new FieldWriterInt32ValFunc(fieldName, 0, 0, null, null, field, method, function);</span>
+    }
+
+    public &lt;T&gt; FieldWriter createFieldWriter(String fieldName, ToShortFunction&lt;T&gt; function) {
+<span class="fc" id="L1024">        return new FieldWriterInt16ValFunc(fieldName, 0, 0, null, null, null, null, function);</span>
+    }
+
+    public &lt;T&gt; FieldWriter createFieldWriter(String fieldName, ToByteFunction&lt;T&gt; function) {
+<span class="fc" id="L1028">        return new FieldWriterInt8ValFunc(fieldName, 0, 0, null, null, null, null, function);</span>
+    }
+
+    public &lt;T&gt; FieldWriter createFieldWriter(String fieldName, ToFloatFunction&lt;T&gt; function) {
+<span class="fc" id="L1032">        return new FieldWriterFloatValueFunc(fieldName, 0, 0L, null, null, null, null, function);</span>
+    }
+
+    public &lt;T&gt; FieldWriter createFieldWriter(String fieldName, ToDoubleFunction&lt;T&gt; function) {
+<span class="fc" id="L1036">        return new FieldWriterDoubleValueFunc(fieldName, 0, 0, null, null, null, null, function);</span>
+    }
+
+    public &lt;T&gt; FieldWriter createFieldWriter(String fieldName, ToCharFunction&lt;T&gt; function) {
+<span class="nc" id="L1040">        return new FieldWriterCharValFunc(fieldName, 0, 0, null, null, null, null, function);</span>
+    }
+
+    public &lt;T&gt; FieldWriter createFieldWriter(String fieldName, Predicate&lt;T&gt; function) {
+<span class="fc" id="L1044">        return new FieldWriterBoolValFunc(fieldName, 0, 0, null, null, null, null, function);</span>
+    }
+
+    public &lt;T, V&gt; FieldWriter createFieldWriter(
+            String fieldName,
+            Class fieldClass,
+            Function&lt;T, V&gt; function
+    ) {
+<span class="fc" id="L1052">        return createFieldWriter(null, null, fieldName, 0, 0, null, null, fieldClass, fieldClass, null, function);</span>
+    }
+
+    public &lt;T, V&gt; FieldWriter createFieldWriter(
+            String fieldName,
+            Class fieldClass,
+            Field field,
+            Method method,
+            Function&lt;T, V&gt; function
+    ) {
+<span class="fc" id="L1062">        return createFieldWriter(null, null, fieldName, 0, 0, null, null, fieldClass, fieldClass, field, method, function);</span>
+    }
+
+    public &lt;T, V&gt; FieldWriter createFieldWriter(
+            String fieldName,
+            Type fieldType,
+            Class fieldClass,
+            Function&lt;T, V&gt; function
+    ) {
+<span class="fc" id="L1071">        return createFieldWriter(null, null, fieldName, 0, 0, null, null, fieldType, fieldClass, null, function);</span>
+    }
+
+    public &lt;T, V&gt; FieldWriter createFieldWriter(
+            String fieldName,
+            long features,
+            String format,
+            Class fieldClass,
+            Function&lt;T, V&gt; function
+    ) {
+<span class="fc" id="L1081">        return createFieldWriter(null, null, fieldName, 0, features, format, null, fieldClass, fieldClass, null, function);</span>
+    }
+
+    public &lt;T, V&gt; FieldWriter&lt;T&gt; createFieldWriter(
+            ObjectWriterProvider provider,
+            Class&lt;T&gt; objectClass,
+            String fieldName,
+            int ordinal,
+            long features,
+            String format,
+            String label,
+            Type fieldType,
+            Class&lt;V&gt; fieldClass,
+            Method method,
+            Function&lt;T, V&gt; function
+    ) {
+<span class="fc" id="L1097">        return createFieldWriter(</span>
+                provider, objectClass, fieldName, ordinal, features, format, null, label, fieldType, fieldClass, null, method, function);
+    }
+
+    public &lt;T, V&gt; FieldWriter&lt;T&gt; createFieldWriter(
+            ObjectWriterProvider provider,
+            Class&lt;T&gt; objectClass,
+            String fieldName,
+            int ordinal,
+            long features,
+            String format,
+            String label,
+            Type fieldType,
+            Class&lt;V&gt; fieldClass,
+            Field field,
+            Method method,
+            Function&lt;T, V&gt; function
+    ) {
+<span class="fc" id="L1115">        return createFieldWriter(</span>
+                provider,
+                objectClass,
+                fieldName,
+                ordinal,
+                features,
+                format,
+                null,
+                label,
+                fieldType,
+                fieldClass,
+                field,
+                method,
+                function
+        );
+    }
+
+    public &lt;T, V&gt; FieldWriter&lt;T&gt; createFieldWriter(
+            ObjectWriterProvider provider,
+            Class&lt;T&gt; objectClass,
+            String fieldName,
+            int ordinal,
+            long features,
+            String format,
+            Locale locale,
+            String label,
+            Type fieldType,
+            Class&lt;V&gt; fieldClass,
+            Field field,
+            Method method,
+            Function&lt;T, V&gt; function
+    ) {
+<span class="fc bfc" id="L1147" title="All 2 branches covered.">        if (fieldClass == Byte.class) {</span>
+<span class="fc" id="L1148">            return new FieldWriterInt8Func(fieldName, ordinal, features, format, label, field, method, function);</span>
+        }
+
+<span class="fc bfc" id="L1151" title="All 2 branches covered.">        if (fieldClass == Short.class) {</span>
+<span class="fc" id="L1152">            return new FieldWriterInt16Func(fieldName, ordinal, features, format, label, field, method, function);</span>
+        }
+
+<span class="fc bfc" id="L1155" title="All 2 branches covered.">        if (fieldClass == Integer.class) {</span>
+<span class="fc" id="L1156">            return new FieldWriterInt32Func(fieldName, ordinal, features, format, label, field, method, function);</span>
+        }
+
+<span class="fc bfc" id="L1159" title="All 2 branches covered.">        if (fieldClass == Long.class) {</span>
+<span class="fc" id="L1160">            return new FieldWriterInt64Func(fieldName, ordinal, features, format, label, field, method, function);</span>
+        }
+
+<span class="fc bfc" id="L1163" title="All 2 branches covered.">        if (fieldClass == BigInteger.class) {</span>
+<span class="fc" id="L1164">            return new FieldWriterBigIntFunc(fieldName, ordinal, features, format, label, field, method, function);</span>
+        }
+
+<span class="fc bfc" id="L1167" title="All 2 branches covered.">        if (fieldClass == BigDecimal.class) {</span>
+<span class="fc" id="L1168">            return new FieldWriterBigDecimalFunc(fieldName, ordinal, features, format, label, field, method, function);</span>
+        }
+
+<span class="fc bfc" id="L1171" title="All 2 branches covered.">        if (fieldClass == String.class) {</span>
+<span class="fc" id="L1172">            return new FieldWriterStringFunc(fieldName, ordinal, features, format, label, field, method, function);</span>
+        }
+
+<span class="fc bfc" id="L1175" title="All 2 branches covered.">        if (fieldClass == Date.class) {</span>
+<span class="fc" id="L1176">            return new FieldWriterDateFunc(fieldName, ordinal, features, format, label, field, method, function);</span>
+        }
+
+<span class="fc bfc" id="L1179" title="All 2 branches covered.">        if (fieldClass == LocalDate.class) {</span>
+<span class="fc" id="L1180">            return new FieldWriterLocalDateFunc(fieldName, ordinal, features, format, label, fieldType, fieldClass, field, method, function);</span>
+        }
+
+<span class="fc bfc" id="L1183" title="All 2 branches covered.">        if (fieldClass == OffsetDateTime.class) {</span>
+<span class="fc" id="L1184">            return new FieldWriterOffsetDateTimeFunc(fieldName, ordinal, features, format, label, fieldType, fieldClass, field, method, function);</span>
+        }
+
+<span class="fc bfc" id="L1187" title="All 2 branches covered.">        if (fieldClass == UUID.class) {</span>
+<span class="fc" id="L1188">            return new FieldWriterUUIDFunc(fieldName, ordinal, features, format, label, fieldType, fieldClass, field, method, function);</span>
+        }
+
+<span class="fc bfc" id="L1191" title="All 2 branches covered.">        if (Calendar.class.isAssignableFrom(fieldClass)) {</span>
+<span class="fc" id="L1192">            return new FieldWriterCalendarFunc(fieldName, ordinal, features, format, label, field, method, function);</span>
+        }
+
+<span class="fc bfc" id="L1195" title="All 2 branches covered.">        if (fieldClass.isEnum()) {</span>
+<span class="fc bfc" id="L1196" title="All 2 branches covered.">            if (provider == null) {</span>
+<span class="fc" id="L1197">                provider = JSONFactory.getDefaultObjectWriterProvider();</span>
+            }
+<span class="fc" id="L1199">            BeanInfo beanInfo = provider.createBeanInfo();</span>
+<span class="fc" id="L1200">            provider.getBeanInfo(beanInfo, fieldClass);</span>
+
+<span class="fc" id="L1202">            boolean writeEnumAsJavaBean = beanInfo.writeEnumAsJavaBean;</span>
+<span class="pc bpc" id="L1203" title="1 of 2 branches missed.">            if (!writeEnumAsJavaBean) {</span>
+<span class="fc" id="L1204">                ObjectWriter objectWriter = provider.cache.get(fieldClass);</span>
+<span class="pc bpc" id="L1205" title="1 of 4 branches missed.">                if (objectWriter != null &amp;&amp; !(objectWriter instanceof ObjectWriterImplEnum)) {</span>
+<span class="nc" id="L1206">                    writeEnumAsJavaBean = true;</span>
+                }
+            }
+
+<span class="pc bpc" id="L1210" title="1 of 4 branches missed.">            if (!writeEnumAsJavaBean &amp;&amp; BeanUtils.getEnumValueField(fieldClass, provider) == null) {</span>
+<span class="fc" id="L1211">                String[] enumAnnotationNames = BeanUtils.getEnumAnnotationNames(fieldClass);</span>
+<span class="pc bpc" id="L1212" title="1 of 2 branches missed.">                if (enumAnnotationNames == null) {</span>
+<span class="fc" id="L1213">                    return new FieldWriterEnumFunc(fieldName, ordinal, features, format, label, fieldType, fieldClass, field, method, function);</span>
+                }
+            }
+        }
+
+<span class="fc bfc" id="L1218" title="All 2 branches covered.">        if (fieldType instanceof ParameterizedType) {</span>
+<span class="fc" id="L1219">            ParameterizedType parameterizedType = (ParameterizedType) fieldType;</span>
+<span class="fc" id="L1220">            Type rawType = parameterizedType.getRawType();</span>
+<span class="fc" id="L1221">            Type[] actualTypeArguments = parameterizedType.getActualTypeArguments();</span>
+
+<span class="fc bfc" id="L1223" title="All 4 branches covered.">            if (rawType == List.class || rawType == ArrayList.class) {</span>
+<span class="pc bpc" id="L1224" title="1 of 2 branches missed.">                if (actualTypeArguments.length == 1) {</span>
+<span class="fc" id="L1225">                    Type itemType = actualTypeArguments[0];</span>
+<span class="fc bfc" id="L1226" title="All 2 branches covered.">                    if (itemType == String.class) {</span>
+<span class="fc" id="L1227">                        return new FieldWriterListStrFunc(fieldName, ordinal, features, format, label, field, method, function, fieldType, fieldClass);</span>
+                    }
+<span class="fc" id="L1229">                    return new FieldWriterListFunc(fieldName, ordinal, features, format, label, itemType, field, method, function, fieldType, fieldClass);</span>
+                }
+            }
+        }
+
+<span class="fc bfc" id="L1234" title="All 2 branches covered.">        if (Modifier.isFinal(fieldClass.getModifiers())) {</span>
+<span class="fc" id="L1235">            return new FieldWriterObjectFuncFinal(fieldName, ordinal, features, format, label, fieldType, fieldClass, field, method, function);</span>
+        }
+
+<span class="fc" id="L1238">        return new FieldWriterObjectFunc(fieldName, ordinal, features, format, locale, label, fieldType, fieldClass, field, method, function);</span>
+    }
+
+    static class LambdaInfo {
+        final Class fieldClass;
+        final Class supplierClass;
+        final String methodName;
+        final MethodType methodType;
+        final MethodType invokedType;
+        final MethodType samMethodType;
+
+<span class="fc" id="L1249">        LambdaInfo(Class fieldClass, Class supplierClass, String methodName) {</span>
+<span class="fc" id="L1250">            this.fieldClass = fieldClass;</span>
+<span class="fc" id="L1251">            this.supplierClass = supplierClass;</span>
+<span class="fc" id="L1252">            this.methodName = methodName;</span>
+<span class="fc" id="L1253">            this.methodType = MethodType.methodType(fieldClass);</span>
+<span class="fc" id="L1254">            this.invokedType = MethodType.methodType(supplierClass);</span>
+<span class="fc" id="L1255">            this.samMethodType = MethodType.methodType(fieldClass, Object.class);</span>
+<span class="fc" id="L1256">        }</span>
+    }
+
+    Object lambdaGetter(Class objectClass, Class fieldClass, Method method) {
+<span class="fc" id="L1260">        MethodHandles.Lookup lookup = JDKUtils.trustedLookup(objectClass);</span>
+
+<span class="fc" id="L1262">        LambdaInfo buildInfo = lambdaMapping.get(fieldClass);</span>
+
+        MethodType methodType;
+        MethodType invokedType;
+        String methodName;
+        MethodType samMethodType;
+<span class="fc bfc" id="L1268" title="All 2 branches covered.">        if (buildInfo != null) {</span>
+<span class="fc" id="L1269">            methodType = buildInfo.methodType;</span>
+<span class="fc" id="L1270">            invokedType = buildInfo.invokedType;</span>
+<span class="fc" id="L1271">            methodName = buildInfo.methodName;</span>
+<span class="fc" id="L1272">            samMethodType = buildInfo.samMethodType;</span>
+        } else {
+<span class="fc" id="L1274">            methodType = MethodType.methodType(fieldClass);</span>
+<span class="fc" id="L1275">            invokedType = METHOD_TYPE_FUNCTION;</span>
+<span class="fc" id="L1276">            methodName = &quot;apply&quot;;</span>
+<span class="fc" id="L1277">            samMethodType = METHOD_TYPE_OBJECT_OBJECT;</span>
+        }
+
+        try {
+<span class="fc" id="L1281">            MethodHandle target = lookup.findVirtual(objectClass, method.getName(), methodType);</span>
+<span class="fc" id="L1282">            MethodType instantiatedMethodType = target.type();</span>
+
+<span class="fc" id="L1284">            CallSite callSite = LambdaMetafactory.metafactory(</span>
+                    lookup,
+                    methodName,
+                    invokedType,
+                    samMethodType,
+                    target,
+                    instantiatedMethodType
+            );
+
+<span class="fc" id="L1293">            return callSite</span>
+<span class="fc" id="L1294">                    .getTarget()</span>
+<span class="fc" id="L1295">                    .invoke();</span>
+<span class="nc" id="L1296">        } catch (Throwable e) {</span>
+<span class="nc" id="L1297">            throw new JSONException(&quot;create fieldLambdaGetter error, method : &quot; + method, e);</span>
+        }
+    }
+
+    protected ObjectWriter getInitWriter(ObjectWriterProvider provider, Class fieldClass) {
+<span class="fc bfc" id="L1302" title="All 2 branches covered.">        if (fieldClass == Date.class) {</span>
+<span class="fc bfc" id="L1303" title="All 2 branches covered.">            if ((provider.userDefineMask &amp; ObjectWriterProvider.TYPE_DATE_MASK) != 0) {</span>
+<span class="fc" id="L1304">                ObjectWriter objectWriter = provider.cache.get(fieldClass);</span>
+<span class="pc bpc" id="L1305" title="1 of 2 branches missed.">                if (objectWriter != ObjectWriterImplDate.INSTANCE) {</span>
+<span class="fc" id="L1306">                    return objectWriter;</span>
+                }
+<span class="nc" id="L1308">            }</span>
+<span class="fc bfc" id="L1309" title="All 4 branches covered.">        } else if (fieldClass == long.class || fieldClass == Long.class) {</span>
+<span class="fc bfc" id="L1310" title="All 2 branches covered.">            if ((provider.userDefineMask &amp; ObjectWriterProvider.TYPE_INT64_MASK) != 0) {</span>
+<span class="fc" id="L1311">                ObjectWriter objectWriter = provider.cache.get(Long.class);</span>
+<span class="pc bpc" id="L1312" title="1 of 2 branches missed.">                if (objectWriter != ObjectWriterImplInt64.INSTANCE) {</span>
+<span class="fc" id="L1313">                    return objectWriter;</span>
+                }
+<span class="nc" id="L1315">            }</span>
+<span class="fc bfc" id="L1316" title="All 2 branches covered.">        } else if (fieldClass == BigDecimal.class) {</span>
+<span class="fc bfc" id="L1317" title="All 2 branches covered.">            if ((provider.userDefineMask &amp; ObjectWriterProvider.TYPE_DECIMAL_MASK) != 0) {</span>
+<span class="fc" id="L1318">                ObjectWriter objectWriter = provider.cache.get(fieldClass);</span>
+<span class="pc bpc" id="L1319" title="1 of 2 branches missed.">                if (objectWriter != ObjectWriterImplBigDecimal.INSTANCE) {</span>
+<span class="fc" id="L1320">                    return objectWriter;</span>
+                }
+<span class="nc" id="L1322">            }</span>
+<span class="fc bfc" id="L1323" title="All 2 branches covered.">        } else if (Enum.class.isAssignableFrom(fieldClass)) {</span>
+<span class="fc" id="L1324">            ObjectWriter objectWriter = provider.cache.get(fieldClass);</span>
+<span class="fc bfc" id="L1325" title="All 2 branches covered.">            if (!(objectWriter instanceof ObjectWriterImplEnum)) {</span>
+<span class="fc" id="L1326">                return objectWriter;</span>
+            }
+        }
+<span class="fc" id="L1329">        return null;</span>
+    }
+
+    &lt;T&gt; FieldWriter&lt;T&gt; createFieldWriterLambda(
+            ObjectWriterProvider provider,
+            Class&lt;T&gt; objectClass,
+            String fieldName,
+            int ordinal,
+            long features,
+            String format,
+            String label,
+            Method method,
+            ObjectWriter initObjectWriter
+    ) {
+<span class="fc" id="L1343">        Class&lt;?&gt; fieldClass = method.getReturnType();</span>
+<span class="fc" id="L1344">        Type fieldType = method.getGenericReturnType();</span>
+
+<span class="pc bpc" id="L1346" title="1 of 4 branches missed.">        if (initObjectWriter == null &amp;&amp; provider != null) {</span>
+<span class="fc" id="L1347">            initObjectWriter = getInitWriter(provider, fieldClass);</span>
+        }
+
+<span class="fc bfc" id="L1350" title="All 2 branches covered.">        if (initObjectWriter != null) {</span>
+<span class="fc" id="L1351">            return null;</span>
+        }
+
+<span class="fc" id="L1354">        String objectClassName = objectClass.getName();</span>
+<span class="fc bfc" id="L1355" title="All 4 branches covered.">        if (objectClassName.indexOf('$') != -1 &amp;&amp; objectClassName.contains(&quot;$$&quot;)) {</span>
+<span class="fc" id="L1356">            return null;</span>
+        }
+
+<span class="fc" id="L1359">        Object lambda = lambdaGetter(objectClass, fieldClass, method);</span>
+
+<span class="fc" id="L1361">        Field field = BeanUtils.getField(objectClass, method);</span>
+
+<span class="fc bfc" id="L1363" title="All 2 branches covered.">        if (fieldClass == int.class) {</span>
+<span class="fc" id="L1364">            return new FieldWriterInt32ValFunc(fieldName, ordinal, features, format, label, null, method, (ToIntFunction&lt;T&gt;) lambda);</span>
+        }
+
+<span class="fc bfc" id="L1367" title="All 2 branches covered.">        if (fieldClass == long.class) {</span>
+<span class="pc bpc" id="L1368" title="1 of 6 branches missed.">            if (format == null || format.isEmpty() || &quot;string&quot;.equals(format)) {</span>
+<span class="fc" id="L1369">                return new FieldWriterInt64ValFunc(fieldName, ordinal, features, format, label, field, method, (ToLongFunction) lambda);</span>
+            }
+
+<span class="fc" id="L1372">            return new FieldWriterMillisFunc(fieldName, ordinal, features, format, label, field, method, (ToLongFunction) lambda);</span>
+        }
+
+<span class="fc bfc" id="L1375" title="All 2 branches covered.">        if (fieldClass == boolean.class) {</span>
+<span class="fc" id="L1376">            return new FieldWriterBoolValFunc(fieldName, ordinal, features, format, label, field, method, (Predicate&lt;T&gt;) lambda);</span>
+        }
+
+<span class="fc bfc" id="L1379" title="All 2 branches covered.">        if (fieldClass == Boolean.class) {</span>
+<span class="fc" id="L1380">            return new FieldWriterBooleanFunc(fieldName, ordinal, features, format, label, field, method, (Function) lambda);</span>
+        }
+
+<span class="fc bfc" id="L1383" title="All 2 branches covered.">        if (fieldClass == short.class) {</span>
+<span class="fc" id="L1384">            return new FieldWriterInt16ValFunc(fieldName, ordinal, features, format, label, field, method, (ToShortFunction) lambda);</span>
+        }
+
+<span class="fc bfc" id="L1387" title="All 2 branches covered.">        if (fieldClass == byte.class) {</span>
+<span class="fc" id="L1388">            return new FieldWriterInt8ValFunc(fieldName, ordinal, features, format, label, field, method, (ToByteFunction) lambda);</span>
+        }
+
+<span class="fc bfc" id="L1391" title="All 2 branches covered.">        if (fieldClass == float.class) {</span>
+<span class="fc" id="L1392">            return new FieldWriterFloatValueFunc(fieldName, ordinal, features, format, label, field, method, (ToFloatFunction) lambda);</span>
+        }
+
+<span class="fc bfc" id="L1395" title="All 2 branches covered.">        if (fieldClass == Float.class) {</span>
+<span class="fc" id="L1396">            return new FieldWriterFloatFunc(fieldName, ordinal, features, format, label, field, method, (Function) lambda);</span>
+        }
+
+<span class="fc bfc" id="L1399" title="All 2 branches covered.">        if (fieldClass == double.class) {</span>
+<span class="fc" id="L1400">            return new FieldWriterDoubleValueFunc(fieldName, ordinal, features, format, label, field, method, (ToDoubleFunction) lambda);</span>
+        }
+
+<span class="fc bfc" id="L1403" title="All 2 branches covered.">        if (fieldClass == Double.class) {</span>
+<span class="fc" id="L1404">            return new FieldWriterDoubleFunc(fieldName, ordinal, features, format, label, field, method, (Function) lambda);</span>
+        }
+
+<span class="fc bfc" id="L1407" title="All 2 branches covered.">        if (fieldClass == char.class) {</span>
+<span class="fc" id="L1408">            return new FieldWriterCharValFunc(fieldName, ordinal, features, format, label, field, method, (ToCharFunction) lambda);</span>
+        }
+
+<span class="fc" id="L1411">        Function function = (Function) lambda;</span>
+<span class="fc" id="L1412">        return createFieldWriter(provider, objectClass, fieldName, ordinal, features, format, label, fieldType, fieldClass, field, method, function);</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.8.202204050719</span></div></body></html>

@@ -1,0 +1,630 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>JSONPathFunction.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">fastjson2</a> &gt; <a href="index.source.html" class="el_package">com.alibaba.fastjson2</a> &gt; <span class="el_source">JSONPathFunction.java</span></div><h1>JSONPathFunction.java</h1><pre class="source lang-java linenums">package com.alibaba.fastjson2;
+
+import com.alibaba.fastjson2.function.impl.ToDouble;
+import com.alibaba.fastjson2.util.TypeUtils;
+
+import java.lang.reflect.Array;
+import java.math.BigDecimal;
+import java.math.BigInteger;
+import java.math.RoundingMode;
+import java.util.*;
+import java.util.function.BiFunction;
+import java.util.function.Function;
+
+final class JSONPathFunction
+        extends JSONPathSegment
+        implements JSONPathSegment.EvalSegment {
+<span class="fc" id="L17">    static final JSONPathFunction FUNC_TYPE = new JSONPathFunction(JSONPathFunction::type);</span>
+<span class="fc" id="L18">    static final JSONPathFunction FUNC_DOUBLE = new JSONPathFunction(new ToDouble(null));</span>
+<span class="fc" id="L19">    static final JSONPathFunction FUNC_FLOOR = new JSONPathFunction(JSONPathFunction::floor);</span>
+<span class="fc" id="L20">    static final JSONPathFunction FUNC_CEIL = new JSONPathFunction(JSONPathFunction::ceil);</span>
+<span class="fc" id="L21">    static final JSONPathFunction FUNC_ABS = new JSONPathFunction(JSONPathFunction::abs);</span>
+<span class="fc" id="L22">    static final JSONPathFunction FUNC_NEGATIVE = new JSONPathFunction(JSONPathFunction::negative);</span>
+<span class="fc" id="L23">    static final JSONPathFunction FUNC_EXISTS = new JSONPathFunction(JSONPathFunction::exists);</span>
+<span class="fc" id="L24">    static final JSONPathFunction FUNC_LOWER = new JSONPathFunction(JSONPathFunction::lower);</span>
+<span class="fc" id="L25">    static final JSONPathFunction FUNC_UPPER = new JSONPathFunction(JSONPathFunction::upper);</span>
+<span class="fc" id="L26">    static final JSONPathFunction FUNC_TRIM = new JSONPathFunction(JSONPathFunction::trim);</span>
+<span class="fc" id="L27">    static final JSONPathFunction FUNC_FIRST = new JSONPathFunction(JSONPathFunction::first);</span>
+<span class="fc" id="L28">    static final JSONPathFunction FUNC_LAST = new JSONPathFunction(JSONPathFunction::last);</span>
+
+    final Function function;
+
+<span class="fc" id="L32">    public JSONPathFunction(Function function) {</span>
+<span class="fc" id="L33">        this.function = function;</span>
+<span class="fc" id="L34">    }</span>
+
+    static Object floor(Object value) {
+<span class="fc bfc" id="L37" title="All 2 branches covered.">        if (value instanceof Double) {</span>
+<span class="fc" id="L38">            return Math.floor((Double) value);</span>
+        }
+
+<span class="fc bfc" id="L41" title="All 2 branches covered.">        if (value instanceof Float) {</span>
+<span class="fc" id="L42">            return Math.floor((Float) value);</span>
+        }
+
+<span class="fc bfc" id="L45" title="All 2 branches covered.">        if (value instanceof BigDecimal) {</span>
+<span class="fc" id="L46">            return ((BigDecimal) value).setScale(0, RoundingMode.FLOOR);</span>
+        }
+
+<span class="fc bfc" id="L49" title="All 2 branches covered.">        if (value instanceof List) {</span>
+<span class="fc" id="L50">            List list = (List) value;</span>
+<span class="fc bfc" id="L51" title="All 2 branches covered.">            for (int i = 0, l = list.size(); i &lt; l; i++) {</span>
+<span class="fc" id="L52">                Object item = list.get(i);</span>
+<span class="fc bfc" id="L53" title="All 2 branches covered.">                if (item instanceof Double) {</span>
+<span class="fc" id="L54">                    list.set(i, Math.floor((Double) item));</span>
+<span class="fc bfc" id="L55" title="All 2 branches covered.">                } else if (item instanceof Float) {</span>
+<span class="fc" id="L56">                    list.set(i, Math.floor((Float) item));</span>
+<span class="pc bpc" id="L57" title="1 of 2 branches missed.">                } else if (item instanceof BigDecimal) {</span>
+<span class="fc" id="L58">                    list.set(i, ((BigDecimal) item).setScale(0, RoundingMode.FLOOR));</span>
+                }
+            }
+        }
+
+<span class="fc" id="L63">        return value;</span>
+    }
+
+    static Object ceil(Object value) {
+<span class="pc bpc" id="L67" title="1 of 2 branches missed.">        if (value instanceof Double) {</span>
+<span class="nc" id="L68">            return Math.ceil((Double) value);</span>
+        }
+
+<span class="pc bpc" id="L71" title="1 of 2 branches missed.">        if (value instanceof Float) {</span>
+<span class="nc" id="L72">            return Math.ceil((Float) value);</span>
+        }
+
+<span class="fc bfc" id="L75" title="All 2 branches covered.">        if (value instanceof BigDecimal) {</span>
+<span class="fc" id="L76">            return ((BigDecimal) value).setScale(0, RoundingMode.CEILING);</span>
+        }
+
+<span class="pc bpc" id="L79" title="1 of 2 branches missed.">        if (value instanceof List) {</span>
+<span class="fc" id="L80">            List list = (List) value;</span>
+<span class="fc bfc" id="L81" title="All 2 branches covered.">            for (int i = 0, l = list.size(); i &lt; l; i++) {</span>
+<span class="fc" id="L82">                Object item = list.get(i);</span>
+<span class="fc bfc" id="L83" title="All 2 branches covered.">                if (item instanceof Double) {</span>
+<span class="fc" id="L84">                    list.set(i, Math.ceil((Double) item));</span>
+<span class="fc bfc" id="L85" title="All 2 branches covered.">                } else if (item instanceof Float) {</span>
+<span class="fc" id="L86">                    list.set(i, Math.ceil((Float) item));</span>
+<span class="pc bpc" id="L87" title="1 of 2 branches missed.">                } else if (item instanceof BigDecimal) {</span>
+<span class="fc" id="L88">                    list.set(i, ((BigDecimal) item).setScale(0, RoundingMode.CEILING));</span>
+                }
+            }
+        }
+
+<span class="fc" id="L93">        return value;</span>
+    }
+
+    static Object exists(Object value) {
+<span class="pc bpc" id="L97" title="1 of 2 branches missed.">        return value != null;</span>
+    }
+
+    static Object negative(Object value) {
+<span class="fc bfc" id="L101" title="All 2 branches covered.">        if (value == null) {</span>
+<span class="fc" id="L102">            return null;</span>
+        }
+
+<span class="fc bfc" id="L105" title="All 2 branches covered.">        if (value instanceof Integer) {</span>
+<span class="fc" id="L106">            int intValue = (Integer) value;</span>
+<span class="fc bfc" id="L107" title="All 2 branches covered.">            if (intValue == Integer.MIN_VALUE) {</span>
+<span class="fc" id="L108">                return -(long) intValue;</span>
+            }
+<span class="fc" id="L110">            return -intValue;</span>
+        }
+
+<span class="fc bfc" id="L113" title="All 2 branches covered.">        if (value instanceof Long) {</span>
+<span class="fc" id="L114">            long longValue = (Long) value;</span>
+<span class="fc bfc" id="L115" title="All 2 branches covered.">            if (longValue == Long.MIN_VALUE) {</span>
+<span class="fc" id="L116">                return BigInteger.valueOf(longValue).negate();</span>
+            }
+<span class="fc" id="L118">            return -longValue;</span>
+        }
+
+<span class="fc bfc" id="L121" title="All 2 branches covered.">        if (value instanceof Byte) {</span>
+<span class="fc" id="L122">            byte byteValue = (Byte) value;</span>
+<span class="fc bfc" id="L123" title="All 2 branches covered.">            if (byteValue == Byte.MIN_VALUE) {</span>
+<span class="fc" id="L124">                return -(short) byteValue;</span>
+            }
+
+<span class="fc" id="L127">            return (byte) -byteValue;</span>
+        }
+
+<span class="fc bfc" id="L130" title="All 2 branches covered.">        if (value instanceof Short) {</span>
+<span class="fc" id="L131">            short shortValue = (Short) value;</span>
+<span class="fc bfc" id="L132" title="All 2 branches covered.">            if (shortValue == Short.MIN_VALUE) {</span>
+<span class="fc" id="L133">                return -(int) shortValue;</span>
+            }
+
+<span class="fc" id="L136">            return (short) -shortValue;</span>
+        }
+
+<span class="fc bfc" id="L139" title="All 2 branches covered.">        if (value instanceof Double) {</span>
+<span class="fc" id="L140">            return -(Double) value;</span>
+        }
+
+<span class="fc bfc" id="L143" title="All 2 branches covered.">        if (value instanceof Float) {</span>
+<span class="fc" id="L144">            return -(Float) value;</span>
+        }
+
+<span class="fc bfc" id="L147" title="All 2 branches covered.">        if (value instanceof BigDecimal) {</span>
+<span class="fc" id="L148">            return ((BigDecimal) value).negate();</span>
+        }
+
+<span class="fc bfc" id="L151" title="All 2 branches covered.">        if (value instanceof BigInteger) {</span>
+<span class="fc" id="L152">            return ((BigInteger) value).negate();</span>
+        }
+
+<span class="pc bpc" id="L155" title="1 of 2 branches missed.">        if (value instanceof List) {</span>
+<span class="fc" id="L156">            List list = (List) value;</span>
+<span class="fc" id="L157">            JSONArray values = new JSONArray(list.size());</span>
+<span class="fc bfc" id="L158" title="All 2 branches covered.">            for (int i = 0; i &lt; list.size(); i++) {</span>
+<span class="fc" id="L159">                Object item = list.get(i);</span>
+<span class="fc" id="L160">                Object negativeItem = negative(item);</span>
+<span class="fc" id="L161">                values.add(negativeItem);</span>
+            }
+<span class="fc" id="L163">            return values;</span>
+        }
+
+<span class="nc" id="L166">        return value;</span>
+    }
+
+    static Object first(Object value) {
+<span class="pc bpc" id="L170" title="1 of 2 branches missed.">        if (value == null) {</span>
+<span class="nc" id="L171">            return null;</span>
+        }
+
+<span class="pc bpc" id="L174" title="1 of 2 branches missed.">        if (value instanceof JSONPath.Sequence) {</span>
+<span class="nc" id="L175">            value = ((JSONPath.Sequence) value).values;</span>
+        }
+
+<span class="fc bfc" id="L178" title="All 2 branches covered.">        if (value instanceof List) {</span>
+<span class="fc bfc" id="L179" title="All 2 branches covered.">            if (((List&lt;?&gt;) value).isEmpty()) {</span>
+<span class="fc" id="L180">                return null;</span>
+            }
+
+<span class="fc" id="L183">            return ((List&lt;?&gt;) value).get(0);</span>
+        }
+
+<span class="fc bfc" id="L186" title="All 2 branches covered.">        if (value instanceof Collection) {</span>
+<span class="fc" id="L187">            Collection&lt;?&gt; collection = (Collection&lt;?&gt;) value;</span>
+<span class="pc bpc" id="L188" title="1 of 2 branches missed.">            if (collection.isEmpty()) {</span>
+<span class="nc" id="L189">                return null;</span>
+            }
+
+<span class="fc" id="L192">            return collection.iterator().next();</span>
+        }
+
+<span class="pc bpc" id="L195" title="1 of 2 branches missed.">        if (value.getClass().isArray()) {</span>
+<span class="fc" id="L196">            int len = Array.getLength(value);</span>
+<span class="fc bfc" id="L197" title="All 2 branches covered.">            if (len == 0) {</span>
+<span class="fc" id="L198">                return null;</span>
+            }
+<span class="fc" id="L200">            return Array.get(value, 0);</span>
+        }
+
+<span class="nc" id="L203">        return value;</span>
+    }
+
+    static Object last(Object value) {
+<span class="pc bpc" id="L207" title="1 of 2 branches missed.">        if (value == null) {</span>
+<span class="nc" id="L208">            return null;</span>
+        }
+
+<span class="pc bpc" id="L211" title="1 of 2 branches missed.">        if (value instanceof JSONPath.Sequence) {</span>
+<span class="nc" id="L212">            value = ((JSONPath.Sequence) value).values;</span>
+        }
+
+<span class="fc bfc" id="L215" title="All 2 branches covered.">        if (value instanceof List) {</span>
+<span class="fc" id="L216">            List list = (List) value;</span>
+<span class="fc" id="L217">            int size = list.size();</span>
+<span class="fc bfc" id="L218" title="All 2 branches covered.">            if (size == 0) {</span>
+<span class="fc" id="L219">                return null;</span>
+            }
+<span class="fc" id="L221">            return list.get(size - 1);</span>
+        }
+
+<span class="fc bfc" id="L224" title="All 2 branches covered.">        if (value instanceof Collection) {</span>
+<span class="fc" id="L225">            Collection&lt;?&gt; collection = (Collection&lt;?&gt;) value;</span>
+<span class="pc bpc" id="L226" title="1 of 2 branches missed.">            if (collection.isEmpty()) {</span>
+<span class="nc" id="L227">                return null;</span>
+            }
+
+<span class="fc" id="L230">            Object last = null;</span>
+<span class="fc bfc" id="L231" title="All 2 branches covered.">            for (Object o : collection) {</span>
+<span class="fc" id="L232">                last = o;</span>
+<span class="fc" id="L233">            }</span>
+<span class="fc" id="L234">            return last;</span>
+        }
+
+<span class="pc bpc" id="L237" title="1 of 2 branches missed.">        if (value.getClass().isArray()) {</span>
+<span class="fc" id="L238">            int len = Array.getLength(value);</span>
+<span class="fc bfc" id="L239" title="All 2 branches covered.">            if (len == 0) {</span>
+<span class="fc" id="L240">                return null;</span>
+            }
+<span class="fc" id="L242">            return Array.get(value, len - 1);</span>
+        }
+
+<span class="nc" id="L245">        return value;</span>
+    }
+
+    static Object abs(Object value) {
+<span class="fc bfc" id="L249" title="All 2 branches covered.">        if (value == null) {</span>
+<span class="fc" id="L250">            return null;</span>
+        }
+
+<span class="fc bfc" id="L253" title="All 2 branches covered.">        if (value instanceof Integer) {</span>
+<span class="fc" id="L254">            int intValue = (Integer) value;</span>
+<span class="fc bfc" id="L255" title="All 2 branches covered.">            if (intValue &lt; 0) {</span>
+<span class="fc" id="L256">                return -intValue;</span>
+            }
+<span class="fc" id="L258">            return value;</span>
+        }
+
+<span class="fc bfc" id="L261" title="All 2 branches covered.">        if (value instanceof Long) {</span>
+<span class="fc" id="L262">            long longValue = (Long) value;</span>
+<span class="fc bfc" id="L263" title="All 2 branches covered.">            if (longValue &lt; 0) {</span>
+<span class="fc" id="L264">                return -longValue;</span>
+            }
+<span class="fc" id="L266">            return value;</span>
+        }
+
+<span class="fc bfc" id="L269" title="All 2 branches covered.">        if (value instanceof Byte) {</span>
+<span class="fc" id="L270">            byte byteValue = (Byte) value;</span>
+<span class="pc bpc" id="L271" title="1 of 2 branches missed.">            if (byteValue &lt; 0) {</span>
+<span class="fc" id="L272">                return (byte) -byteValue;</span>
+            }
+
+<span class="nc" id="L275">            return value;</span>
+        }
+
+<span class="fc bfc" id="L278" title="All 2 branches covered.">        if (value instanceof Short) {</span>
+<span class="fc" id="L279">            short shortValue = (Short) value;</span>
+<span class="pc bpc" id="L280" title="1 of 2 branches missed.">            if (shortValue &lt; 0) {</span>
+<span class="fc" id="L281">                return (short) -shortValue;</span>
+            }
+
+<span class="nc" id="L284">            return value;</span>
+        }
+
+<span class="fc bfc" id="L287" title="All 2 branches covered.">        if (value instanceof Double) {</span>
+<span class="fc" id="L288">            double doubleValue = (Double) value;</span>
+<span class="fc bfc" id="L289" title="All 2 branches covered.">            if (doubleValue &lt; 0) {</span>
+<span class="fc" id="L290">                return -doubleValue;</span>
+            }
+
+<span class="fc" id="L293">            return value;</span>
+        }
+
+<span class="fc bfc" id="L296" title="All 2 branches covered.">        if (value instanceof Float) {</span>
+<span class="fc" id="L297">            float floatValue = (Float) value;</span>
+<span class="fc bfc" id="L298" title="All 2 branches covered.">            if (floatValue &lt; 0) {</span>
+<span class="fc" id="L299">                return -floatValue;</span>
+            }
+
+<span class="fc" id="L302">            return value;</span>
+        }
+
+<span class="fc bfc" id="L305" title="All 2 branches covered.">        if (value instanceof BigDecimal) {</span>
+<span class="fc" id="L306">            return ((BigDecimal) value).abs();</span>
+        }
+
+<span class="fc bfc" id="L309" title="All 2 branches covered.">        if (value instanceof BigInteger) {</span>
+<span class="fc" id="L310">            return ((BigInteger) value).abs();</span>
+        }
+
+<span class="pc bpc" id="L313" title="1 of 2 branches missed.">        if (value instanceof List) {</span>
+<span class="fc" id="L314">            List list = (List) value;</span>
+<span class="fc" id="L315">            JSONArray values = new JSONArray(list.size());</span>
+<span class="fc bfc" id="L316" title="All 2 branches covered.">            for (int i = 0; i &lt; list.size(); i++) {</span>
+<span class="fc" id="L317">                Object item = list.get(i);</span>
+<span class="fc" id="L318">                values.add(abs(item));</span>
+            }
+<span class="fc" id="L320">            return values;</span>
+        }
+
+<span class="nc" id="L323">        throw new JSONException(&quot;abs not support &quot; + value);</span>
+    }
+
+    static String type(Object value) {
+<span class="fc bfc" id="L327" title="All 2 branches covered.">        if (value == null) {</span>
+<span class="fc" id="L328">            return &quot;null&quot;;</span>
+        }
+
+<span class="fc bfc" id="L331" title="All 2 branches covered.">        if (value instanceof Collection) {</span>
+<span class="fc" id="L332">            return &quot;array&quot;;</span>
+        }
+
+<span class="fc bfc" id="L335" title="All 2 branches covered.">        if (value instanceof Number) {</span>
+<span class="fc" id="L336">            return &quot;number&quot;;</span>
+        }
+
+<span class="fc bfc" id="L339" title="All 2 branches covered.">        if (value instanceof Boolean) {</span>
+<span class="fc" id="L340">            return &quot;boolean&quot;;</span>
+        }
+
+<span class="fc bfc" id="L343" title="All 6 branches covered.">        if (value instanceof String</span>
+                || value instanceof UUID
+                || value instanceof Enum) {
+<span class="fc" id="L346">            return &quot;string&quot;;</span>
+        }
+
+<span class="fc" id="L349">        return &quot;object&quot;;</span>
+    }
+
+    static Object lower(Object value) {
+<span class="fc bfc" id="L353" title="All 2 branches covered.">        if (value == null) {</span>
+<span class="fc" id="L354">            return null;</span>
+        }
+        String str;
+<span class="fc bfc" id="L357" title="All 2 branches covered.">        if (value instanceof String) {</span>
+<span class="fc" id="L358">            str = (String) value;</span>
+        } else {
+<span class="fc" id="L360">            str = value.toString();</span>
+        }
+<span class="fc" id="L362">        return str.toLowerCase();</span>
+    }
+
+    static Object upper(Object value) {
+<span class="fc bfc" id="L366" title="All 2 branches covered.">        if (value == null) {</span>
+<span class="fc" id="L367">            return null;</span>
+        }
+        String str;
+<span class="fc bfc" id="L370" title="All 2 branches covered.">        if (value instanceof String) {</span>
+<span class="fc" id="L371">            str = (String) value;</span>
+        } else {
+<span class="fc" id="L373">            str = value.toString();</span>
+        }
+<span class="fc" id="L375">        return str.toUpperCase();</span>
+    }
+
+    static Object trim(Object value) {
+<span class="fc bfc" id="L379" title="All 2 branches covered.">        if (value == null) {</span>
+<span class="fc" id="L380">            return null;</span>
+        }
+        String str;
+<span class="fc bfc" id="L383" title="All 2 branches covered.">        if (value instanceof String) {</span>
+<span class="fc" id="L384">            str = (String) value;</span>
+        } else {
+<span class="fc" id="L386">            str = value.toString();</span>
+        }
+<span class="fc" id="L388">        return str.trim();</span>
+    }
+
+    @Override
+    public void accept(JSONReader jsonReader, JSONPath.Context context) {
+<span class="pc bpc" id="L393" title="1 of 2 branches missed.">        if (context.parent == null) {</span>
+<span class="nc" id="L394">            context.root = jsonReader.readAny();</span>
+<span class="nc" id="L395">            context.eval = true;</span>
+        }
+<span class="fc" id="L397">        eval(context);</span>
+<span class="fc" id="L398">    }</span>
+
+    @Override
+    public void eval(JSONPath.Context context) {
+<span class="fc bfc" id="L402" title="All 2 branches covered.">        Object value = context.parent == null</span>
+                ? context.root
+                : context.parent.value;
+
+<span class="fc" id="L406">        context.value = function.apply(value);</span>
+<span class="fc" id="L407">    }</span>
+
+<span class="fc" id="L409">    static final class TypeFunction</span>
+            implements Function {
+<span class="fc" id="L411">        static final TypeFunction INSTANCE = new TypeFunction();</span>
+
+        @Override
+        public Object apply(Object object) {
+<span class="fc" id="L415">            return type(object);</span>
+        }
+    }
+
+<span class="fc" id="L419">    static final class SizeFunction</span>
+            implements Function {
+<span class="fc" id="L421">        static final SizeFunction INSTANCE = new SizeFunction();</span>
+
+        @Override
+        public Object apply(Object value) {
+<span class="pc bpc" id="L425" title="1 of 2 branches missed.">            if (value == null) {</span>
+<span class="nc" id="L426">                return -1;</span>
+            }
+
+<span class="fc bfc" id="L429" title="All 2 branches covered.">            if (value instanceof Collection) {</span>
+<span class="fc" id="L430">                return ((Collection&lt;?&gt;) value).size();</span>
+            }
+
+<span class="fc bfc" id="L433" title="All 2 branches covered.">            if (value.getClass().isArray()) {</span>
+<span class="fc" id="L434">                return Array.getLength(value);</span>
+            }
+
+<span class="pc bpc" id="L437" title="1 of 2 branches missed.">            if (value instanceof Map) {</span>
+<span class="fc" id="L438">                return ((Map) value).size();</span>
+            }
+
+<span class="nc bnc" id="L441" title="All 2 branches missed.">            if (value instanceof JSONPath.Sequence) {</span>
+<span class="nc" id="L442">                return ((JSONPath.Sequence) value).values.size();</span>
+            }
+
+<span class="nc" id="L445">            return 1;</span>
+        }
+    }
+
+    static final class BiFunctionAdapter
+            implements BiFunction {
+        private final Function function;
+
+<span class="fc" id="L453">        BiFunctionAdapter(Function function) {</span>
+<span class="fc" id="L454">            this.function = function;</span>
+<span class="fc" id="L455">        }</span>
+
+        @Override
+        public Object apply(Object o1, Object o2) {
+<span class="fc" id="L459">            return function.apply(o2);</span>
+        }
+    }
+
+<span class="fc" id="L463">    abstract static class Index</span>
+            implements Function {
+        protected abstract boolean eq(Object item);
+
+        @Override
+        public final Object apply(Object o) {
+<span class="pc bpc" id="L469" title="1 of 2 branches missed.">            if (o == null) {</span>
+<span class="nc" id="L470">                return null;</span>
+            }
+
+<span class="fc bfc" id="L473" title="All 2 branches covered.">            if (o instanceof List) {</span>
+<span class="fc" id="L474">                List list = (List) o;</span>
+<span class="fc bfc" id="L475" title="All 2 branches covered.">                for (int i = 0; i &lt; list.size(); i++) {</span>
+<span class="fc bfc" id="L476" title="All 2 branches covered.">                    if (eq(list.get(i))) {</span>
+<span class="fc" id="L477">                        return i;</span>
+                    }
+                }
+<span class="fc" id="L480">                return -1;</span>
+            }
+
+<span class="pc bpc" id="L483" title="1 of 2 branches missed.">            if (o.getClass().isArray()) {</span>
+<span class="fc" id="L484">                int len = Array.getLength(o);</span>
+<span class="fc bfc" id="L485" title="All 2 branches covered.">                for (int i = 0; i &lt; len; i++) {</span>
+<span class="fc" id="L486">                    Object item = Array.get(o, i);</span>
+<span class="fc bfc" id="L487" title="All 2 branches covered.">                    if (eq(item)) {</span>
+<span class="fc" id="L488">                        return i;</span>
+                    }
+                }
+<span class="fc" id="L491">                return -1;</span>
+            }
+
+<span class="nc bnc" id="L494" title="All 2 branches missed.">            if (eq(o)) {</span>
+<span class="nc" id="L495">                return 0;</span>
+            }
+
+<span class="nc" id="L498">            return null;</span>
+        }
+    }
+
+    static final class IndexInt
+            extends Index {
+        final long value;
+        transient BigDecimal decimalValue;
+
+<span class="fc" id="L507">        public IndexInt(long value) {</span>
+<span class="fc" id="L508">            this.value = value;</span>
+<span class="fc" id="L509">        }</span>
+
+        protected boolean eq(Object item) {
+<span class="pc bpc" id="L512" title="2 of 8 branches missed.">            if (item instanceof Integer</span>
+                    || item instanceof Long
+                    || item instanceof Byte
+                    || item instanceof Short
+            ) {
+<span class="fc bfc" id="L517" title="All 2 branches covered.">                return ((Number) item).longValue() == value;</span>
+<span class="fc bfc" id="L518" title="All 4 branches covered.">            } else if (item instanceof Float || item instanceof Double) {</span>
+<span class="fc bfc" id="L519" title="All 2 branches covered.">                return ((Number) item).doubleValue() == value;</span>
+<span class="pc bpc" id="L520" title="1 of 2 branches missed.">            } else if (item instanceof BigDecimal) {</span>
+<span class="fc" id="L521">                BigDecimal decimal = (BigDecimal) item;</span>
+<span class="fc" id="L522">                decimal = decimal.stripTrailingZeros();</span>
+<span class="fc bfc" id="L523" title="All 2 branches covered.">                if (decimalValue == null) {</span>
+<span class="fc" id="L524">                    decimalValue = BigDecimal.valueOf(value);</span>
+                }
+<span class="fc" id="L526">                return decimalValue.equals(decimal);</span>
+            }
+<span class="nc" id="L528">            return false;</span>
+        }
+    }
+
+    static final class IndexDecimal
+            extends Index {
+        final BigDecimal value;
+
+<span class="fc" id="L536">        public IndexDecimal(BigDecimal value) {</span>
+<span class="fc" id="L537">            this.value = value;</span>
+<span class="fc" id="L538">        }</span>
+
+        @Override
+        protected boolean eq(Object item) {
+<span class="pc bpc" id="L542" title="1 of 2 branches missed.">            if (item == null) {</span>
+<span class="nc" id="L543">                return false;</span>
+            }
+
+<span class="fc bfc" id="L546" title="All 2 branches covered.">            if (item instanceof BigDecimal) {</span>
+<span class="fc" id="L547">                BigDecimal decimal = (BigDecimal) item;</span>
+<span class="fc" id="L548">                decimal = decimal.stripTrailingZeros();</span>
+<span class="fc" id="L549">                return value.equals(decimal);</span>
+            }
+
+<span class="pc bpc" id="L552" title="2 of 4 branches missed.">            if (item instanceof Float || item instanceof Double) {</span>
+<span class="nc" id="L553">                double doubleValue = ((Number) item).doubleValue();</span>
+<span class="nc" id="L554">                BigDecimal decimal = new BigDecimal(doubleValue).stripTrailingZeros();</span>
+<span class="nc" id="L555">                return value.equals(decimal);</span>
+            }
+
+<span class="pc bpc" id="L558" title="1 of 2 branches missed.">            if (item instanceof String) {</span>
+<span class="fc" id="L559">                String str = (String) item;</span>
+<span class="pc bpc" id="L560" title="1 of 2 branches missed.">                if (TypeUtils.isNumber(str)) {</span>
+<span class="fc" id="L561">                    BigDecimal decimal = new BigDecimal(str).stripTrailingZeros();</span>
+<span class="fc" id="L562">                    return value.equals(decimal);</span>
+                }
+            }
+
+<span class="nc" id="L566">            return false;</span>
+        }
+    }
+
+    static final class IndexString
+            extends Index {
+        final String value;
+
+<span class="fc" id="L574">        public IndexString(String value) {</span>
+<span class="fc" id="L575">            this.value = value;</span>
+<span class="fc" id="L576">        }</span>
+
+        @Override
+        protected boolean eq(Object item) {
+<span class="pc bpc" id="L580" title="1 of 2 branches missed.">            if (item == null) {</span>
+<span class="nc" id="L581">                return false;</span>
+            }
+<span class="fc" id="L583">            return value.equals(item.toString());</span>
+        }
+    }
+
+    static final class IndexValue
+            implements Function {
+        final int index;
+
+<span class="fc" id="L591">        public IndexValue(int index) {</span>
+<span class="fc" id="L592">            this.index = index;</span>
+<span class="fc" id="L593">        }</span>
+
+        @Override
+        public Object apply(Object o) {
+<span class="pc bpc" id="L597" title="1 of 2 branches missed.">            if (o == null) {</span>
+<span class="nc" id="L598">                return null;</span>
+            }
+
+<span class="pc bpc" id="L601" title="1 of 2 branches missed.">            if (o instanceof List) {</span>
+<span class="fc" id="L602">                return ((List) o).get(index);</span>
+            }
+
+<span class="nc bnc" id="L605" title="All 2 branches missed.">            if (o.getClass().isArray()) {</span>
+<span class="nc" id="L606">                int len = Array.getLength(o);</span>
+<span class="nc bnc" id="L607" title="All 2 branches missed.">                for (int i = 0; i &lt; len; i++) {</span>
+<span class="nc" id="L608">                    return Array.get(o, i);</span>
+                }
+            }
+
+<span class="nc" id="L612">            return null;</span>
+        }
+    }
+
+    static final class FilterFunction
+            implements Function {
+        final JSONPathFilter filter;
+
+<span class="fc" id="L620">        FilterFunction(JSONPathFilter filter) {</span>
+<span class="fc" id="L621">            this.filter = filter;</span>
+<span class="fc" id="L622">        }</span>
+
+        @Override
+        public Object apply(Object o) {
+<span class="nc" id="L626">            return null;</span>
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.8.202204050719</span></div></body></html>

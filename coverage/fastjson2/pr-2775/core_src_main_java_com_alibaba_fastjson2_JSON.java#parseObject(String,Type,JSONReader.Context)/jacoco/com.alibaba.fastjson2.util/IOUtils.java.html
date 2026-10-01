@@ -1,0 +1,1424 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>IOUtils.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">fastjson2</a> &gt; <a href="index.source.html" class="el_package">com.alibaba.fastjson2.util</a> &gt; <span class="el_source">IOUtils.java</span></div><h1>IOUtils.java</h1><pre class="source lang-java linenums">package com.alibaba.fastjson2.util;
+
+import com.alibaba.fastjson2.JSONException;
+
+import java.io.Closeable;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.InputStream;
+import java.time.LocalTime;
+
+import static com.alibaba.fastjson2.util.JDKUtils.*;
+
+<span class="nc" id="L13">public class IOUtils {</span>
+<span class="pc bpc" id="L14" title="1 of 2 branches missed.">    public static final int NULL_32 = BIG_ENDIAN ? 0x6e756c6c : 0x6c6c756e;</span>
+<span class="pc bpc" id="L15" title="1 of 2 branches missed.">    public static final long NULL_64 = BIG_ENDIAN ? 0x6e0075006c006cL : 0x6c006c0075006eL;</span>
+
+<span class="pc bpc" id="L17" title="1 of 2 branches missed.">    public static final int TRUE = BIG_ENDIAN ? 0x74727565 : 0x65757274;</span>
+<span class="pc bpc" id="L18" title="1 of 2 branches missed.">    public static final long TRUE_64 = BIG_ENDIAN ? 0x74007200750065L : 0x65007500720074L;</span>
+
+<span class="pc bpc" id="L20" title="1 of 2 branches missed.">    public static final int ALSE = BIG_ENDIAN ? 0x616c7365 : 0x65736c61;</span>
+<span class="pc bpc" id="L21" title="1 of 2 branches missed.">    public static final long ALSE_64 = BIG_ENDIAN ? 0x61006c00730065L : 0x650073006c0061L;</span>
+<span class="pc bpc" id="L22" title="1 of 2 branches missed.">    public static final long DOT_X0 = BIG_ENDIAN ? 0x2e00L : 0x2eL;</span>
+
+<span class="fc" id="L24">    static final int[] sizeTable = {9, 99, 999, 9999, 99999, 999999, 9999999, 99999999, 999999999, Integer.MAX_VALUE};</span>
+
+<span class="fc" id="L26">    public static final int[] DIGITS_K_32 = new int[1000];</span>
+<span class="fc" id="L27">    public static final long[] DIGITS_K_64 = new long[1000];</span>
+
+<span class="fc" id="L29">    private static final byte[] MIN_INT_BYTES = &quot;-2147483648&quot;.getBytes();</span>
+<span class="fc" id="L30">    private static final char[] MIN_INT_CHARS = &quot;-2147483648&quot;.toCharArray();</span>
+<span class="fc" id="L31">    private static final byte[] MIN_LONG = &quot;-9223372036854775808&quot;.getBytes();</span>
+
+    public static final short[] PACKED_DIGITS;
+    public static final int[] PACKED_DIGITS_UTF16;
+
+<span class="fc" id="L36">    static final long[] POWER_TEN = {</span>
+            10,
+            100,
+            1000,
+            10000,
+            100000,
+            1000000,
+            10000000,
+            100000000,
+            1000000000,
+            10000000000L,
+            100000000000L,
+            1000000000000L,
+            10000000000000L,
+            100000000000000L,
+            1000000000000000L,
+            10000000000000000L,
+            100000000000000000L,
+            1000000000000000000L,
+    };
+
+    static {
+<span class="fc" id="L58">        short[] shorts = new short[]{</span>
+                0x3030, 0x3130, 0x3230, 0x3330, 0x3430, 0x3530, 0x3630, 0x3730, 0x3830, 0x3930,
+                0x3031, 0x3131, 0x3231, 0x3331, 0x3431, 0x3531, 0x3631, 0x3731, 0x3831, 0x3931,
+                0x3032, 0x3132, 0x3232, 0x3332, 0x3432, 0x3532, 0x3632, 0x3732, 0x3832, 0x3932,
+                0x3033, 0x3133, 0x3233, 0x3333, 0x3433, 0x3533, 0x3633, 0x3733, 0x3833, 0x3933,
+                0x3034, 0x3134, 0x3234, 0x3334, 0x3434, 0x3534, 0x3634, 0x3734, 0x3834, 0x3934,
+                0x3035, 0x3135, 0x3235, 0x3335, 0x3435, 0x3535, 0x3635, 0x3735, 0x3835, 0x3935,
+                0x3036, 0x3136, 0x3236, 0x3336, 0x3436, 0x3536, 0x3636, 0x3736, 0x3836, 0x3936,
+                0x3037, 0x3137, 0x3237, 0x3337, 0x3437, 0x3537, 0x3637, 0x3737, 0x3837, 0x3937,
+                0x3038, 0x3138, 0x3238, 0x3338, 0x3438, 0x3538, 0x3638, 0x3738, 0x3838, 0x3938,
+                0x3039, 0x3139, 0x3239, 0x3339, 0x3439, 0x3539, 0x3639, 0x3739, 0x3839, 0x3939
+        };
+<span class="fc" id="L70">        int[] digits = new int[]{</span>
+                0x300030, 0x310030, 0x320030, 0x330030, 0x340030, 0x350030, 0x360030, 0x370030, 0x380030, 0x390030,
+                0x300031, 0x310031, 0x320031, 0x330031, 0x340031, 0x350031, 0x360031, 0x370031, 0x380031, 0x390031,
+                0x300032, 0x310032, 0x320032, 0x330032, 0x340032, 0x350032, 0x360032, 0x370032, 0x380032, 0x390032,
+                0x300033, 0x310033, 0x320033, 0x330033, 0x340033, 0x350033, 0x360033, 0x370033, 0x380033, 0x390033,
+                0x300034, 0x310034, 0x320034, 0x330034, 0x340034, 0x350034, 0x360034, 0x370034, 0x380034, 0x390034,
+                0x300035, 0x310035, 0x320035, 0x330035, 0x340035, 0x350035, 0x360035, 0x370035, 0x380035, 0x390035,
+                0x300036, 0x310036, 0x320036, 0x330036, 0x340036, 0x350036, 0x360036, 0x370036, 0x380036, 0x390036,
+                0x300037, 0x310037, 0x320037, 0x330037, 0x340037, 0x350037, 0x360037, 0x370037, 0x380037, 0x390037,
+                0x300038, 0x310038, 0x320038, 0x330038, 0x340038, 0x350038, 0x360038, 0x370038, 0x380038, 0x390038,
+                0x300039, 0x310039, 0x320039, 0x330039, 0x340039, 0x350039, 0x360039, 0x370039, 0x380039, 0x390039
+        };
+
+<span class="pc bpc" id="L83" title="1 of 2 branches missed.">        if (BIG_ENDIAN) {</span>
+<span class="nc bnc" id="L84" title="All 2 branches missed.">            for (int i = 0; i &lt; shorts.length; i++) {</span>
+<span class="nc" id="L85">                shorts[i] = Short.reverseBytes(shorts[i]);</span>
+            }
+<span class="nc bnc" id="L87" title="All 2 branches missed.">            for (int i = 0; i &lt; digits.length; i++) {</span>
+<span class="nc" id="L88">                digits[i] = Integer.reverseBytes(digits[i] &lt;&lt; 8);</span>
+            }
+        }
+<span class="fc" id="L91">        PACKED_DIGITS = shorts;</span>
+<span class="fc" id="L92">        PACKED_DIGITS_UTF16 = digits;</span>
+
+<span class="fc bfc" id="L94" title="All 2 branches covered.">        for (int i = 0; i &lt; 1000; i++) {</span>
+<span class="fc bfc" id="L95" title="All 4 branches covered.">            int c0 = i &lt; 10 ? 2 : i &lt; 100 ? 1 : 0;</span>
+<span class="fc" id="L96">            int c1 = (i / 100) + '0';</span>
+<span class="fc" id="L97">            int c2 = ((i / 10) % 10) + '0';</span>
+<span class="fc" id="L98">            int c3 = i % 10 + '0';</span>
+<span class="fc" id="L99">            DIGITS_K_32[i] = c0 + (c1 &lt;&lt; 8) + (c2 &lt;&lt; 16) + (c3 &lt;&lt; 24);</span>
+<span class="fc" id="L100">            long v = (c1 &lt;&lt; 16) + (((long) c2) &lt;&lt; 32) + (((long) c3) &lt;&lt; 48);</span>
+<span class="pc bpc" id="L101" title="1 of 2 branches missed.">            if (BIG_ENDIAN) {</span>
+<span class="nc" id="L102">                v &lt;&lt;= 8;</span>
+            }
+<span class="fc" id="L104">            DIGITS_K_64[i] = c0 + v;</span>
+        }
+<span class="fc" id="L106">    }</span>
+
+    public static int stringSize(int x) {
+<span class="fc" id="L109">        for (int i = 0; ; i++) {</span>
+<span class="fc bfc" id="L110" title="All 2 branches covered.">            if (x &lt;= sizeTable[i]) {</span>
+<span class="fc" id="L111">                return i + 1;</span>
+            }
+        }
+    }
+
+    public static int stringSize(long x) {
+<span class="fc" id="L117">        long p = 10;</span>
+<span class="fc bfc" id="L118" title="All 2 branches covered.">        for (int i = 1; i &lt; 19; i++) {</span>
+<span class="fc bfc" id="L119" title="All 2 branches covered.">            if (x &lt; p) {</span>
+<span class="fc" id="L120">                return i;</span>
+            }
+<span class="fc" id="L122">            p = 10 * p;</span>
+        }
+<span class="fc" id="L124">        return 19;</span>
+    }
+
+    public static void getChars(int i, int index, byte[] buf) {
+        int q, r;
+<span class="fc" id="L129">        int charPos = index;</span>
+
+<span class="fc bfc" id="L131" title="All 2 branches covered.">        boolean negative = i &lt; 0;</span>
+<span class="fc bfc" id="L132" title="All 2 branches covered.">        if (!negative) {</span>
+<span class="fc" id="L133">            i = -i;</span>
+        }
+
+        // Generate two digits per iteration
+<span class="fc bfc" id="L137" title="All 2 branches covered.">        while (i &lt;= -100) {</span>
+<span class="fc" id="L138">            q = i / 100;</span>
+<span class="fc" id="L139">            r = (q * 100) - i;</span>
+<span class="fc" id="L140">            i = q;</span>
+<span class="fc" id="L141">            charPos -= 2;</span>
+<span class="fc" id="L142">            UNSAFE.putShort(buf, ARRAY_BYTE_BASE_OFFSET + charPos, PACKED_DIGITS[r]);</span>
+        }
+
+        // We know there are at most two digits left at this point.
+<span class="fc bfc" id="L146" title="All 2 branches covered.">        if (i &lt; -9) {</span>
+<span class="fc" id="L147">            charPos -= 2;</span>
+<span class="fc" id="L148">            UNSAFE.putShort(buf, ARRAY_BYTE_BASE_OFFSET + charPos, PACKED_DIGITS[-i]);</span>
+        } else {
+<span class="fc" id="L150">            buf[--charPos] = (byte) ('0' - i);</span>
+        }
+
+<span class="fc bfc" id="L153" title="All 2 branches covered.">        if (negative) {</span>
+<span class="fc" id="L154">            buf[charPos - 1] = (byte) '-';</span>
+        }
+<span class="fc" id="L156">    }</span>
+
+    public static void getChars(int i, int index, char[] buf) {
+        int q, r;
+<span class="fc" id="L160">        int charPos = index;</span>
+
+<span class="fc bfc" id="L162" title="All 2 branches covered.">        boolean negative = (i &lt; 0);</span>
+<span class="fc bfc" id="L163" title="All 2 branches covered.">        if (!negative) {</span>
+<span class="fc" id="L164">            i = -i;</span>
+        }
+
+        // Get 2 digits/iteration using ints
+<span class="fc bfc" id="L168" title="All 2 branches covered.">        while (i &lt;= -100) {</span>
+<span class="fc" id="L169">            q = i / 100;</span>
+<span class="fc" id="L170">            r = (q * 100) - i;</span>
+<span class="fc" id="L171">            i = q;</span>
+
+<span class="fc" id="L173">            charPos -= 2;</span>
+<span class="fc" id="L174">            UNSAFE.putInt(</span>
+                    buf,
+                    ARRAY_CHAR_BASE_OFFSET + (charPos &lt;&lt; 1),
+                    PACKED_DIGITS_UTF16[r]);
+        }
+
+        // We know there are at most two digits left at this point.
+<span class="fc bfc" id="L181" title="All 2 branches covered.">        if (i &lt; -9) {</span>
+<span class="fc" id="L182">            charPos -= 2;</span>
+<span class="fc" id="L183">            UNSAFE.putInt(</span>
+                    buf,
+                    ARRAY_CHAR_BASE_OFFSET + (charPos &lt;&lt; 1),
+                    PACKED_DIGITS_UTF16[-i]);
+        } else {
+<span class="fc" id="L188">            buf[--charPos] = (char) ('0' - i);</span>
+        }
+
+<span class="fc bfc" id="L191" title="All 2 branches covered.">        if (negative) {</span>
+<span class="fc" id="L192">            buf[charPos - 1] = '-';</span>
+        }
+<span class="fc" id="L194">    }</span>
+
+    public static void getChars(long i, int index, byte[] buf) {
+        long q;
+<span class="fc" id="L198">        int charPos = index;</span>
+
+<span class="fc bfc" id="L200" title="All 2 branches covered.">        boolean negative = (i &lt; 0);</span>
+<span class="fc bfc" id="L201" title="All 2 branches covered.">        if (!negative) {</span>
+<span class="fc" id="L202">            i = -i;</span>
+        }
+
+        // Get 2 digits/iteration using longs until quotient fits into an int
+<span class="fc bfc" id="L206" title="All 2 branches covered.">        while (i &lt;= Integer.MIN_VALUE) {</span>
+<span class="fc" id="L207">            q = i / 100;</span>
+<span class="fc" id="L208">            charPos -= 2;</span>
+<span class="fc" id="L209">            UNSAFE.putShort(</span>
+                    buf,
+                    ARRAY_BYTE_BASE_OFFSET + charPos,
+                    PACKED_DIGITS[(int) ((q * 100) - i)]);
+<span class="fc" id="L213">            i = q;</span>
+        }
+
+        // Get 2 digits/iteration using ints
+        int q2;
+<span class="fc" id="L218">        int i2 = (int) i;</span>
+<span class="fc bfc" id="L219" title="All 2 branches covered.">        while (i2 &lt;= -100) {</span>
+<span class="fc" id="L220">            q2 = i2 / 100;</span>
+<span class="fc" id="L221">            charPos -= 2;</span>
+<span class="fc" id="L222">            UNSAFE.putShort(</span>
+                    buf,
+                    ARRAY_BYTE_BASE_OFFSET + charPos,
+                    PACKED_DIGITS[(q2 * 100) - i2]);
+<span class="fc" id="L226">            i2 = q2;</span>
+        }
+
+        // We know there are at most two digits left at this point.
+<span class="fc bfc" id="L230" title="All 2 branches covered.">        if (i2 &lt; -9) {</span>
+<span class="fc" id="L231">            charPos -= 2;</span>
+<span class="fc" id="L232">            UNSAFE.putShort(</span>
+                    buf,
+                    ARRAY_BYTE_BASE_OFFSET + charPos,
+                    PACKED_DIGITS[-i2]);
+        } else {
+<span class="fc" id="L237">            buf[--charPos] = (byte) ('0' - i2);</span>
+        }
+
+<span class="fc bfc" id="L240" title="All 2 branches covered.">        if (negative) {</span>
+<span class="fc" id="L241">            buf[charPos - 1] = (byte) '-';</span>
+        }
+<span class="fc" id="L243">    }</span>
+
+    public static void getChars(long i, int index, char[] buf) {
+        long q;
+<span class="fc" id="L247">        int charPos = index;</span>
+
+<span class="fc bfc" id="L249" title="All 2 branches covered.">        boolean negative = (i &lt; 0);</span>
+<span class="fc bfc" id="L250" title="All 2 branches covered.">        if (!negative) {</span>
+<span class="fc" id="L251">            i = -i;</span>
+        }
+
+        // Get 2 digits/iteration using longs until quotient fits into an int
+<span class="fc bfc" id="L255" title="All 2 branches covered.">        while (i &lt;= Integer.MIN_VALUE) {</span>
+<span class="fc" id="L256">            q = i / 100;</span>
+<span class="fc" id="L257">            charPos -= 2;</span>
+<span class="fc" id="L258">            UNSAFE.putInt(</span>
+                    buf,
+                    ARRAY_CHAR_BASE_OFFSET + (charPos &lt;&lt; 1),
+                    PACKED_DIGITS_UTF16[(int) ((q * 100) - i)]);
+<span class="fc" id="L262">            i = q;</span>
+        }
+
+        // Get 2 digits/iteration using ints
+        int q2;
+<span class="fc" id="L267">        int i2 = (int) i;</span>
+<span class="fc bfc" id="L268" title="All 2 branches covered.">        while (i2 &lt;= -100) {</span>
+<span class="fc" id="L269">            q2 = i2 / 100;</span>
+<span class="fc" id="L270">            charPos -= 2;</span>
+<span class="fc" id="L271">            UNSAFE.putInt(</span>
+                    buf,
+                    ARRAY_CHAR_BASE_OFFSET + (charPos &lt;&lt; 1),
+                    PACKED_DIGITS_UTF16[(q2 * 100) - i2]);
+<span class="fc" id="L275">            i2 = q2;</span>
+        }
+
+        // We know there are at most two digits left at this point.
+<span class="fc bfc" id="L279" title="All 2 branches covered.">        if (i2 &lt; -9) {</span>
+<span class="fc" id="L280">            charPos -= 2;</span>
+<span class="fc" id="L281">            UNSAFE.putInt(</span>
+                    buf,
+                    ARRAY_CHAR_BASE_OFFSET + (charPos &lt;&lt; 1),
+                    PACKED_DIGITS_UTF16[-i2]);
+        } else {
+<span class="fc" id="L286">            buf[--charPos] = (char) ('0' - i2);</span>
+        }
+
+<span class="fc bfc" id="L289" title="All 2 branches covered.">        if (negative) {</span>
+<span class="fc" id="L290">            buf[--charPos] = '-';</span>
+        }
+<span class="fc" id="L292">    }</span>
+
+    public static int writeDecimal(byte[] buf, int off, long unscaledVal, int scale) {
+<span class="fc bfc" id="L295" title="All 2 branches covered.">        if (unscaledVal &lt; 0) {</span>
+<span class="fc" id="L296">            buf[off++] = (byte) '-';</span>
+<span class="fc" id="L297">            unscaledVal = -unscaledVal;</span>
+        }
+
+<span class="fc bfc" id="L300" title="All 2 branches covered.">        if (scale != 0) {</span>
+<span class="fc" id="L301">            int unscaleValSize = IOUtils.stringSize(unscaledVal);</span>
+<span class="fc" id="L302">            int insertionPoint = unscaleValSize - scale;</span>
+<span class="fc bfc" id="L303" title="All 2 branches covered.">            if (insertionPoint == 0) {</span>
+<span class="fc" id="L304">                buf[off] = '0';</span>
+<span class="fc" id="L305">                buf[off + 1] = '.';</span>
+<span class="fc" id="L306">                off += 2;</span>
+<span class="fc bfc" id="L307" title="All 2 branches covered.">            } else if (insertionPoint &lt; 0) {</span>
+<span class="fc" id="L308">                buf[off] = '0';</span>
+<span class="fc" id="L309">                buf[off + 1] = '.';</span>
+<span class="fc" id="L310">                off += 2;</span>
+
+<span class="fc bfc" id="L312" title="All 2 branches covered.">                for (int i = 0; i &lt; -insertionPoint; i++) {</span>
+<span class="fc" id="L313">                    buf[off++] = '0';</span>
+                }
+            } else {
+<span class="fc" id="L316">                long power = POWER_TEN[scale - 1];</span>
+<span class="fc" id="L317">                long div = unscaledVal / power;</span>
+<span class="fc" id="L318">                long rem = unscaledVal - div * power;</span>
+<span class="fc" id="L319">                off = IOUtils.writeInt64(buf, off, div);</span>
+<span class="fc" id="L320">                buf[off] = '.';</span>
+
+<span class="fc bfc" id="L322" title="All 2 branches covered.">                if (scale == 1) {</span>
+<span class="fc" id="L323">                    buf[off + 1] = (byte) (rem + '0');</span>
+<span class="fc" id="L324">                    return off + 2;</span>
+<span class="fc bfc" id="L325" title="All 2 branches covered.">                } else if (scale == 2) {</span>
+<span class="fc" id="L326">                    UNSAFE.putShort(buf, ARRAY_BYTE_BASE_OFFSET + off + 1, PACKED_DIGITS[(int) rem]);</span>
+<span class="fc" id="L327">                    return off + 3;</span>
+                }
+
+<span class="fc bfc" id="L330" title="All 2 branches covered.">                for (int i = 0, end = unscaleValSize - stringSize(rem) - insertionPoint; i &lt; end; ++i) {</span>
+<span class="fc" id="L331">                    buf[++off] = '0';</span>
+                }
+<span class="fc" id="L333">                return IOUtils.writeInt64(buf, off + 1, rem);</span>
+            }
+        }
+
+<span class="fc" id="L337">        return IOUtils.writeInt64(buf, off, unscaledVal);</span>
+    }
+
+    public static int writeDecimal(char[] buf, int off, long unscaledVal, int scale) {
+<span class="fc bfc" id="L341" title="All 2 branches covered.">        if (unscaledVal &lt; 0) {</span>
+<span class="fc" id="L342">            buf[off++] = (byte) '-';</span>
+<span class="fc" id="L343">            unscaledVal = -unscaledVal;</span>
+        }
+
+<span class="fc bfc" id="L346" title="All 2 branches covered.">        if (scale != 0) {</span>
+<span class="fc" id="L347">            int unscaleValSize = stringSize(unscaledVal);</span>
+<span class="fc" id="L348">            int insertionPoint = unscaleValSize - scale;</span>
+<span class="fc bfc" id="L349" title="All 2 branches covered.">            if (insertionPoint == 0) {</span>
+<span class="fc" id="L350">                buf[off] = '0';</span>
+<span class="fc" id="L351">                buf[off + 1] = '.';</span>
+<span class="fc" id="L352">                off += 2;</span>
+<span class="fc bfc" id="L353" title="All 2 branches covered.">            } else if (insertionPoint &lt; 0) {</span>
+<span class="fc" id="L354">                buf[off] = '0';</span>
+<span class="fc" id="L355">                buf[off + 1] = '.';</span>
+<span class="fc" id="L356">                off += 2;</span>
+
+<span class="fc bfc" id="L358" title="All 2 branches covered.">                for (int i = 0; i &lt; -insertionPoint; i++) {</span>
+<span class="fc" id="L359">                    buf[off++] = '0';</span>
+                }
+            } else {
+<span class="fc" id="L362">                long power = POWER_TEN[scale - 1];</span>
+<span class="fc" id="L363">                long div = unscaledVal / power;</span>
+<span class="fc" id="L364">                long rem = unscaledVal - div * power;</span>
+<span class="fc" id="L365">                off = IOUtils.writeInt64(buf, off, div);</span>
+<span class="fc" id="L366">                buf[off] = '.';</span>
+
+<span class="fc bfc" id="L368" title="All 2 branches covered.">                if (scale == 1) {</span>
+<span class="fc" id="L369">                    buf[off + 1] = (char) (rem + '0');</span>
+<span class="fc" id="L370">                    return off + 2;</span>
+<span class="fc bfc" id="L371" title="All 2 branches covered.">                } else if (scale == 2) {</span>
+<span class="fc" id="L372">                    UNSAFE.putInt(buf, ARRAY_CHAR_BASE_OFFSET + ((off + 1) &lt;&lt; 1), PACKED_DIGITS_UTF16[(int) rem]);</span>
+<span class="fc" id="L373">                    return off + 3;</span>
+                }
+
+<span class="fc bfc" id="L376" title="All 2 branches covered.">                for (int i = 0, end = unscaleValSize - stringSize(rem) - insertionPoint; i &lt; end; ++i) {</span>
+<span class="fc" id="L377">                    buf[++off] = '0';</span>
+                }
+<span class="fc" id="L379">                return IOUtils.writeInt64(buf, off + 1, rem);</span>
+            }
+        }
+
+<span class="fc" id="L383">        return IOUtils.writeInt64(buf, off, unscaledVal);</span>
+    }
+
+    public static int encodeUTF8(byte[] src, int offset, int len, byte[] dst, int dp) {
+<span class="fc" id="L387">        int sl = offset + len;</span>
+<span class="fc bfc" id="L388" title="All 2 branches covered.">        while (offset &lt; sl) {</span>
+<span class="fc" id="L389">            char c = UNSAFE.getChar(src, ARRAY_BYTE_BASE_OFFSET + offset);</span>
+<span class="fc" id="L390">            offset += 2;</span>
+
+<span class="fc bfc" id="L392" title="All 2 branches covered.">            if (c &lt; 0x80) {</span>
+<span class="fc" id="L393">                dst[dp++] = (byte) c;</span>
+            } else {
+<span class="fc bfc" id="L395" title="All 2 branches covered.">                if (c &lt; 0x800) {</span>
+                    // 2 bytes, 11 bits
+<span class="fc" id="L397">                    dst[dp] = (byte) (0xc0 | (c &gt;&gt; 6));</span>
+<span class="fc" id="L398">                    dst[dp + 1] = (byte) (0x80 | (c &amp; 0x3f));</span>
+<span class="fc" id="L399">                    dp += 2;</span>
+<span class="pc bpc" id="L400" title="1 of 4 branches missed.">                } else if (c &gt;= '\uD800' &amp;&amp; c &lt;= '\uDFFF') {</span>
+<span class="fc" id="L401">                    utf8_char2(src, offset, sl, c, dst, dp);</span>
+<span class="fc" id="L402">                    offset += 2;</span>
+<span class="fc" id="L403">                    dp += 4;</span>
+                } else {
+                    // 3 bytes, 16 bits
+<span class="fc" id="L406">                    dst[dp] = (byte) (0xe0 | ((c &gt;&gt; 12)));</span>
+<span class="fc" id="L407">                    dst[dp + 1] = (byte) (0x80 | ((c &gt;&gt; 6) &amp; 0x3f));</span>
+<span class="fc" id="L408">                    dst[dp + 2] = (byte) (0x80 | (c &amp; 0x3f));</span>
+<span class="fc" id="L409">                    dp += 3;</span>
+                }
+            }
+<span class="fc" id="L412">        }</span>
+<span class="fc" id="L413">        return dp;</span>
+    }
+
+    public static int encodeUTF8(char[] src, int offset, int len, byte[] dst, int dp) {
+<span class="fc" id="L417">        int sl = offset + len;</span>
+<span class="fc" id="L418">        int dlASCII = dp + Math.min(len, dst.length);</span>
+
+        // ASCII only optimized loop
+<span class="pc bpc" id="L421" title="1 of 4 branches missed.">        while (dp &lt; dlASCII &amp;&amp; src[offset] &lt; '\u0080') {</span>
+<span class="fc" id="L422">            dst[dp++] = (byte) src[offset++];</span>
+        }
+
+<span class="fc bfc" id="L425" title="All 2 branches covered.">        while (offset &lt; sl) {</span>
+<span class="fc" id="L426">            char c = src[offset++];</span>
+<span class="fc bfc" id="L427" title="All 2 branches covered.">            if (c &lt; 0x80) {</span>
+                // Have at most seven bits
+<span class="fc" id="L429">                dst[dp++] = (byte) c;</span>
+<span class="fc bfc" id="L430" title="All 2 branches covered.">            } else if (c &lt; 0x800) {</span>
+                // 2 bytes, 11 bits
+<span class="fc" id="L432">                dst[dp] = (byte) (0xc0 | (c &gt;&gt; 6));</span>
+<span class="fc" id="L433">                dst[dp + 1] = (byte) (0x80 | (c &amp; 0x3f));</span>
+<span class="fc" id="L434">                dp += 2;</span>
+<span class="fc bfc" id="L435" title="All 4 branches covered.">            } else if (c &gt;= '\uD800' &amp;&amp; c &lt;= '\uDFFF') {</span>
+<span class="fc" id="L436">                utf8_char2(src, offset, sl, c, dst, dp);</span>
+<span class="fc" id="L437">                offset++;</span>
+<span class="fc" id="L438">                dp += 4;</span>
+            } else {
+                // 3 bytes, 16 bits
+<span class="fc" id="L441">                dst[dp] = (byte) (0xe0 | ((c &gt;&gt; 12)));</span>
+<span class="fc" id="L442">                dst[dp + 1] = (byte) (0x80 | ((c &gt;&gt; 6) &amp; 0x3f));</span>
+<span class="fc" id="L443">                dst[dp + 2] = (byte) (0x80 | (c &amp; 0x3f));</span>
+<span class="fc" id="L444">                dp += 3;</span>
+            }
+<span class="fc" id="L446">        }</span>
+<span class="fc" id="L447">        return dp;</span>
+    }
+
+    private static void utf8_char2(byte[] src, int offset, int sl, char c, byte[] dst, int dp) {
+        char d;
+<span class="pc bpc" id="L452" title="1 of 4 branches missed.">        if (c &gt; '\uDBFF'</span>
+                || sl - offset &lt; 1
+<span class="pc bpc" id="L454" title="2 of 4 branches missed.">                || (d = UNSAFE.getChar(src, ARRAY_BYTE_BASE_OFFSET + offset)) &lt; '\uDC00'</span>
+                || d &gt; '\uDFFF'
+        ) {
+<span class="fc" id="L457">            throw new JSONException(&quot;malformed input off : &quot; + offset);</span>
+        }
+
+<span class="fc" id="L460">        int uc = ((c &lt;&lt; 10) + d) + (0x010000 - ('\uD800' &lt;&lt; 10) - '\uDC00');</span>
+<span class="fc" id="L461">        dst[dp] = (byte) (0xf0 | ((uc &gt;&gt; 18)));</span>
+<span class="fc" id="L462">        dst[dp + 1] = (byte) (0x80 | ((uc &gt;&gt; 12) &amp; 0x3f));</span>
+<span class="fc" id="L463">        dst[dp + 2] = (byte) (0x80 | ((uc &gt;&gt; 6) &amp; 0x3f));</span>
+<span class="fc" id="L464">        dst[dp + 3] = (byte) (0x80 | (uc &amp; 0x3f));</span>
+<span class="fc" id="L465">    }</span>
+
+    private static void utf8_char2(char[] src, int offset, int sl, char c, byte[] dst, int dp) {
+        char d;
+<span class="pc bpc" id="L469" title="4 of 8 branches missed.">        if (c &gt; '\uDBFF' || sl - offset &lt; 1 || (d = src[offset]) &lt; '\uDC00' || d &gt; '\uDFFF') {</span>
+<span class="nc" id="L470">            throw new JSONException(&quot;malformed input off : &quot; + offset);</span>
+        }
+
+<span class="fc" id="L473">        int uc = ((c &lt;&lt; 10) + d) + (0x010000 - ('\uD800' &lt;&lt; 10) - '\uDC00');</span>
+<span class="fc" id="L474">        dst[dp] = (byte) (0xf0 | ((uc &gt;&gt; 18)));</span>
+<span class="fc" id="L475">        dst[dp + 1] = (byte) (0x80 | ((uc &gt;&gt; 12) &amp; 0x3f));</span>
+<span class="fc" id="L476">        dst[dp + 2] = (byte) (0x80 | ((uc &gt;&gt; 6) &amp; 0x3f));</span>
+<span class="fc" id="L477">        dst[dp + 3] = (byte) (0x80 | (uc &amp; 0x3f));</span>
+<span class="fc" id="L478">    }</span>
+
+    public static boolean isNumber(String str) {
+<span class="fc bfc" id="L481" title="All 2 branches covered.">        for (int i = 0; i &lt; str.length(); ++i) {</span>
+<span class="fc" id="L482">            char ch = str.charAt(i);</span>
+<span class="fc bfc" id="L483" title="All 4 branches covered.">            if (ch == '+' || ch == '-') {</span>
+<span class="fc bfc" id="L484" title="All 2 branches covered.">                if (i != 0) {</span>
+<span class="fc" id="L485">                    return false;</span>
+                }
+<span class="fc bfc" id="L487" title="All 4 branches covered.">            } else if (ch &lt; '0' || ch &gt; '9') {</span>
+<span class="fc" id="L488">                return false;</span>
+            }
+        }
+<span class="fc" id="L491">        return true;</span>
+    }
+
+    public static boolean isNumber(char[] chars, int off, int len) {
+<span class="fc bfc" id="L495" title="All 2 branches covered.">        for (int i = off, end = off + len; i &lt; end; ++i) {</span>
+<span class="fc" id="L496">            char ch = chars[i];</span>
+<span class="pc bpc" id="L497" title="1 of 4 branches missed.">            if (ch == '+' || ch == '-') {</span>
+<span class="fc bfc" id="L498" title="All 2 branches covered.">                if (i != 0) {</span>
+<span class="fc" id="L499">                    return false;</span>
+                }
+<span class="fc bfc" id="L501" title="All 4 branches covered.">            } else if (ch &lt; '0' || ch &gt; '9') {</span>
+<span class="fc" id="L502">                return false;</span>
+            }
+        }
+<span class="fc" id="L505">        return true;</span>
+    }
+
+    public static boolean isNumber(byte[] chars, int off, int len) {
+<span class="fc bfc" id="L509" title="All 2 branches covered.">        for (int i = off, end = off + len; i &lt; end; ++i) {</span>
+<span class="fc" id="L510">            char ch = (char) chars[i];</span>
+<span class="pc bpc" id="L511" title="1 of 4 branches missed.">            if (ch == '+' || ch == '-') {</span>
+<span class="pc bpc" id="L512" title="1 of 2 branches missed.">                if (i != 0) {</span>
+<span class="fc" id="L513">                    return false;</span>
+                }
+<span class="pc bpc" id="L515" title="1 of 4 branches missed.">            } else if (ch &lt; '0' || ch &gt; '9') {</span>
+<span class="fc" id="L516">                return false;</span>
+            }
+        }
+<span class="fc" id="L519">        return true;</span>
+    }
+
+    public static void close(Closeable x) {
+<span class="pc bpc" id="L523" title="1 of 2 branches missed.">        if (x == null) {</span>
+<span class="nc" id="L524">            return;</span>
+        }
+
+        try {
+<span class="fc" id="L528">            x.close();</span>
+<span class="nc" id="L529">        } catch (Exception e) {</span>
+            // skip
+<span class="fc" id="L531">        }</span>
+<span class="fc" id="L532">    }</span>
+
+    public static int decodeUTF8(byte[] src, int off, int len, byte[] dst) {
+<span class="fc" id="L535">        final int sl = off + len;</span>
+<span class="fc" id="L536">        int dp = 0;</span>
+
+<span class="fc bfc" id="L538" title="All 2 branches covered.">        while (off &lt; sl) {</span>
+<span class="fc" id="L539">            int b0 = src[off++];</span>
+<span class="fc bfc" id="L540" title="All 2 branches covered.">            if (b0 &gt;= 0) {</span>
+                // 1 byte, 7 bits: 0xxxxxxx
+<span class="fc" id="L542">                dst[dp] = (byte) b0;</span>
+<span class="fc" id="L543">                dst[dp + 1] = 0;</span>
+<span class="fc" id="L544">                dp += 2;</span>
+<span class="pc bpc" id="L545" title="1 of 4 branches missed.">            } else if ((b0 &gt;&gt; 5) == -2 &amp;&amp; (b0 &amp; 0x1e) != 0) {</span>
+                // 2 bytes, 11 bits: 110xxxxx 10xxxxxx
+<span class="pc bpc" id="L547" title="1 of 2 branches missed.">                if (off &lt; sl) {</span>
+<span class="fc" id="L548">                    int b1 = src[off++];</span>
+<span class="pc bpc" id="L549" title="1 of 2 branches missed.">                    if ((b1 &amp; 0xc0) != 0x80) { // isNotContinuation(b2)</span>
+<span class="nc" id="L550">                        return -1;</span>
+                    } else {
+<span class="fc" id="L552">                        char c = (char) (((b0 &lt;&lt; 6) ^ b1) ^</span>
+                                (((byte) 0xC0 &lt;&lt; 6) ^
+                                        ((byte) 0x80)));
+<span class="fc" id="L555">                        dst[dp] = (byte) c;</span>
+<span class="fc" id="L556">                        dst[dp + 1] = (byte) (c &gt;&gt; 8);</span>
+<span class="fc" id="L557">                        dp += 2;</span>
+                    }
+<span class="fc" id="L559">                    continue;</span>
+                }
+<span class="nc" id="L561">                dst[dp] = (byte) b0;</span>
+<span class="nc" id="L562">                dst[dp + 1] = 0;</span>
+<span class="nc" id="L563">                dp += 2;</span>
+<span class="nc" id="L564">                break;</span>
+<span class="fc bfc" id="L565" title="All 2 branches covered.">            } else if ((b0 &gt;&gt; 4) == -2) {</span>
+                // 3 bytes, 16 bits: 1110xxxx 10xxxxxx 10xxxxxx
+<span class="pc bpc" id="L567" title="1 of 2 branches missed.">                if (off + 1 &lt; sl) {</span>
+<span class="fc" id="L568">                    int b1 = src[off];</span>
+<span class="fc" id="L569">                    int b2 = src[off + 1];</span>
+<span class="fc" id="L570">                    off += 2;</span>
+<span class="pc bpc" id="L571" title="5 of 8 branches missed.">                    if ((b0 == (byte) 0xe0 &amp;&amp; (b1 &amp; 0xe0) == 0x80) //</span>
+                            || (b1 &amp; 0xc0) != 0x80 //
+                            || (b2 &amp; 0xc0) != 0x80) { // isMalformed3(b0, b1, b2)
+<span class="nc" id="L574">                        return -1;</span>
+                    } else {
+<span class="fc" id="L576">                        char c = (char)</span>
+                                ((b0 &lt;&lt; 12) ^
+                                        (b1 &lt;&lt; 6) ^
+                                        (b2 ^ (((byte) 0xE0 &lt;&lt; 12) ^
+                                                ((byte) 0x80 &lt;&lt; 6) ^
+                                                ((byte) 0x80)))
+                                );
+<span class="pc bpc" id="L583" title="3 of 4 branches missed.">                        boolean isSurrogate = c &gt;= '\uD800' &amp;&amp; c &lt; ('\uDFFF' + 1);</span>
+<span class="pc bpc" id="L584" title="1 of 2 branches missed.">                        if (isSurrogate) {</span>
+<span class="nc" id="L585">                            return -1;</span>
+                        } else {
+<span class="fc" id="L587">                            dst[dp] = (byte) c;</span>
+<span class="fc" id="L588">                            dst[dp + 1] = (byte) (c &gt;&gt; 8);</span>
+<span class="fc" id="L589">                            dp += 2;</span>
+                        }
+                    }
+<span class="fc" id="L592">                    continue;</span>
+                }
+<span class="nc" id="L594">                return -1;</span>
+<span class="pc bpc" id="L595" title="1 of 2 branches missed.">            } else if ((b0 &gt;&gt; 3) == -2) {</span>
+                // 4 bytes, 21 bits: 11110xxx 10xxxxxx 10xxxxxx 10xxxxxx
+<span class="pc bpc" id="L597" title="1 of 2 branches missed.">                if (off + 2 &lt; sl) {</span>
+<span class="fc" id="L598">                    int b2 = src[off];</span>
+<span class="fc" id="L599">                    int b3 = src[off + 1];</span>
+<span class="fc" id="L600">                    int b4 = src[off + 2];</span>
+<span class="fc" id="L601">                    off += 3;</span>
+<span class="fc" id="L602">                    int uc = ((b0 &lt;&lt; 18) ^</span>
+                            (b2 &lt;&lt; 12) ^
+                            (b3 &lt;&lt; 6) ^
+                            (b4 ^
+                                    (((byte) 0xF0 &lt;&lt; 18) ^
+                                            ((byte) 0x80 &lt;&lt; 12) ^
+                                            ((byte) 0x80 &lt;&lt; 6) ^
+                                            ((byte) 0x80))));
+<span class="pc bpc" id="L610" title="5 of 10 branches missed.">                    if (((b2 &amp; 0xc0) != 0x80 || (b3 &amp; 0xc0) != 0x80 || (b4 &amp; 0xc0) != 0x80) // isMalformed4</span>
+                            ||
+                            // shortest form check
+                            !(uc &gt;= 0x010000 &amp;&amp; uc &lt; 0X10FFFF + 1) // !Character.isSupplementaryCodePoint(uc)
+                    ) {
+<span class="nc" id="L615">                        return -1;</span>
+                    } else {
+<span class="fc" id="L617">                        char c = (char) ((uc &gt;&gt;&gt; 10) + ('\uD800' - (0x010000 &gt;&gt;&gt; 10)));</span>
+<span class="fc" id="L618">                        dst[dp] = (byte) c;</span>
+<span class="fc" id="L619">                        dst[dp + 1] = (byte) (c &gt;&gt; 8);</span>
+<span class="fc" id="L620">                        dp += 2;</span>
+
+<span class="fc" id="L622">                        c = (char) ((uc &amp; 0x3ff) + '\uDC00');</span>
+<span class="fc" id="L623">                        dst[dp] = (byte) c;</span>
+<span class="fc" id="L624">                        dst[dp + 1] = (byte) (c &gt;&gt; 8);</span>
+<span class="fc" id="L625">                        dp += 2;</span>
+                    }
+<span class="fc" id="L627">                    continue;</span>
+                }
+<span class="nc" id="L629">                return -1;</span>
+            } else {
+<span class="nc" id="L631">                return -1;</span>
+            }
+<span class="fc" id="L633">        }</span>
+<span class="fc" id="L634">        return dp;</span>
+    }
+
+    public static int decodeUTF8(byte[] src, int off, int len, char[] dst) {
+<span class="fc" id="L638">        final int sl = off + len;</span>
+<span class="fc" id="L639">        int dp = 0;</span>
+<span class="fc" id="L640">        int dlASCII = Math.min(len, dst.length);</span>
+
+        // ASCII only optimized loop
+<span class="fc bfc" id="L643" title="All 4 branches covered.">        while (dp &lt; dlASCII &amp;&amp; src[off] &gt;= 0) {</span>
+<span class="fc" id="L644">            dst[dp++] = (char) src[off++];</span>
+        }
+
+<span class="fc bfc" id="L647" title="All 2 branches covered.">        while (off &lt; sl) {</span>
+<span class="fc" id="L648">            int b1 = src[off++];</span>
+<span class="fc bfc" id="L649" title="All 2 branches covered.">            if (b1 &gt;= 0) {</span>
+                // 1 byte, 7 bits: 0xxxxxxx
+<span class="fc" id="L651">                dst[dp++] = (char) b1;</span>
+<span class="pc bpc" id="L652" title="1 of 4 branches missed.">            } else if ((b1 &gt;&gt; 5) == -2 &amp;&amp; (b1 &amp; 0x1e) != 0) {</span>
+                // 2 bytes, 11 bits: 110xxxxx 10xxxxxx
+<span class="pc bpc" id="L654" title="1 of 2 branches missed.">                if (off &lt; sl) {</span>
+<span class="fc" id="L655">                    int b2 = src[off++];</span>
+<span class="pc bpc" id="L656" title="1 of 2 branches missed.">                    if ((b2 &amp; 0xc0) != 0x80) { // isNotContinuation(b2)</span>
+<span class="nc" id="L657">                        return -1;</span>
+                    } else {
+<span class="fc" id="L659">                        dst[dp++] = (char) (((b1 &lt;&lt; 6) ^ b2) ^</span>
+                                (((byte) 0xC0 &lt;&lt; 6) ^
+                                        ((byte) 0x80)));
+                    }
+<span class="fc" id="L663">                    continue;</span>
+                }
+<span class="nc" id="L665">                return -1;</span>
+<span class="pc bpc" id="L666" title="1 of 2 branches missed.">            } else if ((b1 &gt;&gt; 4) == -2) {</span>
+                // 3 bytes, 16 bits: 1110xxxx 10xxxxxx 10xxxxxx
+<span class="pc bpc" id="L668" title="1 of 2 branches missed.">                if (off + 1 &lt; sl) {</span>
+<span class="fc" id="L669">                    int b2 = src[off];</span>
+<span class="fc" id="L670">                    int b3 = src[off + 1];</span>
+<span class="fc" id="L671">                    off += 2;</span>
+<span class="pc bpc" id="L672" title="5 of 8 branches missed.">                    if ((b1 == (byte) 0xe0 &amp;&amp; (b2 &amp; 0xe0) == 0x80) //</span>
+                            || (b2 &amp; 0xc0) != 0x80 //
+                            || (b3 &amp; 0xc0) != 0x80) { // isMalformed3(b1, b2, b3)
+<span class="nc" id="L675">                        return -1;</span>
+                    } else {
+<span class="fc" id="L677">                        char c = (char) ((b1 &lt;&lt; 12) ^</span>
+                                (b2 &lt;&lt; 6) ^
+                                (b3 ^
+                                        (((byte) 0xE0 &lt;&lt; 12) ^
+                                                ((byte) 0x80 &lt;&lt; 6) ^
+                                                ((byte) 0x80))));
+<span class="pc bpc" id="L683" title="1 of 4 branches missed.">                        boolean isSurrogate = c &gt;= '\uD800' &amp;&amp; c &lt; ('\uDFFF' + 1);</span>
+<span class="pc bpc" id="L684" title="1 of 2 branches missed.">                        if (isSurrogate) {</span>
+<span class="nc" id="L685">                            return -1;</span>
+                        } else {
+<span class="fc" id="L687">                            dst[dp++] = c;</span>
+                        }
+                    }
+<span class="fc" id="L690">                    continue;</span>
+                }
+<span class="nc" id="L692">                return -1;</span>
+<span class="nc bnc" id="L693" title="All 2 branches missed.">            } else if ((b1 &gt;&gt; 3) == -2) {</span>
+                // 4 bytes, 21 bits: 11110xxx 10xxxxxx 10xxxxxx 10xxxxxx
+<span class="nc bnc" id="L695" title="All 2 branches missed.">                if (off + 2 &lt; sl) {</span>
+<span class="nc" id="L696">                    int b2 = src[off];</span>
+<span class="nc" id="L697">                    int b3 = src[off + 1];</span>
+<span class="nc" id="L698">                    int b4 = src[off + 2];</span>
+<span class="nc" id="L699">                    off += 3;</span>
+<span class="nc" id="L700">                    int uc = ((b1 &lt;&lt; 18) ^</span>
+                            (b2 &lt;&lt; 12) ^
+                            (b3 &lt;&lt; 6) ^
+                            (b4 ^
+                                    (((byte) 0xF0 &lt;&lt; 18) ^
+                                            ((byte) 0x80 &lt;&lt; 12) ^
+                                            ((byte) 0x80 &lt;&lt; 6) ^
+                                            ((byte) 0x80))));
+<span class="nc bnc" id="L708" title="All 10 branches missed.">                    if (((b2 &amp; 0xc0) != 0x80 || (b3 &amp; 0xc0) != 0x80 || (b4 &amp; 0xc0) != 0x80) // isMalformed4</span>
+                            ||
+                            // shortest form check
+                            !(uc &gt;= 0x010000 &amp;&amp; uc &lt; 0X10FFFF + 1) // !Character.isSupplementaryCodePoint(uc)
+                    ) {
+<span class="nc" id="L713">                        return -1;</span>
+                    } else {
+<span class="nc" id="L715">                        dst[dp] = (char) ((uc &gt;&gt;&gt; 10) + ('\uD800' - (0x010000 &gt;&gt;&gt; 10))); // Character.highSurrogate(uc);</span>
+<span class="nc" id="L716">                        dst[dp + 1] = (char) ((uc &amp; 0x3ff) + '\uDC00'); // Character.lowSurrogate(uc);</span>
+<span class="nc" id="L717">                        dp += 2;</span>
+                    }
+<span class="nc" id="L719">                    continue;</span>
+                }
+<span class="nc" id="L721">                return -1;</span>
+            } else {
+<span class="nc" id="L723">                return -1;</span>
+            }
+<span class="fc" id="L725">        }</span>
+<span class="fc" id="L726">        return dp;</span>
+    }
+
+    public static long lines(File file) throws Exception {
+<span class="fc" id="L730">        try (FileInputStream in = new FileInputStream(file)) {</span>
+<span class="fc" id="L731">            return lines(in);</span>
+        }
+    }
+
+    public static long lines(InputStream in) throws Exception {
+<span class="fc" id="L736">        long lines = 0;</span>
+<span class="fc" id="L737">        byte[] buf = new byte[1024 * 8];</span>
+        while (true) {
+<span class="fc" id="L739">            int len = in.read(buf, 0, buf.length);</span>
+<span class="fc bfc" id="L740" title="All 2 branches covered.">            if (len == -1) {</span>
+<span class="fc" id="L741">                break;</span>
+            }
+<span class="fc bfc" id="L743" title="All 2 branches covered.">            for (int i = 0; i &lt; len; i++) {</span>
+<span class="fc" id="L744">                byte b = buf[i];</span>
+<span class="fc bfc" id="L745" title="All 2 branches covered.">                if (b == '\n') {</span>
+<span class="fc" id="L746">                    lines++;</span>
+                }
+            }
+<span class="fc" id="L749">        }</span>
+<span class="fc" id="L750">        return lines;</span>
+    }
+
+    public static int writeLocalDate(byte[] bytes, int off, int year, int month, int dayOfMonth) {
+<span class="fc bfc" id="L754" title="All 2 branches covered.">        if (year &lt; 0) {</span>
+<span class="fc" id="L755">            bytes[off++] = '-';</span>
+<span class="fc" id="L756">            year = -year;</span>
+<span class="fc bfc" id="L757" title="All 2 branches covered.">        } else if (year &gt; 9999) {</span>
+<span class="fc" id="L758">            bytes[off++] = '+';</span>
+        }
+
+<span class="fc bfc" id="L761" title="All 2 branches covered.">        if (year &lt; 10000) {</span>
+<span class="fc" id="L762">            int y01 = year / 100;</span>
+<span class="fc" id="L763">            int y23 = year - y01 * 100;</span>
+<span class="fc" id="L764">            UNSAFE.putShort(bytes, ARRAY_BYTE_BASE_OFFSET + off, PACKED_DIGITS[y01]);</span>
+<span class="fc" id="L765">            UNSAFE.putShort(bytes, ARRAY_BYTE_BASE_OFFSET + off + 2, PACKED_DIGITS[y23]);</span>
+<span class="fc" id="L766">            off += 4;</span>
+<span class="fc" id="L767">        } else {</span>
+<span class="fc" id="L768">            off = IOUtils.writeInt32(bytes, off, year);</span>
+        }
+
+<span class="fc" id="L771">        bytes[off] = '-';</span>
+<span class="fc" id="L772">        UNSAFE.putShort(bytes, ARRAY_BYTE_BASE_OFFSET + off + 1, PACKED_DIGITS[month]);</span>
+<span class="fc" id="L773">        bytes[off + 3] = '-';</span>
+<span class="fc" id="L774">        UNSAFE.putShort(bytes, ARRAY_BYTE_BASE_OFFSET + off + 4, PACKED_DIGITS[dayOfMonth]);</span>
+<span class="fc" id="L775">        return off + 6;</span>
+    }
+
+    public static int writeLocalDate(char[] chars, int off, int year, int month, int dayOfMonth) {
+<span class="fc bfc" id="L779" title="All 2 branches covered.">        if (year &lt; 0) {</span>
+<span class="fc" id="L780">            chars[off++] = '-';</span>
+<span class="fc" id="L781">            year = -year;</span>
+<span class="fc bfc" id="L782" title="All 2 branches covered.">        } else if (year &gt; 9999) {</span>
+<span class="fc" id="L783">            chars[off++] = '+';</span>
+        }
+
+<span class="fc bfc" id="L786" title="All 2 branches covered.">        if (year &lt; 10000) {</span>
+<span class="fc" id="L787">            int y01 = year / 100;</span>
+<span class="fc" id="L788">            int y23 = year - y01 * 100;</span>
+<span class="fc" id="L789">            UNSAFE.putInt(chars, ARRAY_CHAR_BASE_OFFSET + (off &lt;&lt; 1), PACKED_DIGITS_UTF16[y01]);</span>
+<span class="fc" id="L790">            UNSAFE.putInt(chars, ARRAY_CHAR_BASE_OFFSET + ((off + 2) &lt;&lt; 1), PACKED_DIGITS_UTF16[y23]);</span>
+<span class="fc" id="L791">            off += 4;</span>
+<span class="fc" id="L792">        } else {</span>
+<span class="fc" id="L793">            off = IOUtils.writeInt32(chars, off, year);</span>
+        }
+
+<span class="fc" id="L796">        chars[off] = '-';</span>
+<span class="fc" id="L797">        UNSAFE.putInt(chars, ARRAY_CHAR_BASE_OFFSET + ((off + 1) &lt;&lt; 1), PACKED_DIGITS_UTF16[month]);</span>
+<span class="fc" id="L798">        chars[off + 3] = '-';</span>
+<span class="fc" id="L799">        UNSAFE.putInt(chars, ARRAY_CHAR_BASE_OFFSET + ((off + 4) &lt;&lt; 1), PACKED_DIGITS_UTF16[dayOfMonth]);</span>
+<span class="fc" id="L800">        return off + 6;</span>
+    }
+
+    public static void writeLocalTime(byte[] bytes, int off, int hour, int minute, int second) {
+<span class="fc" id="L804">        UNSAFE.putShort(bytes, ARRAY_BYTE_BASE_OFFSET + off, PACKED_DIGITS[hour]);</span>
+<span class="fc" id="L805">        bytes[off + 2] = ':';</span>
+<span class="fc" id="L806">        UNSAFE.putShort(bytes, ARRAY_BYTE_BASE_OFFSET + off + 3, PACKED_DIGITS[minute]);</span>
+<span class="fc" id="L807">        bytes[off + 5] = ':';</span>
+<span class="fc" id="L808">        UNSAFE.putShort(bytes, ARRAY_BYTE_BASE_OFFSET + off + 6, PACKED_DIGITS[second]);</span>
+<span class="fc" id="L809">    }</span>
+
+    public static int writeLocalTime(byte[] bytes, int off, LocalTime time) {
+<span class="fc" id="L812">        writeLocalTime(bytes, off, time.getHour(), time.getMinute(), time.getSecond());</span>
+<span class="fc" id="L813">        off += 8;</span>
+
+<span class="fc" id="L815">        int nano = time.getNano();</span>
+<span class="fc bfc" id="L816" title="All 2 branches covered.">        return nano != 0 ? writeNano(bytes, off, nano) : off;</span>
+    }
+
+    public static int writeNano(byte[] bytes, int off, int nano) {
+<span class="fc" id="L820">        final int div = nano / 1000;</span>
+<span class="fc" id="L821">        final int div2 = div / 1000;</span>
+<span class="fc" id="L822">        final int rem1 = nano - div * 1000;</span>
+
+<span class="fc" id="L824">        putInt(bytes, off, DIGITS_K_32[div2] &amp; 0xffffff00 | '.');</span>
+<span class="fc" id="L825">        off += 4;</span>
+
+        int v;
+<span class="fc bfc" id="L828" title="All 2 branches covered.">        if (rem1 == 0) {</span>
+<span class="fc" id="L829">            final int rem2 = div - div2 * 1000;</span>
+<span class="fc bfc" id="L830" title="All 2 branches covered.">            if (rem2 == 0) {</span>
+<span class="fc" id="L831">                return off;</span>
+            }
+
+<span class="fc" id="L834">            v = DIGITS_K_32[rem2];</span>
+<span class="fc" id="L835">        } else {</span>
+<span class="fc" id="L836">            v = DIGITS_K_32[div - div2 * 1000];</span>
+        }
+
+<span class="fc" id="L839">        bytes[off] = (byte) (v &gt;&gt; 8);</span>
+<span class="fc" id="L840">        bytes[off + 1] = (byte) (v &gt;&gt; 16);</span>
+<span class="fc" id="L841">        off += 2;</span>
+<span class="fc bfc" id="L842" title="All 2 branches covered.">        if (rem1 == 0) {</span>
+<span class="fc" id="L843">            bytes[off] = (byte) (v &gt;&gt; 24);</span>
+<span class="fc" id="L844">            return off + 1;</span>
+        }
+
+<span class="fc" id="L847">        putInt(bytes, off, DIGITS_K_32[rem1] &amp; 0xffffff00 | (v &gt;&gt; 24));</span>
+<span class="fc" id="L848">        return off + 4;</span>
+    }
+
+    public static int writeNano(char[] chars, int off, int nano) {
+<span class="fc" id="L852">        final int div = nano / 1000;</span>
+<span class="fc" id="L853">        final int div2 = div / 1000;</span>
+<span class="fc" id="L854">        final int rem1 = nano - div * 1000;</span>
+
+<span class="fc" id="L856">        putLong(chars, off, DIGITS_K_64[div2] &amp; 0xffffffffffff0000L | DOT_X0);</span>
+<span class="fc" id="L857">        off += 4;</span>
+
+        long v;
+<span class="fc bfc" id="L860" title="All 2 branches covered.">        if (rem1 == 0) {</span>
+<span class="fc" id="L861">            final int rem2 = div - div2 * 1000;</span>
+<span class="fc bfc" id="L862" title="All 2 branches covered.">            if (rem2 == 0) {</span>
+<span class="fc" id="L863">                return off;</span>
+            }
+
+<span class="fc" id="L866">            v = DIGITS_K_64[rem2];</span>
+<span class="fc" id="L867">        } else {</span>
+<span class="fc" id="L868">            v = DIGITS_K_64[div - div2 * 1000];</span>
+        }
+
+<span class="fc" id="L871">        chars[off] = (char) (v &gt;&gt; 16);</span>
+<span class="fc" id="L872">        chars[off + 1] = (char) (v &gt;&gt; 32);</span>
+<span class="fc" id="L873">        off += 2;</span>
+<span class="fc bfc" id="L874" title="All 2 branches covered.">        if (rem1 == 0) {</span>
+<span class="fc" id="L875">            chars[off] = (char) (v &gt;&gt; 48);</span>
+<span class="fc" id="L876">            return off + 1;</span>
+        }
+
+<span class="fc" id="L879">        putLong(chars, off, DIGITS_K_64[rem1] &amp; 0xffffffffffff0000L | (v &gt;&gt; 48));</span>
+<span class="fc" id="L880">        return off + 4;</span>
+    }
+
+    public static void writeLocalTime(char[] chars, int off, int hour, int minute, int second) {
+<span class="fc" id="L884">        UNSAFE.putInt(chars, ARRAY_CHAR_BASE_OFFSET + (off &lt;&lt; 1), PACKED_DIGITS_UTF16[hour]);</span>
+<span class="fc" id="L885">        chars[off + 2] = ':';</span>
+<span class="fc" id="L886">        UNSAFE.putInt(chars, ARRAY_CHAR_BASE_OFFSET + ((off + 3) &lt;&lt; 1), PACKED_DIGITS_UTF16[minute]);</span>
+<span class="fc" id="L887">        chars[off + 5] = ':';</span>
+<span class="fc" id="L888">        UNSAFE.putInt(chars, ARRAY_CHAR_BASE_OFFSET + ((off + 6) &lt;&lt; 1), PACKED_DIGITS_UTF16[second]);</span>
+<span class="fc" id="L889">    }</span>
+
+    public static int writeLocalTime(char[] chars, int off, LocalTime time) {
+<span class="fc" id="L892">        writeLocalTime(chars, off, time.getHour(), time.getMinute(), time.getSecond());</span>
+<span class="fc" id="L893">        off += 8;</span>
+
+<span class="fc" id="L895">        int nano = time.getNano();</span>
+<span class="fc bfc" id="L896" title="All 2 branches covered.">        return nano != 0 ? writeNano(chars, off, nano) : off;</span>
+    }
+
+    public static int writeInt64(final byte[] buf, int pos, final long value) {
+        long i;
+<span class="fc bfc" id="L901" title="All 2 branches covered.">        if (value &lt; 0) {</span>
+<span class="fc bfc" id="L902" title="All 2 branches covered.">            if (value == Long.MIN_VALUE) {</span>
+<span class="fc" id="L903">                System.arraycopy(MIN_LONG, 0, buf, pos, MIN_LONG.length);</span>
+<span class="fc" id="L904">                return pos + MIN_LONG.length;</span>
+            }
+<span class="fc" id="L906">            i = -value;</span>
+<span class="fc" id="L907">            buf[pos++] = '-';</span>
+        } else {
+<span class="fc" id="L909">            i = value;</span>
+        }
+
+<span class="fc bfc" id="L912" title="All 2 branches covered.">        if (i &lt; 1000) {</span>
+<span class="fc" id="L913">            int v = DIGITS_K_32[(int) i];</span>
+<span class="fc" id="L914">            int start = v &amp; 0xff;</span>
+<span class="fc bfc" id="L915" title="All 2 branches covered.">            if (start == 0) {</span>
+<span class="fc" id="L916">                buf[pos] = (byte) (v &gt;&gt; 8);</span>
+<span class="fc" id="L917">                buf[pos + 1] = (byte) (v &gt;&gt; 16);</span>
+<span class="fc" id="L918">                pos += 2;</span>
+<span class="fc bfc" id="L919" title="All 2 branches covered.">            } else if (start == 1) {</span>
+<span class="fc" id="L920">                buf[pos++] = (byte) (v &gt;&gt; 16);</span>
+            }
+<span class="fc" id="L922">            buf[pos++] = (byte) (v &gt;&gt; 24);</span>
+<span class="fc" id="L923">            return pos;</span>
+        }
+
+<span class="fc" id="L926">        final long q1 = i / 1000;</span>
+<span class="fc" id="L927">        final int r1 = (int) (i - q1 * 1000);</span>
+<span class="fc" id="L928">        final int v1 = DIGITS_K_32[r1];</span>
+<span class="fc bfc" id="L929" title="All 2 branches covered.">        if (i &lt; 1000000) {</span>
+<span class="fc" id="L930">            final int v2 = DIGITS_K_32[(int) q1];</span>
+
+<span class="fc" id="L932">            int start = v2 &amp; 0xff;</span>
+<span class="fc bfc" id="L933" title="All 2 branches covered.">            if (start == 0) {</span>
+<span class="fc" id="L934">                buf[pos] = (byte) (v2 &gt;&gt; 8);</span>
+<span class="fc" id="L935">                buf[pos + 1] = (byte) (v2 &gt;&gt; 16);</span>
+<span class="fc" id="L936">                pos += 2;</span>
+<span class="fc bfc" id="L937" title="All 2 branches covered.">            } else if (start == 1) {</span>
+<span class="fc" id="L938">                buf[pos++] = (byte) (v2 &gt;&gt; 16);</span>
+            }
+<span class="fc" id="L940">            putInt(buf, pos, v1 &amp; 0xffffff00 | (v2 &gt;&gt; 24));</span>
+<span class="fc" id="L941">            return pos + 4;</span>
+        }
+
+<span class="fc" id="L944">        final long q2 = q1 / 1000;</span>
+<span class="fc" id="L945">        final int r2 = (int) (q1 - q2 * 1000);</span>
+<span class="fc" id="L946">        final long q3 = q2 / 1000;</span>
+<span class="fc" id="L947">        final int v2 = DIGITS_K_32[r2];</span>
+<span class="fc bfc" id="L948" title="All 2 branches covered.">        if (q3 == 0) {</span>
+<span class="fc" id="L949">            final int v3 = DIGITS_K_32[(int) q2];</span>
+<span class="fc" id="L950">            int start = v3 &amp; 0xff;</span>
+<span class="fc bfc" id="L951" title="All 2 branches covered.">            if (start == 0) {</span>
+<span class="fc" id="L952">                buf[pos] = (byte) (v3 &gt;&gt; 8);</span>
+<span class="fc" id="L953">                buf[pos + 1] = (byte) (v3 &gt;&gt; 16);</span>
+<span class="fc" id="L954">                pos += 2;</span>
+<span class="fc bfc" id="L955" title="All 2 branches covered.">            } else if (start == 1) {</span>
+<span class="fc" id="L956">                buf[pos++] = (byte) (v3 &gt;&gt; 16);</span>
+            }
+<span class="fc" id="L958">            buf[pos] = (byte) (v3 &gt;&gt; 24);</span>
+<span class="fc" id="L959">            buf[pos + 1] = (byte) (v2 &gt;&gt; 8);</span>
+<span class="fc" id="L960">            buf[pos + 2] = (byte) (v2 &gt;&gt; 16);</span>
+<span class="fc" id="L961">            putInt(buf, pos + 3, v1 &amp; 0xffffff00 | (v2 &gt;&gt; 24));</span>
+<span class="fc" id="L962">            return pos + 7;</span>
+        }
+<span class="fc" id="L964">        final int r3 = (int) (q2 - q3 * 1000);</span>
+<span class="fc" id="L965">        final int q4 = (int) (q3 / 1000);</span>
+<span class="fc" id="L966">        final int v3 = DIGITS_K_32[r3];</span>
+<span class="fc bfc" id="L967" title="All 2 branches covered.">        if (q4 == 0) {</span>
+<span class="fc" id="L968">            final int v4 = DIGITS_K_32[(int) q3];</span>
+<span class="fc" id="L969">            final int start = v4 &amp; 0xff;</span>
+<span class="fc bfc" id="L970" title="All 2 branches covered.">            if (start == 0) {</span>
+<span class="fc" id="L971">                buf[pos] = (byte) (v4 &gt;&gt; 8);</span>
+<span class="fc" id="L972">                buf[pos + 1] = (byte) (v4 &gt;&gt; 16);</span>
+<span class="fc" id="L973">                pos += 2;</span>
+<span class="fc bfc" id="L974" title="All 2 branches covered.">            } else if (start == 1) {</span>
+<span class="fc" id="L975">                buf[pos++] = (byte) (v4 &gt;&gt; 16);</span>
+            }
+<span class="fc" id="L977">            buf[pos] = (byte) (v4 &gt;&gt; 24);</span>
+<span class="fc" id="L978">            buf[pos + 1] = (byte) (v3 &gt;&gt; 8);</span>
+<span class="fc" id="L979">            putInt(buf, pos + 2, ((v2 &amp; 0x00ffff00) &lt;&lt; 8) | (v3 &gt;&gt; 16));</span>
+<span class="fc" id="L980">            putInt(buf, pos + 6, v1 &amp; 0xffffff00 | (v2 &gt;&gt; 24));</span>
+<span class="fc" id="L981">            return pos + 10;</span>
+        }
+<span class="fc" id="L983">        final int r4 = (int) (q3 - q4 * 1000);</span>
+<span class="fc" id="L984">        final int q5 = q4 / 1000;</span>
+
+<span class="fc" id="L986">        final int v4 = DIGITS_K_32[r4];</span>
+<span class="fc bfc" id="L987" title="All 2 branches covered.">        if (q5 == 0) {</span>
+<span class="fc" id="L988">            final int v5 = DIGITS_K_32[q4];</span>
+<span class="fc" id="L989">            int start = v5 &amp; 0xff;</span>
+<span class="fc bfc" id="L990" title="All 2 branches covered.">            if (start == 0) {</span>
+<span class="fc" id="L991">                buf[pos] = (byte) (v5 &gt;&gt; 8);</span>
+<span class="fc" id="L992">                buf[pos + 1] = (byte) (v5 &gt;&gt; 16);</span>
+<span class="fc" id="L993">                pos += 2;</span>
+<span class="fc bfc" id="L994" title="All 2 branches covered.">            } else if (start == 1) {</span>
+<span class="fc" id="L995">                buf[pos++] = (byte) (v5 &gt;&gt; 16);</span>
+            }
+<span class="fc" id="L997">            putInt(buf, pos, v4 &amp; 0xffffff00 | (v5 &gt;&gt; 24));</span>
+<span class="fc" id="L998">            buf[pos + 4] = (byte) (v3 &gt;&gt; 8);</span>
+<span class="fc" id="L999">            putInt(buf, pos + 5, ((v2 &amp; 0x00ffff00) &lt;&lt; 8) | (v3 &gt;&gt; 16));</span>
+<span class="fc" id="L1000">            putInt(buf, pos + 9, v1 &amp; 0xffffff00 | (v2 &gt;&gt; 24));</span>
+<span class="fc" id="L1001">            return pos + 13;</span>
+        }
+<span class="fc" id="L1003">        final int r5 = q4 - q5 * 1000;</span>
+<span class="fc" id="L1004">        final int q6 = q5 / 1000;</span>
+<span class="fc" id="L1005">        final int v5 = DIGITS_K_32[r5];</span>
+<span class="fc bfc" id="L1006" title="All 2 branches covered.">        if (q6 == 0) {</span>
+<span class="fc" id="L1007">            int v = DIGITS_K_32[q5];</span>
+<span class="fc" id="L1008">            final int start = v &amp; 0xff;</span>
+<span class="fc bfc" id="L1009" title="All 2 branches covered.">            if (start == 0) {</span>
+<span class="fc" id="L1010">                buf[pos] = (byte) (v &gt;&gt; 8);</span>
+<span class="fc" id="L1011">                buf[pos + 1] = (byte) (v &gt;&gt; 16);</span>
+<span class="fc" id="L1012">                pos += 2;</span>
+<span class="fc bfc" id="L1013" title="All 2 branches covered.">            } else if (start == 1) {</span>
+<span class="fc" id="L1014">                buf[pos++] = (byte) (v &gt;&gt; 16);</span>
+            }
+<span class="fc" id="L1016">            buf[pos++] = (byte) (v &gt;&gt; 24);</span>
+<span class="fc" id="L1017">        } else {</span>
+<span class="fc" id="L1018">            putInt(buf, pos, DIGITS_K_32[q5 - q6 * 1000] &amp; 0xffffff00 | (q6 + '0'));</span>
+<span class="fc" id="L1019">            pos += 4;</span>
+        }
+
+<span class="fc" id="L1022">        buf[pos] = (byte) (v5 &gt;&gt; 8);</span>
+<span class="fc" id="L1023">        putInt(buf, pos + 1, ((v4 &amp; 0x00ffff00) &lt;&lt; 8) | (v5 &gt;&gt; 16));</span>
+<span class="fc" id="L1024">        putInt(buf, pos + 5, v3 &amp; 0xffffff00 | (v4 &gt;&gt; 24));</span>
+<span class="fc" id="L1025">        buf[pos + 9] = (byte) (v2 &gt;&gt; 8);</span>
+<span class="fc" id="L1026">        buf[pos + 10] = (byte) (v2 &gt;&gt; 16);</span>
+<span class="fc" id="L1027">        putInt(buf, pos + 11, v1 &amp; 0xffffff00 | (v2 &gt;&gt; 24));</span>
+<span class="fc" id="L1028">        return pos + 15;</span>
+    }
+
+    public static int writeInt64(final char[] buf, int pos, final long value) {
+        long i;
+<span class="fc bfc" id="L1033" title="All 2 branches covered.">        if (value &lt; 0) {</span>
+<span class="fc bfc" id="L1034" title="All 2 branches covered.">            if (value == Long.MIN_VALUE) {</span>
+<span class="fc bfc" id="L1035" title="All 2 branches covered.">                for (int x = 0; x &lt; MIN_LONG.length; x++) {</span>
+<span class="fc" id="L1036">                    buf[pos + x] = (char) MIN_LONG[x];</span>
+                }
+<span class="fc" id="L1038">                return pos + MIN_LONG.length;</span>
+            }
+<span class="fc" id="L1040">            i = -value;</span>
+<span class="fc" id="L1041">            buf[pos++] = '-';</span>
+        } else {
+<span class="fc" id="L1043">            i = value;</span>
+        }
+
+<span class="fc bfc" id="L1046" title="All 2 branches covered.">        if (i &lt; 1000) {</span>
+<span class="fc" id="L1047">            long v = DIGITS_K_64[(int) i];</span>
+<span class="fc" id="L1048">            int start = (byte) v;</span>
+<span class="fc bfc" id="L1049" title="All 2 branches covered.">            if (start == 0) {</span>
+<span class="fc" id="L1050">                putInt(buf, pos, (int) (v &gt;&gt; 16));</span>
+<span class="fc" id="L1051">                pos += 2;</span>
+<span class="fc bfc" id="L1052" title="All 2 branches covered.">            } else if (start == 1) {</span>
+<span class="fc" id="L1053">                buf[pos++] = (char) (v &gt;&gt; 32);</span>
+            }
+<span class="fc" id="L1055">            buf[pos++] = (char) (v &gt;&gt; 48);</span>
+<span class="fc" id="L1056">            return pos;</span>
+        }
+
+<span class="fc" id="L1059">        final long q1 = i / 1000;</span>
+<span class="fc" id="L1060">        final int r1 = (int) (i - q1 * 1000);</span>
+<span class="fc" id="L1061">        final long v1 = DIGITS_K_64[r1];</span>
+<span class="fc bfc" id="L1062" title="All 2 branches covered.">        if (i &lt; 1000000) {</span>
+<span class="fc" id="L1063">            final long v2 = DIGITS_K_64[(int) q1];</span>
+<span class="fc" id="L1064">            int start = (byte) v2;</span>
+<span class="fc bfc" id="L1065" title="All 2 branches covered.">            if (start == 0) {</span>
+<span class="fc" id="L1066">                putInt(buf, pos, (int) (v2 &gt;&gt; 16));</span>
+<span class="fc" id="L1067">                pos += 2;</span>
+<span class="fc bfc" id="L1068" title="All 2 branches covered.">            } else if (start == 1) {</span>
+<span class="fc" id="L1069">                buf[pos++] = (char) (v2 &gt;&gt; 32);</span>
+            }
+<span class="fc" id="L1071">            putLong(buf, pos, v1 &amp; 0xffffffffffff0000L | (v2 &gt;&gt; 48));</span>
+<span class="fc" id="L1072">            return pos + 4;</span>
+        }
+
+<span class="fc" id="L1075">        final long q2 = q1 / 1000;</span>
+<span class="fc" id="L1076">        final int r2 = (int) (q1 - q2 * 1000);</span>
+<span class="fc" id="L1077">        final long q3 = q2 / 1000;</span>
+<span class="fc" id="L1078">        final long v2 = DIGITS_K_64[r2];</span>
+<span class="fc bfc" id="L1079" title="All 2 branches covered.">        if (q3 == 0) {</span>
+<span class="fc" id="L1080">            final long v3 = DIGITS_K_64[(int) q2];</span>
+<span class="fc" id="L1081">            int start = (byte) v3;</span>
+<span class="fc bfc" id="L1082" title="All 2 branches covered.">            if (start == 0) {</span>
+<span class="fc" id="L1083">                putInt(buf, pos, (int) (v3 &gt;&gt; 16));</span>
+<span class="fc" id="L1084">                pos += 2;</span>
+<span class="fc bfc" id="L1085" title="All 2 branches covered.">            } else if (start == 1) {</span>
+<span class="fc" id="L1086">                buf[pos++] = (char) (v3 &gt;&gt; 32);</span>
+            }
+<span class="fc" id="L1088">            buf[pos] = (char) (v3 &gt;&gt; 48);</span>
+<span class="fc" id="L1089">            putInt(buf, pos + 1, (int) (v2 &gt;&gt; 16));</span>
+<span class="fc" id="L1090">            putLong(buf, pos + 3, v1 &amp; 0xffffffffffff0000L | (v2 &gt;&gt; 48));</span>
+<span class="fc" id="L1091">            return pos + 7;</span>
+        }
+<span class="fc" id="L1093">        final int r3 = (int) (q2 - q3 * 1000);</span>
+<span class="fc" id="L1094">        final int q4 = (int) (q3 / 1000);</span>
+<span class="fc" id="L1095">        final long v3 = DIGITS_K_64[r3];</span>
+<span class="fc bfc" id="L1096" title="All 2 branches covered.">        if (q4 == 0) {</span>
+<span class="fc" id="L1097">            final long v4 = DIGITS_K_64[(int) q3];</span>
+<span class="fc" id="L1098">            final int start = (byte) v4;</span>
+<span class="fc bfc" id="L1099" title="All 2 branches covered.">            if (start == 0) {</span>
+<span class="fc" id="L1100">                putInt(buf, pos, (int) (v4 &gt;&gt; 16));</span>
+<span class="fc" id="L1101">                pos += 2;</span>
+<span class="fc bfc" id="L1102" title="All 2 branches covered.">            } else if (start == 1) {</span>
+<span class="fc" id="L1103">                buf[pos++] = (char) (v4 &gt;&gt; 32);</span>
+            }
+<span class="fc" id="L1105">            buf[pos] = (char) (v4 &gt;&gt; 48);</span>
+<span class="fc" id="L1106">            buf[pos + 1] = (char) (v3 &gt;&gt; 16);</span>
+<span class="fc" id="L1107">            putLong(buf, pos + 2, ((v2 &amp; 0x0000ffffffff0000L) &lt;&lt; 16) | (v3 &gt;&gt; 32));</span>
+<span class="fc" id="L1108">            putLong(buf, pos + 6, v1 &amp; 0xffffffffffff0000L | (v2 &gt;&gt; 48));</span>
+<span class="fc" id="L1109">            return pos + 10;</span>
+        }
+<span class="fc" id="L1111">        final int r4 = (int) (q3 - q4 * 1000);</span>
+<span class="fc" id="L1112">        final int q5 = q4 / 1000;</span>
+<span class="fc" id="L1113">        final long v4 = DIGITS_K_64[r4];</span>
+<span class="fc bfc" id="L1114" title="All 2 branches covered.">        if (q5 == 0) {</span>
+<span class="fc" id="L1115">            final long v5 = DIGITS_K_64[q4];</span>
+<span class="fc" id="L1116">            int start = (byte) v5;</span>
+<span class="fc bfc" id="L1117" title="All 2 branches covered.">            if (start == 0) {</span>
+<span class="fc" id="L1118">                putInt(buf, pos, (int) (v5 &gt;&gt; 16));</span>
+<span class="fc" id="L1119">                pos += 2;</span>
+<span class="fc bfc" id="L1120" title="All 2 branches covered.">            } else if (start == 1) {</span>
+<span class="fc" id="L1121">                buf[pos++] = (char) (v5 &gt;&gt; 32);</span>
+            }
+<span class="fc" id="L1123">            buf[pos] = (char) (v5 &gt;&gt; 48);</span>
+<span class="fc" id="L1124">            putInt(buf, pos + 1, (int) (v4 &gt;&gt; 16));</span>
+<span class="fc" id="L1125">            putLong(buf, pos + 3, v3 &amp; 0xffffffffffff0000L | (v4 &gt;&gt; 48));</span>
+<span class="fc" id="L1126">            putInt(buf, pos + 7, (int) (v2 &gt;&gt; 16));</span>
+<span class="fc" id="L1127">            putLong(buf, pos + 9, v1 &amp; 0xffffffffffff0000L | (v2 &gt;&gt; 48));</span>
+<span class="fc" id="L1128">            return pos + 13;</span>
+        }
+<span class="fc" id="L1130">        final int r5 = q4 - q5 * 1000;</span>
+<span class="fc" id="L1131">        final int q6 = q5 / 1000;</span>
+<span class="fc" id="L1132">        final long v5 = DIGITS_K_64[r5];</span>
+<span class="fc bfc" id="L1133" title="All 2 branches covered.">        if (q6 == 0) {</span>
+<span class="fc" id="L1134">            int v = DIGITS_K_32[q5];</span>
+<span class="fc" id="L1135">            final int start = (byte) v;</span>
+<span class="fc bfc" id="L1136" title="All 2 branches covered.">            if (start == 0) {</span>
+<span class="fc" id="L1137">                buf[pos] = (char) (byte) (v &gt;&gt; 8);</span>
+<span class="fc" id="L1138">                buf[pos + 1] = (char) (byte) (v &gt;&gt; 16);</span>
+<span class="fc" id="L1139">                pos += 2;</span>
+<span class="fc bfc" id="L1140" title="All 2 branches covered.">            } else if (start == 1) {</span>
+<span class="fc" id="L1141">                buf[pos++] = (char) (byte) (v &gt;&gt; 16);</span>
+            }
+<span class="fc" id="L1143">            buf[pos++] = (char) (v &gt;&gt; 24);</span>
+<span class="fc" id="L1144">        } else {</span>
+<span class="fc" id="L1145">            putLong(buf, pos, DIGITS_K_64[q5 - q6 * 1000]);</span>
+<span class="fc" id="L1146">            buf[pos] = (char) (q6 + '0');</span>
+<span class="fc" id="L1147">            pos += 4;</span>
+        }
+
+<span class="fc" id="L1150">        putInt(buf, pos, (int) (v5 &gt;&gt; 16));</span>
+<span class="fc" id="L1151">        putLong(buf, pos + 2, v4 &amp; 0xffffffffffff0000L | (v5 &gt;&gt; 48));</span>
+
+<span class="fc" id="L1153">        buf[pos + 6] = (char) (v3 &gt;&gt; 16);</span>
+<span class="fc" id="L1154">        putLong(buf, pos + 7, ((v2 &amp; 0x0000ffffffff0000L) &lt;&lt; 16) | (v3 &gt;&gt; 32));</span>
+<span class="fc" id="L1155">        putLong(buf, pos + 11, v1 &amp; 0xffffffffffff0000L | (v2 &gt;&gt; 48));</span>
+<span class="fc" id="L1156">        return pos + 15;</span>
+    }
+
+    public static int writeInt8(final byte[] buf, int pos, final byte value) {
+        int i;
+<span class="fc bfc" id="L1161" title="All 2 branches covered.">        if (value &lt; 0) {</span>
+<span class="fc" id="L1162">            i = -value;</span>
+<span class="fc" id="L1163">            buf[pos++] = '-';</span>
+        } else {
+<span class="fc" id="L1165">            i = value;</span>
+        }
+
+<span class="fc" id="L1168">        int v = DIGITS_K_32[i];</span>
+<span class="fc" id="L1169">        final int start = (byte) v;</span>
+<span class="fc bfc" id="L1170" title="All 2 branches covered.">        if (start == 0) {</span>
+<span class="fc" id="L1171">            putShort(buf, pos, (short) (v &gt;&gt; 8));</span>
+<span class="fc" id="L1172">            pos += 2;</span>
+<span class="fc bfc" id="L1173" title="All 2 branches covered.">        } else if (start == 1) {</span>
+<span class="fc" id="L1174">            buf[pos++] = (byte) (v &gt;&gt; 16);</span>
+        }
+<span class="fc" id="L1176">        buf[pos] = (byte) (v &gt;&gt; 24);</span>
+<span class="fc" id="L1177">        return pos + 1;</span>
+    }
+
+    public static int writeInt8(final char[] buf, int pos, final byte value) {
+        int i;
+<span class="fc bfc" id="L1182" title="All 2 branches covered.">        if (value &lt; 0) {</span>
+<span class="fc" id="L1183">            i = -value;</span>
+<span class="fc" id="L1184">            buf[pos++] = '-';</span>
+        } else {
+<span class="fc" id="L1186">            i = value;</span>
+        }
+
+<span class="fc" id="L1189">        long v = DIGITS_K_64[i];</span>
+<span class="fc" id="L1190">        final int start = (byte) v;</span>
+<span class="fc bfc" id="L1191" title="All 2 branches covered.">        if (start == 0) {</span>
+<span class="fc" id="L1192">            putInt(buf, pos, (int) (v &gt;&gt; 16));</span>
+<span class="fc" id="L1193">            pos += 2;</span>
+<span class="fc bfc" id="L1194" title="All 2 branches covered.">        } else if (start == 1) {</span>
+<span class="fc" id="L1195">            buf[pos++] = (char) (v &gt;&gt; 32);</span>
+        }
+<span class="fc" id="L1197">        buf[pos] = (char) (v &gt;&gt; 48);</span>
+<span class="fc" id="L1198">        return pos + 1;</span>
+    }
+
+    public static int writeInt16(final byte[] buf, int pos, final short value) {
+        int i;
+<span class="fc bfc" id="L1203" title="All 2 branches covered.">        if (value &lt; 0) {</span>
+<span class="fc" id="L1204">            i = -value;</span>
+<span class="fc" id="L1205">            buf[pos++] = '-';</span>
+        } else {
+<span class="fc" id="L1207">            i = value;</span>
+        }
+
+<span class="fc bfc" id="L1210" title="All 2 branches covered.">        if (i &lt; 1000) {</span>
+<span class="fc" id="L1211">            int v = DIGITS_K_32[i];</span>
+<span class="fc" id="L1212">            final int start = (byte) v;</span>
+<span class="fc bfc" id="L1213" title="All 2 branches covered.">            if (start == 0) {</span>
+<span class="fc" id="L1214">                putShort(buf, pos, (short) (v &gt;&gt; 8));</span>
+<span class="fc" id="L1215">                pos += 2;</span>
+<span class="fc bfc" id="L1216" title="All 2 branches covered.">            } else if (start == 1) {</span>
+<span class="fc" id="L1217">                buf[pos++] = (byte) (v &gt;&gt; 16);</span>
+            }
+<span class="fc" id="L1219">            buf[pos] = (byte) (v &gt;&gt; 24);</span>
+<span class="fc" id="L1220">            return pos + 1;</span>
+        }
+
+<span class="fc" id="L1223">        final int q1 = i / 1000;</span>
+<span class="fc" id="L1224">        final int v2 = DIGITS_K_32[q1];</span>
+<span class="fc bfc" id="L1225" title="All 2 branches covered.">        if ((byte) v2 == 1) {</span>
+<span class="fc" id="L1226">            buf[pos++] = (byte) (v2 &gt;&gt; 16);</span>
+        }
+<span class="fc" id="L1228">        putInt(buf, pos, (DIGITS_K_32[i - q1 * 1000]) &amp; 0xffffff00 | (v2 &gt;&gt; 24));</span>
+<span class="fc" id="L1229">        return pos + 4;</span>
+    }
+
+    public static int writeInt16(final char[] buf, int pos, final short value) {
+        int i;
+<span class="fc bfc" id="L1234" title="All 2 branches covered.">        if (value &lt; 0) {</span>
+<span class="fc" id="L1235">            i = -value;</span>
+<span class="fc" id="L1236">            buf[pos++] = '-';</span>
+        } else {
+<span class="fc" id="L1238">            i = value;</span>
+        }
+
+<span class="fc bfc" id="L1241" title="All 2 branches covered.">        if (i &lt; 1000) {</span>
+<span class="fc" id="L1242">            long v = DIGITS_K_64[i];</span>
+<span class="fc" id="L1243">            final int start = (byte) v;</span>
+<span class="fc bfc" id="L1244" title="All 2 branches covered.">            if (start == 0) {</span>
+<span class="fc" id="L1245">                putInt(buf, pos, (int) (v &gt;&gt; 16));</span>
+<span class="fc" id="L1246">                pos += 2;</span>
+<span class="fc bfc" id="L1247" title="All 2 branches covered.">            } else if (start == 1) {</span>
+<span class="fc" id="L1248">                buf[pos++] = (char) (v &gt;&gt; 32);</span>
+            }
+<span class="fc" id="L1250">            buf[pos] = (char) (v &gt;&gt; 48);</span>
+<span class="fc" id="L1251">            return pos + 1;</span>
+        }
+
+<span class="fc" id="L1254">        final int q1 = i / 1000;</span>
+<span class="fc" id="L1255">        final long v2 = DIGITS_K_64[q1];</span>
+<span class="fc bfc" id="L1256" title="All 2 branches covered.">        if ((byte) v2 == 1) {</span>
+<span class="fc" id="L1257">            buf[pos++] = (char) (v2 &gt;&gt; 32);</span>
+        }
+<span class="fc" id="L1259">        putLong(buf, pos, DIGITS_K_64[i - q1 * 1000] &amp; 0xffffffffffff0000L | (v2 &gt;&gt; 48));</span>
+<span class="fc" id="L1260">        return pos + 4;</span>
+    }
+
+    public static int writeInt32(final byte[] buf, int pos, final int value) {
+        int i;
+<span class="fc bfc" id="L1265" title="All 2 branches covered.">        if (value &lt; 0) {</span>
+<span class="fc bfc" id="L1266" title="All 2 branches covered.">            if (value == Integer.MIN_VALUE) {</span>
+<span class="fc" id="L1267">                System.arraycopy(MIN_INT_BYTES, 0, buf, pos, MIN_INT_BYTES.length);</span>
+<span class="fc" id="L1268">                return pos + MIN_INT_BYTES.length;</span>
+            }
+<span class="fc" id="L1270">            i = -value;</span>
+<span class="fc" id="L1271">            buf[pos++] = '-';</span>
+        } else {
+<span class="fc" id="L1273">            i = value;</span>
+        }
+
+<span class="fc bfc" id="L1276" title="All 2 branches covered.">        if (i &lt; 1000) {</span>
+<span class="fc" id="L1277">            int v = DIGITS_K_32[i];</span>
+<span class="fc" id="L1278">            final int start = (byte) v;</span>
+<span class="fc bfc" id="L1279" title="All 2 branches covered.">            if (start == 0) {</span>
+<span class="fc" id="L1280">                putShort(buf, pos, (short) (v &gt;&gt; 8));</span>
+<span class="fc" id="L1281">                pos += 2;</span>
+<span class="fc bfc" id="L1282" title="All 2 branches covered.">            } else if (start == 1) {</span>
+<span class="fc" id="L1283">                buf[pos++] = (byte) (v &gt;&gt; 16);</span>
+            }
+<span class="fc" id="L1285">            buf[pos] = (byte) (v &gt;&gt; 24);</span>
+<span class="fc" id="L1286">            return pos + 1;</span>
+        }
+
+<span class="fc" id="L1289">        final int q1 = i / 1000;</span>
+<span class="fc" id="L1290">        final int r1 = i - q1 * 1000;</span>
+<span class="fc" id="L1291">        final int v1 = DIGITS_K_32[r1];</span>
+<span class="fc bfc" id="L1292" title="All 2 branches covered.">        if (i &lt; 1000000) {</span>
+<span class="fc" id="L1293">            final int v2 = DIGITS_K_32[q1];</span>
+<span class="fc" id="L1294">            int start = (byte) v2;</span>
+<span class="fc bfc" id="L1295" title="All 2 branches covered.">            if (start == 0) {</span>
+<span class="fc" id="L1296">                putShort(buf, pos, (short) (v2 &gt;&gt; 8));</span>
+<span class="fc" id="L1297">                pos += 2;</span>
+<span class="fc bfc" id="L1298" title="All 2 branches covered.">            } else if (start == 1) {</span>
+<span class="fc" id="L1299">                buf[pos++] = (byte) (v2 &gt;&gt; 16);</span>
+            }
+<span class="fc" id="L1301">            putInt(buf, pos, v1 &amp; 0xffffff00 | (v2 &gt;&gt; 24));</span>
+<span class="fc" id="L1302">            return pos + 4;</span>
+        }
+<span class="fc" id="L1304">        final int q2 = q1 / 1000;</span>
+<span class="fc" id="L1305">        final int r2 = q1 - q2 * 1000;</span>
+<span class="fc" id="L1306">        final int q3 = q2 / 1000;</span>
+<span class="fc" id="L1307">        final int v2 = DIGITS_K_32[r2];</span>
+<span class="fc bfc" id="L1308" title="All 2 branches covered.">        if (q3 == 0) {</span>
+<span class="fc" id="L1309">            int v = DIGITS_K_32[q2];</span>
+<span class="fc" id="L1310">            final int start = (byte) v;</span>
+<span class="fc bfc" id="L1311" title="All 2 branches covered.">            if (start == 0) {</span>
+<span class="fc" id="L1312">                putShort(buf, pos, (short) (v &gt;&gt; 8));</span>
+<span class="fc" id="L1313">                pos += 2;</span>
+<span class="fc bfc" id="L1314" title="All 2 branches covered.">            } else if (start == 1) {</span>
+<span class="fc" id="L1315">                buf[pos++] = (byte) (v &gt;&gt; 16);</span>
+            }
+<span class="fc" id="L1317">            buf[pos++] = (byte) (v &gt;&gt; 24);</span>
+<span class="fc" id="L1318">        } else {</span>
+<span class="fc" id="L1319">            putInt(buf, pos, DIGITS_K_32[q2 - q3 * 1000] &amp; 0xffffff00 | (q3 + '0'));</span>
+<span class="fc" id="L1320">            pos += 4;</span>
+        }
+
+<span class="fc" id="L1323">        putShort(buf, pos, (short) (v2 &gt;&gt; 8));</span>
+<span class="fc" id="L1324">        putInt(buf, pos + 2, v1 &amp; 0xffffff00 | (v2 &gt;&gt; 24));</span>
+<span class="fc" id="L1325">        return pos + 6;</span>
+    }
+
+    public static int writeInt32(final char[] buf, int pos, final int value) {
+        int i;
+<span class="fc bfc" id="L1330" title="All 2 branches covered.">        if (value &lt; 0) {</span>
+<span class="fc bfc" id="L1331" title="All 2 branches covered.">            if (value == Integer.MIN_VALUE) {</span>
+<span class="fc" id="L1332">                System.arraycopy(MIN_INT_CHARS, 0, buf, pos, MIN_INT_CHARS.length);</span>
+<span class="fc" id="L1333">                return pos + MIN_INT_CHARS.length;</span>
+            }
+<span class="fc" id="L1335">            i = -value;</span>
+<span class="fc" id="L1336">            buf[pos++] = '-';</span>
+        } else {
+<span class="fc" id="L1338">            i = value;</span>
+        }
+<span class="fc bfc" id="L1340" title="All 2 branches covered.">        if (i &lt; 1000) {</span>
+<span class="fc" id="L1341">            long v = DIGITS_K_64[i];</span>
+<span class="fc" id="L1342">            final int start = (byte) v;</span>
+<span class="fc bfc" id="L1343" title="All 2 branches covered.">            if (start == 0) {</span>
+<span class="fc" id="L1344">                putInt(buf, pos, (int) (v &gt;&gt; 16));</span>
+<span class="fc" id="L1345">                pos += 2;</span>
+<span class="fc bfc" id="L1346" title="All 2 branches covered.">            } else if (start == 1) {</span>
+<span class="fc" id="L1347">                buf[pos++] = (char) (v &gt;&gt; 32);</span>
+            }
+<span class="fc" id="L1349">            buf[pos] = (char) (v &gt;&gt; 48);</span>
+<span class="fc" id="L1350">            return pos + 1;</span>
+        }
+<span class="fc" id="L1352">        final int q1 = i / 1000;</span>
+<span class="fc" id="L1353">        final int r1 = i - q1 * 1000;</span>
+<span class="fc" id="L1354">        final long v1 = DIGITS_K_64[r1];</span>
+<span class="fc bfc" id="L1355" title="All 2 branches covered.">        if (i &lt; 1000000) {</span>
+<span class="fc" id="L1356">            final long v2 = DIGITS_K_64[q1];</span>
+<span class="fc" id="L1357">            int start = (byte) v2;</span>
+<span class="fc bfc" id="L1358" title="All 2 branches covered.">            if (start == 0) {</span>
+<span class="fc" id="L1359">                putInt(buf, pos, (int) (v2 &gt;&gt; 16));</span>
+<span class="fc" id="L1360">                pos += 2;</span>
+<span class="fc bfc" id="L1361" title="All 2 branches covered.">            } else if (start == 1) {</span>
+<span class="fc" id="L1362">                buf[pos++] = (char) (v2 &gt;&gt; 32);</span>
+            }
+<span class="fc" id="L1364">            putLong(buf, pos, v1 &amp; 0xffffffffffff0000L | (v2 &gt;&gt; 48));</span>
+<span class="fc" id="L1365">            return pos + 4;</span>
+        }
+<span class="fc" id="L1367">        final int q2 = q1 / 1000;</span>
+<span class="fc" id="L1368">        final int r2 = q1 - q2 * 1000;</span>
+<span class="fc" id="L1369">        final int q3 = q2 / 1000;</span>
+<span class="fc" id="L1370">        final long v2 = DIGITS_K_64[r2];</span>
+<span class="fc bfc" id="L1371" title="All 2 branches covered.">        if (q3 == 0) {</span>
+<span class="fc" id="L1372">            long v = DIGITS_K_64[q2];</span>
+<span class="fc" id="L1373">            final int start = (byte) v;</span>
+<span class="fc bfc" id="L1374" title="All 2 branches covered.">            if (start == 0) {</span>
+<span class="fc" id="L1375">                putInt(buf, pos, (int) (v &gt;&gt; 16));</span>
+<span class="fc" id="L1376">                pos += 2;</span>
+<span class="fc bfc" id="L1377" title="All 2 branches covered.">            } else if (start == 1) {</span>
+<span class="fc" id="L1378">                buf[pos++] = (char) (v &gt;&gt; 32);</span>
+            }
+<span class="fc" id="L1380">            buf[pos++] = (char) (v &gt;&gt; 48);</span>
+<span class="fc" id="L1381">        } else {</span>
+<span class="fc" id="L1382">            putLong(buf, pos, DIGITS_K_64[q2 - q3 * 1000]);</span>
+<span class="fc" id="L1383">            buf[pos] = (char) (q3 + '0');</span>
+<span class="fc" id="L1384">            pos += 4;</span>
+        }
+
+<span class="fc" id="L1387">        putInt(buf, pos, (int) (v2 &gt;&gt; 16));</span>
+<span class="fc" id="L1388">        putLong(buf, pos + 2, v1 &amp; 0xffffffffffff0000L | (v2 &gt;&gt; 48));</span>
+<span class="fc" id="L1389">        return pos + 6;</span>
+    }
+
+    public static void putShort(byte[] buf, int pos, short v) {
+<span class="pc bpc" id="L1393" title="1 of 2 branches missed.">        UNSAFE.putShort(</span>
+                buf,
+                ARRAY_BYTE_BASE_OFFSET + pos,
+<span class="pc" id="L1396">                BIG_ENDIAN ? Short.reverseBytes(v) : v</span>
+        );
+<span class="fc" id="L1398">    }</span>
+
+    public static void putInt(byte[] buf, int pos, int v) {
+<span class="pc bpc" id="L1401" title="1 of 2 branches missed.">        UNSAFE.putInt(</span>
+                buf,
+                ARRAY_BYTE_BASE_OFFSET + pos,
+<span class="pc" id="L1404">                BIG_ENDIAN ? Integer.reverseBytes(v) : v</span>
+        );
+<span class="fc" id="L1406">    }</span>
+
+    public static void putInt(char[] buf, int pos, int v) {
+<span class="pc bpc" id="L1409" title="1 of 2 branches missed.">        UNSAFE.putInt(</span>
+                buf,
+                ARRAY_CHAR_BASE_OFFSET + (pos &lt;&lt; 1),
+<span class="pc" id="L1412">                BIG_ENDIAN ? Integer.reverseBytes(v) : v</span>
+        );
+<span class="fc" id="L1414">    }</span>
+
+    public static void putLong(char[] buf, int pos, long v) {
+<span class="pc bpc" id="L1417" title="1 of 2 branches missed.">        UNSAFE.putLong(</span>
+                buf,
+                ARRAY_CHAR_BASE_OFFSET + (pos &lt;&lt; 1),
+<span class="pc" id="L1420">                BIG_ENDIAN ? Long.reverseBytes(v) : v</span>
+        );
+<span class="fc" id="L1422">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.8.202204050719</span></div></body></html>

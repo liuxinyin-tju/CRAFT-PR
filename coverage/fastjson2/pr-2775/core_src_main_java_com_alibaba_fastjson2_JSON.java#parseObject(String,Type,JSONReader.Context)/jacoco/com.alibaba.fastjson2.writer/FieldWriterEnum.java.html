@@ -1,0 +1,328 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>FieldWriterEnum.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">fastjson2</a> &gt; <a href="index.source.html" class="el_package">com.alibaba.fastjson2.writer</a> &gt; <span class="el_source">FieldWriterEnum.java</span></div><h1>FieldWriterEnum.java</h1><pre class="source lang-java linenums">package com.alibaba.fastjson2.writer;
+
+import com.alibaba.fastjson2.JSONB;
+import com.alibaba.fastjson2.JSONWriter;
+import com.alibaba.fastjson2.SymbolTable;
+import com.alibaba.fastjson2.util.Fnv;
+import com.alibaba.fastjson2.util.IOUtils;
+
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
+import java.lang.reflect.Type;
+import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
+
+class FieldWriterEnum
+        extends FieldWriter {
+    final byte[][] valueNameCacheUTF8;
+    final char[][] valueNameCacheUTF16;
+
+    final byte[][] utf8ValueCache;
+    final char[][] utf16ValueCache;
+
+    final Class enumType;
+    final Enum[] enumConstants;
+    final long[] hashCodes;
+    final long[] hashCodesSymbolCache;
+
+    protected FieldWriterEnum(
+            String name,
+            int ordinal,
+            long features,
+            String format,
+            String label,
+            Type fieldType,
+            Class&lt;? extends Enum&gt; enumClass,
+            Field field,
+            Method method
+    ) {
+<span class="fc" id="L39">        super(name, ordinal, features, format, null, label, fieldType, enumClass, field, method);</span>
+
+<span class="fc" id="L41">        this.enumType = enumClass;</span>
+<span class="fc" id="L42">        this.enumConstants = enumClass.getEnumConstants();</span>
+<span class="fc" id="L43">        this.hashCodes = new long[enumConstants.length];</span>
+<span class="fc" id="L44">        this.hashCodesSymbolCache = new long[enumConstants.length];</span>
+<span class="fc bfc" id="L45" title="All 2 branches covered.">        for (int i = 0; i &lt; enumConstants.length; i++) {</span>
+<span class="fc" id="L46">            hashCodes[i] = Fnv.hashCode64(enumConstants[i].name());</span>
+        }
+
+<span class="fc" id="L49">        valueNameCacheUTF8 = new byte[enumConstants.length][];</span>
+<span class="fc" id="L50">        valueNameCacheUTF16 = new char[enumConstants.length][];</span>
+
+<span class="fc" id="L52">        utf8ValueCache = new byte[enumConstants.length][];</span>
+<span class="fc" id="L53">        utf16ValueCache = new char[enumConstants.length][];</span>
+<span class="fc" id="L54">    }</span>
+
+    @Override
+    public final void writeEnumJSONB(JSONWriter jsonWriter, Enum e) {
+<span class="pc bpc" id="L58" title="1 of 2 branches missed.">        if (e == null) {</span>
+<span class="nc" id="L59">            return;</span>
+        }
+
+<span class="fc" id="L62">        long features = jsonWriter.getFeatures(this.features);</span>
+<span class="fc bfc" id="L63" title="All 2 branches covered.">        boolean usingOrdinal = (features &amp; (JSONWriter.Feature.WriteEnumUsingToString.mask | JSONWriter.Feature.WriteEnumsUsingName.mask)) == 0;</span>
+<span class="fc bfc" id="L64" title="All 2 branches covered.">        boolean usingToString = (features &amp; JSONWriter.Feature.WriteEnumUsingToString.mask) != 0;</span>
+
+<span class="fc" id="L66">        int ordinal = e.ordinal();</span>
+<span class="fc" id="L67">        SymbolTable symbolTable = jsonWriter.symbolTable;</span>
+<span class="pc bpc" id="L68" title="2 of 6 branches missed.">        if (symbolTable != null &amp;&amp; usingOrdinal &amp;&amp; !usingToString) {</span>
+<span class="fc bfc" id="L69" title="All 2 branches covered.">            if (writeSymbolNameOrdinal(jsonWriter, ordinal, symbolTable)) {</span>
+<span class="fc" id="L70">                return;</span>
+            }
+        }
+
+<span class="fc bfc" id="L74" title="All 2 branches covered.">        if (usingToString) {</span>
+<span class="fc" id="L75">            writeJSONBToString(jsonWriter, e, symbolTable);</span>
+<span class="fc" id="L76">            return;</span>
+        }
+
+<span class="fc bfc" id="L79" title="All 2 branches covered.">        if (usingOrdinal) {</span>
+            int symbol;
+<span class="fc bfc" id="L81" title="All 2 branches covered.">            if (symbolTable != null) {</span>
+<span class="fc" id="L82">                int symbolTableIdentity = System.identityHashCode(symbolTable);</span>
+<span class="fc bfc" id="L83" title="All 2 branches covered.">                if (nameSymbolCache == 0) {</span>
+<span class="fc" id="L84">                    symbol = symbolTable.getOrdinalByHashCode(hashCode);</span>
+<span class="fc" id="L85">                    nameSymbolCache = ((long) symbol &lt;&lt; 32) | symbolTableIdentity;</span>
+                } else {
+<span class="fc" id="L87">                    int identity = (int) nameSymbolCache;</span>
+<span class="pc bpc" id="L88" title="1 of 2 branches missed.">                    if (identity == symbolTableIdentity) {</span>
+<span class="fc" id="L89">                        symbol = (int) (nameSymbolCache &gt;&gt; 32);</span>
+                    } else {
+<span class="nc" id="L91">                        symbol = symbolTable.getOrdinalByHashCode(hashCode);</span>
+<span class="nc" id="L92">                        nameSymbolCache = ((long) symbol &lt;&lt; 32) | symbolTableIdentity;</span>
+                    }
+                }
+<span class="fc" id="L95">            } else {</span>
+<span class="fc" id="L96">                symbol = -1;</span>
+            }
+
+<span class="fc bfc" id="L99" title="All 2 branches covered.">            if (symbol != -1) {</span>
+<span class="fc" id="L100">                jsonWriter.writeSymbol(-symbol);</span>
+            } else {
+<span class="fc" id="L102">                jsonWriter.writeNameRaw(nameJSONB, hashCode);</span>
+            }
+
+<span class="fc" id="L105">            jsonWriter.writeInt32(ordinal);</span>
+<span class="fc" id="L106">            return;</span>
+        }
+
+<span class="fc" id="L109">        writeFieldName(jsonWriter);</span>
+<span class="fc" id="L110">        jsonWriter.writeString(e.name());</span>
+<span class="fc" id="L111">    }</span>
+
+    private boolean writeSymbolNameOrdinal(JSONWriter jsonWriter, int ordinal, SymbolTable symbolTable) {
+<span class="fc" id="L114">        int symbolTableIdentity = System.identityHashCode(symbolTable);</span>
+<span class="fc" id="L115">        long enumNameCache = hashCodesSymbolCache[ordinal];</span>
+        int enumSymbol;
+<span class="pc bpc" id="L117" title="1 of 2 branches missed.">        if (enumNameCache == 0) {</span>
+<span class="fc" id="L118">            enumSymbol = symbolTable.getOrdinalByHashCode(hashCodes[ordinal]);</span>
+<span class="fc" id="L119">            hashCodesSymbolCache[ordinal] = ((long) enumSymbol &lt;&lt; 32) | symbolTableIdentity;</span>
+        } else {
+<span class="nc" id="L121">            int identity = (int) enumNameCache;</span>
+<span class="nc bnc" id="L122" title="All 2 branches missed.">            if (identity == symbolTableIdentity) {</span>
+<span class="nc" id="L123">                enumSymbol = (int) (enumNameCache &gt;&gt; 32);</span>
+            } else {
+<span class="nc" id="L125">                enumSymbol = symbolTable.getOrdinalByHashCode(hashCodes[ordinal]);</span>
+<span class="nc" id="L126">                hashCodesSymbolCache[ordinal] = ((long) enumSymbol &lt;&lt; 32) | symbolTableIdentity;</span>
+            }
+        }
+
+<span class="fc" id="L130">        int namingOrdinal = enumSymbol;</span>
+<span class="fc bfc" id="L131" title="All 2 branches covered.">        if (namingOrdinal &gt;= 0) {</span>
+            int symbol;
+<span class="fc bfc" id="L133" title="All 2 branches covered.">            if (nameSymbolCache == 0) {</span>
+<span class="fc" id="L134">                symbol = symbolTable.getOrdinalByHashCode(hashCode);</span>
+<span class="pc bpc" id="L135" title="1 of 2 branches missed.">                if (symbol != -1) {</span>
+<span class="fc" id="L136">                    nameSymbolCache = ((long) symbol &lt;&lt; 32) | symbolTableIdentity;</span>
+                }
+            } else {
+<span class="fc" id="L139">                int identity = (int) nameSymbolCache;</span>
+<span class="pc bpc" id="L140" title="1 of 2 branches missed.">                if (identity == symbolTableIdentity) {</span>
+<span class="fc" id="L141">                    symbol = (int) (nameSymbolCache &gt;&gt; 32);</span>
+                } else {
+<span class="nc" id="L143">                    symbol = symbolTable.getOrdinalByHashCode(hashCode);</span>
+<span class="nc" id="L144">                    nameSymbolCache = ((long) symbol &lt;&lt; 32) | symbolTableIdentity;</span>
+                }
+            }
+
+<span class="pc bpc" id="L148" title="1 of 2 branches missed.">            if (symbol != -1) {</span>
+<span class="fc" id="L149">                jsonWriter.writeSymbol(-symbol);</span>
+            } else {
+<span class="nc" id="L151">                jsonWriter.writeNameRaw(nameJSONB, hashCode);</span>
+            }
+
+<span class="fc" id="L154">            jsonWriter.writeRaw(JSONB.Constants.BC_STR_ASCII);</span>
+<span class="fc" id="L155">            jsonWriter.writeInt32(-namingOrdinal);</span>
+<span class="fc" id="L156">            return true;</span>
+        }
+<span class="fc" id="L158">        return false;</span>
+    }
+
+    private void writeJSONBToString(JSONWriter jsonWriter, Enum e, SymbolTable symbolTable) {
+        int symbol;
+<span class="pc bpc" id="L163" title="1 of 2 branches missed.">        if (symbolTable != null) {</span>
+<span class="nc" id="L164">            int symbolTableIdentity = System.identityHashCode(symbolTable);</span>
+
+<span class="nc bnc" id="L166" title="All 2 branches missed.">            if (nameSymbolCache == 0) {</span>
+<span class="nc" id="L167">                symbol = symbolTable.getOrdinalByHashCode(hashCode);</span>
+<span class="nc" id="L168">                nameSymbolCache = ((long) symbol &lt;&lt; 32) | symbolTableIdentity;</span>
+            } else {
+<span class="nc" id="L170">                int identity = (int) nameSymbolCache;</span>
+<span class="nc bnc" id="L171" title="All 2 branches missed.">                if (identity == symbolTableIdentity) {</span>
+<span class="nc" id="L172">                    symbol = (int) (nameSymbolCache &gt;&gt; 32);</span>
+                } else {
+<span class="nc" id="L174">                    symbol = symbolTable.getOrdinalByHashCode(hashCode);</span>
+<span class="nc" id="L175">                    nameSymbolCache = ((long) symbol &lt;&lt; 32) | symbolTableIdentity;</span>
+                }
+            }
+<span class="nc" id="L178">        } else {</span>
+<span class="fc" id="L179">            symbol = -1;</span>
+        }
+
+<span class="pc bpc" id="L182" title="1 of 2 branches missed.">        if (symbol != -1) {</span>
+<span class="nc" id="L183">            jsonWriter.writeSymbol(-symbol);</span>
+        } else {
+<span class="fc" id="L185">            jsonWriter.writeNameRaw(nameJSONB, hashCode);</span>
+        }
+
+<span class="fc" id="L188">        jsonWriter.writeString(e.toString());</span>
+<span class="fc" id="L189">    }</span>
+
+    @Override
+    public final void writeEnum(JSONWriter jsonWriter, Enum e) {
+<span class="fc" id="L193">        long features = jsonWriter.getFeatures(this.features);</span>
+
+<span class="fc bfc" id="L195" title="All 2 branches covered.">        if ((features &amp; JSONWriter.Feature.WriteEnumUsingToString.mask) == 0) {</span>
+<span class="pc bpc" id="L196" title="1 of 2 branches missed.">            if (jsonWriter.jsonb) {</span>
+<span class="nc" id="L197">                writeEnumJSONB(jsonWriter, e);</span>
+<span class="nc" id="L198">                return;</span>
+            }
+
+<span class="fc bfc" id="L201" title="All 2 branches covered.">            boolean unquoteName = (features &amp; JSONWriter.Feature.UnquoteFieldName.mask) != 0;</span>
+<span class="fc" id="L202">            final boolean utf8 = jsonWriter.utf8;</span>
+<span class="pc bpc" id="L203" title="1 of 4 branches missed.">            final boolean utf16 = !jsonWriter.utf8 &amp;&amp; jsonWriter.utf16;</span>
+<span class="fc" id="L204">            final int ordinal = e.ordinal();</span>
+
+<span class="fc bfc" id="L206" title="All 2 branches covered.">            if ((features &amp; JSONWriter.Feature.WriteEnumUsingOrdinal.mask) != 0) {</span>
+<span class="pc bpc" id="L207" title="1 of 2 branches missed.">                if (!unquoteName) {</span>
+<span class="pc bpc" id="L208" title="1 of 2 branches missed.">                    if (utf8) {</span>
+<span class="fc" id="L209">                        byte[] bytes = utf8ValueCache[ordinal];</span>
+<span class="pc bpc" id="L210" title="1 of 2 branches missed.">                        if (bytes == null) {</span>
+<span class="fc" id="L211">                            utf8ValueCache[ordinal] = bytes = getBytes(ordinal);</span>
+                        }
+<span class="fc" id="L213">                        jsonWriter.writeNameRaw(bytes);</span>
+<span class="fc" id="L214">                        return;</span>
+                    }
+
+<span class="nc bnc" id="L217" title="All 2 branches missed.">                    if (utf16) {</span>
+<span class="nc" id="L218">                        char[] chars = utf16ValueCache[ordinal];</span>
+<span class="nc bnc" id="L219" title="All 2 branches missed.">                        if (chars == null) {</span>
+<span class="nc" id="L220">                            utf16ValueCache[ordinal] = chars = getChars(ordinal);</span>
+                        }
+<span class="nc" id="L222">                        jsonWriter.writeNameRaw(chars);</span>
+<span class="nc" id="L223">                        return;</span>
+                    }
+                }
+
+<span class="nc" id="L227">                writeFieldName(jsonWriter);</span>
+<span class="nc" id="L228">                jsonWriter.writeInt32(ordinal);</span>
+<span class="nc" id="L229">                return;</span>
+            }
+
+<span class="fc bfc" id="L232" title="All 2 branches covered.">            if (!unquoteName) {</span>
+<span class="fc bfc" id="L233" title="All 2 branches covered.">                if (utf8) {</span>
+<span class="fc" id="L234">                    byte[] bytes = valueNameCacheUTF8[ordinal];</span>
+
+<span class="fc bfc" id="L236" title="All 2 branches covered.">                    if (bytes == null) {</span>
+<span class="fc" id="L237">                        valueNameCacheUTF8[ordinal] = bytes = getNameBytes(ordinal);</span>
+                    }
+<span class="fc" id="L239">                    jsonWriter.writeNameRaw(bytes);</span>
+<span class="fc" id="L240">                    return;</span>
+                }
+
+<span class="pc bpc" id="L243" title="1 of 2 branches missed.">                if (utf16) {</span>
+<span class="fc" id="L244">                    char[] chars = valueNameCacheUTF16[ordinal];</span>
+<span class="fc bfc" id="L245" title="All 2 branches covered.">                    if (chars == null) {</span>
+<span class="fc" id="L246">                        valueNameCacheUTF16[ordinal] = chars = getNameChars(ordinal);</span>
+                    }
+<span class="fc" id="L248">                    jsonWriter.writeNameRaw(chars);</span>
+<span class="fc" id="L249">                    return;</span>
+                }
+            }
+        }
+
+<span class="fc" id="L254">        writeFieldName(jsonWriter);</span>
+<span class="fc" id="L255">        jsonWriter.writeString(e.toString());</span>
+<span class="fc" id="L256">    }</span>
+
+    private char[] getNameChars(int ordinal) {
+        char[] chars;
+<span class="fc" id="L260">        String name = enumConstants[ordinal].name();</span>
+<span class="fc" id="L261">        chars = Arrays.copyOf(nameWithColonUTF16, nameWithColonUTF16.length + name.length() + 2);</span>
+<span class="fc" id="L262">        chars[nameWithColonUTF16.length] = '&quot;';</span>
+<span class="fc" id="L263">        name.getChars(0, name.length(), chars, nameWithColonUTF16.length + 1);</span>
+<span class="fc" id="L264">        chars[chars.length - 1] = '&quot;';</span>
+<span class="fc" id="L265">        return chars;</span>
+    }
+
+    private byte[] getNameBytes(int ordinal) {
+        byte[] bytes;
+<span class="fc" id="L270">        byte[] nameUft8Bytes = enumConstants[ordinal].name().getBytes(StandardCharsets.UTF_8);</span>
+<span class="fc" id="L271">        bytes = Arrays.copyOf(nameWithColonUTF8, nameWithColonUTF8.length + nameUft8Bytes.length + 2);</span>
+<span class="fc" id="L272">        bytes[nameWithColonUTF8.length] = '&quot;';</span>
+<span class="fc" id="L273">        int index = nameWithColonUTF8.length + 1;</span>
+<span class="fc bfc" id="L274" title="All 2 branches covered.">        for (byte b : nameUft8Bytes) {</span>
+<span class="fc" id="L275">            bytes[index++] = b;</span>
+        }
+<span class="fc" id="L277">        bytes[bytes.length - 1] = '&quot;';</span>
+<span class="fc" id="L278">        return bytes;</span>
+    }
+
+    private char[] getChars(int ordinal) {
+        char[] chars;
+<span class="nc" id="L283">        int size = IOUtils.stringSize(ordinal);</span>
+<span class="nc" id="L284">        char[] original = Arrays.copyOf(nameWithColonUTF16, nameWithColonUTF16.length + size);</span>
+<span class="nc" id="L285">        chars = Arrays.copyOf(original, original.length);</span>
+<span class="nc" id="L286">        IOUtils.getChars(ordinal, chars.length, chars);</span>
+<span class="nc" id="L287">        return chars;</span>
+    }
+
+    private byte[] getBytes(int ordinal) {
+        byte[] bytes;
+<span class="fc" id="L292">        int size = IOUtils.stringSize(ordinal);</span>
+<span class="fc" id="L293">        byte[] original = Arrays.copyOf(nameWithColonUTF8, nameWithColonUTF8.length + size);</span>
+<span class="fc" id="L294">        bytes = Arrays.copyOf(original, original.length);</span>
+<span class="fc" id="L295">        IOUtils.getChars(ordinal, bytes.length, bytes);</span>
+<span class="fc" id="L296">        return bytes;</span>
+    }
+
+    @Override
+    public final void writeValue(JSONWriter jsonWriter, Object object) {
+<span class="fc" id="L301">        Enum value = (Enum) getFieldValue(object);</span>
+<span class="fc" id="L302">        jsonWriter.writeEnum(value);</span>
+<span class="fc" id="L303">    }</span>
+
+    @Override
+    public boolean write(JSONWriter jsonWriter, Object object) {
+<span class="fc" id="L307">        Enum value = (Enum) getFieldValue(object);</span>
+
+<span class="fc bfc" id="L309" title="All 2 branches covered.">        if (value == null) {</span>
+<span class="fc" id="L310">            long features = this.features | jsonWriter.getFeatures();</span>
+<span class="fc bfc" id="L311" title="All 2 branches covered.">            if ((features &amp; JSONWriter.Feature.WriteNulls.mask) != 0) {</span>
+<span class="fc" id="L312">                writeFieldName(jsonWriter);</span>
+<span class="fc" id="L313">                jsonWriter.writeNull();</span>
+<span class="fc" id="L314">                return true;</span>
+            } else {
+<span class="fc" id="L316">                return false;</span>
+            }
+        }
+
+<span class="fc bfc" id="L320" title="All 2 branches covered.">        if (jsonWriter.jsonb) {</span>
+<span class="fc" id="L321">            writeEnumJSONB(jsonWriter, value);</span>
+        } else {
+<span class="fc" id="L323">            writeEnum(jsonWriter, value);</span>
+        }
+<span class="fc" id="L325">        return true;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.8.202204050719</span></div></body></html>

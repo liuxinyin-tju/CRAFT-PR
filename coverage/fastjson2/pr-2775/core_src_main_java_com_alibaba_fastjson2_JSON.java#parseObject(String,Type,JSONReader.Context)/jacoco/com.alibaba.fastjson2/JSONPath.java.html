@@ -1,0 +1,1211 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>JSONPath.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">fastjson2</a> &gt; <a href="index.source.html" class="el_package">com.alibaba.fastjson2</a> &gt; <span class="el_source">JSONPath.java</span></div><h1>JSONPath.java</h1><pre class="source lang-java linenums">package com.alibaba.fastjson2;
+
+import com.alibaba.fastjson2.reader.*;
+import com.alibaba.fastjson2.writer.ObjectWriter;
+import com.alibaba.fastjson2.writer.ObjectWriterAdapter;
+import com.alibaba.fastjson2.writer.ObjectWriterProvider;
+
+import java.lang.reflect.Array;
+import java.lang.reflect.Type;
+import java.nio.charset.Charset;
+import java.time.ZoneId;
+import java.util.*;
+import java.util.function.BiFunction;
+import java.util.function.Function;
+
+public abstract class JSONPath {
+<span class="fc" id="L17">    static final JSONReader.Context PARSE_CONTEXT = JSONFactory.createReadContext();</span>
+
+    JSONReader.Context readerContext;
+    JSONWriter.Context writerContext;
+    final String path;
+    final long features;
+
+<span class="fc" id="L24">    protected JSONPath(String path, Feature... features) {</span>
+<span class="fc" id="L25">        this.path = path;</span>
+<span class="fc" id="L26">        long featuresValue = 0;</span>
+<span class="fc bfc" id="L27" title="All 2 branches covered.">        for (Feature feature : features) {</span>
+<span class="fc" id="L28">            featuresValue |= feature.mask;</span>
+        }
+<span class="fc" id="L30">        this.features = featuresValue;</span>
+<span class="fc" id="L31">    }</span>
+
+<span class="fc" id="L33">    protected JSONPath(String path, long features) {</span>
+<span class="fc" id="L34">        this.path = path;</span>
+<span class="fc" id="L35">        this.features = features;</span>
+<span class="fc" id="L36">    }</span>
+
+    public abstract JSONPath getParent();
+
+    public boolean endsWithFilter() {
+<span class="fc" id="L41">        return false;</span>
+    }
+
+    public boolean isPrevious() {
+<span class="fc" id="L45">        return false;</span>
+    }
+
+    @Override
+    public final String toString() {
+<span class="fc" id="L50">        return path;</span>
+    }
+
+    public static Object extract(String json, String path) {
+<span class="fc" id="L54">        JSONReader jsonReader = JSONReader.of(json);</span>
+<span class="fc" id="L55">        JSONPath jsonPath = JSONPath.of(path);</span>
+<span class="fc" id="L56">        return jsonPath.extract(jsonReader);</span>
+    }
+
+    public static Object extract(String json, String path, Feature... features) {
+<span class="fc" id="L60">        JSONReader jsonReader = JSONReader.of(json);</span>
+<span class="fc" id="L61">        JSONPath jsonPath = JSONPath.of(path, features);</span>
+<span class="fc" id="L62">        return jsonPath.extract(jsonReader);</span>
+    }
+
+    public static Object eval(String str, String path) {
+<span class="fc" id="L66">        return extract(str, path);</span>
+    }
+
+    public static Object eval(Object rootObject, String path) {
+<span class="fc" id="L70">        return JSONPath.of(path)</span>
+<span class="fc" id="L71">                .eval(rootObject);</span>
+    }
+
+    public static String set(String json, String path, Object value) {
+<span class="fc" id="L75">        Object object = JSON.parse(json);</span>
+<span class="fc" id="L76">        JSONPath.of(path)</span>
+<span class="fc" id="L77">                .set(object, value);</span>
+<span class="fc" id="L78">        return JSON.toJSONString(object);</span>
+    }
+
+    public static boolean contains(Object rootObject, String path) {
+<span class="pc bpc" id="L82" title="1 of 2 branches missed.">        if (rootObject == null) {</span>
+<span class="nc" id="L83">            return false;</span>
+        }
+
+<span class="fc" id="L86">        JSONPath jsonPath = JSONPath.of(path);</span>
+<span class="fc" id="L87">        return jsonPath.contains(rootObject);</span>
+    }
+
+    public static Object set(Object rootObject, String path, Object value) {
+<span class="fc" id="L91">        JSONPath.of(path)</span>
+<span class="fc" id="L92">                .set(rootObject, value);</span>
+
+<span class="fc" id="L94">        return rootObject;</span>
+    }
+
+    public static Object setCallback(Object rootObject, String path, Function callback) {
+<span class="fc" id="L98">        JSONPath.of(path)</span>
+<span class="fc" id="L99">                .setCallback(rootObject, callback);</span>
+
+<span class="fc" id="L101">        return rootObject;</span>
+    }
+
+    public static Object setCallback(Object rootObject, String path, BiFunction callback) {
+<span class="fc" id="L105">        JSONPath.of(path)</span>
+<span class="fc" id="L106">                .setCallback(rootObject, callback);</span>
+
+<span class="fc" id="L108">        return rootObject;</span>
+    }
+
+    public static String remove(String json, String path) {
+<span class="fc" id="L112">        Object object = JSON.parse(json);</span>
+
+<span class="fc" id="L114">        JSONPath.of(path)</span>
+<span class="fc" id="L115">                .remove(object);</span>
+
+<span class="fc" id="L117">        return JSON.toJSONString(object);</span>
+    }
+
+    public static void remove(Object rootObject, String path) {
+<span class="fc" id="L121">        JSONPath.of(path)</span>
+<span class="fc" id="L122">                .remove(rootObject);</span>
+<span class="fc" id="L123">    }</span>
+
+    public static Map&lt;String, Object&gt; paths(Object javaObject) {
+<span class="fc" id="L126">        Map&lt;Object, String&gt; values = new IdentityHashMap&lt;&gt;();</span>
+<span class="fc" id="L127">        Map&lt;String, Object&gt; paths = new LinkedHashMap&lt;&gt;();</span>
+
+<span class="fc" id="L129">        RootPath.INSTANCE.paths(values, paths, &quot;$&quot;, javaObject);</span>
+<span class="fc" id="L130">        return paths;</span>
+    }
+
+    void paths(Map&lt;Object, String&gt; values, Map paths, String parent, Object javaObject) {
+<span class="fc bfc" id="L134" title="All 2 branches covered.">        if (javaObject == null) {</span>
+<span class="fc" id="L135">            return;</span>
+        }
+
+<span class="fc" id="L138">        String p = values.put(javaObject, parent);</span>
+<span class="fc bfc" id="L139" title="All 2 branches covered.">        if (p != null) {</span>
+<span class="fc" id="L140">            Class&lt;?&gt; type = javaObject.getClass();</span>
+<span class="pc bpc" id="L141" title="1 of 14 branches missed.">            boolean basicType = type == String.class</span>
+                    || type == Boolean.class
+                    || type == Character.class
+                    || type == UUID.class
+                    || javaObject instanceof Enum
+                    || javaObject instanceof Number
+                    || javaObject instanceof Date;
+
+<span class="pc bpc" id="L149" title="1 of 2 branches missed.">            if (!basicType) {</span>
+<span class="nc" id="L150">                return;</span>
+            }
+        }
+
+<span class="fc" id="L154">        paths.put(parent, javaObject);</span>
+
+<span class="fc bfc" id="L156" title="All 2 branches covered.">        if (javaObject instanceof Map) {</span>
+<span class="fc" id="L157">            Map map = (Map) javaObject;</span>
+
+<span class="fc bfc" id="L159" title="All 2 branches covered.">            for (Object entryObj : map.entrySet()) {</span>
+<span class="fc" id="L160">                Map.Entry entry = (Map.Entry) entryObj;</span>
+<span class="fc" id="L161">                Object key = entry.getKey();</span>
+
+                String path;
+<span class="pc bpc" id="L164" title="1 of 2 branches missed.">                if (key instanceof String) {</span>
+<span class="fc" id="L165">                    String strKey = (String) key;</span>
+<span class="fc" id="L166">                    boolean escape = strKey.isEmpty();</span>
+<span class="pc bpc" id="L167" title="1 of 2 branches missed.">                    if (!escape) {</span>
+<span class="fc" id="L168">                        char c0 = strKey.charAt(0);</span>
+<span class="pc bpc" id="L169" title="5 of 10 branches missed.">                        escape = !((c0 &gt;= 'a' &amp;&amp; c0 &lt;= 'z') || (c0 &gt;= 'A' &amp;&amp; c0 &lt;= 'Z') || c0 == '_');</span>
+<span class="fc bfc" id="L170" title="All 2 branches covered.">                        if (!escape) {</span>
+<span class="fc bfc" id="L171" title="All 2 branches covered.">                            for (int i = 1; i &lt; strKey.length(); i++) {</span>
+<span class="fc" id="L172">                                char ch = strKey.charAt(i);</span>
+<span class="pc bpc" id="L173" title="6 of 14 branches missed.">                                escape = !((ch &gt;= 'a' &amp;&amp; ch &lt;= 'z')</span>
+                                        || (ch &gt;= 'A' &amp;&amp; ch &lt;= 'Z')
+                                        || (ch &gt;= '0' &amp;&amp; ch &lt;= '9')
+                                        || ch == '_');
+<span class="fc bfc" id="L177" title="All 2 branches covered.">                                if (escape) {</span>
+<span class="fc" id="L178">                                    break;</span>
+                                }
+                            }
+                        }
+                    }
+<span class="fc bfc" id="L183" title="All 2 branches covered.">                    if (escape) {</span>
+<span class="fc" id="L184">                        path = parent + '[' + JSON.toJSONString(strKey, JSONWriter.Feature.UseSingleQuotes) + ']';</span>
+                    } else {
+<span class="fc" id="L186">                        path = parent + &quot;.&quot; + strKey;</span>
+                    }
+<span class="fc" id="L188">                    paths(values, paths, path, entry.getValue());</span>
+                }
+<span class="fc" id="L190">            }</span>
+<span class="fc" id="L191">            return;</span>
+        }
+
+<span class="fc bfc" id="L194" title="All 2 branches covered.">        if (javaObject instanceof Collection) {</span>
+<span class="fc" id="L195">            Collection collection = (Collection) javaObject;</span>
+
+<span class="fc" id="L197">            int i = 0;</span>
+<span class="fc bfc" id="L198" title="All 2 branches covered.">            for (Object item : collection) {</span>
+<span class="fc" id="L199">                String path = parent + &quot;[&quot; + i + &quot;]&quot;;</span>
+<span class="fc" id="L200">                paths(values, paths, path, item);</span>
+<span class="fc" id="L201">                ++i;</span>
+<span class="fc" id="L202">            }</span>
+
+<span class="fc" id="L204">            return;</span>
+        }
+
+<span class="fc" id="L207">        Class&lt;?&gt; clazz = javaObject.getClass();</span>
+
+<span class="pc bpc" id="L209" title="1 of 2 branches missed.">        if (clazz.isArray()) {</span>
+<span class="nc" id="L210">            int len = Array.getLength(javaObject);</span>
+
+<span class="nc bnc" id="L212" title="All 2 branches missed.">            for (int i = 0; i &lt; len; ++i) {</span>
+<span class="nc" id="L213">                Object item = Array.get(javaObject, i);</span>
+
+<span class="nc" id="L215">                String path = parent + &quot;[&quot; + i + &quot;]&quot;;</span>
+<span class="nc" id="L216">                paths(values, paths, path, item);</span>
+            }
+
+<span class="nc" id="L219">            return;</span>
+        }
+
+<span class="fc bfc" id="L222" title="All 2 branches covered.">        if (ObjectWriterProvider.isPrimitiveOrEnum(clazz)) {</span>
+<span class="fc" id="L223">            return;</span>
+        }
+
+<span class="fc" id="L226">        ObjectWriter serializer = getWriterContext().getObjectWriter(clazz);</span>
+<span class="fc bfc" id="L227" title="All 2 branches covered.">        if (serializer instanceof ObjectWriterAdapter) {</span>
+<span class="fc" id="L228">            ObjectWriterAdapter javaBeanSerializer = (ObjectWriterAdapter) serializer;</span>
+
+            try {
+<span class="fc" id="L231">                Map&lt;String, Object&gt; fieldValues = javaBeanSerializer.toMap(javaObject);</span>
+<span class="fc bfc" id="L232" title="All 2 branches covered.">                for (Map.Entry&lt;String, Object&gt; entry : fieldValues.entrySet()) {</span>
+<span class="fc" id="L233">                    String key = entry.getKey();</span>
+
+<span class="pc bpc" id="L235" title="1 of 2 branches missed.">                    if (key != null) {</span>
+<span class="fc" id="L236">                        String path = parent + &quot;.&quot; + key;</span>
+<span class="fc" id="L237">                        paths(values, paths, path, entry.getValue());</span>
+                    }
+<span class="fc" id="L239">                }</span>
+<span class="nc" id="L240">            } catch (Exception e) {</span>
+<span class="nc" id="L241">                throw new JSONException(&quot;toJSON error&quot;, e);</span>
+<span class="fc" id="L242">            }</span>
+        }
+<span class="fc" id="L244">    }</span>
+
+    public abstract boolean isRef();
+
+    public void arrayAdd(Object root, Object... values) {
+<span class="fc" id="L249">        Object result = eval(root);</span>
+<span class="fc bfc" id="L250" title="All 2 branches covered.">        if (result == null) {</span>
+<span class="fc" id="L251">            set(root, JSONArray.of(values));</span>
+<span class="fc" id="L252">            return;</span>
+        }
+
+<span class="pc bpc" id="L255" title="1 of 2 branches missed.">        if (result instanceof Collection) {</span>
+<span class="fc" id="L256">            Collection collection = (Collection) result;</span>
+<span class="fc" id="L257">            collection.addAll(Arrays.asList(values));</span>
+        }
+<span class="fc" id="L259">    }</span>
+
+    public abstract boolean contains(Object object);
+
+    public abstract Object eval(Object object);
+
+    protected JSONReader.Context createContext() {
+<span class="fc" id="L266">        return JSONFactory.createReadContext();</span>
+    }
+
+    public Object extract(String jsonStr) {
+<span class="fc bfc" id="L270" title="All 2 branches covered.">        if (jsonStr == null) {</span>
+<span class="fc" id="L271">            return null;</span>
+        }
+
+<span class="fc" id="L274">        try (JSONReader jsonReader = JSONReader.of(jsonStr, createContext())) {</span>
+<span class="fc" id="L275">            return extract(jsonReader);</span>
+        }
+    }
+
+    public Object extract(byte[] jsonBytes) {
+<span class="fc bfc" id="L280" title="All 2 branches covered.">        if (jsonBytes == null) {</span>
+<span class="fc" id="L281">            return null;</span>
+        }
+
+<span class="fc" id="L284">        try (JSONReader jsonReader = JSONReader.of(jsonBytes, createContext())) {</span>
+<span class="fc" id="L285">            return extract(jsonReader);</span>
+        }
+    }
+
+    public Object extract(byte[] jsonBytes, int off, int len, Charset charset) {
+<span class="pc bpc" id="L290" title="1 of 2 branches missed.">        if (jsonBytes == null) {</span>
+<span class="nc" id="L291">            return null;</span>
+        }
+
+<span class="fc" id="L294">        try (JSONReader jsonReader = JSONReader.of(jsonBytes, off, len, charset, createContext())) {</span>
+<span class="fc" id="L295">            return extract(jsonReader);</span>
+        }
+    }
+
+    public abstract Object extract(JSONReader jsonReader);
+
+    public abstract String extractScalar(JSONReader jsonReader);
+
+    public JSONReader.Context getReaderContext() {
+<span class="fc bfc" id="L304" title="All 2 branches covered.">        if (readerContext == null) {</span>
+<span class="fc" id="L305">            readerContext = JSONFactory.createReadContext();</span>
+        }
+<span class="fc" id="L307">        return readerContext;</span>
+    }
+
+    public JSONPath setReaderContext(JSONReader.Context context) {
+<span class="fc" id="L311">        this.readerContext = context;</span>
+<span class="fc" id="L312">        return this;</span>
+    }
+
+    public JSONWriter.Context getWriterContext() {
+<span class="fc bfc" id="L316" title="All 2 branches covered.">        if (writerContext == null) {</span>
+<span class="fc" id="L317">            writerContext = JSONFactory.createWriteContext();</span>
+        }
+<span class="fc" id="L319">        return writerContext;</span>
+    }
+
+    public JSONPath setWriterContext(JSONWriter.Context writerContext) {
+<span class="fc" id="L323">        this.writerContext = writerContext;</span>
+<span class="fc" id="L324">        return this;</span>
+    }
+
+    public abstract void set(Object object, Object value);
+
+    public abstract void set(Object object, Object value, JSONReader.Feature... readerFeatures);
+
+    public void setCallback(Object object, Function callback) {
+<span class="fc" id="L332">        setCallback(</span>
+                object,
+                new JSONPathFunction.BiFunctionAdapter(callback)
+        );
+<span class="fc" id="L336">    }</span>
+
+    public abstract void setCallback(Object object, BiFunction callback);
+
+    public abstract void setInt(Object object, int value);
+
+    public abstract void setLong(Object object, long value);
+
+    public abstract boolean remove(Object object);
+
+    public void extract(JSONReader jsonReader, ValueConsumer consumer) {
+<span class="fc" id="L347">        Object object = extract(jsonReader);</span>
+<span class="fc bfc" id="L348" title="All 2 branches covered.">        if (object == null) {</span>
+<span class="fc" id="L349">            consumer.acceptNull();</span>
+<span class="fc" id="L350">            return;</span>
+        }
+
+<span class="fc bfc" id="L353" title="All 2 branches covered.">        if (object instanceof Number) {</span>
+<span class="fc" id="L354">            consumer.accept((Number) object);</span>
+<span class="fc" id="L355">            return;</span>
+        }
+
+<span class="fc bfc" id="L358" title="All 2 branches covered.">        if (object instanceof String) {</span>
+<span class="fc" id="L359">            consumer.accept((String) object);</span>
+<span class="fc" id="L360">            return;</span>
+        }
+
+<span class="fc bfc" id="L363" title="All 2 branches covered.">        if (object instanceof Boolean) {</span>
+<span class="fc" id="L364">            consumer.accept((Boolean) object);</span>
+<span class="fc" id="L365">            return;</span>
+        }
+
+<span class="fc bfc" id="L368" title="All 2 branches covered.">        if (object instanceof Map) {</span>
+<span class="fc" id="L369">            consumer.accept((Map) object);</span>
+<span class="fc" id="L370">            return;</span>
+        }
+
+<span class="pc bpc" id="L373" title="1 of 2 branches missed.">        if (object instanceof List) {</span>
+<span class="fc" id="L374">            consumer.accept((List) object);</span>
+<span class="fc" id="L375">            return;</span>
+        }
+
+<span class="nc" id="L378">        throw new JSONException(&quot;TODO : &quot; + object.getClass());</span>
+    }
+
+    public void extractScalar(JSONReader jsonReader, ValueConsumer consumer) {
+<span class="fc" id="L382">        Object object = extractScalar(jsonReader);</span>
+<span class="pc bpc" id="L383" title="1 of 2 branches missed.">        if (object == null) {</span>
+<span class="nc" id="L384">            consumer.acceptNull();</span>
+<span class="nc" id="L385">            return;</span>
+        }
+
+<span class="fc" id="L388">        String str = object.toString();</span>
+<span class="fc" id="L389">        consumer.accept(str);</span>
+<span class="fc" id="L390">    }</span>
+
+    public Long extractInt64(JSONReader jsonReader) {
+<span class="fc" id="L393">        long value = extractInt64Value(jsonReader);</span>
+<span class="fc bfc" id="L394" title="All 2 branches covered.">        if (jsonReader.wasNull) {</span>
+<span class="fc" id="L395">            return null;</span>
+        }
+<span class="fc" id="L397">        return value;</span>
+    }
+
+    public long extractInt64Value(JSONReader jsonReader) {
+<span class="fc" id="L401">        Object object = extract(jsonReader);</span>
+<span class="fc bfc" id="L402" title="All 2 branches covered.">        if (object == null) {</span>
+<span class="fc" id="L403">            jsonReader.wasNull = true;</span>
+<span class="fc" id="L404">            return 0L;</span>
+        }
+
+<span class="fc bfc" id="L407" title="All 2 branches covered.">        if (object instanceof Number) {</span>
+<span class="fc" id="L408">            return ((Number) object).longValue();</span>
+        }
+
+<span class="fc" id="L411">        Function typeConvert = JSONFactory.getDefaultObjectReaderProvider().getTypeConvert(object.getClass(), long.class);</span>
+<span class="pc bpc" id="L412" title="1 of 2 branches missed.">        if (typeConvert == null) {</span>
+<span class="nc" id="L413">            throw new JSONException(&quot;can not convert to long : &quot; + object);</span>
+        }
+<span class="fc" id="L415">        Object converted = typeConvert.apply(object);</span>
+<span class="fc" id="L416">        return (Long) converted;</span>
+    }
+
+    public Integer extractInt32(JSONReader jsonReader) {
+<span class="fc" id="L420">        int intValue = extractInt32Value(jsonReader);</span>
+<span class="fc bfc" id="L421" title="All 2 branches covered.">        if (jsonReader.wasNull) {</span>
+<span class="fc" id="L422">            return null;</span>
+        }
+<span class="fc" id="L424">        return intValue;</span>
+    }
+
+    public int extractInt32Value(JSONReader jsonReader) {
+<span class="fc" id="L428">        Object object = extract(jsonReader);</span>
+<span class="fc bfc" id="L429" title="All 2 branches covered.">        if (object == null) {</span>
+<span class="fc" id="L430">            jsonReader.wasNull = true;</span>
+<span class="fc" id="L431">            return 0;</span>
+        }
+<span class="fc bfc" id="L433" title="All 2 branches covered.">        if (object instanceof Number) {</span>
+<span class="fc" id="L434">            return ((Number) object).intValue();</span>
+        }
+<span class="fc" id="L436">        Function typeConvert = JSONFactory.getDefaultObjectReaderProvider().getTypeConvert(object.getClass(), int.class);</span>
+<span class="pc bpc" id="L437" title="1 of 2 branches missed.">        if (typeConvert == null) {</span>
+<span class="nc" id="L438">            throw new JSONException(&quot;can not convert to int : &quot; + object);</span>
+        }
+<span class="fc" id="L440">        return (Integer) typeConvert.apply(object);</span>
+    }
+
+    @Deprecated
+    public static JSONPath compile(String path) {
+<span class="fc" id="L445">        return of(path);</span>
+    }
+
+    public static JSONPath compile(String strPath, Class objectClass) {
+<span class="fc" id="L449">        JSONPath path = of(strPath);</span>
+<span class="fc" id="L450">        JSONFactory.JSONPathCompiler compiler = JSONFactory.getDefaultJSONPathCompiler();</span>
+<span class="fc" id="L451">        return compiler.compile(objectClass, path);</span>
+    }
+
+    static JSONPathSingle of(JSONPathSegment segment) {
+        String prefix;
+<span class="pc bpc" id="L456" title="1 of 4 branches missed.">        if (segment instanceof JSONPathSegment.MultiIndexSegment || segment instanceof JSONPathSegmentIndex) {</span>
+<span class="fc" id="L457">            prefix = &quot;$&quot;;</span>
+        } else {
+<span class="fc" id="L459">            prefix = &quot;$.&quot;;</span>
+        }
+<span class="fc" id="L461">        String path = prefix + segment.toString();</span>
+
+<span class="fc bfc" id="L463" title="All 2 branches covered.">        if (segment instanceof JSONPathSegmentName) {</span>
+<span class="fc" id="L464">            return new JSONPathSingleName(path, (JSONPathSegmentName) segment);</span>
+        }
+<span class="fc" id="L466">        return new JSONPathSingle(segment, path);</span>
+    }
+
+    public static JSONPath of(String path) {
+<span class="fc bfc" id="L470" title="All 2 branches covered.">        if (&quot;#-1&quot;.equals(path)) {</span>
+<span class="fc" id="L471">            return PreviousPath.INSTANCE;</span>
+        }
+
+<span class="fc" id="L474">        return new JSONPathParser(path)</span>
+<span class="fc" id="L475">                .parse();</span>
+    }
+
+    public static JSONPath of(String path, Type type) {
+<span class="fc" id="L479">        JSONPath jsonPath = of(path);</span>
+<span class="fc" id="L480">        return JSONPathTyped.of(jsonPath, type);</span>
+    }
+
+    public static JSONPath of(String path, Type type, Feature... features) {
+<span class="fc" id="L484">        JSONPath jsonPath = of(path, features);</span>
+<span class="fc" id="L485">        return JSONPathTyped.of(jsonPath, type);</span>
+    }
+
+    /**
+     * create multi-path jsonpath
+     *
+     * @param paths jsonpath array
+     * @param types item types
+     * @since 2.0.20
+     */
+    public static JSONPath of(String[] paths, Type[] types) {
+<span class="fc" id="L496">        return of(paths, types, null, null, (ZoneId) null);</span>
+    }
+
+    /**
+     * create multi-path jsonpath
+     *
+     * @param paths jsonpath array
+     * @param types item types
+     * @since 2.0.20
+     */
+    public static JSONPath of(String[] paths, Type[] types, JSONReader.Feature... features) {
+<span class="fc" id="L507">        return of(paths, types, null, null, null, features);</span>
+    }
+
+    /**
+     * create multi-path jsonpath
+     *
+     * @param paths jsonpath array
+     * @param types item types
+     * @param formats item format
+     * @param zoneId zonedId
+     * @param features parse use JSONReader.Features
+     * @since 2.0.20
+     */
+    public static JSONPath of(
+            String[] paths,
+            Type[] types,
+            String[] formats,
+            long[] pathFeatures,
+            ZoneId zoneId,
+            JSONReader.Feature... features
+    ) {
+<span class="pc bpc" id="L528" title="1 of 2 branches missed.">        if (paths.length == 0) {</span>
+<span class="nc" id="L529">            throw new JSONException(&quot;illegal paths, not support 0 length&quot;);</span>
+        }
+
+<span class="pc bpc" id="L532" title="1 of 2 branches missed.">        if (types == null) {</span>
+<span class="nc" id="L533">            types = new Type[paths.length];</span>
+<span class="nc" id="L534">            Arrays.fill(types, Object.class);</span>
+        }
+
+<span class="pc bpc" id="L537" title="1 of 2 branches missed.">        if (types.length != paths.length) {</span>
+<span class="nc" id="L538">            throw new JSONException(&quot;types.length not equals paths.length&quot;);</span>
+        }
+
+<span class="fc" id="L541">        JSONPath[] jsonPaths = new JSONPath[paths.length];</span>
+<span class="fc bfc" id="L542" title="All 2 branches covered.">        for (int i = 0; i &lt; paths.length; i++) {</span>
+<span class="fc" id="L543">            jsonPaths[i] = of(paths[i]);</span>
+        }
+
+<span class="fc" id="L546">        boolean allSingleName = true, allSinglePositiveIndex = true;</span>
+<span class="fc" id="L547">        boolean allTwoName = true, allTwoIndexPositive = true;</span>
+<span class="fc" id="L548">        boolean allThreeName = true;</span>
+<span class="fc" id="L549">        boolean sameMultiLength = true;</span>
+<span class="fc" id="L550">        JSONPathMulti firstMulti = null;</span>
+<span class="fc bfc" id="L551" title="All 2 branches covered.">        for (int i = 0; i &lt; jsonPaths.length; i++) {</span>
+<span class="fc" id="L552">            JSONPath path = jsonPaths[i];</span>
+<span class="fc bfc" id="L553" title="All 2 branches covered.">            if (i == 0) {</span>
+<span class="fc bfc" id="L554" title="All 2 branches covered.">                if (path instanceof JSONPathMulti) {</span>
+<span class="fc" id="L555">                    firstMulti = (JSONPathMulti) path;</span>
+                } else {
+<span class="fc" id="L557">                    sameMultiLength = false;</span>
+                }
+            } else {
+<span class="fc bfc" id="L560" title="All 2 branches covered.">                if (sameMultiLength) {</span>
+<span class="fc bfc" id="L561" title="All 2 branches covered.">                    if (path instanceof JSONPathMulti) {</span>
+<span class="pc bpc" id="L562" title="1 of 2 branches missed.">                        if (((JSONPathMulti) path).segments.size() != firstMulti.segments.size()) {</span>
+<span class="nc" id="L563">                            sameMultiLength = false;</span>
+                        }
+                    }
+                }
+            }
+
+<span class="fc bfc" id="L569" title="All 4 branches covered.">            if (allSingleName &amp;&amp; !(path instanceof JSONPathSingleName)) {</span>
+<span class="fc" id="L570">                allSingleName = false;</span>
+            }
+
+<span class="fc bfc" id="L573" title="All 2 branches covered.">            if (allSinglePositiveIndex) {</span>
+<span class="pc bpc" id="L574" title="1 of 4 branches missed.">                if (!(path instanceof JSONPathSingleIndex)</span>
+                        || ((JSONPathSingleIndex) path).index &lt; 0) {
+<span class="fc" id="L576">                    allSinglePositiveIndex = false;</span>
+                }
+            }
+
+<span class="fc bfc" id="L580" title="All 2 branches covered.">            if (allTwoName) {</span>
+<span class="fc bfc" id="L581" title="All 2 branches covered.">                if (path instanceof JSONPathTwoSegment) {</span>
+<span class="fc" id="L582">                    JSONPathTwoSegment two = (JSONPathTwoSegment) path;</span>
+<span class="fc bfc" id="L583" title="All 2 branches covered.">                    if (!(two.second instanceof JSONPathSegmentName)) {</span>
+<span class="fc" id="L584">                        allTwoName = false;</span>
+                    }
+<span class="fc" id="L586">                } else {</span>
+<span class="fc" id="L587">                    allTwoName = false;</span>
+                }
+            }
+
+<span class="fc bfc" id="L591" title="All 2 branches covered.">            if (allTwoIndexPositive) {</span>
+<span class="fc bfc" id="L592" title="All 2 branches covered.">                if (path instanceof JSONPathTwoSegment) {</span>
+<span class="fc" id="L593">                    JSONPathTwoSegment two = (JSONPathTwoSegment) path;</span>
+<span class="pc bpc" id="L594" title="1 of 4 branches missed.">                    if (!(two.second instanceof JSONPathSegmentIndex) || ((JSONPathSegmentIndex) two.second).index &lt; 0) {</span>
+<span class="fc" id="L595">                        allTwoIndexPositive = false;</span>
+                    }
+<span class="fc" id="L597">                } else {</span>
+<span class="fc" id="L598">                    allTwoIndexPositive = false;</span>
+                }
+            }
+
+<span class="fc bfc" id="L602" title="All 2 branches covered.">            if (allThreeName) {</span>
+<span class="fc bfc" id="L603" title="All 2 branches covered.">                if (path instanceof JSONPathMulti) {</span>
+<span class="fc" id="L604">                    JSONPathMulti multi = (JSONPathMulti) path;</span>
+<span class="fc bfc" id="L605" title="All 2 branches covered.">                    if (multi.segments.size() == 3) {</span>
+<span class="fc" id="L606">                        JSONPathSegment three = multi.segments.get(2);</span>
+<span class="pc bpc" id="L607" title="1 of 2 branches missed.">                        if (multi.segments.get(0) instanceof JSONPathSegment.AllSegment</span>
+<span class="fc bfc" id="L608" title="All 4 branches covered.">                                || multi.segments.get(1) instanceof JSONPathSegment.AllSegment</span>
+                                || !(three instanceof JSONPathSegmentName)) {
+<span class="fc" id="L610">                            allThreeName = false;</span>
+                        }
+<span class="fc" id="L612">                    } else {</span>
+<span class="fc" id="L613">                        allThreeName = false;</span>
+                    }
+<span class="fc" id="L615">                } else {</span>
+<span class="fc" id="L616">                    allThreeName = false;</span>
+                }
+            }
+        }
+
+<span class="fc" id="L621">        long featuresValue = JSONReader.Feature.of(features);</span>
+
+<span class="fc bfc" id="L623" title="All 2 branches covered.">        if (allSingleName) {</span>
+<span class="fc" id="L624">            return new JSONPathTypedMultiNames(</span>
+                    jsonPaths,
+                    null,
+                    jsonPaths,
+                    types,
+                    formats,
+                    pathFeatures,
+                    zoneId,
+                    featuresValue
+            );
+        }
+
+<span class="fc bfc" id="L636" title="All 2 branches covered.">        if (allSinglePositiveIndex) {</span>
+<span class="fc" id="L637">            return new JSONPathTypedMultiIndexes(jsonPaths, null, jsonPaths, types, formats, pathFeatures, zoneId, featuresValue);</span>
+        }
+
+<span class="fc bfc" id="L640" title="All 4 branches covered.">        if (allTwoName || allTwoIndexPositive) {</span>
+<span class="fc" id="L641">            boolean samePrefix = true;</span>
+<span class="fc" id="L642">            JSONPathSegment first0 = ((JSONPathTwoSegment) jsonPaths[0]).first;</span>
+<span class="fc bfc" id="L643" title="All 2 branches covered.">            for (int i = 1; i &lt; jsonPaths.length; i++) {</span>
+<span class="fc" id="L644">                JSONPathTwoSegment two = (JSONPathTwoSegment) jsonPaths[i];</span>
+<span class="fc bfc" id="L645" title="All 2 branches covered.">                if (!first0.equals(two.first)) {</span>
+<span class="fc" id="L646">                    samePrefix = false;</span>
+<span class="fc" id="L647">                    break;</span>
+                }
+            }
+
+<span class="fc bfc" id="L651" title="All 2 branches covered.">            if (samePrefix) {</span>
+<span class="fc" id="L652">                JSONPath firstPath = jsonPaths[0];</span>
+
+<span class="fc bfc" id="L654" title="All 2 branches covered.">                if (allTwoName) {</span>
+<span class="fc" id="L655">                    JSONPathSingleName[] names = new JSONPathSingleName[jsonPaths.length];</span>
+<span class="fc bfc" id="L656" title="All 2 branches covered.">                    for (int i = 0; i &lt; jsonPaths.length; i++) {</span>
+<span class="fc" id="L657">                        JSONPathTwoSegment two = (JSONPathTwoSegment) jsonPaths[i];</span>
+<span class="fc" id="L658">                        JSONPathSegmentName name = (JSONPathSegmentName) two.second;</span>
+<span class="fc" id="L659">                        names[i] = new JSONPathSingleName(&quot;$.&quot; + name, name);</span>
+                    }
+
+<span class="fc" id="L662">                    String prefixPath = firstPath.path.substring(0, firstPath.path.length() - names[0].name.length() - 1);</span>
+<span class="fc bfc" id="L663" title="All 2 branches covered.">                    if (first0 instanceof JSONPathSegmentName) {</span>
+<span class="fc" id="L664">                        JSONPathSegmentName name = (JSONPathSegmentName) first0;</span>
+<span class="fc" id="L665">                        JSONPath prefix = new JSONPathSingleName(prefixPath, name);</span>
+
+<span class="fc" id="L667">                        return new JSONPathTypedMultiNamesPrefixName1(</span>
+                                jsonPaths,
+                                prefix,
+                                names,
+                                types,
+                                formats,
+                                pathFeatures,
+                                zoneId,
+                                featuresValue
+                        );
+<span class="pc bpc" id="L677" title="1 of 2 branches missed.">                    } else if (first0 instanceof JSONPathSegmentIndex) {</span>
+<span class="fc" id="L678">                        JSONPathSegmentIndex first0Index = ((JSONPathSegmentIndex) first0);</span>
+<span class="pc bpc" id="L679" title="1 of 2 branches missed.">                        if (first0Index.index &gt;= 0) {</span>
+<span class="fc" id="L680">                            JSONPathSingleIndex prefix = new JSONPathSingleIndex(prefixPath, first0Index);</span>
+<span class="fc" id="L681">                            return new JSONPathTypedMultiNamesPrefixIndex1(</span>
+                                    jsonPaths,
+                                    prefix,
+                                    names,
+                                    types,
+                                    formats,
+                                    pathFeatures,
+                                    zoneId,
+                                    featuresValue
+                            );
+                        }
+                    }
+<span class="nc" id="L693">                } else {</span>
+<span class="fc" id="L694">                    JSONPathSingleIndex[] indexes = new JSONPathSingleIndex[jsonPaths.length];</span>
+<span class="fc bfc" id="L695" title="All 2 branches covered.">                    for (int i = 0; i &lt; jsonPaths.length; i++) {</span>
+<span class="fc" id="L696">                        JSONPathTwoSegment two = (JSONPathTwoSegment) jsonPaths[i];</span>
+<span class="fc" id="L697">                        JSONPathSegmentIndex name = (JSONPathSegmentIndex) two.second;</span>
+<span class="fc" id="L698">                        indexes[i] = new JSONPathSingleIndex(&quot;$&quot; + name, name);</span>
+                    }
+
+<span class="fc" id="L701">                    JSONPath prefix = null;</span>
+<span class="fc bfc" id="L702" title="All 2 branches covered.">                    if (first0 instanceof JSONPathSegmentName) {</span>
+<span class="fc" id="L703">                        JSONPathSegmentName name = (JSONPathSegmentName) first0;</span>
+<span class="fc" id="L704">                        prefix = new JSONPathSingleName(&quot;$.&quot; + name.name, name);</span>
+<span class="pc bpc" id="L705" title="1 of 2 branches missed.">                    } else if (first0 instanceof JSONPathSegmentIndex) {</span>
+<span class="fc" id="L706">                        JSONPathSegmentIndex index = (JSONPathSegmentIndex) first0;</span>
+<span class="fc" id="L707">                        prefix = new JSONPathSingleIndex(&quot;$[&quot; + index.index + &quot;]&quot;, index);</span>
+                    }
+
+<span class="pc bpc" id="L710" title="1 of 2 branches missed.">                    if (prefix != null) {</span>
+<span class="fc" id="L711">                        return new JSONPathTypedMultiIndexes(</span>
+                                jsonPaths,
+                                prefix,
+                                indexes,
+                                types,
+                                formats,
+                                pathFeatures,
+                                zoneId,
+                                featuresValue
+                        );
+                    }
+                }
+            }
+<span class="fc bfc" id="L724" title="All 2 branches covered.">        } else if (allThreeName) {</span>
+<span class="fc" id="L725">            boolean samePrefix = true;</span>
+<span class="fc" id="L726">            JSONPathSegment first0 = ((JSONPathMulti) jsonPaths[0]).segments.get(0);</span>
+<span class="fc" id="L727">            JSONPathSegment first1 = ((JSONPathMulti) jsonPaths[0]).segments.get(1);</span>
+<span class="fc bfc" id="L728" title="All 2 branches covered.">            for (int i = 1; i &lt; jsonPaths.length; i++) {</span>
+<span class="fc" id="L729">                JSONPathMulti multi = (JSONPathMulti) jsonPaths[i];</span>
+<span class="pc bpc" id="L730" title="1 of 2 branches missed.">                if (!first0.equals(multi.segments.get(0))) {</span>
+<span class="nc" id="L731">                    samePrefix = false;</span>
+<span class="nc" id="L732">                    break;</span>
+                }
+<span class="pc bpc" id="L734" title="1 of 2 branches missed.">                if (!first1.equals(multi.segments.get(1))) {</span>
+<span class="nc" id="L735">                    samePrefix = false;</span>
+<span class="nc" id="L736">                    break;</span>
+                }
+            }
+
+<span class="pc bpc" id="L740" title="1 of 2 branches missed.">            if (samePrefix) {</span>
+<span class="fc" id="L741">                JSONPathSingleName[] names = new JSONPathSingleName[jsonPaths.length];</span>
+<span class="fc bfc" id="L742" title="All 2 branches covered.">                for (int i = 0; i &lt; jsonPaths.length; i++) {</span>
+<span class="fc" id="L743">                    JSONPathMulti multi = (JSONPathMulti) jsonPaths[i];</span>
+<span class="fc" id="L744">                    JSONPathSegmentName name = (JSONPathSegmentName) multi.segments.get(2);</span>
+<span class="fc" id="L745">                    names[i] = new JSONPathSingleName(&quot;$.&quot; + name, name);</span>
+                }
+
+<span class="fc" id="L748">                JSONPath firstPath = jsonPaths[0];</span>
+<span class="fc" id="L749">                String prefixPath = firstPath.path.substring(0, firstPath.path.length() - names[0].name.length() - 1);</span>
+<span class="fc" id="L750">                JSONPathTwoSegment prefix = new JSONPathTwoSegment(prefixPath, first0, first1);</span>
+
+<span class="pc bpc" id="L752" title="1 of 4 branches missed.">                if (first0 instanceof JSONPathSegmentName &amp;&amp; first1 instanceof JSONPathSegmentName) {</span>
+<span class="fc" id="L753">                    return new JSONPathTypedMultiNamesPrefixName2(</span>
+                            jsonPaths,
+                            prefix,
+                            names,
+                            types,
+                            formats,
+                            pathFeatures,
+                            zoneId,
+                            featuresValue
+                    );
+                }
+
+<span class="fc" id="L765">                return new JSONPathTypedMultiNames(</span>
+                        jsonPaths,
+                        prefix,
+                        names,
+                        types,
+                        formats,
+                        pathFeatures,
+                        zoneId,
+                        featuresValue
+                );
+            }
+        }
+
+<span class="fc bfc" id="L778" title="All 4 branches covered.">        if (sameMultiLength &amp;&amp; paths.length &gt; 1) {</span>
+<span class="fc" id="L779">            boolean samePrefix = true;</span>
+<span class="fc" id="L780">            boolean sameType = true;</span>
+<span class="fc" id="L781">            int lastIndex = firstMulti.segments.size() - 1;</span>
+<span class="fc" id="L782">            JSONPathSegment lastSegment = firstMulti.segments.get(lastIndex);</span>
+
+<span class="fc bfc" id="L784" title="All 2 branches covered.">            for (int i = 0; i &lt; lastIndex; i++) {</span>
+<span class="fc" id="L785">                JSONPathSegment segment = firstMulti.segments.get(i);</span>
+<span class="fc bfc" id="L786" title="All 2 branches covered.">                for (int j = 1; j &lt; paths.length; j++) {</span>
+<span class="fc" id="L787">                    JSONPath jsonPath = jsonPaths[j];</span>
+
+                    JSONPathSegment segment1;
+<span class="fc bfc" id="L790" title="All 2 branches covered.">                    if (jsonPath instanceof JSONPathMulti) {</span>
+<span class="fc" id="L791">                        JSONPathMulti path = (JSONPathMulti) jsonPath;</span>
+<span class="fc" id="L792">                        segment1 = path.segments.get(i);</span>
+<span class="pc bpc" id="L793" title="1 of 2 branches missed.">                    } else if (jsonPath instanceof JSONPathSingleName) {</span>
+<span class="fc" id="L794">                        segment1 = ((JSONPathSingleName) jsonPath).segment;</span>
+<span class="nc bnc" id="L795" title="All 2 branches missed.">                    } else if (jsonPath instanceof JSONPathSingleIndex) {</span>
+<span class="nc" id="L796">                        segment1 = ((JSONPathSingleIndex) jsonPath).segment;</span>
+                    } else {
+<span class="nc" id="L798">                        segment1 = null;</span>
+                    }
+
+<span class="fc bfc" id="L801" title="All 2 branches covered.">                    if (!segment.equals(segment1)) {</span>
+<span class="fc" id="L802">                        samePrefix = false;</span>
+<span class="fc" id="L803">                        break;</span>
+                    }
+                }
+<span class="fc bfc" id="L806" title="All 2 branches covered.">                if (!samePrefix) {</span>
+<span class="fc" id="L807">                    break;</span>
+                }
+            }
+
+<span class="fc bfc" id="L811" title="All 2 branches covered.">            if (samePrefix) {</span>
+<span class="fc bfc" id="L812" title="All 2 branches covered.">                for (int i = 1; i &lt; paths.length; i++) {</span>
+<span class="fc" id="L813">                    JSONPathMulti path = (JSONPathMulti) jsonPaths[i];</span>
+<span class="pc bpc" id="L814" title="1 of 2 branches missed.">                    if (!lastSegment.getClass().equals(path.segments.get(lastIndex).getClass())) {</span>
+<span class="nc" id="L815">                        sameType = false;</span>
+<span class="nc" id="L816">                        break;</span>
+                    }
+                }
+<span class="pc bpc" id="L819" title="1 of 2 branches missed.">                if (sameType) {</span>
+<span class="fc" id="L820">                    List&lt;JSONPathSegment&gt; prefixSegments = firstMulti.segments.subList(0, lastIndex - 1);</span>
+<span class="fc" id="L821">                    String prefixPath = null;</span>
+<span class="fc" id="L822">                    int dotIndex = firstMulti.path.lastIndexOf('.');</span>
+<span class="fc bfc" id="L823" title="All 2 branches covered.">                    if (dotIndex != -1) {</span>
+<span class="fc" id="L824">                        prefixPath = firstMulti.path.substring(0, dotIndex - 1);</span>
+                    }
+<span class="fc bfc" id="L826" title="All 2 branches covered.">                    if (prefixPath != null) {</span>
+<span class="fc" id="L827">                        JSONPathMulti prefix = new JSONPathMulti(prefixPath, prefixSegments);</span>
+<span class="pc bpc" id="L828" title="1 of 2 branches missed.">                        if (lastSegment instanceof JSONPathSegmentIndex) {</span>
+<span class="fc" id="L829">                            JSONPath[] indexPaths = new JSONPath[paths.length];</span>
+<span class="fc bfc" id="L830" title="All 2 branches covered.">                            for (int i = 0; i &lt; jsonPaths.length; i++) {</span>
+<span class="fc" id="L831">                                JSONPathMulti path = (JSONPathMulti) jsonPaths[i];</span>
+<span class="fc" id="L832">                                JSONPathSegmentIndex lastSegmentIndex = (JSONPathSegmentIndex) path.segments.get(lastIndex);</span>
+<span class="fc" id="L833">                                indexPaths[i] = new JSONPathSingleIndex(lastSegmentIndex.toString(), lastSegmentIndex);</span>
+                            }
+<span class="fc" id="L835">                            return new JSONPathTypedMultiIndexes(</span>
+                                    jsonPaths,
+                                    prefix,
+                                    indexPaths,
+                                    types,
+                                    formats,
+                                    pathFeatures,
+                                    zoneId,
+                                    featuresValue
+                            );
+                        }
+                    }
+                }
+            }
+        }
+
+<span class="fc" id="L851">        return new JSONPathTypedMulti(jsonPaths, types, formats, pathFeatures, zoneId, featuresValue);</span>
+    }
+
+    public static JSONPath of(String path, Feature... features) {
+<span class="fc bfc" id="L855" title="All 2 branches covered.">        if (&quot;#-1&quot;.equals(path)) {</span>
+<span class="fc" id="L856">            return PreviousPath.INSTANCE;</span>
+        }
+
+<span class="fc" id="L859">        return new JSONPathParser(path)</span>
+<span class="fc" id="L860">                .parse(features);</span>
+    }
+
+    static JSONPathFilter.Operator parseOperator(JSONReader jsonReader) {
+        JSONPathFilter.Operator operator;
+<span class="fc bfc" id="L865" title="All 12 branches covered.">        switch (jsonReader.ch) {</span>
+            case '&lt;':
+<span class="fc" id="L867">                jsonReader.next();</span>
+<span class="fc bfc" id="L868" title="All 2 branches covered.">                if (jsonReader.ch == '=') {</span>
+<span class="fc" id="L869">                    jsonReader.next();</span>
+<span class="fc" id="L870">                    operator = JSONPathFilter.Operator.LE;</span>
+<span class="fc bfc" id="L871" title="All 2 branches covered.">                } else if (jsonReader.ch == '&gt;') {</span>
+<span class="fc" id="L872">                    jsonReader.next();</span>
+<span class="fc" id="L873">                    operator = JSONPathFilter.Operator.NE;</span>
+                } else {
+<span class="fc" id="L875">                    operator = JSONPathFilter.Operator.LT;</span>
+                }
+<span class="fc" id="L877">                break;</span>
+            case '=':
+<span class="fc" id="L879">                jsonReader.next();</span>
+<span class="fc bfc" id="L880" title="All 2 branches covered.">                if (jsonReader.ch == '~') {</span>
+<span class="fc" id="L881">                    jsonReader.next();</span>
+<span class="fc" id="L882">                    operator = JSONPathFilter.Operator.REG_MATCH;</span>
+<span class="fc bfc" id="L883" title="All 2 branches covered.">                } else if (jsonReader.ch == '=') {</span>
+<span class="fc" id="L884">                    jsonReader.next();</span>
+<span class="fc" id="L885">                    operator = JSONPathFilter.Operator.EQ;</span>
+                } else {
+<span class="fc" id="L887">                    operator = JSONPathFilter.Operator.EQ;</span>
+                }
+<span class="fc" id="L889">                break;</span>
+            case '!':
+<span class="fc" id="L891">                jsonReader.next();</span>
+<span class="fc bfc" id="L892" title="All 2 branches covered.">                if (jsonReader.ch == '=') {</span>
+<span class="fc" id="L893">                    jsonReader.next();</span>
+<span class="fc" id="L894">                    operator = JSONPathFilter.Operator.NE;</span>
+                } else {
+<span class="fc" id="L896">                    throw new JSONException(&quot;not support operator : !&quot; + jsonReader.ch);</span>
+                }
+                break;
+            case '&gt;':
+<span class="fc" id="L900">                jsonReader.next();</span>
+<span class="fc bfc" id="L901" title="All 2 branches covered.">                if (jsonReader.ch == '=') {</span>
+<span class="fc" id="L902">                    jsonReader.next();</span>
+<span class="fc" id="L903">                    operator = JSONPathFilter.Operator.GE;</span>
+                } else {
+<span class="fc" id="L905">                    operator = JSONPathFilter.Operator.GT;</span>
+                }
+<span class="fc" id="L907">                break;</span>
+            case 'l':
+            case 'L': {
+<span class="fc" id="L910">                jsonReader.readFieldNameHashCodeUnquote();</span>
+<span class="fc" id="L911">                String fieldName = jsonReader.getFieldName();</span>
+<span class="pc bpc" id="L912" title="1 of 2 branches missed.">                if (&quot;like&quot;.equalsIgnoreCase(fieldName)) {</span>
+<span class="fc" id="L913">                    operator = JSONPathFilter.Operator.LIKE;</span>
+                } else {
+<span class="nc" id="L915">                    throw new JSONException(&quot;not support operator : &quot; + fieldName);</span>
+                }
+                break;
+            }
+            case 'n':
+            case 'N': {
+<span class="fc" id="L921">                jsonReader.readFieldNameHashCodeUnquote();</span>
+<span class="fc" id="L922">                String fieldName = jsonReader.getFieldName();</span>
+
+<span class="fc bfc" id="L924" title="All 2 branches covered.">                if (&quot;nin&quot;.equalsIgnoreCase(fieldName)) {</span>
+<span class="fc" id="L925">                    operator = JSONPathFilter.Operator.NOT_IN;</span>
+<span class="fc" id="L926">                    break;</span>
+                }
+
+<span class="pc bpc" id="L929" title="1 of 2 branches missed.">                if (!&quot;not&quot;.equalsIgnoreCase(fieldName)) {</span>
+<span class="nc" id="L930">                    throw new JSONException(&quot;not support operator : &quot; + fieldName);</span>
+                }
+
+<span class="fc" id="L933">                jsonReader.readFieldNameHashCodeUnquote();</span>
+<span class="fc" id="L934">                fieldName = jsonReader.getFieldName();</span>
+<span class="fc bfc" id="L935" title="All 2 branches covered.">                if (&quot;like&quot;.equalsIgnoreCase(fieldName)) {</span>
+<span class="fc" id="L936">                    operator = JSONPathFilter.Operator.NOT_LIKE;</span>
+<span class="pc bpc" id="L937" title="1 of 2 branches missed.">                } else if (&quot;rlike&quot;.equalsIgnoreCase(fieldName)) {</span>
+<span class="nc" id="L938">                    operator = JSONPathFilter.Operator.NOT_RLIKE;</span>
+<span class="fc bfc" id="L939" title="All 2 branches covered.">                } else if (&quot;in&quot;.equalsIgnoreCase(fieldName)) {</span>
+<span class="fc" id="L940">                    operator = JSONPathFilter.Operator.NOT_IN;</span>
+<span class="pc bpc" id="L941" title="1 of 2 branches missed.">                } else if (&quot;between&quot;.equalsIgnoreCase(fieldName)) {</span>
+<span class="fc" id="L942">                    operator = JSONPathFilter.Operator.NOT_BETWEEN;</span>
+                } else {
+<span class="nc" id="L944">                    throw new JSONException(&quot;not support operator : &quot; + fieldName);</span>
+                }
+                break;
+            }
+            case 'i':
+            case 'I': {
+<span class="fc" id="L950">                jsonReader.readFieldNameHashCodeUnquote();</span>
+<span class="fc" id="L951">                String fieldName = jsonReader.getFieldName();</span>
+<span class="fc bfc" id="L952" title="All 2 branches covered.">                if (&quot;in&quot;.equalsIgnoreCase(fieldName)) {</span>
+<span class="fc" id="L953">                    operator = JSONPathFilter.Operator.IN;</span>
+<span class="pc bpc" id="L954" title="1 of 2 branches missed.">                } else if (&quot;is&quot;.equalsIgnoreCase(fieldName)) {</span>
+<span class="fc" id="L955">                    operator = JSONPathFilter.Operator.EQ;</span>
+                } else {
+<span class="nc" id="L957">                    throw new JSONException(&quot;not support operator : &quot; + fieldName);</span>
+                }
+                break;
+            }
+            case 'r':
+            case 'R': {
+<span class="fc" id="L963">                jsonReader.readFieldNameHashCodeUnquote();</span>
+<span class="fc" id="L964">                String fieldName = jsonReader.getFieldName();</span>
+<span class="pc bpc" id="L965" title="1 of 2 branches missed.">                if (&quot;rlike&quot;.equalsIgnoreCase(fieldName)) {</span>
+<span class="fc" id="L966">                    operator = JSONPathFilter.Operator.RLIKE;</span>
+                } else {
+<span class="nc" id="L968">                    throw new JSONException(&quot;not support operator : &quot; + fieldName);</span>
+                }
+                break;
+            }
+            case 'b':
+            case 'B': {
+<span class="fc" id="L974">                jsonReader.readFieldNameHashCodeUnquote();</span>
+<span class="fc" id="L975">                String fieldName = jsonReader.getFieldName();</span>
+<span class="pc bpc" id="L976" title="1 of 2 branches missed.">                if (&quot;between&quot;.equalsIgnoreCase(fieldName)) {</span>
+<span class="fc" id="L977">                    operator = JSONPathFilter.Operator.BETWEEN;</span>
+                } else {
+<span class="nc" id="L979">                    throw new JSONException(&quot;not support operator : &quot; + fieldName);</span>
+                }
+                break;
+            }
+            case 's':
+            case 'S': {
+<span class="fc" id="L985">                jsonReader.readFieldNameHashCodeUnquote();</span>
+<span class="fc" id="L986">                String fieldName = jsonReader.getFieldName();</span>
+<span class="fc bfc" id="L987" title="All 2 branches covered.">                if (&quot;starts&quot;.equalsIgnoreCase(fieldName)) {</span>
+<span class="fc" id="L988">                    jsonReader.readFieldNameHashCodeUnquote();</span>
+<span class="fc" id="L989">                    fieldName = jsonReader.getFieldName();</span>
+<span class="pc bpc" id="L990" title="1 of 2 branches missed.">                    if (!&quot;with&quot;.equalsIgnoreCase(fieldName)) {</span>
+<span class="nc" id="L991">                        throw new JSONException(&quot;not support operator : &quot; + fieldName);</span>
+                    }
+<span class="pc bpc" id="L993" title="1 of 2 branches missed.">                } else if (!&quot;startsWith&quot;.equalsIgnoreCase(fieldName)) {</span>
+<span class="nc" id="L994">                    throw new JSONException(&quot;not support operator : &quot; + fieldName);</span>
+                }
+
+<span class="fc" id="L997">                operator = JSONPathFilter.Operator.STARTS_WITH;</span>
+<span class="fc" id="L998">                break;</span>
+            }
+            case 'e':
+            case 'E':
+<span class="fc" id="L1002">                jsonReader.readFieldNameHashCodeUnquote();</span>
+<span class="fc" id="L1003">                String fieldName = jsonReader.getFieldName();</span>
+<span class="fc bfc" id="L1004" title="All 2 branches covered.">                if (&quot;ends&quot;.equalsIgnoreCase(fieldName)) {</span>
+<span class="fc" id="L1005">                    jsonReader.readFieldNameHashCodeUnquote();</span>
+<span class="fc" id="L1006">                    fieldName = jsonReader.getFieldName();</span>
+<span class="pc bpc" id="L1007" title="1 of 2 branches missed.">                    if (!&quot;with&quot;.equalsIgnoreCase(fieldName)) {</span>
+<span class="nc" id="L1008">                        throw new JSONException(&quot;not support operator : &quot; + fieldName);</span>
+                    }
+<span class="pc bpc" id="L1010" title="1 of 2 branches missed.">                } else if (!&quot;endsWith&quot;.equalsIgnoreCase(fieldName)) {</span>
+<span class="nc" id="L1011">                    throw new JSONException(&quot;not support operator : &quot; + fieldName);</span>
+                }
+
+<span class="fc" id="L1014">                operator = JSONPathFilter.Operator.ENDS_WITH;</span>
+<span class="fc" id="L1015">                break;</span>
+            default: {
+<span class="fc" id="L1017">                jsonReader.readFieldNameHashCodeUnquote();</span>
+<span class="fc" id="L1018">                throw new JSONException(&quot;not support operator : &quot; + jsonReader.getFieldName());</span>
+            }
+        }
+<span class="fc" id="L1021">        return operator;</span>
+    }
+
+    static final class PreviousPath
+            extends JSONPath {
+<span class="fc" id="L1026">        static final PreviousPath INSTANCE = new PreviousPath(&quot;#-1&quot;);</span>
+
+        PreviousPath(String path) {
+<span class="fc" id="L1029">            super(path);</span>
+<span class="fc" id="L1030">        }</span>
+
+        @Override
+        public boolean isRef() {
+<span class="fc" id="L1034">            throw new JSONException(&quot;unsupported operation&quot;);</span>
+        }
+
+        @Override
+        public boolean isPrevious() {
+<span class="fc" id="L1039">            return true;</span>
+        }
+
+        @Override
+        public boolean contains(Object rootObject) {
+<span class="fc" id="L1044">            throw new JSONException(&quot;unsupported operation&quot;);</span>
+        }
+
+        @Override
+        public Object eval(Object rootObject) {
+<span class="fc" id="L1049">            throw new JSONException(&quot;unsupported operation&quot;);</span>
+        }
+
+        @Override
+        public Object extract(JSONReader jsonReader) {
+<span class="fc" id="L1054">            throw new JSONException(&quot;unsupported operation&quot;);</span>
+        }
+
+        @Override
+        public String extractScalar(JSONReader jsonReader) {
+<span class="fc" id="L1059">            throw new JSONException(&quot;unsupported operation&quot;);</span>
+        }
+
+        @Override
+        public void set(Object rootObject, Object value) {
+<span class="fc" id="L1064">            throw new JSONException(&quot;unsupported operation&quot;);</span>
+        }
+
+        @Override
+        public void set(Object rootObject, Object value, JSONReader.Feature... readerFeatures) {
+<span class="fc" id="L1069">            throw new JSONException(&quot;unsupported operation&quot;);</span>
+        }
+
+        @Override
+        public void setCallback(Object rootObject, BiFunction callback) {
+<span class="fc" id="L1074">            throw new JSONException(&quot;unsupported operation&quot;);</span>
+        }
+
+        @Override
+        public JSONPath getParent() {
+<span class="fc" id="L1079">            throw new JSONException(&quot;unsupported operation&quot;);</span>
+        }
+
+        @Override
+        public void setInt(Object rootObject, int value) {
+<span class="fc" id="L1084">            throw new JSONException(&quot;unsupported operation&quot;);</span>
+        }
+
+        @Override
+        public void setLong(Object rootObject, long value) {
+<span class="fc" id="L1089">            throw new JSONException(&quot;unsupported operation&quot;);</span>
+        }
+
+        @Override
+        public boolean remove(Object rootObject) {
+<span class="fc" id="L1094">            throw new JSONException(&quot;unsupported operation&quot;);</span>
+        }
+    }
+
+    static final class RootPath
+            extends JSONPath {
+<span class="fc" id="L1100">        static final RootPath INSTANCE = new RootPath();</span>
+
+        private RootPath() {
+<span class="fc" id="L1103">            super(&quot;$&quot;);</span>
+<span class="fc" id="L1104">        }</span>
+
+        @Override
+        public boolean isRef() {
+<span class="fc" id="L1108">            return true;</span>
+        }
+
+        @Override
+        public boolean contains(Object object) {
+<span class="fc" id="L1113">            return false;</span>
+        }
+
+        @Override
+        public Object eval(Object object) {
+<span class="fc" id="L1118">            return object;</span>
+        }
+
+        @Override
+        public Object extract(JSONReader jsonReader) {
+<span class="fc bfc" id="L1123" title="All 2 branches covered.">            if (jsonReader == null) {</span>
+<span class="fc" id="L1124">                return null;</span>
+            }
+<span class="fc" id="L1126">            return jsonReader.readAny();</span>
+        }
+
+        @Override
+        public String extractScalar(JSONReader jsonReader) {
+<span class="fc" id="L1131">            Object any = jsonReader.readAny();</span>
+<span class="fc" id="L1132">            return JSON.toJSONString(any);</span>
+        }
+
+        @Override
+        public void set(Object object, Object value) {
+<span class="fc" id="L1137">            throw new JSONException(&quot;unsupported operation&quot;);</span>
+        }
+
+        @Override
+        public void set(Object object, Object value, JSONReader.Feature... readerFeatures) {
+<span class="fc" id="L1142">            throw new JSONException(&quot;unsupported operation&quot;);</span>
+        }
+
+        @Override
+        public void setCallback(Object object, BiFunction callback) {
+<span class="fc" id="L1147">            throw new JSONException(&quot;unsupported operation&quot;);</span>
+        }
+
+        @Override
+        public void setInt(Object object, int value) {
+<span class="fc" id="L1152">            throw new JSONException(&quot;unsupported operation&quot;);</span>
+        }
+
+        @Override
+        public void setLong(Object object, long value) {
+<span class="fc" id="L1157">            throw new JSONException(&quot;unsupported operation&quot;);</span>
+        }
+
+        @Override
+        public boolean remove(Object object) {
+<span class="fc" id="L1162">            return false;</span>
+        }
+
+        @Override
+        public JSONPath getParent() {
+<span class="fc" id="L1167">            return null;</span>
+        }
+    }
+
+    static final class Context {
+        final JSONPath path;
+        final Context parent;
+        final JSONPathSegment current;
+        final JSONPathSegment next;
+        final long readerFeatures;
+        Object root;
+        Object value;
+
+        boolean eval;
+
+<span class="fc" id="L1182">        Context(JSONPath path, Context parent, JSONPathSegment current, JSONPathSegment next, long readerFeatures) {</span>
+<span class="fc" id="L1183">            this.path = path;</span>
+<span class="fc" id="L1184">            this.current = current;</span>
+<span class="fc" id="L1185">            this.next = next;</span>
+<span class="fc" id="L1186">            this.parent = parent;</span>
+<span class="fc" id="L1187">            this.readerFeatures = readerFeatures;</span>
+<span class="fc" id="L1188">        }</span>
+    }
+
+    static class Sequence {
+        final List values;
+
+<span class="fc" id="L1194">        public Sequence(List values) {</span>
+<span class="fc" id="L1195">            this.values = values;</span>
+<span class="fc" id="L1196">        }</span>
+    }
+
+<span class="fc" id="L1199">    public enum Feature {</span>
+<span class="fc" id="L1200">        AlwaysReturnList(1),</span>
+<span class="fc" id="L1201">        NullOnError(1 &lt;&lt; 1),</span>
+<span class="fc" id="L1202">        KeepNullValue(1 &lt;&lt; 2);</span>
+
+        public final long mask;
+
+<span class="fc" id="L1206">        Feature(long mask) {</span>
+<span class="fc" id="L1207">            this.mask = mask;</span>
+<span class="fc" id="L1208">        }</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.8.202204050719</span></div></body></html>

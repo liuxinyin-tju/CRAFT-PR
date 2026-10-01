@@ -1,0 +1,16 @@
+{
+    "7041_dubbo-common/src/main/java/org/apache/dubbo/common/utils/ReflectUtils.java#getReturnTypes(Method)": {
+        "success": true,
+        "function_name": "getReturnTypes(Method)",
+        "file_path": "dubbo-common/src/main/java/org/apache/dubbo/common/utils/ReflectUtils.java",
+        "start_line": 0,
+        "end_line": 0,
+        "instruction_coverage": 0.0,
+        "branch_coverage": 0.0,
+        "line_coverage": 0.0,
+        "total_lines_num": 0,
+        "missed_lines_num": 0,
+        "missed_lines": [],
+        "annotated_code": "public static Type[] getReturnTypes(Method method) {\n        Class<?> returnType = method.getReturnType();\n        Type genericReturnType = method.getGenericReturnType();\n        if (Future.class.isAssignableFrom(returnType)) {\n            if (genericReturnType instanceof ParameterizedType) {\n                Type actualArgType = ((ParameterizedType) genericReturnType).getActualTypeArguments()[0];\n                if (actualArgType instanceof ParameterizedType) {\n                    returnType = (Class<?>) ((ParameterizedType) actualArgType).getRawType();\n                    genericReturnType = actualArgType;\n                } else if (actualArgType instanceof TypeVariable) {\n                    returnType = (Class<?>) ((TypeVariable<?>) actualArgType).getBounds()[0];\n                    genericReturnType = actualArgType;\n                } else {\n                    returnType = (Class<?>) actualArgType;\n                    genericReturnType = returnType;\n                }\n            } else {\n                returnType = null;\n                genericReturnType = null;\n            }\n        }\n        return new Type[]{returnType, genericReturnType};\n    }"
+    }
+}

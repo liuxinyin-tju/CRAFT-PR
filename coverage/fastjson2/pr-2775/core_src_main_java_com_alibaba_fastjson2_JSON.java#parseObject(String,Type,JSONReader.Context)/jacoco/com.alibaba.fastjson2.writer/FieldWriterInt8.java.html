@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>FieldWriterInt8.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">fastjson2</a> &gt; <a href="index.source.html" class="el_package">com.alibaba.fastjson2.writer</a> &gt; <span class="el_source">FieldWriterInt8.java</span></div><h1>FieldWriterInt8.java</h1><pre class="source lang-java linenums">package com.alibaba.fastjson2.writer;
+
+import com.alibaba.fastjson2.JSONWriter;
+
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
+
+abstract class FieldWriterInt8&lt;T&gt;
+        extends FieldWriter&lt;T&gt; {
+    FieldWriterInt8(
+            String name,
+            int ordinal,
+            long features,
+            String format,
+            String label,
+            Class fieldClass,
+            Field field,
+            Method method
+    ) {
+<span class="fc" id="L20">        super(name, ordinal, features, format, null, label, fieldClass, fieldClass, field, method);</span>
+<span class="fc" id="L21">    }</span>
+
+    protected final void writeInt8(JSONWriter jsonWriter, byte value) {
+<span class="fc bfc" id="L24" title="All 2 branches covered.">        boolean writeNonStringValueAsString = (features &amp; JSONWriter.Feature.WriteNonStringValueAsString.mask) != 0;</span>
+<span class="fc bfc" id="L25" title="All 2 branches covered.">        if (writeNonStringValueAsString) {</span>
+<span class="fc" id="L26">            writeFieldName(jsonWriter);</span>
+<span class="fc" id="L27">            jsonWriter.writeString(Byte.toString(value));</span>
+<span class="fc" id="L28">            return;</span>
+        }
+<span class="fc" id="L30">        writeFieldName(jsonWriter);</span>
+<span class="fc" id="L31">        jsonWriter.writeInt8(value);</span>
+<span class="fc" id="L32">    }</span>
+
+    @Override
+    public boolean write(JSONWriter jsonWriter, T object) {
+        Byte value;
+        try {
+<span class="fc" id="L38">            value = (Byte) getFieldValue(object);</span>
+<span class="fc" id="L39">        } catch (RuntimeException error) {</span>
+<span class="pc bpc" id="L40" title="1 of 2 branches missed.">            if (jsonWriter.isIgnoreErrorGetter()) {</span>
+<span class="fc" id="L41">                return false;</span>
+            }
+<span class="nc" id="L43">            throw error;</span>
+<span class="fc" id="L44">        }</span>
+
+<span class="fc bfc" id="L46" title="All 2 branches covered.">        if (value == null) {</span>
+<span class="fc" id="L47">            long features = this.features | jsonWriter.getFeatures();</span>
+<span class="fc bfc" id="L48" title="All 2 branches covered.">            if ((features &amp; JSONWriter.Feature.WriteNulls.mask) == 0) {</span>
+<span class="fc" id="L49">                return false;</span>
+            }
+<span class="fc" id="L51">            writeFieldName(jsonWriter);</span>
+<span class="fc" id="L52">            jsonWriter.writeNumberNull();</span>
+<span class="fc" id="L53">            return true;</span>
+        }
+
+<span class="fc" id="L56">        writeInt8(jsonWriter, value);</span>
+<span class="fc" id="L57">        return true;</span>
+    }
+
+    @Override
+    public void writeValue(JSONWriter jsonWriter, T object) {
+<span class="fc" id="L62">        Byte value = (Byte) getFieldValue(object);</span>
+<span class="fc bfc" id="L63" title="All 2 branches covered.">        if (value == null) {</span>
+<span class="fc" id="L64">            jsonWriter.writeNumberNull();</span>
+<span class="fc" id="L65">            return;</span>
+        }
+<span class="fc" id="L67">        jsonWriter.writeInt32(value);</span>
+<span class="fc" id="L68">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.8.202204050719</span></div></body></html>

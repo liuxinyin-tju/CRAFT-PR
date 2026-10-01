@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>AllOf.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">fastjson2</a> &gt; <a href="index.source.html" class="el_package">com.alibaba.fastjson2.schema</a> &gt; <span class="el_source">AllOf.java</span></div><h1>AllOf.java</h1><pre class="source lang-java linenums">package com.alibaba.fastjson2.schema;
+
+import com.alibaba.fastjson2.JSONArray;
+import com.alibaba.fastjson2.JSONException;
+import com.alibaba.fastjson2.JSONObject;
+
+final class AllOf
+        extends JSONSchema {
+    final JSONSchema[] items;
+
+    public AllOf(JSONSchema[] items) {
+<span class="fc" id="L12">        super(null, null);</span>
+<span class="fc" id="L13">        this.items = items;</span>
+<span class="fc" id="L14">    }</span>
+
+    public AllOf(JSONObject input, JSONSchema parent) {
+<span class="fc" id="L17">        super(input);</span>
+<span class="fc" id="L18">        JSONArray items = input.getJSONArray(&quot;allOf&quot;);</span>
+<span class="pc bpc" id="L19" title="2 of 4 branches missed.">        if (items == null || items.isEmpty()) {</span>
+<span class="nc" id="L20">            throw new JSONException(&quot;allOf not found&quot;);</span>
+        }
+
+<span class="fc" id="L23">        this.items = new JSONSchema[items.size()];</span>
+<span class="fc" id="L24">        Type type = null;</span>
+<span class="fc bfc" id="L25" title="All 2 branches covered.">        for (int i = 0; i &lt; this.items.length; i++) {</span>
+<span class="fc" id="L26">            JSONSchema itemSchema = null;</span>
+
+<span class="fc" id="L28">            Object item = items.get(i);</span>
+<span class="fc bfc" id="L29" title="All 2 branches covered.">            if (item instanceof Boolean) {</span>
+<span class="fc bfc" id="L30" title="All 2 branches covered.">                itemSchema = (Boolean) item ? Any.INSTANCE : Any.NOT_ANY;</span>
+            } else {
+<span class="fc" id="L32">                JSONObject itemObject = (JSONObject) item;</span>
+<span class="fc bfc" id="L33" title="All 4 branches covered.">                if (!itemObject.containsKey(&quot;type&quot;) &amp;&amp; type != null) {</span>
+<span class="pc bpc" id="L34" title="3 of 7 branches missed.">                    switch (type) {</span>
+                        case String:
+<span class="fc" id="L36">                            itemSchema = new StringSchema(itemObject);</span>
+<span class="fc" id="L37">                            break;</span>
+                        case Integer:
+<span class="nc" id="L39">                            itemSchema = new IntegerSchema(itemObject);</span>
+<span class="nc" id="L40">                            break;</span>
+                        case Number:
+<span class="fc" id="L42">                            itemSchema = new NumberSchema(itemObject);</span>
+<span class="fc" id="L43">                            break;</span>
+                        case Boolean:
+<span class="nc" id="L45">                            itemSchema = new BooleanSchema(itemObject);</span>
+<span class="nc" id="L46">                            break;</span>
+                        case Array:
+<span class="nc" id="L48">                            itemSchema = new ArraySchema(itemObject, null);</span>
+<span class="nc" id="L49">                            break;</span>
+                        case Object:
+<span class="fc" id="L51">                            itemSchema = new ObjectSchema(itemObject);</span>
+<span class="fc" id="L52">                            break;</span>
+                        default:
+                            break;
+                    }
+                }
+<span class="fc bfc" id="L57" title="All 2 branches covered.">                if (itemSchema == null) {</span>
+<span class="fc" id="L58">                    itemSchema = JSONSchema.of(itemObject, parent);</span>
+                }
+            }
+
+<span class="fc" id="L62">            type = itemSchema.getType();</span>
+<span class="fc" id="L63">            this.items[i] = itemSchema;</span>
+        }
+<span class="fc" id="L65">    }</span>
+
+    @Override
+    public Type getType() {
+<span class="fc" id="L69">        return Type.AllOf;</span>
+    }
+
+    @Override
+    public ValidateResult validate(Object value) {
+<span class="fc bfc" id="L74" title="All 2 branches covered.">        for (JSONSchema item : items) {</span>
+<span class="fc" id="L75">            ValidateResult result = item.validate(value);</span>
+<span class="fc bfc" id="L76" title="All 2 branches covered.">            if (!result.isSuccess()) {</span>
+<span class="fc" id="L77">                return result;</span>
+            }
+        }
+<span class="fc" id="L80">        return SUCCESS;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.8.202204050719</span></div></body></html>

@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>CodeGenUtils.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">fastjson2</a> &gt; <a href="index.source.html" class="el_package">com.alibaba.fastjson2.internal</a> &gt; <span class="el_source">CodeGenUtils.java</span></div><h1>CodeGenUtils.java</h1><pre class="source lang-java linenums">package com.alibaba.fastjson2.internal;
+
+import com.alibaba.fastjson2.util.IOUtils;
+
+<span class="nc" id="L5">public class CodeGenUtils {</span>
+    public static String fieldReader(int i) {
+<span class="fc bfc" id="L7" title="All 17 branches covered.">        switch (i) {</span>
+            case 0:
+<span class="fc" id="L9">                return &quot;fieldReader0&quot;;</span>
+            case 1:
+<span class="fc" id="L11">                return &quot;fieldReader1&quot;;</span>
+            case 2:
+<span class="fc" id="L13">                return &quot;fieldReader2&quot;;</span>
+            case 3:
+<span class="fc" id="L15">                return &quot;fieldReader3&quot;;</span>
+            case 4:
+<span class="fc" id="L17">                return &quot;fieldReader4&quot;;</span>
+            case 5:
+<span class="fc" id="L19">                return &quot;fieldReader5&quot;;</span>
+            case 6:
+<span class="fc" id="L21">                return &quot;fieldReader6&quot;;</span>
+            case 7:
+<span class="fc" id="L23">                return &quot;fieldReader7&quot;;</span>
+            case 8:
+<span class="fc" id="L25">                return &quot;fieldReader8&quot;;</span>
+            case 9:
+<span class="fc" id="L27">                return &quot;fieldReader9&quot;;</span>
+            case 10:
+<span class="fc" id="L29">                return &quot;fieldReader10&quot;;</span>
+            case 11:
+<span class="fc" id="L31">                return &quot;fieldReader11&quot;;</span>
+            case 12:
+<span class="fc" id="L33">                return &quot;fieldReader12&quot;;</span>
+            case 13:
+<span class="fc" id="L35">                return &quot;fieldReader13&quot;;</span>
+            case 14:
+<span class="fc" id="L37">                return &quot;fieldReader14&quot;;</span>
+            case 15:
+<span class="fc" id="L39">                return &quot;fieldReader15&quot;;</span>
+            default:
+<span class="fc" id="L41">                String base = &quot;fieldReader&quot;;</span>
+<span class="fc" id="L42">                final int baseSize = base.length();</span>
+<span class="fc" id="L43">                int size = IOUtils.stringSize(i);</span>
+<span class="fc" id="L44">                char[] chars = new char[baseSize + size];</span>
+<span class="fc" id="L45">                base.getChars(0, baseSize, chars, 0);</span>
+<span class="fc" id="L46">                IOUtils.writeInt32(chars, baseSize, i);</span>
+<span class="fc" id="L47">                return new String(chars);</span>
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.8.202204050719</span></div></body></html>

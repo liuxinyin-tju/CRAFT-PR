@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>SimplePropertyPreFilter.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">fastjson2</a> &gt; <a href="index.source.html" class="el_package">com.alibaba.fastjson2.filter</a> &gt; <span class="el_source">SimplePropertyPreFilter.java</span></div><h1>SimplePropertyPreFilter.java</h1><pre class="source lang-java linenums">package com.alibaba.fastjson2.filter;
+
+import com.alibaba.fastjson2.JSONWriter;
+
+import java.util.HashSet;
+import java.util.Set;
+
+public class SimplePropertyPreFilter
+        implements PropertyPreFilter {
+    private final Class&lt;?&gt; clazz;
+<span class="fc" id="L11">    private final Set&lt;String&gt; includes = new HashSet&lt;&gt;();</span>
+<span class="fc" id="L12">    private final Set&lt;String&gt; excludes = new HashSet&lt;&gt;();</span>
+    private int maxLevel;
+
+    public SimplePropertyPreFilter(String... properties) {
+<span class="fc" id="L16">        this(null, properties);</span>
+<span class="fc" id="L17">    }</span>
+
+    public SimplePropertyPreFilter(Class&lt;?&gt; clazz, String... properties) {
+<span class="fc" id="L20">        super();</span>
+<span class="fc" id="L21">        this.clazz = clazz;</span>
+<span class="fc bfc" id="L22" title="All 2 branches covered.">        for (String item : properties) {</span>
+<span class="pc bpc" id="L23" title="1 of 2 branches missed.">            if (item != null) {</span>
+<span class="fc" id="L24">                this.includes.add(item);</span>
+            }
+        }
+<span class="fc" id="L27">    }</span>
+
+    /**
+     * @since 1.2.9
+     */
+    public int getMaxLevel() {
+<span class="fc" id="L33">        return maxLevel;</span>
+    }
+
+    /**
+     * @since 1.2.9
+     */
+    public void setMaxLevel(int maxLevel) {
+<span class="fc" id="L40">        this.maxLevel = maxLevel;</span>
+<span class="fc" id="L41">    }</span>
+
+    public Class&lt;?&gt; getClazz() {
+<span class="fc" id="L44">        return clazz;</span>
+    }
+
+    public Set&lt;String&gt; getIncludes() {
+<span class="fc" id="L48">        return includes;</span>
+    }
+
+    public Set&lt;String&gt; getExcludes() {
+<span class="fc" id="L52">        return excludes;</span>
+    }
+
+    @Override
+    public boolean process(JSONWriter writer, Object source, String name) {
+<span class="pc bpc" id="L57" title="1 of 2 branches missed.">        if (source == null) {</span>
+<span class="nc" id="L58">            return true;</span>
+        }
+
+<span class="fc bfc" id="L61" title="All 4 branches covered.">        if (clazz != null &amp;&amp; !clazz.isInstance(source)) {</span>
+<span class="fc" id="L62">            return true;</span>
+        }
+
+<span class="fc bfc" id="L65" title="All 2 branches covered.">        if (this.excludes.contains(name)) {</span>
+<span class="fc" id="L66">            return false;</span>
+        }
+
+<span class="fc bfc" id="L69" title="All 4 branches covered.">        if (maxLevel &gt; 0 &amp;&amp; writer.level() &gt; maxLevel) {</span>
+<span class="fc" id="L70">            return false;</span>
+        }
+
+<span class="fc bfc" id="L73" title="All 2 branches covered.">        return includes.size() == 0</span>
+<span class="fc bfc" id="L74" title="All 2 branches covered.">                || includes.contains(name);</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.8.202204050719</span></div></body></html>

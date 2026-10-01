@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>FieldReaderListField.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">fastjson2</a> &gt; <a href="index.source.html" class="el_package">com.alibaba.fastjson2.reader</a> &gt; <span class="el_source">FieldReaderListField.java</span></div><h1>FieldReaderListField.java</h1><pre class="source lang-java linenums">package com.alibaba.fastjson2.reader;
+
+import com.alibaba.fastjson2.schema.JSONSchema;
+
+import java.lang.reflect.Field;
+import java.lang.reflect.Type;
+import java.util.Collection;
+import java.util.Locale;
+
+import static com.alibaba.fastjson2.util.JDKUtils.UNSAFE;
+
+final class FieldReaderListField&lt;T&gt;
+        extends FieldReaderList&lt;T, Object&gt; {
+    FieldReaderListField(
+            String fieldName,
+            Type fieldType,
+            Class fieldClass,
+            Type itemType,
+            Class itemClass,
+            int ordinal,
+            long features,
+            String format,
+            Locale locale,
+            Collection defaultValue,
+            JSONSchema schema,
+            Field field) {
+<span class="fc" id="L27">        super(</span>
+                fieldName,
+                fieldType,
+                fieldClass,
+                itemType,
+                itemClass,
+                ordinal,
+                features,
+                format,
+                locale,
+                defaultValue,
+                schema,
+                null,
+                field,
+                null
+        );
+<span class="fc" id="L43">    }</span>
+
+    @Override
+    public void accept(Object object, Object value) {
+<span class="fc bfc" id="L47" title="All 2 branches covered.">        if (schema != null) {</span>
+<span class="fc" id="L48">            schema.assertValidate(value);</span>
+        }
+
+<span class="fc" id="L51">        UNSAFE.putObject(object, fieldOffset, value);</span>
+<span class="fc" id="L52">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.8.202204050719</span></div></body></html>

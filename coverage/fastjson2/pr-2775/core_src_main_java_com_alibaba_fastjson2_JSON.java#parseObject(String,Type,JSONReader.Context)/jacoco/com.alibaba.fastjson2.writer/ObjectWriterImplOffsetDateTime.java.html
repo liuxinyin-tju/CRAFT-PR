@@ -1,0 +1,109 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ObjectWriterImplOffsetDateTime.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">fastjson2</a> &gt; <a href="index.source.html" class="el_package">com.alibaba.fastjson2.writer</a> &gt; <span class="el_source">ObjectWriterImplOffsetDateTime.java</span></div><h1>ObjectWriterImplOffsetDateTime.java</h1><pre class="source lang-java linenums">package com.alibaba.fastjson2.writer;
+
+import com.alibaba.fastjson2.JSONWriter;
+import com.alibaba.fastjson2.codec.DateTimeCodec;
+
+import java.lang.reflect.Type;
+import java.time.OffsetDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.Locale;
+
+final class ObjectWriterImplOffsetDateTime
+        extends DateTimeCodec implements ObjectWriter {
+<span class="fc" id="L13">    static final ObjectWriterImplOffsetDateTime INSTANCE = new ObjectWriterImplOffsetDateTime(null, null);</span>
+
+    private ObjectWriterImplOffsetDateTime(String format, Locale locale) {
+<span class="fc" id="L16">        super(format, locale);</span>
+<span class="fc" id="L17">    }</span>
+
+    public static ObjectWriterImplOffsetDateTime of(String format, Locale locale) {
+<span class="fc bfc" id="L20" title="All 2 branches covered.">        if (format == null) {</span>
+<span class="fc" id="L21">            return INSTANCE;</span>
+        }
+<span class="fc" id="L23">        return new ObjectWriterImplOffsetDateTime(format, locale);</span>
+    }
+
+    @Override
+    public void write(JSONWriter jsonWriter, Object object, Object fieldName, Type fieldType, long features) {
+<span class="pc bpc" id="L28" title="1 of 2 branches missed.">        if (object == null) {</span>
+<span class="nc" id="L29">            jsonWriter.writeNull();</span>
+<span class="nc" id="L30">            return;</span>
+        }
+
+<span class="fc" id="L33">        JSONWriter.Context ctx = jsonWriter.context;</span>
+
+<span class="fc" id="L35">        OffsetDateTime odt = (OffsetDateTime) object;</span>
+
+<span class="pc bpc" id="L37" title="2 of 6 branches missed.">        if (formatUnixTime || (format == null &amp;&amp; ctx.isDateFormatUnixTime())) {</span>
+<span class="nc" id="L38">            long millis = odt</span>
+<span class="nc" id="L39">                    .toInstant()</span>
+<span class="nc" id="L40">                    .toEpochMilli();</span>
+<span class="nc" id="L41">            jsonWriter.writeInt64(millis / 1000);</span>
+<span class="nc" id="L42">            return;</span>
+        }
+
+<span class="pc bpc" id="L45" title="2 of 6 branches missed.">        if (formatMillis || (format == null &amp;&amp; ctx.isDateFormatMillis())) {</span>
+<span class="nc" id="L46">            long millis = odt</span>
+<span class="nc" id="L47">                    .toInstant()</span>
+<span class="nc" id="L48">                    .toEpochMilli();</span>
+<span class="nc" id="L49">            jsonWriter.writeInt64(millis);</span>
+<span class="nc" id="L50">            return;</span>
+        }
+
+<span class="fc" id="L53">        final int year = odt.getYear();</span>
+<span class="fc bfc" id="L54" title="All 4 branches covered.">        if (year &gt;= 0 &amp;&amp; year &lt;= 9999) {</span>
+<span class="pc bpc" id="L55" title="2 of 4 branches missed.">            if (formatISO8601 || ctx.isDateFormatISO8601()) {</span>
+<span class="nc" id="L56">                jsonWriter.writeDateTimeISO8601(</span>
+                        year,
+<span class="nc" id="L58">                        odt.getMonthValue(),</span>
+<span class="nc" id="L59">                        odt.getDayOfMonth(),</span>
+<span class="nc" id="L60">                        odt.getHour(),</span>
+<span class="nc" id="L61">                        odt.getMinute(),</span>
+<span class="nc" id="L62">                        odt.getSecond(),</span>
+<span class="nc" id="L63">                        odt.getNano() / 1000_000,</span>
+<span class="nc" id="L64">                        odt.getOffset().getTotalSeconds(),</span>
+                        true
+                );
+<span class="nc" id="L67">                return;</span>
+            }
+
+<span class="pc bpc" id="L70" title="1 of 2 branches missed.">            if (yyyyMMddhhmmss19) {</span>
+<span class="nc" id="L71">                jsonWriter.writeDateTime19(</span>
+                        year,
+<span class="nc" id="L73">                        odt.getMonthValue(),</span>
+<span class="nc" id="L74">                        odt.getDayOfMonth(),</span>
+<span class="nc" id="L75">                        odt.getHour(),</span>
+<span class="nc" id="L76">                        odt.getMinute(),</span>
+<span class="nc" id="L77">                        odt.getSecond()</span>
+                );
+<span class="nc" id="L79">                return;</span>
+            }
+
+<span class="pc bpc" id="L82" title="1 of 2 branches missed.">            if (yyyyMMddhhmmss14) {</span>
+<span class="nc" id="L83">                jsonWriter.writeDateTime14(</span>
+                        year,
+<span class="nc" id="L85">                        odt.getMonthValue(),</span>
+<span class="nc" id="L86">                        odt.getDayOfMonth(),</span>
+<span class="nc" id="L87">                        odt.getHour(),</span>
+<span class="nc" id="L88">                        odt.getMinute(),</span>
+<span class="nc" id="L89">                        odt.getSecond()</span>
+                );
+<span class="nc" id="L91">                return;</span>
+            }
+        }
+
+<span class="fc" id="L95">        DateTimeFormatter formatter = this.getDateFormatter();</span>
+<span class="fc bfc" id="L96" title="All 2 branches covered.">        if (formatter == null) {</span>
+<span class="fc" id="L97">            formatter = ctx.getDateFormatter();</span>
+        }
+
+<span class="fc bfc" id="L100" title="All 2 branches covered.">        if (formatter == null) {</span>
+<span class="fc" id="L101">            jsonWriter.writeOffsetDateTime(odt);</span>
+<span class="fc" id="L102">            return;</span>
+        }
+
+<span class="fc" id="L105">        String str = formatter.format(odt);</span>
+<span class="fc" id="L106">        jsonWriter.writeString(str);</span>
+<span class="fc" id="L107">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.8.202204050719</span></div></body></html>

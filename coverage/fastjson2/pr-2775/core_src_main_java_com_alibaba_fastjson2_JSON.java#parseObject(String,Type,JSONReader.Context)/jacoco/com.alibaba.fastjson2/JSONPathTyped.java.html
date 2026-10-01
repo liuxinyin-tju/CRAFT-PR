@@ -1,0 +1,118 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>JSONPathTyped.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">fastjson2</a> &gt; <a href="index.source.html" class="el_package">com.alibaba.fastjson2</a> &gt; <span class="el_source">JSONPathTyped.java</span></div><h1>JSONPathTyped.java</h1><pre class="source lang-java linenums">package com.alibaba.fastjson2;
+
+import com.alibaba.fastjson2.util.TypeUtils;
+
+import java.lang.reflect.Type;
+import java.math.BigDecimal;
+import java.util.function.BiFunction;
+
+class JSONPathTyped
+        extends JSONPath {
+    final JSONPath jsonPath;
+    final Type type;
+    protected JSONPathTyped(JSONPath jsonPath, Type type) {
+<span class="fc" id="L14">        super(jsonPath.path, jsonPath.features);</span>
+<span class="fc" id="L15">        this.type = type;</span>
+<span class="fc" id="L16">        this.jsonPath = jsonPath;</span>
+<span class="fc" id="L17">    }</span>
+
+    @Override
+    public JSONPath getParent() {
+<span class="fc" id="L21">        return jsonPath.getParent();</span>
+    }
+
+    @Override
+    public boolean isRef() {
+<span class="fc" id="L26">        return jsonPath.isRef();</span>
+    }
+
+    @Override
+    public boolean contains(Object object) {
+<span class="fc" id="L31">        return jsonPath.contains(object);</span>
+    }
+
+    @Override
+    public Object eval(Object object) {
+<span class="fc" id="L36">        Object result = jsonPath.eval(object);</span>
+<span class="fc" id="L37">        return TypeUtils.cast(result, type);</span>
+    }
+
+    @Override
+    public Object extract(JSONReader jsonReader) {
+<span class="fc" id="L42">        Object result = jsonPath.extract(jsonReader);</span>
+<span class="fc" id="L43">        return TypeUtils.cast(result, type);</span>
+    }
+
+    @Override
+    public String extractScalar(JSONReader jsonReader) {
+<span class="fc" id="L48">        return jsonPath.extractScalar(jsonReader);</span>
+    }
+
+    @Override
+    public void set(Object object, Object value) {
+<span class="fc" id="L53">        jsonPath.set(object, value);</span>
+<span class="fc" id="L54">    }</span>
+
+    @Override
+    public void set(Object object, Object value, JSONReader.Feature... readerFeatures) {
+<span class="fc" id="L58">        jsonPath.set(object, value, readerFeatures);</span>
+<span class="fc" id="L59">    }</span>
+
+    @Override
+    public void setCallback(Object object, BiFunction callback) {
+<span class="fc" id="L63">        jsonPath.setCallback(object, callback);</span>
+<span class="fc" id="L64">    }</span>
+
+    @Override
+    public void setInt(Object object, int value) {
+<span class="fc" id="L68">        jsonPath.setInt(object, value);</span>
+<span class="fc" id="L69">    }</span>
+
+    @Override
+    public void setLong(Object object, long value) {
+<span class="fc" id="L73">        jsonPath.setLong(object, value);</span>
+<span class="fc" id="L74">    }</span>
+
+    @Override
+    public boolean remove(Object object) {
+<span class="fc" id="L78">        return jsonPath.remove(object);</span>
+    }
+
+    public Type getType() {
+<span class="fc" id="L82">        return type;</span>
+    }
+
+    public static JSONPath of(JSONPath jsonPath, Type type) {
+<span class="fc bfc" id="L86" title="All 4 branches covered.">        if (type == null || type == Object.class) {</span>
+<span class="fc" id="L87">            return jsonPath;</span>
+        }
+
+<span class="fc bfc" id="L90" title="All 2 branches covered.">        if (jsonPath instanceof JSONPathTyped) {</span>
+<span class="fc" id="L91">            JSONPathTyped jsonPathTyped = (JSONPathTyped) jsonPath;</span>
+<span class="fc bfc" id="L92" title="All 2 branches covered.">            if (jsonPathTyped.type.equals(type)) {</span>
+<span class="fc" id="L93">                return jsonPath;</span>
+            }
+        }
+
+<span class="fc bfc" id="L97" title="All 2 branches covered.">        if (jsonPath instanceof JSONPathSingleName) {</span>
+<span class="fc bfc" id="L98" title="All 2 branches covered.">            if (type == Integer.class) {</span>
+<span class="fc" id="L99">                return new JSONPathSingleNameInteger((JSONPathSingleName) jsonPath);</span>
+            }
+
+<span class="fc bfc" id="L102" title="All 2 branches covered.">            if (type == Long.class) {</span>
+<span class="fc" id="L103">                return new JSONPathSingleNameLong((JSONPathSingleName) jsonPath);</span>
+            }
+
+<span class="fc bfc" id="L106" title="All 2 branches covered.">            if (type == String.class) {</span>
+<span class="fc" id="L107">                return new JSONPathSingleNameString((JSONPathSingleName) jsonPath);</span>
+            }
+
+<span class="fc bfc" id="L110" title="All 2 branches covered.">            if (type == BigDecimal.class) {</span>
+<span class="fc" id="L111">                return new JSONPathSingleNameDecimal((JSONPathSingleName) jsonPath);</span>
+            }
+        }
+
+<span class="fc" id="L115">        return new JSONPathTyped(jsonPath, type);</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.8.202204050719</span></div></body></html>

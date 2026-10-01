@@ -1,0 +1,490 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>SymbolTable.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">fastjson2</a> &gt; <a href="index.source.html" class="el_package">com.alibaba.fastjson2.internal.asm</a> &gt; <span class="el_source">SymbolTable.java</span></div><h1>SymbolTable.java</h1><pre class="source lang-java linenums">// ASM: a very small and fast Java bytecode manipulation framework
+// Copyright (c) 2000-2011 INRIA, France Telecom
+// All rights reserved.
+//
+// Redistribution and use in source and binary forms, with or without
+// modification, are permitted provided that the following conditions
+// are met:
+// 1. Redistributions of source code must retain the above copyright
+//    notice, this list of conditions and the following disclaimer.
+// 2. Redistributions in binary form must reproduce the above copyright
+//    notice, this list of conditions and the following disclaimer in the
+//    documentation and/or other materials provided with the distribution.
+// 3. Neither the name of the copyright holders nor the names of its
+//    contributors may be used to endorse or promote products derived from
+//    this software without specific prior written permission.
+//
+// THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS &quot;AS IS&quot;
+// AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+// IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+// ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE
+// LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+// CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+// SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+// INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+// CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+// ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF
+// THE POSSIBILITY OF SUCH DAMAGE.
+package com.alibaba.fastjson2.internal.asm;
+
+/**
+ * The constant pool entries, the BootstrapMethods attribute entries and the (ASM specific) type
+ * table entries of a class.
+ *
+ * @author Eric Bruneton
+ * @see &lt;a href=&quot;https://docs.oracle.com/javase/specs/jvms/se9/html/jvms-4.html#jvms-4.4&quot;&gt;JVMS
+ * 4.4&lt;/a&gt;
+ * @see &lt;a href=&quot;https://docs.oracle.com/javase/specs/jvms/se9/html/jvms-4.html#jvms-4.7.23&quot;&gt;JVMS
+ * 4.7.23&lt;/a&gt;
+ */
+final class SymbolTable {
+    final ClassWriter classWriter;
+
+    /**
+     * The internal name of the class to which this symbol table belongs.
+     */
+    String className;
+
+    private int entryCount;
+    private Symbol[] entries;
+
+    /**
+     * The number of constant pool items in {@link #constantPool}, plus 1. The first constant pool
+     * item has index 1, and long and double items count for two items.
+     */
+    int constantPoolCount;
+
+    /**
+     * The content of the ClassFile's constant_pool JVMS structure corresponding to this SymbolTable.
+     * The ClassFile's constant_pool_count field is &lt;i&gt;not&lt;/i&gt; included.
+     */
+    final ByteVector constantPool;
+
+    /**
+     * The actual number of elements in {@link #typeTable}. These elements are stored from index 0 to
+     * typeCount (excluded). The other array entries are empty.
+     */
+    private int typeCount;
+    Symbol[] typeTable;
+
+    /**
+     * Constructs a new, empty SymbolTable for the given ClassWriter.
+     *
+     * @param classWriter a ClassWriter.
+     */
+<span class="fc" id="L75">    SymbolTable(final ClassWriter classWriter) {</span>
+<span class="fc" id="L76">        this.classWriter = classWriter;</span>
+<span class="fc" id="L77">        this.entries = new Symbol[256];</span>
+<span class="fc" id="L78">        this.constantPoolCount = 1;</span>
+<span class="fc" id="L79">        this.constantPool = new ByteVector(4096);</span>
+<span class="fc" id="L80">    }</span>
+//
+//    /**
+//     * Returns the internal name of the class to which this symbol table belongs.
+//     *
+//     * @return the internal name of the class to which this symbol table belongs.
+//     */
+//    String getClassName() {
+//        return className;
+//    }
+
+    /**
+     * Sets the major version and the name of the class to which this symbol table belongs. Also adds
+     * the class name to the constant pool.
+     *
+     * @param majorVersion a major ClassFile version number.
+     * @param className    an internal class name.
+     * @return the constant pool index of a new or already existing Symbol with the given class name.
+     */
+    int setMajorVersionAndClassName(final int majorVersion, final String className) {
+        /**
+         * The major version number of the class to which this symbol table belongs.
+         */
+<span class="fc" id="L103">        this.className = className;</span>
+<span class="fc" id="L104">        return addConstantUtf8Reference(/*CONSTANT_CLASS_TAG*/ 7, className).index;</span>
+    }
+//
+//    /**
+//     * Returns the length in bytes of this symbol table's constant_pool array.
+//     *
+//     * @return the length in bytes of this symbol table's constant_pool array.
+//     */
+//    int getConstantPoolLength() {
+//        return constantPool.length;
+//    }
+
+//    /**
+//     * Puts this symbol table's constant_pool array in the given ByteVector, preceded by the
+//     * constant_pool_count value.
+//     *
+//     * @param output where the JVMS ClassFile's constant_pool array must be put.
+//     */
+//    void putConstantPool(final ByteVector output) {
+//        output.putShort(constantPoolCount).putByteArray(constantPool.data, 0, constantPool.length);
+//    }
+//
+//    /**
+//     * Returns the size in bytes of this symbol table's BootstrapMethods attribute. Also adds the
+//     * attribute name in the constant pool.
+//     *
+//     * @return the size in bytes of this symbol table's BootstrapMethods attribute.
+//     */
+//    int computeBootstrapMethodsSize() {
+//        return 0;
+//    }
+//
+//    /**
+//     * Puts this symbol table's BootstrapMethods attribute in the given ByteVector. This includes the
+//     * 6 attribute header bytes and the num_bootstrap_methods value.
+//     *
+//     * @param output where the JVMS BootstrapMethods attribute must be put.
+//     */
+//    void putBootstrapMethods(final ByteVector output) {
+//    }
+
+    // -----------------------------------------------------------------------------------------------
+    // Generic symbol table entries management.
+    // -----------------------------------------------------------------------------------------------
+//
+//    /**
+//     * Returns the list of entries which can potentially have the given hash code.
+//     *
+//     * @param hashCode a {@link Entry#hashCode} value.
+//     * @return the list of entries which can potentially have the given hash code. The list is stored
+//     * via the {@link Entry#next} field.
+//     */
+//    private Entry get(final int hashCode) {
+//        return entries[hashCode % entries.length];
+//    }
+
+    /**
+     * Puts the given entry in the {@link #entries} hash set. This method does &lt;i&gt;not&lt;/i&gt; check
+     * whether {@link #entries} already contains a similar entry or not. {@link #entries} is resized
+     * if necessary to avoid hash collisions (multiple entries needing to be stored at the same {@link
+     * #entries} array index) as much as possible, with reasonable memory usage.
+     *
+     * @param entry an Entry (which must not already be contained in {@link #entries}).
+     * @return the given entry
+     */
+    private Symbol put(final Symbol entry) {
+<span class="fc bfc" id="L170" title="All 2 branches covered.">        if (entryCount &gt; (entries.length * 3) / 4) {</span>
+<span class="fc" id="L171">            int currentCapacity = entries.length;</span>
+<span class="fc" id="L172">            int newCapacity = currentCapacity * 2 + 1;</span>
+<span class="fc" id="L173">            Symbol[] newEntries = new Symbol[newCapacity];</span>
+<span class="fc bfc" id="L174" title="All 2 branches covered.">            for (int i = currentCapacity - 1; i &gt;= 0; --i) {</span>
+<span class="fc" id="L175">                Symbol currentEntry = entries[i];</span>
+<span class="fc bfc" id="L176" title="All 2 branches covered.">                while (currentEntry != null) {</span>
+<span class="fc" id="L177">                    int newCurrentEntryIndex = currentEntry.hashCode % newCapacity;</span>
+<span class="fc" id="L178">                    Symbol nextEntry = currentEntry.next;</span>
+<span class="fc" id="L179">                    currentEntry.next = newEntries[newCurrentEntryIndex];</span>
+<span class="fc" id="L180">                    newEntries[newCurrentEntryIndex] = currentEntry;</span>
+<span class="fc" id="L181">                    currentEntry = nextEntry;</span>
+<span class="fc" id="L182">                }</span>
+            }
+<span class="fc" id="L184">            entries = newEntries;</span>
+        }
+<span class="fc" id="L186">        entryCount++;</span>
+<span class="fc" id="L187">        int index = entry.hashCode % entries.length;</span>
+<span class="fc" id="L188">        entry.next = entries[index];</span>
+<span class="fc" id="L189">        return entries[index] = entry;</span>
+    }
+
+    // -----------------------------------------------------------------------------------------------
+    // Constant pool entries management.
+    // -----------------------------------------------------------------------------------------------
+
+//  /**
+//   * Adds a number or string constant to the constant pool of this symbol table. Does nothing if the
+//   * constant pool already contains a similar item.
+//   *
+//   * @param value the value of the constant to be added to the constant pool. This parameter must be
+//   *     an {@link Integer}, {@link Byte}, {@link Character}, {@link Short}, {@link Boolean}, {@link
+//   *     Float}, {@link Long}, {@link Double}, {@link String}, {@link Type}.
+//   * @return a new or already existing Symbol with the given value.
+//   */
+//  Symbol addConstant(final Object value) {
+//    if (value instanceof Integer) {
+//      return addConstantIntegerOrFloat(Symbol.CONSTANT_INTEGER_TAG, ((Integer) value).intValue());
+//    } else if (value instanceof Byte) {
+//      return addConstantIntegerOrFloat(Symbol.CONSTANT_INTEGER_TAG, ((Byte) value).intValue());
+//    } else if (value instanceof Character) {
+//      return addConstantIntegerOrFloat(Symbol.CONSTANT_INTEGER_TAG, ((Character) value).charValue());
+//    } else if (value instanceof Short) {
+//      return addConstantIntegerOrFloat(Symbol.CONSTANT_INTEGER_TAG, ((Short) value).intValue());
+//    } else if (value instanceof Boolean) {
+//      return addConstantIntegerOrFloat(Symbol.CONSTANT_INTEGER_TAG, ((Boolean) value).booleanValue() ? 1 : 0);
+//    } else if (value instanceof Float) {
+//      float floatValue = ((Float) value).floatValue();
+//      return addConstantIntegerOrFloat(Symbol.CONSTANT_FLOAT_TAG, Float.floatToRawIntBits(floatValue));
+//    } else if (value instanceof Long) {
+//      return addConstantLongOrDouble(Symbol.CONSTANT_LONG_TAG, ((Long) value).longValue());
+//    } else if (value instanceof Double) {
+//      double doubleValue = ((Double) value).doubleValue();
+//      return addConstantLongOrDouble(Symbol.CONSTANT_DOUBLE_TAG, Double.doubleToRawLongBits(doubleValue));
+//    } else if (value instanceof String) {
+//      return addConstantUtf8Reference(Symbol.CONSTANT_STRING_TAG, (String) value);
+//    } else if (value instanceof Type) {
+//      Type type = (Type) value;
+//      int typeSort = type.getSort();
+//      if (typeSort == Type.OBJECT) {
+//        return addConstantClass(type.getInternalName());
+//      } else if (typeSort == Type.METHOD) {
+//        return addConstantUtf8Reference(Symbol.CONSTANT_METHOD_TYPE_TAG, type.getDescriptor());
+//      } else { // type is a primitive or array type.
+//        return addConstantClass(type.getDescriptor());
+//      }
+//    } else {
+//      throw new IllegalArgumentException(&quot;value &quot; + value);
+//    }
+//  }
+//
+//    /**
+//     * Adds a CONSTANT_Class_info to the constant pool of this symbol table. Does nothing if the
+//     * constant pool already contains a similar item.
+//     *
+//     * @param value the internal name of a class.
+//     * @return a new or already existing Symbol with the given value.
+//     */
+//    Symbol addConstantClass(final String value) {
+//        final int CONSTANT_CLASS_TAG = 7;
+//        return addConstantUtf8Reference(CONSTANT_CLASS_TAG, value);
+//    }
+//
+//    /**
+//     * Adds a CONSTANT_Fieldref_info to the constant pool of this symbol table. Does nothing if the
+//     * constant pool already contains a similar item.
+//     *
+//     * @param owner      the internal name of a class.
+//     * @param name       a field name.
+//     * @param descriptor a field descriptor.
+//     * @return a new or already existing Symbol with the given value.
+//     */
+//    Symbol addConstantFieldref(final String owner, final String name, final String descriptor) {
+//        return addConstantMemberReference(CONSTANT_FIELDREF_TAG, owner, name, descriptor);
+//    }
+//
+//    /**
+//     * Adds a CONSTANT_Methodref_info or CONSTANT_InterfaceMethodref_info to the constant pool of this
+//     * symbol table. Does nothing if the constant pool already contains a similar item.
+//     *
+//     * @param owner       the internal name of a class.
+//     * @param name        a method name.
+//     * @param descriptor  a method descriptor.
+//     * @param isInterface whether owner is an interface or not.
+//     * @return a new or already existing Symbol with the given value.
+//     */
+//    Symbol addConstantMethodref(
+//            final String owner, final String name, final String descriptor, final boolean isInterface) {
+//        final int CONSTANT_METHODREF_TAG = 10;
+//        final int CONSTANT_INTERFACE_METHODREF_TAG = 11;
+//        int tag = isInterface ? /*CONSTANT_INTERFACE_METHODREF_TAG*/ 11 : /*CONSTANT_METHODREF_TAG*/ 10;
+//        return addConstantMemberReference(
+//                isInterface ? /*CONSTANT_INTERFACE_METHODREF_TAG*/ 11 : /*CONSTANT_METHODREF_TAG*/ 10
+//                , owner, name, descriptor
+//        );
+//    }
+
+    Symbol addConstantMemberReference(
+            final int tag, final String owner, final String name, final String descriptor) {
+//    int hashCode = hash(tag, owner, name, descriptor);
+<span class="fc" id="L290">        int hashCode = 0x7FFFFFFF &amp; (tag + owner.hashCode() * name.hashCode() * descriptor.hashCode());</span>
+<span class="fc" id="L291">        Symbol entry = entries[hashCode % entries.length];</span>
+<span class="fc bfc" id="L292" title="All 2 branches covered.">        while (entry != null) {</span>
+<span class="fc bfc" id="L293" title="All 4 branches covered.">            if (entry.tag == tag</span>
+                    &amp;&amp; entry.hashCode == hashCode
+<span class="pc bpc" id="L295" title="1 of 2 branches missed.">                    &amp;&amp; entry.owner.equals(owner)</span>
+<span class="pc bpc" id="L296" title="1 of 2 branches missed.">                    &amp;&amp; entry.name.equals(name)</span>
+<span class="pc bpc" id="L297" title="1 of 2 branches missed.">                    &amp;&amp; entry.value.equals(descriptor)) {</span>
+<span class="fc" id="L298">                return entry;</span>
+            }
+<span class="fc" id="L300">            entry = entry.next;</span>
+        }
+<span class="fc" id="L302">        constantPool.put122(</span>
+<span class="fc" id="L303">                tag, addConstantUtf8Reference(/*CONSTANT_CLASS_TAG*/ 7, owner).index, addConstantNameAndType(name, descriptor));</span>
+<span class="fc" id="L304">        return put(new Symbol(constantPoolCount++, tag, owner, name, descriptor, 0, hashCode));</span>
+    }
+
+    Symbol addConstantIntegerOrFloat(final int value) {
+<span class="fc" id="L308">        int hashCode = 0x7FFFFFFF &amp; (3 + value);</span>
+<span class="fc" id="L309">        Symbol entry = entries[hashCode % entries.length];</span>
+<span class="fc bfc" id="L310" title="All 2 branches covered.">        while (entry != null) {</span>
+<span class="pc bpc" id="L311" title="1 of 6 branches missed.">            if (entry.tag == 3 &amp;&amp; entry.hashCode == hashCode &amp;&amp; entry.data == value) {</span>
+<span class="fc" id="L312">                return entry;</span>
+            }
+<span class="fc" id="L314">            entry = entry.next;</span>
+        }
+<span class="fc" id="L316">        constantPool.putByte(3).putInt(value);</span>
+<span class="fc" id="L317">        return put(new Symbol(constantPoolCount++, 3, null, null, null, value, hashCode));</span>
+    }
+
+    Symbol addConstantLongOrDouble(final long value) {
+<span class="fc" id="L321">        int hashCode = 0x7FFFFFFF &amp; (5 + (int) value + (int) (value &gt;&gt;&gt; 32));</span>
+<span class="fc" id="L322">        Symbol entry = entries[hashCode % entries.length];</span>
+<span class="fc bfc" id="L323" title="All 2 branches covered.">        while (entry != null) {</span>
+<span class="fc bfc" id="L324" title="All 6 branches covered.">            if (entry.tag == 5 &amp;&amp; entry.hashCode == hashCode &amp;&amp; entry.data == value) {</span>
+<span class="fc" id="L325">                return entry;</span>
+            }
+<span class="fc" id="L327">            entry = entry.next;</span>
+        }
+<span class="fc" id="L329">        int index = constantPoolCount;</span>
+<span class="fc" id="L330">        constantPool.putByte(5).putLong(value);</span>
+<span class="fc" id="L331">        constantPoolCount += 2;</span>
+<span class="fc" id="L332">        return put(new Symbol(index, 5, null, null, null, value, hashCode));</span>
+    }
+
+    /**
+     * Adds a CONSTANT_NameAndType_info to the constant pool of this symbol table. Does nothing if the
+     * constant pool already contains a similar item.
+     *
+     * @param name       a field or method name.
+     * @param descriptor a field or method descriptor.
+     * @return a new or already existing Symbol with the given value.
+     */
+    int addConstantNameAndType(final String name, final String descriptor) {
+<span class="fc" id="L344">        final int tag = 12; // CONSTANT_NAME_AND_TYPE_TAG</span>
+<span class="fc" id="L345">        int hashCode = 0x7FFFFFFF &amp; (tag + name.hashCode() * descriptor.hashCode());</span>
+<span class="fc" id="L346">        Symbol entry = entries[hashCode % entries.length];</span>
+<span class="fc bfc" id="L347" title="All 2 branches covered.">        while (entry != null) {</span>
+<span class="fc bfc" id="L348" title="All 4 branches covered.">            if (entry.tag == tag</span>
+                    &amp;&amp; entry.hashCode == hashCode
+<span class="pc bpc" id="L350" title="1 of 2 branches missed.">                    &amp;&amp; entry.name.equals(name)</span>
+<span class="pc bpc" id="L351" title="1 of 2 branches missed.">                    &amp;&amp; entry.value.equals(descriptor)) {</span>
+<span class="fc" id="L352">                return entry.index;</span>
+            }
+<span class="fc" id="L354">            entry = entry.next;</span>
+        }
+<span class="fc" id="L356">        constantPool.put122(tag, addConstantUtf8(name), addConstantUtf8(descriptor));</span>
+<span class="fc" id="L357">        return put(new Symbol(constantPoolCount++, tag, null, name, descriptor, 0, hashCode)).index;</span>
+    }
+
+    /**
+     * Adds a CONSTANT_Utf8_info to the constant pool of this symbol table. Does nothing if the
+     * constant pool already contains a similar item.
+     *
+     * @param value a string.
+     * @return a new or already existing Symbol with the given value.
+     */
+    int addConstantUtf8(final String value) {
+<span class="fc" id="L368">        final int CONSTANT_UTF8_TAG = 1;</span>
+
+<span class="fc" id="L370">        int hashCode = 0x7FFFFFFF &amp; (CONSTANT_UTF8_TAG + value.hashCode());</span>
+<span class="fc" id="L371">        Symbol entry = entries[hashCode % entries.length];</span>
+<span class="fc bfc" id="L372" title="All 2 branches covered.">        while (entry != null) {</span>
+<span class="fc bfc" id="L373" title="All 4 branches covered.">            if (entry.tag == CONSTANT_UTF8_TAG</span>
+                    &amp;&amp; entry.hashCode == hashCode
+<span class="pc bpc" id="L375" title="1 of 2 branches missed.">                    &amp;&amp; entry.value.equals(value)) {</span>
+<span class="fc" id="L376">                return entry.index;</span>
+            }
+<span class="fc" id="L378">            entry = entry.next;</span>
+        }
+<span class="fc" id="L380">        constantPool.putByte(CONSTANT_UTF8_TAG).putUTF8(value);</span>
+<span class="fc" id="L381">        return put(new Symbol(constantPoolCount++, CONSTANT_UTF8_TAG, null, null, value, 0, hashCode)).index;</span>
+    }
+
+    Symbol addConstantUtf8Reference(final int tag, final String value) {
+<span class="fc" id="L385">        int hashCode = 0x7FFFFFFF &amp; (tag + value.hashCode());</span>
+<span class="fc" id="L386">        Symbol entry = entries[hashCode % entries.length];</span>
+<span class="fc bfc" id="L387" title="All 2 branches covered.">        while (entry != null) {</span>
+<span class="pc bpc" id="L388" title="1 of 6 branches missed.">            if (entry.tag == tag &amp;&amp; entry.hashCode == hashCode &amp;&amp; entry.value.equals(value)) {</span>
+<span class="fc" id="L389">                return entry;</span>
+            }
+<span class="fc" id="L391">            entry = entry.next;</span>
+        }
+<span class="fc" id="L393">        constantPool.put12(tag, addConstantUtf8(value));</span>
+<span class="fc" id="L394">        return put(new Symbol(constantPoolCount++, tag, null, null, value, 0, hashCode));</span>
+    }
+//
+//    /**
+//     * Returns the type table element whose index is given.
+//     *
+//     * @param typeIndex a type table index.
+//     * @return the type table element whose index is given.
+//     */
+//    Symbol getType(final int typeIndex) {
+//        return typeTable[typeIndex];
+//    }
+
+    /**
+     * Adds a type in the type table of this symbol table. Does nothing if the type table already
+     * contains a similar type.
+     *
+     * @param value an internal class name.
+     * @return the index of a new or already existing type Symbol with the given value.
+     */
+    int addType(final String value) {
+<span class="fc" id="L415">        final int TYPE_TAG = 128;</span>
+
+<span class="fc" id="L417">        int hashCode = 0x7FFFFFFF &amp; (TYPE_TAG + value.hashCode());</span>
+<span class="fc" id="L418">        Symbol entry = entries[hashCode % entries.length];</span>
+<span class="fc bfc" id="L419" title="All 2 branches covered.">        while (entry != null) {</span>
+<span class="pc bpc" id="L420" title="1 of 6 branches missed.">            if (entry.tag == TYPE_TAG &amp;&amp; entry.hashCode == hashCode &amp;&amp; entry.value.equals(value)) {</span>
+<span class="fc" id="L421">                return entry.index;</span>
+            }
+<span class="fc" id="L423">            entry = entry.next;</span>
+        }
+<span class="fc" id="L425">        return addTypeInternal(new Symbol(typeCount, TYPE_TAG, null, null, value, 0, hashCode));</span>
+    }
+
+    /**
+     * Adds an {@link Frame#ITEM_UNINITIALIZED} type in the type table of this symbol table. Does
+     * nothing if the type table already contains a similar type.
+     *
+     * @param value          an internal class name.
+     * @param bytecodeOffset the bytecode offset of the NEW instruction that created this {@link
+     *                       Frame#ITEM_UNINITIALIZED} type value.
+     * @return the index of a new or already existing type Symbol with the given value.
+     */
+    int addUninitializedType(final String value, final int bytecodeOffset) {
+<span class="fc" id="L438">        final int UNINITIALIZED_TYPE_TAG = 129;</span>
+
+<span class="fc" id="L440">        int hashCode = 0x7FFFFFFF &amp; (UNINITIALIZED_TYPE_TAG + value.hashCode() + bytecodeOffset);</span>
+<span class="fc" id="L441">        Symbol entry = entries[hashCode % entries.length];</span>
+<span class="fc bfc" id="L442" title="All 2 branches covered.">        while (entry != null) {</span>
+<span class="pc bpc" id="L443" title="1 of 6 branches missed.">            if (entry.tag == UNINITIALIZED_TYPE_TAG</span>
+                    &amp;&amp; entry.hashCode == hashCode
+                    &amp;&amp; entry.data == bytecodeOffset
+<span class="pc bpc" id="L446" title="1 of 2 branches missed.">                    &amp;&amp; entry.value.equals(value)) {</span>
+<span class="fc" id="L447">                return entry.index;</span>
+            }
+<span class="fc" id="L449">            entry = entry.next;</span>
+        }
+<span class="fc" id="L451">        return addTypeInternal(</span>
+                new Symbol(typeCount, UNINITIALIZED_TYPE_TAG, null, null, value, bytecodeOffset, hashCode));
+    }
+
+    int addMergedType(final int typeTableIndex1, final int typeTableIndex2) {
+<span class="fc" id="L456">        final int MERGED_TYPE_TAG = 130;</span>
+
+<span class="fc bfc" id="L458" title="All 2 branches covered.">        long data =</span>
+                typeTableIndex1 &lt; typeTableIndex2
+                        ? typeTableIndex1 | (((long) typeTableIndex2) &lt;&lt; 32)
+                        : typeTableIndex2 | (((long) typeTableIndex1) &lt;&lt; 32);
+<span class="fc" id="L462">        int hashCode = 0x7FFFFFFF &amp; (MERGED_TYPE_TAG + typeTableIndex1 + typeTableIndex2);</span>
+<span class="fc" id="L463">        Symbol entry = entries[hashCode % entries.length];</span>
+<span class="fc bfc" id="L464" title="All 2 branches covered.">        while (entry != null) {</span>
+<span class="pc bpc" id="L465" title="2 of 6 branches missed.">            if (entry.tag == MERGED_TYPE_TAG &amp;&amp; entry.hashCode == hashCode &amp;&amp; entry.data == data) {</span>
+<span class="fc" id="L466">                return entry.info;</span>
+            }
+<span class="fc" id="L468">            entry = entry.next;</span>
+        }
+<span class="fc" id="L470">        String type1 = typeTable[typeTableIndex1].value;</span>
+<span class="fc" id="L471">        String type2 = typeTable[typeTableIndex2].value;</span>
+<span class="fc" id="L472">        int commonSuperTypeIndex = addType(classWriter.getCommonSuperClass(type1, type2));</span>
+<span class="fc" id="L473">        put(new Symbol(typeCount, MERGED_TYPE_TAG, null, null, null, data, hashCode)).info = commonSuperTypeIndex;</span>
+<span class="fc" id="L474">        return commonSuperTypeIndex;</span>
+    }
+
+    private int addTypeInternal(final Symbol entry) {
+<span class="fc bfc" id="L478" title="All 2 branches covered.">        if (typeTable == null) {</span>
+<span class="fc" id="L479">            typeTable = new Symbol[16];</span>
+        }
+<span class="fc bfc" id="L481" title="All 2 branches covered.">        if (typeCount == typeTable.length) {</span>
+<span class="fc" id="L482">            Symbol[] newTypeTable = new Symbol[2 * typeTable.length];</span>
+<span class="fc" id="L483">            System.arraycopy(typeTable, 0, newTypeTable, 0, typeTable.length);</span>
+<span class="fc" id="L484">            typeTable = newTypeTable;</span>
+        }
+<span class="fc" id="L486">        typeTable[typeCount++] = entry;</span>
+<span class="fc" id="L487">        return put(entry).index;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.8.202204050719</span></div></body></html>

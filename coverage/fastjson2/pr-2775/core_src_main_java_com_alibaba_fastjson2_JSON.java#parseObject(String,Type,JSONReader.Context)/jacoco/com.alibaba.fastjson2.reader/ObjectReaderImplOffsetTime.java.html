@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ObjectReaderImplOffsetTime.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">fastjson2</a> &gt; <a href="index.source.html" class="el_package">com.alibaba.fastjson2.reader</a> &gt; <span class="el_source">ObjectReaderImplOffsetTime.java</span></div><h1>ObjectReaderImplOffsetTime.java</h1><pre class="source lang-java linenums">package com.alibaba.fastjson2.reader;
+
+import com.alibaba.fastjson2.JSONReader;
+import com.alibaba.fastjson2.codec.DateTimeCodec;
+
+import java.lang.reflect.Type;
+import java.time.*;
+import java.time.format.DateTimeFormatter;
+import java.util.Locale;
+
+final class ObjectReaderImplOffsetTime
+        extends DateTimeCodec implements ObjectReader {
+<span class="fc" id="L13">    static final ObjectReaderImplOffsetTime INSTANCE = new ObjectReaderImplOffsetTime(null, null);</span>
+
+    public static ObjectReaderImplOffsetTime of(String format, Locale locale) {
+<span class="pc bpc" id="L16" title="1 of 2 branches missed.">        if (format == null) {</span>
+<span class="nc" id="L17">            return INSTANCE;</span>
+        }
+
+<span class="fc" id="L20">        return new ObjectReaderImplOffsetTime(format, locale);</span>
+    }
+
+    public ObjectReaderImplOffsetTime(String format, Locale locale) {
+<span class="fc" id="L24">        super(format, locale);</span>
+<span class="fc" id="L25">    }</span>
+
+    @Override
+    public Class getObjectClass() {
+<span class="fc" id="L29">        return OffsetTime.class;</span>
+    }
+
+    @Override
+    public Object readJSONBObject(JSONReader jsonReader, Type fieldType, Object fieldName, long features) {
+<span class="fc" id="L34">        return readObject(jsonReader, fieldType, fieldName, features);</span>
+    }
+
+    @Override
+    public Object readObject(JSONReader jsonReader, Type fieldType, Object fieldName, long features) {
+<span class="fc" id="L39">        JSONReader.Context context = jsonReader.getContext();</span>
+
+<span class="fc bfc" id="L41" title="All 2 branches covered.">        if (jsonReader.isInt()) {</span>
+<span class="fc" id="L42">            long millis = jsonReader.readInt64Value();</span>
+<span class="fc bfc" id="L43" title="All 4 branches covered.">            if (formatUnixTime || context.isFormatUnixTime()) {</span>
+<span class="fc" id="L44">                millis *= 1000;</span>
+            }
+
+<span class="fc" id="L47">            Instant instant = Instant.ofEpochMilli(millis);</span>
+<span class="fc" id="L48">            ZoneId zoneId = context.getZoneId();</span>
+<span class="fc" id="L49">            LocalDateTime ldt = LocalDateTime.ofInstant(instant, zoneId);</span>
+<span class="fc" id="L50">            return OffsetTime.of(ldt.toLocalTime(), zoneId.getRules().getOffset(instant));</span>
+        }
+
+<span class="fc bfc" id="L53" title="All 2 branches covered.">        if (jsonReader.readIfNull()) {</span>
+<span class="fc" id="L54">            return null;</span>
+        }
+
+<span class="fc bfc" id="L57" title="All 2 branches covered.">        if (format == null) {</span>
+<span class="fc" id="L58">            return jsonReader.readOffsetTime();</span>
+        }
+
+<span class="fc" id="L61">        String str = jsonReader.readString();</span>
+<span class="fc" id="L62">        ZoneId zoneId = context.getZoneId();</span>
+<span class="pc bpc" id="L63" title="1 of 4 branches missed.">        if (formatMillis || formatUnixTime) {</span>
+<span class="fc" id="L64">            long millis = Long.parseLong(str);</span>
+<span class="pc bpc" id="L65" title="1 of 2 branches missed.">            if (formatUnixTime) {</span>
+<span class="nc" id="L66">                millis *= 1000L;</span>
+            }
+<span class="fc" id="L68">            Instant instant = Instant.ofEpochMilli(millis);</span>
+<span class="fc" id="L69">            LocalDateTime ldt = LocalDateTime.ofInstant(instant, zoneId);</span>
+<span class="fc" id="L70">            return OffsetDateTime.of(ldt, zoneId.getRules().getOffset(instant))</span>
+<span class="fc" id="L71">                    .toOffsetTime();</span>
+        }
+
+<span class="fc" id="L74">        DateTimeFormatter formatter = getDateFormatter(jsonReader.getLocale());</span>
+<span class="fc bfc" id="L75" title="All 2 branches covered.">        if (!formatHasHour) {</span>
+<span class="fc" id="L76">            LocalDateTime ldt = LocalDateTime.of(LocalDate.parse(str, formatter), LocalTime.MIN);</span>
+<span class="fc" id="L77">            return OffsetDateTime.of(ldt, zoneId.getRules().getOffset(ldt))</span>
+<span class="fc" id="L78">                    .toOffsetTime();</span>
+        }
+
+<span class="fc bfc" id="L81" title="All 2 branches covered.">        if (!formatHasDay) {</span>
+<span class="fc" id="L82">            ZonedDateTime zdt = ZonedDateTime.of(</span>
+<span class="fc" id="L83">                    LocalDate.of(1970, 1, 1),</span>
+<span class="fc" id="L84">                    LocalTime.parse(str, formatter),</span>
+                    zoneId
+            );
+<span class="fc" id="L87">            return zdt.toOffsetDateTime()</span>
+<span class="fc" id="L88">                    .toOffsetTime();</span>
+        }
+<span class="fc" id="L90">        LocalDateTime ldt = LocalDateTime.parse(str, formatter);</span>
+<span class="fc" id="L91">        OffsetDateTime odt = OffsetDateTime.of(ldt, zoneId.getRules().getOffset(ldt));</span>
+<span class="fc" id="L92">        return odt.toOffsetTime();</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.8.202204050719</span></div></body></html>

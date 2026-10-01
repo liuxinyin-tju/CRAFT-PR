@@ -1,0 +1,316 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ObjectReaderImplEnum.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">fastjson2</a> &gt; <a href="index.source.html" class="el_package">com.alibaba.fastjson2.reader</a> &gt; <span class="el_source">ObjectReaderImplEnum.java</span></div><h1>ObjectReaderImplEnum.java</h1><pre class="source lang-java linenums">package com.alibaba.fastjson2.reader;
+
+import com.alibaba.fastjson2.JSONException;
+import com.alibaba.fastjson2.JSONReader;
+import com.alibaba.fastjson2.util.Fnv;
+import com.alibaba.fastjson2.util.TypeUtils;
+
+import java.lang.reflect.*;
+import java.util.Arrays;
+import java.util.List;
+
+import static com.alibaba.fastjson2.JSONB.Constants.*;
+
+public final class ObjectReaderImplEnum
+        implements ObjectReader {
+    final Method createMethod;
+    final Type createMethodParamType;
+    final Member valueField;
+    final Type valueFieldType;
+
+    final Class enumClass;
+    final long typeNameHash;
+    private final Enum[] enums;
+    private final Enum[] ordinalEnums;
+    private final long[] enumNameHashCodes;
+    private String[] stringValues;
+    private long[] intValues;
+
+    public ObjectReaderImplEnum(
+            Class enumClass,
+            Method createMethod,
+            Member valueField,
+            Enum[] enums,
+            Enum[] ordinalEnums,
+            long[] enumNameHashCodes
+<span class="fc" id="L36">    ) {</span>
+<span class="fc" id="L37">        this.enumClass = enumClass;</span>
+<span class="fc" id="L38">        this.createMethod = createMethod;</span>
+<span class="fc bfc" id="L39" title="All 2 branches covered.">        if (valueField instanceof AccessibleObject) {</span>
+<span class="fc" id="L40">            ((AccessibleObject) valueField).setAccessible(true);</span>
+        }
+<span class="fc" id="L42">        this.valueField = valueField;</span>
+<span class="fc" id="L43">        Type valueFieldType = null;</span>
+<span class="fc bfc" id="L44" title="All 2 branches covered.">        if (valueField instanceof Field) {</span>
+<span class="fc" id="L45">            valueFieldType = ((Field) valueField).getType();</span>
+<span class="fc bfc" id="L46" title="All 2 branches covered.">        } else if (valueField instanceof Method) {</span>
+<span class="fc" id="L47">            valueFieldType = ((Method) valueField).getReturnType();</span>
+        }
+<span class="fc" id="L49">        this.valueFieldType = valueFieldType;</span>
+
+<span class="fc bfc" id="L51" title="All 2 branches covered.">        if (valueFieldType != null) {</span>
+<span class="fc bfc" id="L52" title="All 2 branches covered.">            if (valueFieldType == String.class) {</span>
+<span class="fc" id="L53">                stringValues = new String[enums.length];</span>
+            } else {
+<span class="fc" id="L55">                intValues = new long[enums.length];</span>
+            }
+
+<span class="fc bfc" id="L58" title="All 2 branches covered.">            for (int i = 0; i &lt; enums.length; i++) {</span>
+<span class="fc" id="L59">                Enum e = enums[i];</span>
+                try {
+                    Object fieldValue;
+<span class="fc bfc" id="L62" title="All 2 branches covered.">                    if (valueField instanceof Field) {</span>
+<span class="fc" id="L63">                        fieldValue = ((Field) valueField).get(e);</span>
+                    } else {
+<span class="fc" id="L65">                        fieldValue = ((Method) valueField).invoke(e);</span>
+                    }
+
+<span class="fc bfc" id="L68" title="All 2 branches covered.">                    if (valueFieldType == String.class) {</span>
+<span class="fc" id="L69">                        stringValues[i] = (String) fieldValue;</span>
+<span class="fc bfc" id="L70" title="All 2 branches covered.">                    } else if (fieldValue instanceof Number) {</span>
+<span class="fc" id="L71">                        intValues[i] = ((Number) fieldValue).longValue();</span>
+                    }
+<span class="nc" id="L73">                } catch (Exception ignored) {</span>
+                    // ignored
+<span class="fc" id="L75">                }</span>
+            }
+        }
+
+<span class="fc" id="L79">        Type createMethodParamType = null;</span>
+<span class="pc bpc" id="L80" title="1 of 4 branches missed.">        if (createMethod != null &amp;&amp; createMethod.getParameterCount() == 1) {</span>
+<span class="fc" id="L81">            createMethodParamType = createMethod.getParameterTypes()[0];</span>
+        }
+<span class="fc" id="L83">        this.createMethodParamType = createMethodParamType;</span>
+
+<span class="fc" id="L85">        this.typeNameHash = Fnv.hashCode64(TypeUtils.getTypeName(enumClass));</span>
+<span class="fc" id="L86">        this.enums = enums;</span>
+<span class="fc" id="L87">        this.ordinalEnums = ordinalEnums;</span>
+<span class="fc" id="L88">        this.enumNameHashCodes = enumNameHashCodes;</span>
+<span class="fc" id="L89">    }</span>
+
+    @Override
+    public Class getObjectClass() {
+<span class="fc" id="L93">        return enumClass;</span>
+    }
+
+    public Enum getEnumByHashCode(long hashCode) {
+<span class="pc bpc" id="L97" title="1 of 2 branches missed.">        if (enums == null) {</span>
+<span class="nc" id="L98">            return null;</span>
+        }
+
+<span class="fc" id="L101">        int enumIndex = Arrays.binarySearch(this.enumNameHashCodes, hashCode);</span>
+
+<span class="fc bfc" id="L103" title="All 2 branches covered.">        if (enumIndex &lt; 0) {</span>
+<span class="fc" id="L104">            return null;</span>
+        }
+
+<span class="fc" id="L107">        return enums[enumIndex];</span>
+    }
+
+    public Enum getEnum(String name) {
+<span class="pc bpc" id="L111" title="1 of 2 branches missed.">        if (name == null) {</span>
+<span class="nc" id="L112">            return null;</span>
+        }
+<span class="fc" id="L114">        return getEnumByHashCode(Fnv.hashCode64(name));</span>
+    }
+
+    public Enum getEnumByOrdinal(int ordinal) {
+<span class="pc bpc" id="L118" title="2 of 4 branches missed.">        if (ordinal &lt; 0 || ordinal &gt;= ordinalEnums.length) {</span>
+<span class="nc" id="L119">            throw new JSONException(&quot;No enum ordinal &quot; + enumClass.getCanonicalName() + &quot;.&quot; + ordinal);</span>
+        }
+<span class="fc" id="L121">        return ordinalEnums[ordinal];</span>
+    }
+
+    public Enum of(int intValue) {
+<span class="fc" id="L125">        Enum enumValue = null;</span>
+<span class="fc bfc" id="L126" title="All 2 branches covered.">        if (valueField == null) {</span>
+<span class="pc bpc" id="L127" title="1 of 4 branches missed.">            if (intValue &gt;= 0 &amp;&amp; intValue &lt; ordinalEnums.length) {</span>
+<span class="fc" id="L128">                enumValue = ordinalEnums[intValue];</span>
+            }
+<span class="fc" id="L130">            return enumValue;</span>
+        }
+
+        try {
+<span class="fc bfc" id="L134" title="All 2 branches covered.">            if (valueField instanceof Field) {</span>
+<span class="pc bpc" id="L135" title="1 of 2 branches missed.">                for (int i = 0; i &lt; enums.length; i++) {</span>
+<span class="fc" id="L136">                    Enum e = enums[i];</span>
+<span class="pc bpc" id="L137" title="1 of 2 branches missed.">                    if (((Field) valueField).getInt(e) == intValue) {</span>
+<span class="fc" id="L138">                        enumValue = e;</span>
+<span class="fc" id="L139">                        break;</span>
+                    }
+                }
+            } else {
+<span class="fc" id="L143">                Method valueMethod = (Method) valueField;</span>
+<span class="pc bpc" id="L144" title="1 of 2 branches missed.">                for (int i = 0; i &lt; enums.length; i++) {</span>
+<span class="fc" id="L145">                    Enum e = enums[i];</span>
+<span class="pc bpc" id="L146" title="1 of 2 branches missed.">                    if (((Number) valueMethod.invoke(e)).intValue() == intValue) {</span>
+<span class="fc" id="L147">                        enumValue = e;</span>
+<span class="fc" id="L148">                        break;</span>
+                    }
+                }
+            }
+<span class="nc" id="L152">        } catch (Exception error) {</span>
+<span class="nc" id="L153">            throw new JSONException(&quot;parse enum error, class &quot; + enumClass.getName() + &quot;, value &quot; + intValue, error);</span>
+<span class="fc" id="L154">        }</span>
+
+<span class="pc bpc" id="L156" title="1 of 2 branches missed.">        if (enumValue == null) {</span>
+<span class="nc" id="L157">            throw new JSONException(&quot;None enum ordinal or value &quot; + intValue);</span>
+        }
+
+<span class="fc" id="L160">        return enumValue;</span>
+    }
+
+    @Override
+    public Object readJSONBObject(JSONReader jsonReader, Type fieldType, Object fieldName, long features) {
+<span class="fc" id="L165">        int start = jsonReader.getOffset();</span>
+<span class="fc" id="L166">        byte type = jsonReader.getType();</span>
+<span class="fc bfc" id="L167" title="All 2 branches covered.">        if (type == BC_TYPED_ANY) {</span>
+<span class="fc" id="L168">            ObjectReader autoTypeObjectReader = jsonReader.checkAutoType(enumClass, 0L, features);</span>
+<span class="pc bpc" id="L169" title="1 of 2 branches missed.">            if (autoTypeObjectReader != null) {</span>
+<span class="fc bfc" id="L170" title="All 2 branches covered.">                if (autoTypeObjectReader != this) {</span>
+<span class="fc" id="L171">                    return autoTypeObjectReader.readJSONBObject(jsonReader, fieldType, fieldName, features);</span>
+                }
+<span class="nc bnc" id="L173" title="All 2 branches missed.">            } else if (jsonReader.isEnabled(JSONReader.Feature.ErrorOnNotSupportAutoType)) {</span>
+<span class="nc" id="L174">                throw new JSONException(jsonReader.info(&quot;not support enumType : &quot; + jsonReader.getString()));</span>
+            }
+        }
+
+        Enum fieldValue;
+<span class="fc bfc" id="L179" title="All 4 branches covered.">        boolean isInt = (type &gt;= BC_INT32_NUM_MIN &amp;&amp; type &lt;= BC_INT32);</span>
+<span class="fc bfc" id="L180" title="All 2 branches covered.">        if (isInt) {</span>
+            int ordinal;
+<span class="pc bpc" id="L182" title="1 of 2 branches missed.">            if (type &lt;= BC_INT32_NUM_MAX) {</span>
+<span class="fc" id="L183">                ordinal = type;</span>
+<span class="fc" id="L184">                jsonReader.next();</span>
+            } else {
+<span class="nc" id="L186">                ordinal = jsonReader.readInt32Value();</span>
+            }
+
+<span class="pc bpc" id="L189" title="2 of 4 branches missed.">            if (ordinal &lt; 0 || ordinal &gt;= ordinalEnums.length) {</span>
+<span class="nc" id="L190">                throw new JSONException(&quot;No enum ordinal &quot; + enumClass.getCanonicalName() + &quot;.&quot; + ordinal);</span>
+            }
+<span class="fc" id="L192">            fieldValue = ordinalEnums[ordinal];</span>
+<span class="fc bfc" id="L193" title="All 2 branches covered.">        } else if (jsonReader.nextIfNullOrEmptyString()) {</span>
+<span class="fc" id="L194">            return null;</span>
+        } else {
+<span class="fc" id="L196">            fieldValue = getEnumByHashCode(</span>
+<span class="fc" id="L197">                    jsonReader.readValueHashCode()</span>
+            );
+<span class="fc bfc" id="L199" title="All 2 branches covered.">            if (fieldValue == null) {</span>
+<span class="fc" id="L200">                long nameHash = jsonReader.getNameHashCodeLCase();</span>
+<span class="fc" id="L201">                fieldValue = getEnumByHashCode(nameHash);</span>
+            }
+        }
+
+<span class="pc bpc" id="L205" title="3 of 4 branches missed.">        if (fieldValue == null &amp;&amp; jsonReader.getOffset() == start) {</span>
+<span class="nc" id="L206">            oomCheck(fieldType);</span>
+        }
+
+<span class="fc" id="L209">        return fieldValue;</span>
+    }
+
+    private void oomCheck(Type fieldType) {
+<span class="fc bfc" id="L213" title="All 2 branches covered.">        if (fieldType instanceof ParameterizedType) {</span>
+<span class="fc" id="L214">            Type rawType = ((ParameterizedType) fieldType).getRawType();</span>
+<span class="pc bpc" id="L215" title="1 of 2 branches missed.">            if (List.class.isAssignableFrom((Class&lt;?&gt;) rawType)) {</span>
+<span class="fc" id="L216">                throw new JSONException(this.getClass().getSimpleName() + &quot; parses error, JSONReader not forward when field type belongs to collection to avoid OOM&quot;);</span>
+            }
+        }
+<span class="fc" id="L219">    }</span>
+
+    @Override
+    public Object readObject(JSONReader jsonReader, Type fieldType, Object fieldName, long features) {
+<span class="fc" id="L223">        int start = jsonReader.getOffset();</span>
+<span class="fc bfc" id="L224" title="All 2 branches covered.">        if (createMethodParamType != null) {</span>
+<span class="fc" id="L225">            Object paramValue = jsonReader.read(createMethodParamType);</span>
+            try {
+<span class="fc" id="L227">                return createMethod.invoke(null, paramValue);</span>
+<span class="nc" id="L228">            } catch (IllegalAccessException | InvocationTargetException e) {</span>
+<span class="nc" id="L229">                throw new JSONException(jsonReader.info(&quot;create enum error, enumClass &quot; + enumClass.getName() + &quot;, paramValue &quot; + paramValue), e);</span>
+            }
+        }
+
+<span class="fc" id="L233">        Enum&lt;?&gt; fieldValue = null;</span>
+<span class="fc bfc" id="L234" title="All 2 branches covered.">        if (jsonReader.isInt()) {</span>
+<span class="fc" id="L235">            int intValue = jsonReader.readInt32Value();</span>
+<span class="fc bfc" id="L236" title="All 2 branches covered.">            if (valueField == null) {</span>
+<span class="pc bpc" id="L237" title="2 of 4 branches missed.">                if (intValue &lt; 0 || intValue &gt;= ordinalEnums.length) {</span>
+<span class="nc" id="L238">                    throw new JSONException(&quot;No enum ordinal &quot; + enumClass.getCanonicalName() + &quot;.&quot; + intValue);</span>
+                }
+<span class="fc" id="L240">                fieldValue = ordinalEnums[intValue];</span>
+            } else {
+<span class="pc bpc" id="L242" title="1 of 2 branches missed.">                if (intValues != null) {</span>
+<span class="fc bfc" id="L243" title="All 2 branches covered.">                    for (int i = 0; i &lt; intValues.length; i++) {</span>
+<span class="fc bfc" id="L244" title="All 2 branches covered.">                        if (intValues[i] == intValue) {</span>
+<span class="fc" id="L245">                            fieldValue = enums[i];</span>
+<span class="fc" id="L246">                            break;</span>
+                        }
+                    }
+                }
+
+<span class="fc bfc" id="L251" title="All 4 branches covered.">                if (fieldValue == null &amp;&amp; jsonReader.isEnabled(JSONReader.Feature.ErrorOnEnumNotMatch)) {</span>
+<span class="fc" id="L252">                    throw new JSONException(jsonReader.info(&quot;parse enum error, class &quot; + enumClass.getName() + &quot;, &quot; + valueField.getName() + &quot; &quot; + intValue));</span>
+                }
+            }
+<span class="fc bfc" id="L255" title="All 2 branches covered.">        } else if (!jsonReader.nextIfNullOrEmptyString()) {</span>
+<span class="pc bpc" id="L256" title="1 of 4 branches missed.">            if (stringValues != null &amp;&amp; jsonReader.isString()) {</span>
+<span class="fc" id="L257">                String str = jsonReader.readString();</span>
+<span class="fc bfc" id="L258" title="All 2 branches covered.">                for (int i = 0; i &lt; stringValues.length; i++) {</span>
+<span class="fc bfc" id="L259" title="All 2 branches covered.">                    if (str.equals(stringValues[i])) {</span>
+<span class="fc" id="L260">                        fieldValue = enums[i];</span>
+<span class="fc" id="L261">                        break;</span>
+                    }
+                }
+<span class="pc bpc" id="L264" title="1 of 4 branches missed.">                if (fieldValue == null &amp;&amp; valueField != null) {</span>
+                    try {
+<span class="fc" id="L266">                        fieldValue = Enum.valueOf(enumClass, str);</span>
+<span class="nc" id="L267">                    } catch (IllegalArgumentException ignored) {</span>
+                        // ignored
+<span class="fc" id="L269">                    }</span>
+                }
+<span class="pc bpc" id="L271" title="1 of 4 branches missed.">            } else if (intValues != null &amp;&amp; jsonReader.isInt()) {</span>
+<span class="nc" id="L272">                int intValue = jsonReader.readInt32Value();</span>
+<span class="nc bnc" id="L273" title="All 2 branches missed.">                for (int i = 0; i &lt; intValues.length; i++) {</span>
+<span class="nc bnc" id="L274" title="All 2 branches missed.">                    if (intValues[i] == intValue) {</span>
+<span class="nc" id="L275">                        fieldValue = enums[i];</span>
+<span class="nc" id="L276">                        break;</span>
+                    }
+                }
+<span class="nc" id="L279">            } else {</span>
+<span class="fc" id="L280">                long hashCode = jsonReader.readValueHashCode();</span>
+<span class="pc bpc" id="L281" title="1 of 2 branches missed.">                if (hashCode == Fnv.MAGIC_HASH_CODE) {</span>
+<span class="nc" id="L282">                    return null;</span>
+                }
+
+<span class="fc" id="L285">                fieldValue = getEnumByHashCode(hashCode);</span>
+<span class="fc bfc" id="L286" title="All 2 branches covered.">                if (fieldValue == null) {</span>
+<span class="fc" id="L287">                    fieldValue = getEnumByHashCode(</span>
+<span class="fc" id="L288">                            jsonReader.getNameHashCodeLCase()</span>
+                    );
+                }
+
+<span class="fc bfc" id="L292" title="All 2 branches covered.">                if (fieldValue == null) {</span>
+<span class="fc" id="L293">                    String str = jsonReader.getString();</span>
+<span class="fc bfc" id="L294" title="All 2 branches covered.">                    if (TypeUtils.isInteger(str)) {</span>
+<span class="fc" id="L295">                        int ordinal = Integer.parseInt(str);</span>
+<span class="pc bpc" id="L296" title="1 of 4 branches missed.">                        if (ordinal &gt;= 0 &amp;&amp; ordinal &lt; ordinalEnums.length) {</span>
+<span class="fc" id="L297">                            fieldValue = ordinalEnums[ordinal];</span>
+                        }
+                    }
+                }
+            }
+
+<span class="fc bfc" id="L303" title="All 4 branches covered.">            if (fieldValue == null &amp;&amp; jsonReader.isEnabled(JSONReader.Feature.ErrorOnEnumNotMatch)) {</span>
+<span class="fc" id="L304">                String strVal = jsonReader.getString();</span>
+<span class="fc" id="L305">                throw new JSONException(jsonReader.info(&quot;parse enum error, class &quot; + enumClass.getName() + &quot;, value &quot; + strVal));</span>
+            }
+        }
+
+<span class="fc bfc" id="L309" title="All 4 branches covered.">        if (fieldValue == null &amp;&amp; jsonReader.getOffset() == start) {</span>
+<span class="fc" id="L310">            oomCheck(fieldType);</span>
+        }
+
+<span class="fc" id="L313">        return fieldValue;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.8.202204050719</span></div></body></html>

@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>FieldReaderMapMethod.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">fastjson2</a> &gt; <a href="index.source.html" class="el_package">com.alibaba.fastjson2.reader</a> &gt; <span class="el_source">FieldReaderMapMethod.java</span></div><h1>FieldReaderMapMethod.java</h1><pre class="source lang-java linenums">package com.alibaba.fastjson2.reader;
+
+import com.alibaba.fastjson2.*;
+import com.alibaba.fastjson2.schema.JSONSchema;
+import com.alibaba.fastjson2.util.TypeUtils;
+
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
+import java.lang.reflect.Type;
+import java.util.Collection;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.function.BiConsumer;
+
+public class FieldReaderMapMethod&lt;T&gt;
+        extends FieldReaderObject&lt;T&gt; {
+    protected final String arrayToMapKey;
+    protected final Type valueType;
+    protected final BiConsumer arrayToMapDuplicateHandler;
+
+    public FieldReaderMapMethod(
+            String fieldName,
+            Type fieldType,
+            Class fieldClass,
+            int ordinal,
+            long features,
+            String format,
+            Locale locale,
+            Object defaultValue,
+            JSONSchema schema,
+            Method method,
+            Field field,
+            BiConsumer function,
+            String arrayToMapKey,
+            BiConsumer arrayToMapDuplicateHandler
+    ) {
+<span class="fc" id="L38">        super(fieldName, fieldType, fieldClass, ordinal, features, format, locale, defaultValue, schema, method, field, function);</span>
+<span class="fc" id="L39">        this.valueType = TypeUtils.getMapValueType(fieldType);</span>
+<span class="fc" id="L40">        this.arrayToMapKey = arrayToMapKey;</span>
+<span class="fc" id="L41">        this.arrayToMapDuplicateHandler = arrayToMapDuplicateHandler;</span>
+<span class="fc" id="L42">    }</span>
+
+    protected void acceptAny(T object, Object fieldValue, long features) {
+<span class="pc bpc" id="L45" title="1 of 4 branches missed.">        if (arrayToMapKey != null &amp;&amp; fieldValue instanceof Collection) {</span>
+<span class="fc" id="L46">            ObjectReader reader = this.getObjectReader(JSONFactory.createReadContext());</span>
+<span class="fc" id="L47">            Map map = (Map) reader.createInstance(features);</span>
+<span class="fc" id="L48">            arrayToMap(map,</span>
+                    (Collection) fieldValue,
+                    arrayToMapKey,
+<span class="fc" id="L51">                    JSONFactory.getObjectReader(valueType, this.features | features),</span>
+                    arrayToMapDuplicateHandler);
+<span class="fc" id="L53">            accept(object, map);</span>
+<span class="fc" id="L54">            return;</span>
+        }
+
+<span class="fc" id="L57">        super.acceptAny(object, fieldValue, features);</span>
+<span class="fc" id="L58">    }</span>
+
+    @Override
+    public void readFieldValue(JSONReader jsonReader, T object) {
+<span class="pc bpc" id="L62" title="1 of 4 branches missed.">        if (arrayToMapKey != null &amp;&amp; jsonReader.isArray()) {</span>
+<span class="fc" id="L63">            ObjectReader reader = this.getObjectReader(jsonReader);</span>
+<span class="fc" id="L64">            Map map = (Map) reader.createInstance(features);</span>
+<span class="fc" id="L65">            List array = jsonReader.readArray(valueType);</span>
+<span class="fc" id="L66">            arrayToMap(map,</span>
+                    array,
+                    arrayToMapKey,
+<span class="fc" id="L69">                    JSONFactory.getObjectReader(valueType, this.features | features),</span>
+                    arrayToMapDuplicateHandler);
+<span class="fc" id="L71">            accept(object, map);</span>
+<span class="fc" id="L72">            return;</span>
+        }
+<span class="fc" id="L74">        super.readFieldValue(jsonReader, object);</span>
+<span class="fc" id="L75">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.8.202204050719</span></div></body></html>

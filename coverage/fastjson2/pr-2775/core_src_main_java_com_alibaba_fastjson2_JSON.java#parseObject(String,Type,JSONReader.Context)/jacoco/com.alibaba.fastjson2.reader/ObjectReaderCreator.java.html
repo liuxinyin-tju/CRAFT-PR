@@ -1,0 +1,3489 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ObjectReaderCreator.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">fastjson2</a> &gt; <a href="index.source.html" class="el_package">com.alibaba.fastjson2.reader</a> &gt; <span class="el_source">ObjectReaderCreator.java</span></div><h1>ObjectReaderCreator.java</h1><pre class="source lang-java linenums">package com.alibaba.fastjson2.reader;
+
+import com.alibaba.fastjson2.JSON;
+import com.alibaba.fastjson2.JSONException;
+import com.alibaba.fastjson2.JSONFactory;
+import com.alibaba.fastjson2.JSONObject;
+import com.alibaba.fastjson2.JSONReader;
+import com.alibaba.fastjson2.PropertyNamingStrategy;
+import com.alibaba.fastjson2.TypeReference;
+import com.alibaba.fastjson2.annotation.JSONField;
+import com.alibaba.fastjson2.codec.BeanInfo;
+import com.alibaba.fastjson2.codec.FieldInfo;
+import com.alibaba.fastjson2.function.ObjBoolConsumer;
+import com.alibaba.fastjson2.function.ObjByteConsumer;
+import com.alibaba.fastjson2.function.ObjCharConsumer;
+import com.alibaba.fastjson2.function.ObjFloatConsumer;
+import com.alibaba.fastjson2.function.ObjShortConsumer;
+import com.alibaba.fastjson2.internal.asm.ASMUtils;
+import com.alibaba.fastjson2.modules.ObjectReaderAnnotationProcessor;
+import com.alibaba.fastjson2.modules.ObjectReaderModule;
+import com.alibaba.fastjson2.schema.JSONSchema;
+import com.alibaba.fastjson2.support.LambdaMiscCodec;
+import com.alibaba.fastjson2.util.BeanUtils;
+import com.alibaba.fastjson2.util.Fnv;
+import com.alibaba.fastjson2.util.JDKUtils;
+import com.alibaba.fastjson2.util.TypeUtils;
+
+import java.lang.invoke.CallSite;
+import java.lang.invoke.LambdaMetafactory;
+import java.lang.invoke.MethodHandle;
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.MethodType;
+import java.lang.reflect.Constructor;
+import java.lang.reflect.Executable;
+import java.lang.reflect.Field;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Member;
+import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
+import java.lang.reflect.Parameter;
+import java.lang.reflect.ParameterizedType;
+import java.lang.reflect.Type;
+import java.math.BigDecimal;
+import java.math.BigInteger;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
+import java.time.ZonedDateTime;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.UUID;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicIntegerArray;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicLongArray;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiConsumer;
+import java.util.function.BiFunction;
+import java.util.function.Consumer;
+import java.util.function.Function;
+import java.util.function.IntFunction;
+import java.util.function.ObjDoubleConsumer;
+import java.util.function.ObjIntConsumer;
+import java.util.function.ObjLongConsumer;
+import java.util.function.Supplier;
+import java.util.stream.Collectors;
+
+import static com.alibaba.fastjson2.util.BeanUtils.*;
+import static com.alibaba.fastjson2.util.TypeUtils.*;
+
+<span class="fc" id="L81">public class ObjectReaderCreator {</span>
+<span class="pc bpc" id="L82" title="2 of 4 branches missed.">    public static final boolean JIT = !JDKUtils.ANDROID &amp;&amp; !JDKUtils.GRAAL;</span>
+<span class="fc" id="L83">    public static final ObjectReaderCreator INSTANCE = new ObjectReaderCreator();</span>
+
+<span class="fc" id="L85">    protected final AtomicInteger jitErrorCount = new AtomicInteger();</span>
+    protected volatile Throwable jitErrorLast;
+
+<span class="fc" id="L88">    protected static final Map&lt;Class, LambdaSetterInfo&gt; methodTypeMapping = new HashMap&lt;&gt;();</span>
+
+    static class LambdaSetterInfo {
+        final Class fieldClass;
+        final MethodType sameMethodMethod;
+        final MethodType methodType;
+        final MethodType invokedType;
+
+<span class="fc" id="L96">        LambdaSetterInfo(Class fieldClass, Class functionClass) {</span>
+<span class="fc" id="L97">            this.fieldClass = fieldClass;</span>
+<span class="fc" id="L98">            this.sameMethodMethod = MethodType.methodType(void.class, Object.class, fieldClass);</span>
+<span class="fc" id="L99">            this.methodType = MethodType.methodType(void.class, fieldClass);</span>
+<span class="fc" id="L100">            this.invokedType = MethodType.methodType(functionClass);</span>
+<span class="fc" id="L101">        }</span>
+    }
+
+    static {
+<span class="fc" id="L105">        methodTypeMapping.put(boolean.class, new LambdaSetterInfo(boolean.class, ObjBoolConsumer.class));</span>
+<span class="fc" id="L106">        methodTypeMapping.put(byte.class, new LambdaSetterInfo(byte.class, ObjByteConsumer.class));</span>
+<span class="fc" id="L107">        methodTypeMapping.put(short.class, new LambdaSetterInfo(short.class, ObjShortConsumer.class));</span>
+<span class="fc" id="L108">        methodTypeMapping.put(int.class, new LambdaSetterInfo(int.class, ObjIntConsumer.class));</span>
+<span class="fc" id="L109">        methodTypeMapping.put(long.class, new LambdaSetterInfo(long.class, ObjLongConsumer.class));</span>
+<span class="fc" id="L110">        methodTypeMapping.put(char.class, new LambdaSetterInfo(char.class, ObjCharConsumer.class));</span>
+<span class="fc" id="L111">        methodTypeMapping.put(float.class, new LambdaSetterInfo(float.class, ObjFloatConsumer.class));</span>
+<span class="fc" id="L112">        methodTypeMapping.put(double.class, new LambdaSetterInfo(double.class, ObjDoubleConsumer.class));</span>
+<span class="fc" id="L113">    }</span>
+
+    public &lt;T&gt; ObjectReader&lt;T&gt; createObjectReaderNoneDefaultConstructor(Constructor constructor, String... paramNames) {
+<span class="fc" id="L116">        Function&lt;Map&lt;Long, Object&gt;, T&gt; function = createFunction(constructor, paramNames);</span>
+<span class="fc" id="L117">        Class declaringClass = constructor.getDeclaringClass();</span>
+<span class="fc" id="L118">        FieldReader[] fieldReaders = createFieldReaders(</span>
+<span class="fc" id="L119">                JSONFactory.getDefaultObjectReaderProvider(),</span>
+                declaringClass,
+                declaringClass,
+                constructor,
+<span class="fc" id="L123">                constructor.getParameters(),</span>
+                paramNames
+        );
+<span class="fc" id="L126">        return createObjectReaderNoneDefaultConstructor(declaringClass, function, fieldReaders);</span>
+    }
+
+    public &lt;T&gt; ObjectReader&lt;T&gt; createObjectReaderNoneDefaultConstructor(
+            Class objectClass,
+            Function&lt;Map&lt;Long, Object&gt;, T&gt; creator,
+            FieldReader... fieldReaders
+    ) {
+<span class="fc" id="L134">        return new ObjectReaderNoneDefaultConstructor(</span>
+                objectClass,
+                null,
+                null,
+                0,
+                creator,
+                null,
+                null,
+                fieldReaders,
+                null,
+                null,
+                null
+        );
+    }
+
+    public &lt;T&gt; ObjectReader&lt;T&gt; createObjectReaderFactoryMethod(Method factoryMethod, String... paramNames) {
+<span class="fc" id="L150">        Function&lt;Map&lt;Long, Object&gt;, Object&gt; factoryFunction = createFactoryFunction(factoryMethod, paramNames);</span>
+<span class="fc" id="L151">        FieldReader[] fieldReaders = createFieldReaders(</span>
+<span class="fc" id="L152">                JSONFactory.getDefaultObjectReaderProvider(),</span>
+                null,
+                null,
+                factoryMethod,
+<span class="fc" id="L156">                factoryMethod.getParameters(),</span>
+                paramNames
+        );
+<span class="fc" id="L159">        return new ObjectReaderNoneDefaultConstructor(</span>
+                null,
+                null,
+                null,
+                0,
+                factoryFunction,
+                null,
+                paramNames,
+                fieldReaders,
+                null,
+                null,
+                null
+        );
+    }
+
+    public FieldReader[] createFieldReaders(
+            ObjectReaderProvider provider,
+            Class objectClass,
+            Type objectType,
+            Executable owner,
+            Parameter[] parameters,
+            String... paramNames
+    ) {
+<span class="fc" id="L182">        Class&lt;?&gt; declaringClass = null;</span>
+<span class="pc bpc" id="L183" title="1 of 2 branches missed.">        if (owner != null) {</span>
+<span class="fc" id="L184">            declaringClass = owner.getDeclaringClass();</span>
+        }
+
+<span class="fc" id="L187">        FieldReader[] fieldReaders = new FieldReader[parameters.length];</span>
+<span class="fc bfc" id="L188" title="All 2 branches covered.">        for (int i = 0; i &lt; parameters.length; i++) {</span>
+<span class="fc" id="L189">            FieldInfo fieldInfo = new FieldInfo();</span>
+
+<span class="fc" id="L191">            Parameter parameter = parameters[i];</span>
+            String paramName;
+<span class="pc bpc" id="L193" title="1 of 2 branches missed.">            if (i &lt; paramNames.length) {</span>
+<span class="fc" id="L194">                paramName = paramNames[i];</span>
+            } else {
+<span class="nc" id="L196">                paramName = parameter.getName();</span>
+            }
+
+<span class="fc bfc" id="L199" title="All 2 branches covered.">            if (owner instanceof Constructor) {</span>
+<span class="fc" id="L200">                provider.getFieldInfo(fieldInfo, declaringClass, (Constructor) owner, i, parameter);</span>
+            }
+
+<span class="fc bfc" id="L203" title="All 2 branches covered.">            if (owner instanceof Constructor) {</span>
+<span class="fc" id="L204">                Field field = BeanUtils.getDeclaredField(declaringClass, paramName);</span>
+<span class="fc bfc" id="L205" title="All 2 branches covered.">                if (field != null) {</span>
+<span class="fc" id="L206">                    provider.getFieldInfo(fieldInfo, declaringClass, field);</span>
+                }
+            }
+
+            String fieldName;
+<span class="pc bpc" id="L211" title="1 of 4 branches missed.">            if (fieldInfo.fieldName == null || fieldInfo.fieldName.isEmpty()) {</span>
+<span class="fc" id="L212">                fieldName = paramName;</span>
+            } else {
+<span class="fc" id="L214">                fieldName = fieldInfo.fieldName;</span>
+            }
+
+<span class="pc bpc" id="L217" title="1 of 2 branches missed.">            if (fieldName == null) {</span>
+<span class="nc" id="L218">                fieldName = &quot;arg&quot; + i;</span>
+            }
+
+<span class="pc bpc" id="L221" title="1 of 2 branches missed.">            if (paramName == null) {</span>
+<span class="nc" id="L222">                paramName = &quot;arg&quot; + i;</span>
+            }
+
+<span class="fc" id="L225">            ObjectReader initReader = getInitReader(provider, parameter.getParameterizedType(), parameter.getType(), fieldInfo);</span>
+<span class="fc" id="L226">            Type paramType = parameter.getParameterizedType();</span>
+<span class="fc" id="L227">            fieldReaders[i] = createFieldReaderParam(</span>
+                    null,
+                    null,
+                    fieldName,
+                    i,
+                    fieldInfo.features,
+                    fieldInfo.format,
+                    fieldInfo.locale,
+                    fieldInfo.defaultValue,
+                    paramType,
+<span class="fc" id="L237">                    parameter.getType(),</span>
+                    paramName,
+                    declaringClass,
+                    parameter,
+                    null,
+                    initReader
+            );
+        }
+<span class="fc" id="L245">        return fieldReaders;</span>
+    }
+
+    public &lt;T&gt; Function&lt;Map&lt;Long, Object&gt;, T&gt; createFactoryFunction(Method factoryMethod, String... paramNames) {
+<span class="fc" id="L249">        factoryMethod.setAccessible(true);</span>
+<span class="fc" id="L250">        return new FactoryFunction(factoryMethod, paramNames);</span>
+    }
+
+    public &lt;T&gt; Function&lt;Map&lt;Long, Object&gt;, T&gt; createFunction(Constructor constructor, String... paramNames) {
+<span class="fc" id="L254">        constructor.setAccessible(true);</span>
+<span class="fc" id="L255">        return new ConstructorFunction(</span>
+                null,
+                constructor,
+                null,
+                null,
+                null,
+                paramNames
+        );
+    }
+
+    public &lt;T&gt; Function&lt;Map&lt;Long, Object&gt;, T&gt; createFunction(
+            Constructor constructor,
+            Constructor markerConstructor,
+            String... paramNames
+    ) {
+<span class="fc bfc" id="L270" title="All 2 branches covered.">        if (markerConstructor == null) {</span>
+<span class="fc" id="L271">            constructor.setAccessible(true);</span>
+        } else {
+<span class="fc" id="L273">            markerConstructor.setAccessible(true);</span>
+        }
+<span class="fc" id="L275">        return new ConstructorFunction(</span>
+                null,
+                constructor,
+                null,
+                null,
+                markerConstructor,
+                paramNames
+        );
+    }
+
+    public &lt;T&gt; ObjectReader&lt;T&gt; createObjectReader(
+            Class&lt;T&gt; objectClass,
+            FieldReader... fieldReaders
+    ) {
+<span class="fc" id="L289">        return createObjectReader(</span>
+                objectClass,
+                null,
+                0,
+                null,
+<span class="fc" id="L294">                createSupplier(objectClass),</span>
+                null,
+                fieldReaders
+        );
+    }
+
+    public &lt;T&gt; ObjectReader&lt;T&gt; createObjectReader(
+            Class&lt;T&gt; objectClass,
+            Supplier&lt;T&gt; defaultCreator,
+            FieldReader... fieldReaders
+    ) {
+<span class="fc" id="L305">        return createObjectReader(objectClass, null, 0, null, defaultCreator, null, fieldReaders);</span>
+    }
+
+    public &lt;T&gt; ObjectReader&lt;T&gt; createObjectReaderSeeAlso(
+            Class&lt;T&gt; objectType,
+            Class[] seeAlso,
+            FieldReader... fieldReaders
+    ) {
+<span class="fc" id="L313">        Supplier&lt;T&gt; instanceSupplier = createSupplier(objectType);</span>
+<span class="fc" id="L314">        return new ObjectReaderSeeAlso(</span>
+                objectType,
+                instanceSupplier,
+                &quot;@type&quot;,
+                seeAlso,
+                null,
+                null,
+                fieldReaders
+        );
+    }
+
+    public &lt;T&gt; ObjectReader&lt;T&gt; createObjectReaderSeeAlso(
+            Class&lt;T&gt; objectClass,
+            String typeKey,
+            Class[] seeAlso,
+            String[] seeAlsoNames,
+            FieldReader... fieldReaders
+    ) {
+<span class="fc" id="L332">        Supplier&lt;T&gt; creator = createSupplier(objectClass);</span>
+<span class="fc" id="L333">        return new ObjectReaderSeeAlso(</span>
+                objectClass,
+                creator,
+                typeKey,
+                seeAlso,
+                seeAlsoNames,
+                null,
+                fieldReaders
+        );
+    }
+
+    /**
+     * @since 2.0.24
+     */
+    public &lt;T&gt; ObjectReader&lt;T&gt; createObjectReaderSeeAlso(
+            Class&lt;T&gt; objectClass,
+            String typeKey,
+            Class[] seeAlso,
+            String[] seeAlsoNames,
+            Class seeAlsoDefault,
+            FieldReader... fieldReaders
+    ) {
+<span class="fc" id="L355">        Supplier&lt;T&gt; creator = createSupplier(objectClass);</span>
+<span class="fc" id="L356">        return new ObjectReaderSeeAlso(</span>
+                objectClass,
+                creator,
+                typeKey,
+                seeAlso,
+                seeAlsoNames,
+                seeAlsoDefault,
+                fieldReaders
+        );
+    }
+
+    public &lt;T&gt; ObjectReader&lt;T&gt; createObjectReaderSeeAlso(
+            Class&lt;T&gt; objectType,
+            Supplier&lt;T&gt; defaultCreator,
+            String typeKey,
+            Class[] seeAlso,
+            String[] seeAlsoNames,
+            FieldReader... fieldReaders
+    ) {
+<span class="nc" id="L375">        return new ObjectReaderSeeAlso(</span>
+                objectType,
+                defaultCreator,
+                typeKey,
+                seeAlso,
+                seeAlsoNames,
+                null,
+                fieldReaders
+        );
+    }
+
+    protected &lt;T&gt; ObjectReader&lt;T&gt; createObjectReaderWithBuilder(
+            Class&lt;T&gt; objectClass,
+            Type objectType,
+            ObjectReaderProvider provider,
+            BeanInfo beanInfo
+    ) {
+<span class="fc" id="L392">        Function&lt;Object, Object&gt; builderFunction = null;</span>
+<span class="fc bfc" id="L393" title="All 2 branches covered.">        if (beanInfo.buildMethod != null) {</span>
+<span class="fc" id="L394">            builderFunction = createBuildFunction(beanInfo.buildMethod);</span>
+        }
+<span class="fc" id="L396">        Class builderClass = beanInfo.builder;</span>
+
+<span class="fc" id="L398">        String builderWithPrefix = beanInfo.builderWithPrefix;</span>
+<span class="pc bpc" id="L399" title="1 of 4 branches missed.">        if (builderWithPrefix == null || builderWithPrefix.isEmpty()) {</span>
+<span class="fc" id="L400">            builderWithPrefix = &quot;with&quot;;</span>
+        }
+<span class="fc" id="L402">        int builderWithPrefixLenth = builderWithPrefix.length();</span>
+
+<span class="fc" id="L404">        Map&lt;String, List&lt;FieldReader&gt;&gt; fieldReaders = new LinkedHashMap&lt;&gt;();</span>
+
+<span class="fc" id="L406">        final String prefix = builderWithPrefix;</span>
+<span class="fc" id="L407">        final FieldInfo fieldInfo = new FieldInfo();</span>
+<span class="fc" id="L408">        BeanUtils.setters(builderClass, false, method -&gt; {</span>
+<span class="fc" id="L409">            fieldInfo.init();</span>
+<span class="fc" id="L410">            provider.getFieldInfo(fieldInfo, objectClass, method);</span>
+
+<span class="pc bpc" id="L412" title="1 of 2 branches missed.">            if (fieldInfo.ignore) {</span>
+<span class="nc" id="L413">                return;</span>
+            }
+
+<span class="fc" id="L416">            String methodName = method.getName();</span>
+            String fieldName;
+<span class="pc bpc" id="L418" title="1 of 4 branches missed.">            if (fieldInfo.fieldName == null || fieldInfo.fieldName.isEmpty()) {</span>
+<span class="fc" id="L419">                final int methodNameLength = methodName.length();</span>
+<span class="fc bfc" id="L420" title="All 4 branches covered.">                boolean prefixNotMach = methodNameLength &lt;= prefix.length() || !methodName.startsWith(prefix);</span>
+<span class="fc bfc" id="L421" title="All 2 branches covered.">                if (prefixNotMach) {</span>
+<span class="fc bfc" id="L422" title="All 4 branches covered.">                    if ((method.getDeclaringClass() != Object.class &amp;&amp; method.getReturnType() == builderClass)</span>
+<span class="pc bpc" id="L423" title="1 of 4 branches missed.">                            &amp;&amp; (method.getAnnotation(JSONField.class) != null</span>
+                            || (beanInfo.readerFeatures &amp; JSONReader.Feature.SupportSmartMatch.mask) != 0)
+                    ) {
+<span class="fc" id="L426">                        fieldName = methodName;</span>
+                    } else {
+<span class="fc" id="L428">                        return;</span>
+                    }
+                } else {
+<span class="fc" id="L431">                    fieldName = BeanUtils.setterName(methodName, builderWithPrefixLenth);</span>
+                }
+<span class="fc" id="L433">            } else {</span>
+<span class="fc" id="L434">                fieldName = fieldInfo.fieldName;</span>
+            }
+
+<span class="pc bpc" id="L437" title="1 of 2 branches missed.">            if (method.getParameterCount() == 0) {</span>
+<span class="nc" id="L438">                FieldReader fieldReader = createFieldReaderMethod(</span>
+                        builderClass,
+                        builderClass,
+                        fieldName,
+                        fieldInfo.ordinal,
+                        fieldInfo.features,
+                        fieldInfo.format,
+                        fieldInfo.locale,
+                        fieldInfo.defaultValue,
+                        fieldInfo.schema,
+<span class="nc" id="L448">                        method.getGenericReturnType(),</span>
+<span class="nc" id="L449">                        method.getReturnType(),</span>
+                        method,
+                        null
+                );
+<span class="nc" id="L453">                putIfAbsent(fieldReaders, fieldName, fieldReader, objectClass);</span>
+<span class="nc" id="L454">                return;</span>
+            }
+
+<span class="fc" id="L457">            Type fieldType = method.getGenericParameterTypes()[0];</span>
+<span class="fc" id="L458">            Class fieldClass = method.getParameterTypes()[0];</span>
+
+<span class="fc" id="L460">            method.setAccessible(true);</span>
+
+<span class="fc" id="L462">            FieldReader fieldReader = createFieldReaderMethod(</span>
+                    builderClass,
+                    objectType,
+                    fieldName,
+                    fieldInfo.ordinal,
+                    fieldInfo.features,
+                    fieldInfo.format,
+                    fieldInfo.locale,
+                    fieldInfo.defaultValue,
+                    fieldInfo.schema,
+                    fieldType,
+                    fieldClass,
+                    method,
+                    null);
+
+<span class="fc" id="L477">            putIfAbsent(fieldReaders, fieldName, fieldReader, objectClass);</span>
+
+<span class="pc bpc" id="L479" title="1 of 2 branches missed.">            if (fieldInfo.alternateNames != null) {</span>
+<span class="nc bnc" id="L480" title="All 2 branches missed.">                for (String alternateName : fieldInfo.alternateNames) {</span>
+<span class="nc bnc" id="L481" title="All 2 branches missed.">                    if (fieldName.equals(alternateName)) {</span>
+<span class="nc" id="L482">                        continue;</span>
+                    }
+
+<span class="nc" id="L485">                    putIfAbsent(fieldReaders,</span>
+                            alternateName,
+<span class="nc" id="L487">                            createFieldReaderMethod(</span>
+                                    builderClass,
+                                    objectType,
+                                    alternateName,
+                                    fieldInfo.ordinal,
+                                    fieldInfo.features,
+                                    fieldInfo.format,
+                                    fieldInfo.locale,
+                                    fieldInfo.defaultValue,
+                                    fieldInfo.schema,
+                                    fieldType,
+                                    fieldClass,
+                                    method,
+                                    null),
+                            objectClass);
+                }
+            }
+<span class="fc" id="L504">        });</span>
+
+<span class="fc" id="L506">        Supplier instanceSupplier = createSupplier(builderClass);</span>
+<span class="fc" id="L507">        return createObjectReader(builderClass, 0, instanceSupplier, builderFunction, toFieldReaderArray(fieldReaders));</span>
+    }
+
+    protected &lt;T&gt; ObjectReader&lt;T&gt; createObjectReaderWithCreator(
+            Class&lt;T&gt; objectClass,
+            Type objectType,
+            ObjectReaderProvider provider,
+            BeanInfo beanInfo
+    ) {
+<span class="fc" id="L516">        FieldInfo fieldInfo = new FieldInfo();</span>
+
+<span class="fc" id="L518">        Map&lt;String, List&lt;FieldReader&gt;&gt; fieldReaders = new LinkedHashMap&lt;&gt;();</span>
+
+        Class declaringClass;
+        Parameter[] parameters;
+        String[] paramNames;
+<span class="fc bfc" id="L523" title="All 2 branches covered.">        if (beanInfo.creatorConstructor != null) {</span>
+<span class="fc" id="L524">            parameters = beanInfo.creatorConstructor.getParameters();</span>
+<span class="fc" id="L525">            declaringClass = beanInfo.creatorConstructor.getDeclaringClass();</span>
+<span class="fc" id="L526">            paramNames = ASMUtils.lookupParameterNames(beanInfo.creatorConstructor);</span>
+        } else {
+<span class="fc" id="L528">            parameters = beanInfo.createMethod.getParameters();</span>
+<span class="fc" id="L529">            declaringClass = beanInfo.createMethod.getDeclaringClass();</span>
+<span class="fc" id="L530">            paramNames = ASMUtils.lookupParameterNames(beanInfo.createMethod);</span>
+        }
+
+<span class="fc bfc" id="L533" title="All 2 branches covered.">        for (int i = 0; i &lt; parameters.length; i++) {</span>
+<span class="fc" id="L534">            fieldInfo.init();</span>
+
+<span class="fc" id="L536">            Parameter parameter = parameters[i];</span>
+
+<span class="fc bfc" id="L538" title="All 2 branches covered.">            if (beanInfo.creatorConstructor != null) {</span>
+<span class="fc" id="L539">                provider.getFieldInfo(fieldInfo, objectClass, beanInfo.creatorConstructor, i, parameter);</span>
+            } else {
+<span class="fc" id="L541">                provider.getFieldInfo(fieldInfo, objectClass, beanInfo.createMethod, i, parameter);</span>
+            }
+
+<span class="fc bfc" id="L544" title="All 4 branches covered.">            if (parameters.length == 1 &amp;&amp; (fieldInfo.features &amp; FieldInfo.VALUE_MASK) != 0) {</span>
+<span class="fc" id="L545">                break;</span>
+            }
+
+<span class="fc" id="L548">            String fieldName = fieldInfo.fieldName;</span>
+<span class="pc bpc" id="L549" title="1 of 4 branches missed.">            if (fieldName == null || fieldName.isEmpty()) {</span>
+<span class="pc bpc" id="L550" title="1 of 4 branches missed.">                if (beanInfo.createParameterNames != null &amp;&amp; i &lt; beanInfo.createParameterNames.length) {</span>
+<span class="fc" id="L551">                    fieldName = beanInfo.createParameterNames[i];</span>
+                }
+
+<span class="pc bpc" id="L554" title="1 of 4 branches missed.">                if (fieldName == null || fieldName.isEmpty()) {</span>
+<span class="fc" id="L555">                    fieldName = parameter.getName();</span>
+                }
+            }
+<span class="pc bpc" id="L558" title="2 of 4 branches missed.">            if (fieldName == null || fieldName.isEmpty()) {</span>
+<span class="nc" id="L559">                fieldName = paramNames[i];</span>
+<span class="fc bfc" id="L560" title="All 2 branches covered.">            } else if (fieldName.startsWith(&quot;arg&quot;)) {</span>
+<span class="pc bpc" id="L561" title="2 of 4 branches missed.">                if (paramNames != null &amp;&amp; paramNames.length &gt; i) {</span>
+<span class="fc" id="L562">                    fieldName = paramNames[i];</span>
+                }
+            } else {
+<span class="fc" id="L565">                paramNames[i] = fieldName;</span>
+            }
+
+<span class="fc" id="L568">            String finalFieldName = fieldName;</span>
+<span class="fc" id="L569">            Class&lt;?&gt; paramClass = parameter.getType();</span>
+<span class="fc" id="L570">            BeanUtils.getters(objectClass, method -&gt; {</span>
+<span class="fc bfc" id="L571" title="All 2 branches covered.">                if (method.getReturnType() != paramClass) {</span>
+<span class="fc" id="L572">                    return;</span>
+                }
+
+<span class="fc" id="L575">                FieldInfo methodFieldInfo = new FieldInfo();</span>
+<span class="fc" id="L576">                provider.getFieldInfo(methodFieldInfo, objectClass, method);</span>
+<span class="fc" id="L577">                String methodFieldName = methodFieldInfo.fieldName;</span>
+<span class="pc bpc" id="L578" title="1 of 2 branches missed.">                if (methodFieldName == null) {</span>
+<span class="fc" id="L579">                    methodFieldName = BeanUtils.getterName(method, beanInfo.kotlin, PropertyNamingStrategy.CamelCase.name());</span>
+                }
+
+<span class="pc bpc" id="L582" title="3 of 4 branches missed.">                if (methodFieldInfo.readUsing != null &amp;&amp; finalFieldName.equals(methodFieldName)</span>
+                ) {
+<span class="nc" id="L584">                    fieldInfo.readUsing = methodFieldInfo.readUsing;</span>
+                }
+<span class="fc" id="L586">            });</span>
+
+<span class="pc bpc" id="L588" title="2 of 4 branches missed.">            if (fieldName == null || fieldName.isEmpty()) {</span>
+<span class="nc" id="L589">                fieldName = &quot;arg&quot; + i;</span>
+            }
+
+<span class="fc" id="L592">            Type paramType = parameter.getParameterizedType();</span>
+<span class="fc" id="L593">            ObjectReader initReader = getInitReader(provider, paramType, paramClass, fieldInfo);</span>
+<span class="fc" id="L594">            FieldReader fieldReaderParam = createFieldReaderParam(</span>
+                    objectClass,
+                    objectType,
+                    fieldName,
+                    i,
+                    fieldInfo.features,
+                    fieldInfo.format,
+                    paramType,
+                    paramClass,
+                    fieldName,
+                    declaringClass,
+                    parameter,
+                    null,
+                    initReader
+            );
+<span class="fc" id="L609">            fieldReaders.put(fieldName, listOf(fieldReaderParam));</span>
+
+<span class="fc bfc" id="L611" title="All 2 branches covered.">            if (fieldInfo.alternateNames != null) {</span>
+<span class="fc bfc" id="L612" title="All 2 branches covered.">                for (String alternateName : fieldInfo.alternateNames) {</span>
+<span class="pc bpc" id="L613" title="1 of 2 branches missed.">                    if (fieldName.equals(alternateName)) {</span>
+<span class="nc" id="L614">                        continue;</span>
+                    }
+
+<span class="fc" id="L617">                    putIfAbsent(fieldReaders,</span>
+                            alternateName,
+<span class="fc" id="L619">                            createFieldReaderParam(</span>
+                                    objectClass,
+                                    objectType,
+                                    alternateName,
+                                    i,
+                                    fieldInfo.features,
+                                    fieldInfo.format,
+                                    paramType,
+                                    paramClass,
+                                    fieldName,
+                                    declaringClass,
+                                    parameter,
+                                    null
+                            ),
+                            objectClass);
+                }
+            }
+        }
+
+<span class="fc bfc" id="L638" title="All 4 branches covered.">        if (parameters.length == 1 &amp;&amp; (fieldInfo.features &amp; FieldInfo.VALUE_MASK) != 0) {</span>
+<span class="fc bfc" id="L639" title="All 2 branches covered.">            Type valueType = beanInfo.creatorConstructor == null</span>
+<span class="fc" id="L640">                    ? beanInfo.createMethod.getGenericParameterTypes()[0]</span>
+<span class="fc" id="L641">                    : beanInfo.creatorConstructor.getGenericParameterTypes()[0];</span>
+<span class="fc bfc" id="L642" title="All 2 branches covered.">            Class valueClass = beanInfo.creatorConstructor == null</span>
+<span class="fc" id="L643">                    ? beanInfo.createMethod.getParameterTypes()[0]</span>
+<span class="fc" id="L644">                    : beanInfo.creatorConstructor.getParameterTypes()[0];</span>
+
+<span class="fc" id="L646">            JSONSchema jsonSchema = null;</span>
+<span class="pc bpc" id="L647" title="3 of 4 branches missed.">            if (fieldInfo.schema != null &amp;&amp; !fieldInfo.schema.isEmpty()) {</span>
+<span class="nc" id="L648">                JSONObject object = JSON.parseObject(fieldInfo.schema);</span>
+<span class="nc bnc" id="L649" title="All 2 branches missed.">                if (!object.isEmpty()) {</span>
+<span class="nc" id="L650">                    jsonSchema = JSONSchema.of(object, valueClass);</span>
+                }
+            }
+
+<span class="fc" id="L654">            Object defaultValue = fieldInfo.defaultValue;</span>
+<span class="pc bpc" id="L655" title="3 of 4 branches missed.">            if (defaultValue != null &amp;&amp; defaultValue.getClass() != valueClass) {</span>
+                Function typeConvert = JSONFactory
+<span class="nc" id="L657">                        .getDefaultObjectReaderProvider()</span>
+<span class="nc" id="L658">                        .getTypeConvert(defaultValue.getClass(), valueType);</span>
+<span class="nc bnc" id="L659" title="All 2 branches missed.">                if (typeConvert != null) {</span>
+<span class="nc" id="L660">                    defaultValue = typeConvert.apply(defaultValue);</span>
+                } else {
+<span class="nc" id="L662">                    throw new JSONException(&quot;illegal defaultValue : &quot; + defaultValue + &quot;, class &quot; + valueClass.getName());</span>
+                }
+            }
+
+<span class="pc bpc" id="L666" title="5 of 6 branches missed.">            boolean jit = JIT || (fieldInfo.features &amp; FieldInfo.JIT) != 0 || (beanInfo.readerFeatures &amp; FieldInfo.JIT) != 0;</span>
+<span class="fc" id="L667">            Function function = null;</span>
+<span class="pc bpc" id="L668" title="2 of 4 branches missed.">            if (defaultValue == null &amp;&amp; jit) {</span>
+<span class="fc bfc" id="L669" title="All 2 branches covered.">                if (valueClass == int.class) {</span>
+<span class="fc" id="L670">                    IntFunction intFunction = null;</span>
+<span class="fc bfc" id="L671" title="All 2 branches covered.">                    if (beanInfo.creatorConstructor != null) {</span>
+<span class="fc" id="L672">                        intFunction = createIntFunction(beanInfo.creatorConstructor);</span>
+<span class="pc bpc" id="L673" title="1 of 2 branches missed.">                    } else if (beanInfo.createMethod != null) {</span>
+<span class="fc" id="L674">                        intFunction = createIntFunction(beanInfo.createMethod);</span>
+                    }
+
+<span class="pc bpc" id="L677" title="1 of 2 branches missed.">                    if (intFunction != null) {</span>
+<span class="fc" id="L678">                        return ObjectReaderImplValueInt.of(objectClass, fieldInfo.features, jsonSchema, intFunction);</span>
+                    }
+<span class="pc bfc" id="L680" title="All 2 branches covered.">                } else if (valueClass == String.class) {</span>
+<span class="fc bfc" id="L681" title="All 2 branches covered.">                    if (beanInfo.creatorConstructor != null) {</span>
+<span class="fc" id="L682">                        function = createStringFunction(beanInfo.creatorConstructor);</span>
+<span class="pc bpc" id="L683" title="1 of 2 branches missed.">                    } else if (beanInfo.createMethod != null) {</span>
+<span class="fc" id="L684">                        function = createStringFunction(beanInfo.createMethod);</span>
+                    }
+
+<span class="pc bpc" id="L687" title="1 of 2 branches missed.">                    if (function != null) {</span>
+<span class="fc" id="L688">                        return ObjectReaderImplValueString.of(objectClass, fieldInfo.features, jsonSchema, function);</span>
+                    }
+                }
+            }
+
+<span class="pc bpc" id="L693" title="2 of 4 branches missed.">            if (jit &amp;&amp; !valueClass.isPrimitive()) {</span>
+<span class="fc bfc" id="L694" title="All 2 branches covered.">                if (beanInfo.creatorConstructor != null) {</span>
+<span class="fc" id="L695">                    function = createValueFunction(beanInfo.creatorConstructor, valueClass);</span>
+<span class="pc bpc" id="L696" title="1 of 2 branches missed.">                } else if (beanInfo.createMethod != null) {</span>
+<span class="fc" id="L697">                    function = createValueFunction(beanInfo.createMethod, valueClass);</span>
+                }
+            }
+
+<span class="fc" id="L701">            return new ObjectReaderImplValue(</span>
+                    objectClass,
+                    valueType,
+                    valueClass,
+                    fieldInfo.features,
+                    fieldInfo.format,
+                    defaultValue,
+                    jsonSchema,
+                    beanInfo.creatorConstructor,
+                    beanInfo.createMethod,
+                    function
+            );
+        }
+
+        Function&lt;Map&lt;Long, Object&gt;, Object&gt; function;
+<span class="fc bfc" id="L716" title="All 2 branches covered.">        if (beanInfo.creatorConstructor != null) {</span>
+<span class="fc" id="L717">            function = createFunction(beanInfo.creatorConstructor, beanInfo.markerConstructor, paramNames);</span>
+        } else {
+<span class="fc" id="L719">            function = createFactoryFunction(beanInfo.createMethod, paramNames);</span>
+        }
+
+<span class="fc" id="L722">        FieldReader[] setterFieldReaders = createFieldReaders(objectClass, objectType);</span>
+<span class="fc" id="L723">        Arrays.sort(setterFieldReaders);</span>
+
+<span class="fc" id="L725">        boolean[] flags = null;</span>
+<span class="fc" id="L726">        int maskCount = 0;</span>
+<span class="pc bpc" id="L727" title="1 of 2 branches missed.">        if (setterFieldReaders != null) {</span>
+<span class="fc bfc" id="L728" title="All 2 branches covered.">            for (int i = 0; i &lt; setterFieldReaders.length; i++) {</span>
+<span class="fc" id="L729">                FieldReader setterFieldReader = setterFieldReaders[i];</span>
+<span class="fc bfc" id="L730" title="All 2 branches covered.">                if (fieldReaders.containsKey(setterFieldReader.fieldName)) {</span>
+<span class="fc bfc" id="L731" title="All 2 branches covered.">                    if (flags == null) {</span>
+<span class="fc" id="L732">                        flags = new boolean[setterFieldReaders.length];</span>
+                    }
+<span class="fc" id="L734">                    flags[i] = true;</span>
+<span class="fc" id="L735">                    maskCount++;</span>
+                }
+            }
+<span class="fc bfc" id="L738" title="All 2 branches covered.">            if (maskCount &gt; 0) {</span>
+<span class="fc" id="L739">                FieldReader[] array = new FieldReader[setterFieldReaders.length - maskCount];</span>
+<span class="fc" id="L740">                int index = 0;</span>
+<span class="fc bfc" id="L741" title="All 2 branches covered.">                for (int i = 0; i &lt; setterFieldReaders.length; i++) {</span>
+<span class="fc bfc" id="L742" title="All 2 branches covered.">                    if (!flags[i]) {</span>
+<span class="fc" id="L743">                        array[index++] = setterFieldReaders[i];</span>
+                    }
+                }
+<span class="fc" id="L746">                setterFieldReaders = array;</span>
+            }
+        }
+
+<span class="fc" id="L750">        return (ObjectReader&lt;T&gt;) new ObjectReaderNoneDefaultConstructor(</span>
+                objectClass,
+                beanInfo.typeKey,
+                beanInfo.typeName,
+                beanInfo.readerFeatures,
+                function,
+                null,
+                paramNames,
+<span class="fc" id="L758">                toFieldReaderArray(fieldReaders),</span>
+                setterFieldReaders,
+                beanInfo.seeAlso,
+                beanInfo.seeAlsoNames
+        );
+    }
+
+    public &lt;T&gt; ObjectReader&lt;T&gt; createObjectReader(
+            Class&lt;T&gt; objectClass,
+            long features,
+            Supplier&lt;T&gt; defaultCreator,
+            Function buildFunction,
+            FieldReader... fieldReaders
+    ) {
+<span class="fc" id="L772">        return createObjectReader(objectClass, null, features, null, defaultCreator, buildFunction, fieldReaders);</span>
+    }
+
+    public &lt;T&gt; ObjectReader&lt;T&gt; createObjectReader(
+            Class&lt;T&gt; objectClass,
+            String typeKey,
+            long features,
+            JSONSchema schema,
+            Supplier&lt;T&gt; defaultCreator,
+            Function buildFunction,
+            FieldReader... fieldReaders
+    ) {
+<span class="fc bfc" id="L784" title="All 2 branches covered.">        if (objectClass != null) {</span>
+<span class="fc" id="L785">            int modifiers = objectClass.getModifiers();</span>
+<span class="pc bpc" id="L786" title="1 of 4 branches missed.">            if (Modifier.isAbstract(modifiers) || Modifier.isInterface(modifiers)) {</span>
+<span class="fc" id="L787">                return new ObjectReaderAdapter(objectClass, typeKey, null, features, schema, defaultCreator, buildFunction, fieldReaders);</span>
+            }
+        }
+
+<span class="fc bfc" id="L791" title="All 13 branches covered.">        switch (fieldReaders.length) {</span>
+            case 1:
+<span class="fc" id="L793">                return new ObjectReader1(</span>
+                        objectClass,
+                        features,
+                        schema,
+                        defaultCreator,
+                        buildFunction,
+                        fieldReaders[0]
+                );
+            case 2:
+<span class="fc" id="L802">                return new ObjectReader2(</span>
+                        objectClass,
+                        features,
+                        schema,
+                        defaultCreator,
+                        buildFunction,
+                        fieldReaders[0],
+                        fieldReaders[1]);
+            case 3:
+<span class="fc" id="L811">                return new ObjectReader3(</span>
+                        objectClass,
+                        defaultCreator,
+                        features,
+                        schema,
+                        buildFunction,
+                        fieldReaders[0],
+                        fieldReaders[1],
+                        fieldReaders[2]
+                );
+            case 4:
+<span class="fc" id="L822">                return new ObjectReader4(</span>
+                        objectClass,
+                        features,
+                        schema,
+                        defaultCreator,
+                        buildFunction,
+                        fieldReaders[0],
+                        fieldReaders[1],
+                        fieldReaders[2],
+                        fieldReaders[3]
+                );
+            case 5:
+<span class="fc" id="L834">                return new ObjectReader5(</span>
+                        objectClass,
+                        defaultCreator,
+                        features,
+                        schema,
+                        buildFunction,
+                        fieldReaders[0],
+                        fieldReaders[1],
+                        fieldReaders[2],
+                        fieldReaders[3],
+                        fieldReaders[4]
+                );
+            case 6:
+<span class="fc" id="L847">                return new ObjectReader6(</span>
+                        objectClass,
+                        defaultCreator,
+                        features,
+                        schema,
+                        buildFunction,
+                        fieldReaders[0],
+                        fieldReaders[1],
+                        fieldReaders[2],
+                        fieldReaders[3],
+                        fieldReaders[4],
+                        fieldReaders[5]
+                );
+            case 7:
+<span class="fc" id="L861">                return new ObjectReader7(</span>
+                        objectClass,
+                        null,
+                        null,
+                        features,
+                        schema,
+                        defaultCreator,
+                        buildFunction,
+                        fieldReaders
+                );
+            case 8:
+<span class="fc" id="L872">                return new ObjectReader8(</span>
+                        objectClass,
+                        null,
+                        null,
+                        features,
+                        schema,
+                        defaultCreator,
+                        buildFunction,
+                        fieldReaders
+                );
+            case 9:
+<span class="fc" id="L883">                return new ObjectReader9(</span>
+                        objectClass,
+                        null,
+                        null,
+                        features,
+                        schema,
+                        defaultCreator,
+                        buildFunction,
+                        fieldReaders
+                );
+            case 10:
+<span class="fc" id="L894">                return new ObjectReader10(</span>
+                        objectClass,
+                        null,
+                        null,
+                        features,
+                        schema,
+                        defaultCreator,
+                        buildFunction,
+                        fieldReaders
+                );
+            case 11:
+<span class="fc" id="L905">                return new ObjectReader11(</span>
+                        objectClass,
+                        null,
+                        null,
+                        features,
+                        schema,
+                        defaultCreator,
+                        buildFunction,
+                        fieldReaders
+                );
+            case 12:
+<span class="fc" id="L916">                return new ObjectReader12(</span>
+                        objectClass,
+                        null,
+                        null,
+                        features,
+                        schema,
+                        defaultCreator,
+                        buildFunction,
+                        fieldReaders
+                );
+            default:
+<span class="fc" id="L927">                return new ObjectReaderAdapter(objectClass, typeKey, null, features, schema, defaultCreator, buildFunction, fieldReaders);</span>
+        }
+    }
+
+    public &lt;T&gt; ObjectReader&lt;T&gt; createObjectReader(Type objectType) {
+<span class="pc bpc" id="L932" title="1 of 2 branches missed.">        if (objectType instanceof Class) {</span>
+<span class="nc" id="L933">            return createObjectReader((Class&lt;T&gt;) objectType);</span>
+        }
+
+<span class="fc" id="L936">        Class&lt;T&gt; objectClass = (Class&lt;T&gt;) TypeUtils.getMapping(objectType);</span>
+<span class="fc" id="L937">        FieldReader[] fieldReaderArray = createFieldReaders(objectClass, objectType);</span>
+<span class="fc" id="L938">        return createObjectReader(</span>
+                objectClass,
+<span class="fc" id="L940">                createSupplier(objectClass),</span>
+                fieldReaderArray);
+    }
+
+    public &lt;T&gt; ObjectReader&lt;T&gt; createObjectReader(Class&lt;T&gt; objectType) {
+<span class="fc" id="L945">        return createObjectReader(</span>
+                objectType,
+                objectType,
+                false,
+<span class="fc" id="L949">                JSONFactory.getDefaultObjectReaderProvider()</span>
+        );
+    }
+
+    public &lt;T&gt; ObjectReader&lt;T&gt; createObjectReader(Class&lt;T&gt; objectType, boolean fieldBased) {
+<span class="fc" id="L954">        return createObjectReader(</span>
+                objectType,
+                objectType,
+                fieldBased,
+<span class="fc" id="L958">                JSONFactory.getDefaultObjectReaderProvider()</span>
+        );
+    }
+
+    public &lt;T&gt; ObjectReader&lt;T&gt; createObjectReader(
+            Class&lt;T&gt; objectClass,
+            Type objectType,
+            boolean fieldBased,
+            ObjectReaderProvider provider
+    ) {
+<span class="fc" id="L968">        BeanInfo beanInfo = new BeanInfo(provider);</span>
+<span class="fc bfc" id="L969" title="All 2 branches covered.">        if (fieldBased) {</span>
+<span class="fc" id="L970">            beanInfo.readerFeatures |= JSONReader.Feature.FieldBased.mask;</span>
+        }
+
+<span class="fc bfc" id="L973" title="All 2 branches covered.">        for (ObjectReaderModule module : provider.modules) {</span>
+<span class="fc" id="L974">            ObjectReaderAnnotationProcessor annotationProcessor = module.getAnnotationProcessor();</span>
+<span class="pc bpc" id="L975" title="1 of 2 branches missed.">            if (annotationProcessor != null) {</span>
+<span class="fc" id="L976">                annotationProcessor.getBeanInfo(beanInfo, objectClass);</span>
+            }
+<span class="fc" id="L978">        }</span>
+
+<span class="pc bpc" id="L980" title="1 of 4 branches missed.">        if (beanInfo.deserializer != null &amp;&amp; ObjectReader.class.isAssignableFrom(beanInfo.deserializer)) {</span>
+            try {
+<span class="fc" id="L982">                Constructor constructor = beanInfo.deserializer.getDeclaredConstructor();</span>
+<span class="fc" id="L983">                constructor.setAccessible(true);</span>
+<span class="fc" id="L984">                return (ObjectReader&lt;T&gt;) constructor.newInstance();</span>
+<span class="nc" id="L985">            } catch (InstantiationException | IllegalAccessException | NoSuchMethodException |</span>
+                     InvocationTargetException e) {
+<span class="nc" id="L987">                throw new JSONException(&quot;create deserializer error&quot;, e);</span>
+            }
+        }
+
+<span class="fc bfc" id="L991" title="All 2 branches covered.">        if (fieldBased) {</span>
+<span class="fc" id="L992">            beanInfo.readerFeatures |= JSONReader.Feature.FieldBased.mask;</span>
+        }
+
+<span class="pc bpc" id="L995" title="3 of 6 branches missed.">        if (Enum.class.isAssignableFrom(objectClass) &amp;&amp; (beanInfo.createMethod == null || beanInfo.createMethod.getParameterCount() == 1)) {</span>
+<span class="fc" id="L996">            return createEnumReader(objectClass, beanInfo.createMethod, provider);</span>
+        }
+
+<span class="fc bfc" id="L999" title="All 2 branches covered.">        if (Throwable.class.isAssignableFrom(objectClass)) {</span>
+<span class="fc" id="L1000">            fieldBased = false;</span>
+<span class="fc" id="L1001">            beanInfo.readerFeatures |= JSONReader.Feature.IgnoreSetNullValue.mask;</span>
+        }
+
+<span class="fc bfc" id="L1004" title="All 2 branches covered.">        if (objectClass == Class.class) {</span>
+<span class="fc" id="L1005">            return ObjectReaderImplClass.INSTANCE;</span>
+        }
+
+<span class="fc bfc" id="L1008" title="All 4 branches covered.">        if (fieldBased &amp;&amp; objectClass.isInterface()) {</span>
+<span class="fc" id="L1009">            fieldBased = false;</span>
+        }
+
+<span class="fc" id="L1012">        FieldReader[] fieldReaderArray = createFieldReaders(objectClass, objectType, beanInfo, fieldBased, provider);</span>
+<span class="fc" id="L1013">        boolean allReadOnlyOrZero = true;</span>
+<span class="fc bfc" id="L1014" title="All 2 branches covered.">        for (int i = 0; i &lt; fieldReaderArray.length; i++) {</span>
+<span class="fc" id="L1015">            FieldReader fieldReader = fieldReaderArray[i];</span>
+<span class="fc bfc" id="L1016" title="All 2 branches covered.">            if (!fieldReader.isReadOnly()) {</span>
+<span class="fc" id="L1017">                allReadOnlyOrZero = false;</span>
+<span class="fc" id="L1018">                break;</span>
+            }
+        }
+
+<span class="fc bfc" id="L1022" title="All 4 branches covered.">        if (beanInfo.creatorConstructor != null || beanInfo.createMethod != null) {</span>
+<span class="fc" id="L1023">            return createObjectReaderWithCreator(objectClass, objectType, provider, beanInfo);</span>
+        }
+
+<span class="fc bfc" id="L1026" title="All 2 branches covered.">        if (beanInfo.builder != null) {</span>
+<span class="fc" id="L1027">            return createObjectReaderWithBuilder(objectClass, objectType, provider, beanInfo);</span>
+        }
+
+<span class="fc" id="L1030">        Constructor creatorConstructor = null;</span>
+
+<span class="fc" id="L1032">        final List&lt;Constructor&gt; alternateConstructors = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L1033">        BeanUtils.constructor(objectClass, alternateConstructors::add);</span>
+
+<span class="fc bfc" id="L1035" title="All 2 branches covered.">        if (Throwable.class.isAssignableFrom(objectClass)) {</span>
+<span class="fc" id="L1036">            return new ObjectReaderException&lt;&gt;(objectClass, alternateConstructors, fieldReaderArray);</span>
+        }
+
+<span class="fc" id="L1039">        Constructor defaultConstructor = null;</span>
+
+<span class="fc" id="L1041">        Class&lt;?&gt; declaringClass = objectClass.getDeclaringClass();</span>
+
+<span class="fc" id="L1043">        int index = -1;</span>
+<span class="fc bfc" id="L1044" title="All 2 branches covered.">        for (int i = 0; i &lt; alternateConstructors.size(); i++) {</span>
+<span class="fc" id="L1045">            Constructor constructor = alternateConstructors.get(i);</span>
+
+<span class="fc bfc" id="L1047" title="All 2 branches covered.">            if (constructor.getParameterCount() == 0) {</span>
+<span class="fc" id="L1048">                defaultConstructor = constructor;</span>
+            }
+
+<span class="fc bfc" id="L1051" title="All 2 branches covered.">            if (declaringClass != null</span>
+<span class="fc bfc" id="L1052" title="All 2 branches covered.">                    &amp;&amp; constructor.getParameterCount() == 1</span>
+<span class="fc bfc" id="L1053" title="All 2 branches covered.">                    &amp;&amp; declaringClass.equals(constructor.getParameterTypes()[0])) {</span>
+<span class="fc" id="L1054">                creatorConstructor = constructor;</span>
+<span class="fc" id="L1055">                index = i;</span>
+<span class="fc" id="L1056">                break;</span>
+<span class="fc bfc" id="L1057" title="All 2 branches covered.">            } else if (creatorConstructor == null) {</span>
+<span class="fc" id="L1058">                creatorConstructor = constructor;</span>
+<span class="fc" id="L1059">                index = i;</span>
+<span class="fc bfc" id="L1060" title="All 2 branches covered.">            } else if (constructor.getParameterCount() == 0) {</span>
+<span class="fc" id="L1061">                creatorConstructor = constructor;</span>
+<span class="fc" id="L1062">                index = i;</span>
+<span class="fc bfc" id="L1063" title="All 2 branches covered.">            } else if (creatorConstructor.getParameterCount() &lt; constructor.getParameterCount()) {</span>
+<span class="fc" id="L1064">                creatorConstructor = constructor;</span>
+<span class="fc" id="L1065">                index = i;</span>
+            }
+        }
+
+<span class="fc bfc" id="L1069" title="All 2 branches covered.">        if (index != -1) {</span>
+<span class="fc" id="L1070">            alternateConstructors.remove(index);</span>
+        }
+
+<span class="fc bfc" id="L1073" title="All 6 branches covered.">        if (creatorConstructor != null &amp;&amp; creatorConstructor.getParameterCount() != 0 &amp;&amp; beanInfo.seeAlso == null) {</span>
+<span class="fc" id="L1074">            boolean record = BeanUtils.isRecord(objectClass);</span>
+
+<span class="fc" id="L1076">            creatorConstructor.setAccessible(true);</span>
+<span class="fc" id="L1077">            String[] parameterNames = beanInfo.createParameterNames;</span>
+<span class="pc bpc" id="L1078" title="3 of 4 branches missed.">            if (record &amp;&amp; parameterNames == null) {</span>
+<span class="nc" id="L1079">                parameterNames = BeanUtils.getRecordFieldNames(objectClass);</span>
+            }
+
+<span class="pc bpc" id="L1082" title="3 of 4 branches missed.">            if (parameterNames == null || parameterNames.length == 0) {</span>
+<span class="fc" id="L1083">                parameterNames = ASMUtils.lookupParameterNames(creatorConstructor);</span>
+
+<span class="fc" id="L1085">                Parameter[] parameters = creatorConstructor.getParameters();</span>
+<span class="fc" id="L1086">                FieldInfo fieldInfo = new FieldInfo();</span>
+<span class="pc bpc" id="L1087" title="1 of 4 branches missed.">                for (int i = 0; i &lt; parameters.length &amp;&amp; i &lt; parameterNames.length; i++) {</span>
+<span class="fc" id="L1088">                    fieldInfo.init();</span>
+
+<span class="fc" id="L1090">                    Parameter parameter = parameters[i];</span>
+
+<span class="fc" id="L1092">                    provider.getFieldInfo(fieldInfo, objectClass, creatorConstructor, i, parameter);</span>
+<span class="fc bfc" id="L1093" title="All 2 branches covered.">                    if (fieldInfo.fieldName != null) {</span>
+<span class="fc" id="L1094">                        parameterNames[i] = fieldInfo.fieldName;</span>
+                    }
+                }
+            }
+
+<span class="fc" id="L1099">            int matchCount = 0;</span>
+<span class="fc bfc" id="L1100" title="All 2 branches covered.">            if (defaultConstructor != null) {</span>
+<span class="fc bfc" id="L1101" title="All 2 branches covered.">                for (int i = 0; i &lt; parameterNames.length; i++) {</span>
+<span class="fc" id="L1102">                    String parameterName = parameterNames[i];</span>
+<span class="pc bpc" id="L1103" title="1 of 2 branches missed.">                    if (parameterName == null) {</span>
+<span class="nc" id="L1104">                        continue;</span>
+                    }
+
+<span class="fc bfc" id="L1107" title="All 2 branches covered.">                    for (int j = 0; j &lt; fieldReaderArray.length; j++) {</span>
+<span class="fc" id="L1108">                        FieldReader fieldReader = fieldReaderArray[j];</span>
+<span class="pc bpc" id="L1109" title="1 of 2 branches missed.">                        if (fieldReader != null) {</span>
+<span class="fc bfc" id="L1110" title="All 2 branches covered.">                            if (parameterName.equals(fieldReader.fieldName)) {</span>
+<span class="fc" id="L1111">                                matchCount++;</span>
+<span class="fc" id="L1112">                                break;</span>
+                            }
+                        }
+                    }
+                }
+            }
+
+<span class="fc bfc" id="L1119" title="All 2 branches covered.">            if (!(fieldBased)</span>
+<span class="pc bpc" id="L1120" title="2 of 6 branches missed.">                    &amp;&amp; !(Throwable.class.isAssignableFrom(objectClass))</span>
+                    &amp;&amp; defaultConstructor == null
+                    &amp;&amp; matchCount != parameterNames.length) {
+<span class="fc bfc" id="L1123" title="All 2 branches covered.">                if (creatorConstructor.getParameterCount() == 1) {</span>
+<span class="fc" id="L1124">                    FieldInfo fieldInfo = new FieldInfo();</span>
+<span class="fc" id="L1125">                    provider.getFieldInfo(fieldInfo, objectClass, creatorConstructor, 0, creatorConstructor.getParameters()[0]);</span>
+<span class="fc bfc" id="L1126" title="All 2 branches covered.">                    if ((fieldInfo.features &amp; FieldInfo.VALUE_MASK) != 0) {</span>
+<span class="fc" id="L1127">                        Type valueType = creatorConstructor.getGenericParameterTypes()[0];</span>
+<span class="fc" id="L1128">                        Class valueClass = creatorConstructor.getParameterTypes()[0];</span>
+
+<span class="fc" id="L1130">                        JSONSchema jsonSchema = null;</span>
+<span class="pc bpc" id="L1131" title="3 of 4 branches missed.">                        if (fieldInfo.schema != null &amp;&amp; !fieldInfo.schema.isEmpty()) {</span>
+<span class="nc" id="L1132">                            JSONObject object = JSON.parseObject(fieldInfo.schema);</span>
+<span class="nc bnc" id="L1133" title="All 2 branches missed.">                            if (!object.isEmpty()) {</span>
+<span class="nc" id="L1134">                                jsonSchema = JSONSchema.of(object, valueClass);</span>
+                            }
+                        }
+
+<span class="fc" id="L1138">                        Object defaultValue = fieldInfo.defaultValue;</span>
+<span class="pc bpc" id="L1139" title="3 of 4 branches missed.">                        if (defaultValue != null &amp;&amp; defaultValue.getClass() != valueClass) {</span>
+                            Function typeConvert = JSONFactory
+<span class="nc" id="L1141">                                    .getDefaultObjectReaderProvider()</span>
+<span class="nc" id="L1142">                                    .getTypeConvert(defaultValue.getClass(), valueType);</span>
+<span class="nc bnc" id="L1143" title="All 2 branches missed.">                            if (typeConvert != null) {</span>
+<span class="nc" id="L1144">                                defaultValue = typeConvert.apply(defaultValue);</span>
+                            } else {
+<span class="nc" id="L1146">                                throw new JSONException(&quot;illegal defaultValue : &quot; + defaultValue + &quot;, class &quot; + valueClass.getName());</span>
+                            }
+                        }
+
+<span class="fc" id="L1150">                        return new ObjectReaderImplValue(</span>
+                                objectClass,
+                                valueType,
+                                valueClass,
+                                fieldInfo.features,
+                                fieldInfo.format,
+                                defaultValue,
+                                jsonSchema,
+                                creatorConstructor,
+                                null,
+                                null
+                        );
+                    }
+                }
+
+<span class="fc bfc" id="L1165" title="All 6 branches covered.">                if (allReadOnlyOrZero &amp;&amp; fieldReaderArray.length != 0 &amp;&amp; alternateConstructors.isEmpty()) {</span>
+<span class="fc bfc" id="L1166" title="All 2 branches covered.">                    for (int i = 0; i &lt; parameterNames.length; i++) {</span>
+<span class="fc" id="L1167">                        String paramName = parameterNames[i];</span>
+<span class="fc bfc" id="L1168" title="All 2 branches covered.">                        for (FieldReader fieldReader : fieldReaderArray) {</span>
+<span class="fc bfc" id="L1169" title="All 2 branches covered.">                            if (fieldReader.field != null</span>
+<span class="fc bfc" id="L1170" title="All 2 branches covered.">                                    &amp;&amp; fieldReader.field.getName().equals(paramName)</span>
+<span class="fc bfc" id="L1171" title="All 2 branches covered.">                                    &amp;&amp; !fieldReader.fieldName.equals(paramName)</span>
+                            ) {
+<span class="fc" id="L1173">                                parameterNames[i] = fieldReader.fieldName;</span>
+<span class="fc" id="L1174">                                break;</span>
+                            }
+                        }
+                    }
+                }
+
+<span class="fc" id="L1180">                Function function = null;</span>
+<span class="fc" id="L1181">                BiFunction biFunction = null;</span>
+<span class="pc bpc" id="L1182" title="1 of 2 branches missed.">                if (JIT) {</span>
+<span class="fc bfc" id="L1183" title="All 2 branches covered.">                    if (creatorConstructor.getParameterCount() == 1) {</span>
+<span class="fc" id="L1184">                        function = LambdaMiscCodec.createFunction(creatorConstructor);</span>
+<span class="fc bfc" id="L1185" title="All 2 branches covered.">                    } else if (creatorConstructor.getParameterCount() == 2) {</span>
+<span class="fc" id="L1186">                        biFunction = LambdaMiscCodec.createBiFunction(creatorConstructor);</span>
+                    }
+                }
+
+<span class="fc" id="L1190">                Function&lt;Map&lt;Long, Object&gt;, T&gt; constructorFunction = new ConstructorFunction(</span>
+                        alternateConstructors,
+                        creatorConstructor,
+                        function,
+                        biFunction,
+                        null,
+                        parameterNames
+                );
+
+<span class="fc" id="L1199">                FieldReader[] paramFieldReaders = createFieldReaders(</span>
+                        provider,
+                        objectClass,
+                        objectType,
+                        creatorConstructor,
+<span class="fc" id="L1204">                        creatorConstructor.getParameters(),</span>
+                        parameterNames
+                );
+<span class="fc" id="L1207">                return new ObjectReaderNoneDefaultConstructor(</span>
+                        objectClass,
+                        beanInfo.typeKey,
+                        beanInfo.typeName,
+                        beanInfo.readerFeatures,
+                        constructorFunction,
+                        alternateConstructors,
+                        parameterNames,
+                        paramFieldReaders,
+                        fieldReaderArray,
+                        null,
+                        null
+                );
+            }
+        }
+
+<span class="pc bpc" id="L1223" title="1 of 4 branches missed.">        if (beanInfo.seeAlso != null &amp;&amp; beanInfo.seeAlso.length != 0) {</span>
+<span class="fc" id="L1224">            return createObjectReaderSeeAlso(</span>
+                    objectClass,
+                    beanInfo.typeKey,
+                    beanInfo.seeAlso,
+                    beanInfo.seeAlsoNames,
+                    beanInfo.seeAlsoDefault,
+                    fieldReaderArray
+            );
+        }
+
+<span class="fc bfc" id="L1234" title="All 2 branches covered.">        if (objectClass.isInterface()) {</span>
+<span class="fc" id="L1235">            return new ObjectReaderInterface(</span>
+                    objectClass,
+                    null,
+                    null,
+                    0L,
+                    null,
+                    null,
+                    fieldReaderArray
+            );
+        }
+
+<span class="fc" id="L1246">        Supplier&lt;T&gt; creator = createSupplier(objectClass);</span>
+<span class="fc" id="L1247">        JSONSchema jsonSchema = JSONSchema.of(JSON.parseObject(beanInfo.schema), objectClass);</span>
+<span class="fc" id="L1248">        ObjectReader&lt;T&gt; objectReader = createObjectReader(</span>
+                objectClass,
+                beanInfo.typeKey,
+                beanInfo.readerFeatures,
+                jsonSchema,
+                creator,
+                null,
+                fieldReaderArray);
+
+<span class="pc bpc" id="L1257" title="1 of 2 branches missed.">        if (objectReader instanceof ObjectReaderBean) {</span>
+<span class="fc" id="L1258">            JSONReader.AutoTypeBeforeHandler beforeHandler = null;</span>
+<span class="fc bfc" id="L1259" title="All 2 branches covered.">            if (beanInfo.autoTypeBeforeHandler != null) {</span>
+                try {
+<span class="fc" id="L1261">                    Constructor constructor = beanInfo.autoTypeBeforeHandler.getDeclaredConstructor();</span>
+<span class="fc" id="L1262">                    constructor.setAccessible(true);</span>
+<span class="fc" id="L1263">                    beforeHandler = (JSONReader.AutoTypeBeforeHandler) constructor.newInstance();</span>
+<span class="nc" id="L1264">                } catch (Exception ignored) {</span>
+                    // ignored
+<span class="fc" id="L1266">                }</span>
+            }
+
+<span class="fc bfc" id="L1269" title="All 2 branches covered.">            if (beforeHandler != null) {</span>
+<span class="fc" id="L1270">                ((ObjectReaderBean&lt;T&gt;) objectReader).setAutoTypeBeforeHandler(beforeHandler);</span>
+            }
+        }
+
+<span class="fc" id="L1274">        return objectReader;</span>
+    }
+
+    public &lt;T&gt; FieldReader[] createFieldReaders(Class&lt;T&gt; objectClass) {
+<span class="nc" id="L1278">        return createFieldReaders(</span>
+                objectClass,
+                objectClass,
+                null,
+                false,
+<span class="nc" id="L1283">                JSONFactory.getDefaultObjectReaderProvider()</span>
+        );
+    }
+
+    public &lt;T&gt; FieldReader[] createFieldReaders(Class&lt;T&gt; objectClass, Type objectType) {
+<span class="fc" id="L1288">        return createFieldReaders(</span>
+                objectClass,
+                objectType,
+                null,
+                false,
+<span class="fc" id="L1293">                JSONFactory.getDefaultObjectReaderProvider()</span>
+        );
+    }
+
+    protected void createFieldReader(
+            Class objectClass,
+            Type objectType,
+            String namingStrategy,
+            String[] orders,
+            FieldInfo fieldInfo,
+            Field field,
+            Map&lt;String, List&lt;FieldReader&gt;&gt; fieldReaders,
+            ObjectReaderProvider provider
+    ) {
+<span class="fc" id="L1307">        provider.getFieldInfo(fieldInfo, objectClass, field);</span>
+
+<span class="fc bfc" id="L1309" title="All 2 branches covered.">        if (fieldInfo.ignore) {</span>
+<span class="fc bfc" id="L1310" title="All 2 branches covered.">            boolean unwrap = (fieldInfo.features &amp; FieldInfo.UNWRAPPED_MASK) != 0</span>
+<span class="fc bfc" id="L1311" title="All 2 branches covered.">                    &amp;&amp; Map.class.isAssignableFrom(field.getType());</span>
+<span class="fc bfc" id="L1312" title="All 2 branches covered.">            if (!unwrap) {</span>
+<span class="fc" id="L1313">                return;</span>
+            }
+        }
+
+        String fieldName;
+<span class="pc bpc" id="L1318" title="1 of 4 branches missed.">        if (fieldInfo.fieldName == null || fieldInfo.fieldName.isEmpty()) {</span>
+<span class="fc" id="L1319">            fieldName = field.getName();</span>
+<span class="fc bfc" id="L1320" title="All 2 branches covered.">            if (namingStrategy != null) {</span>
+<span class="fc" id="L1321">                fieldName = BeanUtils.fieldName(fieldName, namingStrategy);</span>
+            }
+        } else {
+<span class="fc" id="L1324">            fieldName = fieldInfo.fieldName;</span>
+        }
+
+<span class="pc bpc" id="L1327" title="1 of 4 branches missed.">        if (orders != null &amp;&amp; orders.length &gt; 0) {</span>
+<span class="fc" id="L1328">            boolean match = false;</span>
+<span class="pc bpc" id="L1329" title="1 of 2 branches missed.">            for (int i = 0; i &lt; orders.length; i++) {</span>
+<span class="fc bfc" id="L1330" title="All 2 branches covered.">                if (fieldName.equals(orders[i])) {</span>
+<span class="fc" id="L1331">                    fieldInfo.ordinal = i;</span>
+<span class="fc" id="L1332">                    match = true;</span>
+<span class="fc" id="L1333">                    break;</span>
+                }
+            }
+<span class="pc bpc" id="L1336" title="1 of 2 branches missed.">            if (!match) {</span>
+<span class="nc bnc" id="L1337" title="All 2 branches missed.">                if (fieldInfo.ordinal == 0) {</span>
+<span class="nc" id="L1338">                    fieldInfo.ordinal = orders.length;</span>
+                }
+            }
+        }
+
+<span class="fc" id="L1343">        Type fieldType = field.getGenericType();</span>
+<span class="fc" id="L1344">        Class&lt;?&gt; fieldClass = field.getType();</span>
+
+<span class="fc" id="L1346">        ObjectReader initReader = getInitReader(provider, fieldType, fieldClass, fieldInfo);</span>
+<span class="fc" id="L1347">        String schema = fieldInfo.schema;</span>
+<span class="fc bfc" id="L1348" title="All 2 branches covered.">        if (fieldInfo.required) {</span>
+<span class="pc bpc" id="L1349" title="1 of 2 branches missed.">            if (schema == null) {</span>
+<span class="fc" id="L1350">                schema = &quot;{\&quot;required\&quot;:true}&quot;;</span>
+            }
+        }
+
+<span class="fc" id="L1354">        FieldReader&lt;Object&gt; fieldReader = createFieldReader(</span>
+                objectClass,
+                objectType,
+                fieldName,
+                fieldInfo.ordinal,
+                fieldInfo.features,
+                fieldInfo.format,
+                fieldInfo.locale,
+                fieldInfo.defaultValue,
+                schema,
+                fieldType,
+                fieldClass,
+                field,
+                initReader,
+                fieldInfo.arrayToMapKey,
+<span class="fc" id="L1369">                fieldInfo.getInitArrayToMapDuplicateHandler()</span>
+        );
+
+<span class="fc" id="L1372">        putIfAbsent(fieldReaders, fieldName, fieldReader, objectClass);</span>
+
+<span class="fc bfc" id="L1374" title="All 2 branches covered.">        if (fieldInfo.alternateNames != null) {</span>
+<span class="fc bfc" id="L1375" title="All 2 branches covered.">            for (String alternateName : fieldInfo.alternateNames) {</span>
+<span class="fc bfc" id="L1376" title="All 2 branches covered.">                if (fieldName.equals(alternateName)) {</span>
+<span class="fc" id="L1377">                    continue;</span>
+                }
+
+<span class="fc" id="L1380">                putIfAbsent(fieldReaders,</span>
+                        alternateName,
+<span class="fc" id="L1382">                        createFieldReader(</span>
+                                objectClass,
+                                objectType,
+                                alternateName,
+                                fieldInfo.ordinal,
+                                fieldInfo.features,
+                                null,
+                                fieldInfo.locale,
+                                fieldInfo.defaultValue,
+                                schema,
+                                fieldType,
+                                fieldClass,
+                                field,
+                                null
+                        ),
+                        objectClass);
+            }
+        }
+<span class="fc" id="L1400">    }</span>
+
+    protected void createFieldReader(
+            Class objectClass,
+            Type objectType,
+            String namingStrategy,
+            String[] orders,
+            BeanInfo beanInfo,
+            FieldInfo fieldInfo,
+            Method method,
+            Map&lt;String, List&lt;FieldReader&gt;&gt; fieldReaders,
+            ObjectReaderProvider provider
+    ) {
+<span class="fc" id="L1413">        provider.getFieldInfo(fieldInfo, objectClass, method);</span>
+
+<span class="fc bfc" id="L1415" title="All 2 branches covered.">        if (fieldInfo.ignore) {</span>
+<span class="fc" id="L1416">            return;</span>
+        }
+
+        String fieldName;
+<span class="pc bpc" id="L1420" title="1 of 4 branches missed.">        if (fieldInfo.fieldName == null || fieldInfo.fieldName.isEmpty()) {</span>
+<span class="fc" id="L1421">            String methodName = method.getName();</span>
+<span class="fc bfc" id="L1422" title="All 2 branches covered.">            if (methodName.startsWith(&quot;set&quot;)) {</span>
+<span class="fc" id="L1423">                fieldName = BeanUtils.setterName(methodName, namingStrategy);</span>
+            } else {
+<span class="fc" id="L1425">                fieldName = BeanUtils.getterName(method, beanInfo.kotlin, namingStrategy);</span>
+            }
+
+<span class="fc" id="L1428">            char c0 = '\0', c1;</span>
+<span class="fc" id="L1429">            int len = fieldName.length();</span>
+<span class="pc bpc" id="L1430" title="1 of 2 branches missed.">            if (len &gt; 0) {</span>
+<span class="fc" id="L1431">                c0 = fieldName.charAt(0);</span>
+            }
+
+<span class="pc bpc" id="L1434" title="3 of 12 branches missed.">            if ((len == 1 &amp;&amp; c0 &gt;= 'a' &amp;&amp; c0 &lt;= 'z')</span>
+<span class="pc bpc" id="L1435" title="1 of 4 branches missed.">                    || (len &gt; 2 &amp;&amp; c0 &gt;= 'A' &amp;&amp; c0 &lt;= 'Z' &amp;&amp; (c1 = fieldName.charAt(1)) &gt;= 'A' &amp;&amp; c1 &lt;= 'Z')</span>
+            ) {
+<span class="fc" id="L1437">                char[] chars = fieldName.toCharArray();</span>
+<span class="fc bfc" id="L1438" title="All 2 branches covered.">                if (len == 1) {</span>
+<span class="fc" id="L1439">                    chars[0] = (char) (chars[0] - 32);</span>
+                } else {
+<span class="fc" id="L1441">                    chars[0] = (char) (chars[0] + 32);</span>
+                }
+<span class="fc" id="L1443">                String fieldName1 = new String(chars);</span>
+<span class="fc" id="L1444">                Field field = BeanUtils.getDeclaredField(objectClass, fieldName1);</span>
+<span class="fc bfc" id="L1445" title="All 2 branches covered.">                if (field != null) {</span>
+<span class="fc bfc" id="L1446" title="All 2 branches covered.">                    if (Modifier.isPublic(field.getModifiers())) {</span>
+<span class="fc" id="L1447">                        fieldName = field.getName();</span>
+<span class="fc bfc" id="L1448" title="All 2 branches covered.">                    } else if (len == 1) {</span>
+<span class="fc" id="L1449">                        fieldInfo.alternateNames = new String[]{fieldName};</span>
+<span class="fc" id="L1450">                        fieldName = field.getName();</span>
+                    }
+                }
+            }
+<span class="fc" id="L1454">        } else {</span>
+<span class="fc" id="L1455">            fieldName = fieldInfo.fieldName;</span>
+        }
+
+<span class="pc bpc" id="L1458" title="1 of 4 branches missed.">        if (orders != null &amp;&amp; orders.length &gt; 0) {</span>
+<span class="fc" id="L1459">            boolean match = false;</span>
+<span class="fc bfc" id="L1460" title="All 2 branches covered.">            for (int i = 0; i &lt; orders.length; i++) {</span>
+<span class="fc bfc" id="L1461" title="All 2 branches covered.">                if (fieldName.equals(orders[i])) {</span>
+<span class="fc" id="L1462">                    fieldInfo.ordinal = i;</span>
+<span class="fc" id="L1463">                    match = true;</span>
+<span class="fc" id="L1464">                    break;</span>
+                }
+            }
+<span class="fc bfc" id="L1467" title="All 2 branches covered.">            if (!match) {</span>
+<span class="pc bpc" id="L1468" title="1 of 2 branches missed.">                if (fieldInfo.ordinal == 0) {</span>
+<span class="fc" id="L1469">                    fieldInfo.ordinal = orders.length;</span>
+                }
+            }
+        }
+
+<span class="fc" id="L1474">        int parameterCount = method.getParameterCount();</span>
+<span class="fc bfc" id="L1475" title="All 2 branches covered.">        if (parameterCount == 0) {</span>
+<span class="fc" id="L1476">            Type fieldType = method.getGenericReturnType();</span>
+<span class="fc" id="L1477">            Class&lt;?&gt; fieldClass = method.getReturnType();</span>
+<span class="fc" id="L1478">            FieldReader fieldReader = createFieldReaderMethod(</span>
+                    objectClass,
+                    objectType,
+                    fieldName,
+                    fieldInfo.ordinal,
+                    fieldInfo.features,
+                    fieldInfo.format,
+                    fieldInfo.locale,
+                    fieldInfo.defaultValue,
+                    fieldInfo.schema,
+                    fieldType,
+                    fieldClass,
+                    method,
+<span class="fc" id="L1491">                    fieldInfo.getInitReader(),</span>
+                    fieldInfo.arrayToMapKey,
+<span class="fc" id="L1493">                    fieldInfo.getInitArrayToMapDuplicateHandler()</span>
+            );
+<span class="fc" id="L1495">            putIfAbsent(fieldReaders, fieldName, fieldReader, objectClass);</span>
+<span class="fc" id="L1496">            return;</span>
+        }
+
+<span class="fc bfc" id="L1499" title="All 2 branches covered.">        if (parameterCount == 2) {</span>
+<span class="fc" id="L1500">            Class&lt;?&gt; fieldClass = method.getParameterTypes()[1];</span>
+<span class="fc" id="L1501">            Type fieldType = method.getGenericParameterTypes()[1];</span>
+<span class="fc" id="L1502">            method.setAccessible(true);</span>
+<span class="fc" id="L1503">            FieldReaderAnySetter anySetter = new FieldReaderAnySetter(fieldType, fieldClass, fieldInfo.ordinal, fieldInfo.features, fieldInfo.format, null, method);</span>
+<span class="fc" id="L1504">            fieldReaders.put(anySetter.fieldName, listOf(anySetter));</span>
+<span class="fc" id="L1505">            return;</span>
+        }
+
+<span class="fc" id="L1508">        Type fieldType = method.getGenericParameterTypes()[0];</span>
+<span class="fc" id="L1509">        Class fieldClass = method.getParameterTypes()[0];</span>
+<span class="fc bfc" id="L1510" title="All 4 branches covered.">        if (fieldType instanceof Class &amp;&amp; Collection.class.isAssignableFrom((Class&lt;?&gt;) fieldType)) {</span>
+<span class="fc" id="L1511">            Class[] interfaces = objectClass.getInterfaces();</span>
+<span class="fc bfc" id="L1512" title="All 2 branches covered.">            for (int i = 0; i &lt; interfaces.length; i++) {</span>
+<span class="fc" id="L1513">                Method interfaceMethod = BeanUtils.getMethod(interfaces[i], method);</span>
+<span class="pc bpc" id="L1514" title="1 of 2 branches missed.">                if (interfaceMethod != null) {</span>
+<span class="fc" id="L1515">                    Type[] genericParameterTypes = interfaceMethod.getGenericParameterTypes();</span>
+<span class="pc bpc" id="L1516" title="2 of 4 branches missed.">                    if (genericParameterTypes.length == 1</span>
+                            &amp;&amp; genericParameterTypes[0] instanceof ParameterizedType
+                    ) {
+<span class="fc" id="L1519">                        fieldType = genericParameterTypes[0];</span>
+                    }
+                }
+            }
+        }
+
+        // skip function
+<span class="fc bfc" id="L1526" title="All 2 branches covered.">        if (isFunction(fieldClass)) {</span>
+<span class="fc" id="L1527">            return;</span>
+        }
+
+<span class="fc" id="L1530">        ObjectReader initReader = getInitReader(provider, fieldType, fieldClass, fieldInfo);</span>
+<span class="fc" id="L1531">        FieldReader fieldReader = null;</span>
+<span class="fc bfc" id="L1532" title="All 2 branches covered.">        boolean jit = (fieldInfo.features &amp; FieldInfo.JIT) != 0;</span>
+<span class="fc bfc" id="L1533" title="All 2 branches covered.">        if (jit) {</span>
+            try {
+<span class="fc" id="L1535">                fieldReader = createFieldReaderLambda(</span>
+                        objectClass,
+                        objectType,
+                        fieldName,
+                        fieldInfo.ordinal,
+                        fieldInfo.features,
+                        fieldInfo.format,
+                        fieldInfo.locale,
+                        fieldInfo.defaultValue,
+                        fieldInfo.schema,
+                        fieldType,
+                        fieldClass,
+                        method,
+                        initReader
+                );
+<span class="fc" id="L1550">            } catch (Throwable ignored) {</span>
+<span class="fc" id="L1551">                jitErrorCount.incrementAndGet();</span>
+<span class="fc" id="L1552">                jitErrorLast = ignored;</span>
+<span class="fc" id="L1553">            }</span>
+        }
+
+<span class="fc bfc" id="L1556" title="All 2 branches covered.">        if (fieldReader == null) {</span>
+<span class="fc" id="L1557">            fieldReader = createFieldReaderMethod(</span>
+                    objectClass,
+                    objectType,
+                    fieldName,
+                    fieldInfo.ordinal,
+                    fieldInfo.features,
+                    fieldInfo.format,
+                    fieldInfo.locale,
+                    fieldInfo.defaultValue,
+                    fieldInfo.schema,
+                    fieldType,
+                    fieldClass,
+                    method,
+                    initReader,
+                    fieldInfo.arrayToMapKey,
+<span class="fc" id="L1572">                    fieldInfo.getInitArrayToMapDuplicateHandler()</span>
+            );
+        }
+
+<span class="fc" id="L1576">        putIfAbsent(fieldReaders, fieldName, fieldReader, objectClass);</span>
+
+<span class="fc bfc" id="L1578" title="All 2 branches covered.">        if (fieldInfo.alternateNames != null) {</span>
+<span class="fc bfc" id="L1579" title="All 2 branches covered.">            for (String alternateName : fieldInfo.alternateNames) {</span>
+<span class="fc bfc" id="L1580" title="All 2 branches covered.">                if (fieldName.equals(alternateName)) {</span>
+<span class="fc" id="L1581">                    continue;</span>
+                }
+
+<span class="fc" id="L1584">                putIfAbsent(fieldReaders,</span>
+                        alternateName,
+<span class="fc" id="L1586">                        createFieldReaderMethod(</span>
+                                objectClass,
+                                objectType,
+                                alternateName,
+                                fieldInfo.ordinal,
+                                fieldInfo.features,
+                                fieldInfo.format,
+                                fieldInfo.locale,
+                                fieldInfo.defaultValue,
+                                fieldInfo.schema,
+                                fieldType,
+                                fieldClass,
+                                method,
+                                initReader
+                        ),
+                        objectClass);
+            }
+        }
+<span class="fc" id="L1604">    }</span>
+
+    protected &lt;T&gt; FieldReader[] createFieldReaders(
+            Class&lt;T&gt; objectClass,
+            Type objectType,
+            BeanInfo beanInfo,
+            boolean fieldBased,
+            ObjectReaderProvider provider
+    ) {
+<span class="fc bfc" id="L1613" title="All 2 branches covered.">        if (beanInfo == null) {</span>
+<span class="fc" id="L1614">            beanInfo = new BeanInfo(provider);</span>
+<span class="fc bfc" id="L1615" title="All 2 branches covered.">            for (ObjectReaderModule module : provider.modules) {</span>
+<span class="fc" id="L1616">                ObjectReaderAnnotationProcessor annotationProcessor = module.getAnnotationProcessor();</span>
+<span class="pc bpc" id="L1617" title="1 of 2 branches missed.">                if (annotationProcessor != null) {</span>
+<span class="fc" id="L1618">                    annotationProcessor.getBeanInfo(beanInfo, objectClass);</span>
+                }
+<span class="fc" id="L1620">            }</span>
+        }
+
+<span class="fc" id="L1623">        boolean record = BeanUtils.isRecord(objectClass);</span>
+<span class="fc" id="L1624">        final String namingStrategy = beanInfo.namingStrategy;</span>
+
+<span class="fc" id="L1626">        Map&lt;String, List&lt;FieldReader&gt;&gt; fieldReaders = new LinkedHashMap&lt;&gt;();</span>
+
+<span class="fc" id="L1628">        BeanInfo finalBeanInfo = beanInfo;</span>
+<span class="fc" id="L1629">        final long beanFeatures = beanInfo.readerFeatures;</span>
+<span class="fc" id="L1630">        final String beanFormat = beanInfo.format;</span>
+<span class="fc" id="L1631">        final FieldInfo fieldInfo = new FieldInfo();</span>
+<span class="fc" id="L1632">        final String[] orders = beanInfo.orders;</span>
+<span class="fc bfc" id="L1633" title="All 2 branches covered.">        if (fieldBased) {</span>
+<span class="fc" id="L1634">            BeanUtils.declaredFields(objectClass, field -&gt; {</span>
+<span class="fc" id="L1635">                fieldInfo.init();</span>
+<span class="fc" id="L1636">                fieldInfo.features |= JSONReader.Feature.FieldBased.mask;</span>
+<span class="fc" id="L1637">                fieldInfo.features |= beanFeatures;</span>
+<span class="fc" id="L1638">                fieldInfo.format = beanFormat;</span>
+
+<span class="fc" id="L1640">                createFieldReader(objectClass, objectType, namingStrategy, orders, fieldInfo, field, fieldReaders, provider);</span>
+<span class="fc" id="L1641">            });</span>
+        } else {
+<span class="pc bpc" id="L1643" title="1 of 2 branches missed.">            if (!record) {</span>
+<span class="fc" id="L1644">                BeanUtils.declaredFields(objectClass, field -&gt; {</span>
+<span class="fc" id="L1645">                    fieldInfo.init();</span>
+<span class="fc bfc" id="L1646" title="All 4 branches covered.">                    fieldInfo.ignore = (field.getModifiers() &amp; Modifier.PUBLIC) == 0 &amp;&amp; ((beanFeatures &amp; JSONReader.Feature.FieldBased.mask) == 0);</span>
+<span class="fc" id="L1647">                    fieldInfo.features |= beanFeatures;</span>
+<span class="fc" id="L1648">                    fieldInfo.format = beanFormat;</span>
+
+<span class="fc" id="L1650">                    createFieldReader(objectClass, objectType, namingStrategy, orders, fieldInfo, field, fieldReaders, provider);</span>
+<span class="fc bfc" id="L1651" title="All 2 branches covered.">                    if (fieldInfo.required) {</span>
+<span class="fc" id="L1652">                        String fieldName = fieldInfo.fieldName;</span>
+<span class="pc bpc" id="L1653" title="1 of 4 branches missed.">                        if (fieldName == null || fieldName.isEmpty()) {</span>
+<span class="fc" id="L1654">                            fieldName = field.getName();</span>
+                        }
+<span class="fc" id="L1656">                        finalBeanInfo.required(fieldName);</span>
+                    }
+<span class="fc" id="L1658">                });</span>
+            }
+
+<span class="fc" id="L1661">            Class mixIn = provider.getMixIn(objectClass);</span>
+<span class="fc" id="L1662">            BeanUtils.setters(objectClass, beanInfo, mixIn, method -&gt; {</span>
+<span class="fc" id="L1663">                fieldInfo.init();</span>
+<span class="fc" id="L1664">                fieldInfo.features |= beanFeatures;</span>
+<span class="fc" id="L1665">                fieldInfo.format = beanFormat;</span>
+<span class="fc" id="L1666">                createFieldReader(objectClass, objectType, namingStrategy, orders, finalBeanInfo, fieldInfo, method, fieldReaders, provider);</span>
+<span class="fc" id="L1667">            });</span>
+
+<span class="fc bfc" id="L1669" title="All 2 branches covered.">            if (objectClass.isInterface()) {</span>
+<span class="fc" id="L1670">                BeanUtils.getters(objectClass, method -&gt; {</span>
+<span class="fc" id="L1671">                    fieldInfo.init();</span>
+<span class="fc" id="L1672">                    fieldInfo.features |= beanFeatures;</span>
+<span class="fc" id="L1673">                    createFieldReader(objectClass, objectType, namingStrategy, orders, finalBeanInfo, fieldInfo, method, fieldReaders, provider);</span>
+<span class="fc" id="L1674">                });</span>
+            }
+        }
+
+<span class="fc" id="L1678">        Class&lt;? super T&gt; superclass = objectClass.getSuperclass();</span>
+<span class="fc bfc" id="L1679" title="All 2 branches covered.">        if (BeanUtils.isExtendedMap(objectClass)) {</span>
+<span class="fc" id="L1680">            Type superType = objectClass.getGenericSuperclass();</span>
+<span class="fc" id="L1681">            FieldReader fieldReader = ObjectReaders.fieldReader(</span>
+                    SUPER,
+                    superType,
+                    superclass,
+                    (o, f) -&gt; {
+<span class="fc" id="L1686">                        Map thisMap = (Map) o;</span>
+<span class="fc" id="L1687">                        Map superMap = (Map) f;</span>
+                        // avoid putAll oom
+<span class="fc bfc" id="L1689" title="All 2 branches covered.">                        for (Object value : superMap.entrySet()) {</span>
+<span class="fc" id="L1690">                            Map.Entry entry = (Map.Entry) value;</span>
+<span class="fc" id="L1691">                            thisMap.put(entry.getKey(), entry.getValue());</span>
+<span class="fc" id="L1692">                        }</span>
+<span class="fc" id="L1693">                    }</span>
+            );
+<span class="fc" id="L1695">            fieldReaders.put(SUPER, listOf(fieldReader));</span>
+        }
+
+<span class="fc" id="L1698">        return toFieldReaderArray(fieldReaders);</span>
+    }
+
+    public &lt;T&gt; Supplier&lt;T&gt; createSupplier(Class&lt;T&gt; objectClass) {
+<span class="fc bfc" id="L1702" title="All 2 branches covered.">        if (objectClass.isInterface()) {</span>
+<span class="fc" id="L1703">            return null;</span>
+        }
+
+<span class="fc" id="L1706">        int modifiers = objectClass.getModifiers();</span>
+<span class="fc bfc" id="L1707" title="All 2 branches covered.">        if (Modifier.isAbstract(modifiers)) {</span>
+<span class="fc" id="L1708">            return null;</span>
+        }
+
+        final Constructor&lt;T&gt; constructor;
+        try {
+<span class="fc" id="L1713">            constructor = objectClass.getDeclaredConstructor();</span>
+<span class="fc" id="L1714">            constructor.setAccessible(true);</span>
+<span class="fc" id="L1715">        } catch (NoSuchMethodException ignored) {</span>
+<span class="fc" id="L1716">            return null;</span>
+<span class="nc" id="L1717">        } catch (Throwable e) {</span>
+<span class="nc" id="L1718">            throw new JSONException(&quot;get constructor error, class &quot; + objectClass.getName(), e);</span>
+<span class="fc" id="L1719">        }</span>
+
+<span class="fc" id="L1721">        return createSupplier(constructor, true);</span>
+    }
+
+    public &lt;T&gt; Supplier&lt;T&gt; createSupplier(Constructor constructor, boolean jit) {
+<span class="fc" id="L1725">        jit &amp;= JIT;</span>
+
+<span class="fc bfc" id="L1727" title="All 2 branches covered.">        if (jit) {</span>
+<span class="fc" id="L1728">            Class declaringClass = constructor.getDeclaringClass();</span>
+<span class="fc" id="L1729">            MethodHandles.Lookup lookup = JDKUtils.trustedLookup(declaringClass);</span>
+            try {
+<span class="fc bfc" id="L1731" title="All 2 branches covered.">                if (constructor.getParameterCount() == 0) {</span>
+<span class="fc" id="L1732">                    MethodHandle handle = lookup.findConstructor(declaringClass, METHOD_TYPE_VOID);</span>
+<span class="fc" id="L1733">                    CallSite callSite = LambdaMetafactory.metafactory(</span>
+                            lookup,
+                            &quot;get&quot;,
+                            METHOD_TYPE_SUPPLIER,
+                            METHOD_TYPE_OBJECT,
+                            handle,
+                            METHOD_TYPE_OBJECT
+                    );
+<span class="fc" id="L1741">                    return (Supplier) callSite.getTarget().invokeExact();</span>
+                }
+<span class="nc" id="L1743">            } catch (Throwable e) {</span>
+<span class="nc" id="L1744">                jitErrorCount.incrementAndGet();</span>
+<span class="nc" id="L1745">                jitErrorLast = e;</span>
+<span class="fc" id="L1746">            }</span>
+        }
+
+<span class="fc" id="L1749">        return new ConstructorSupplier(constructor);</span>
+    }
+
+    protected &lt;T&gt; IntFunction&lt;T&gt; createIntFunction(Constructor constructor) {
+<span class="fc" id="L1753">        Class declaringClass = constructor.getDeclaringClass();</span>
+<span class="fc" id="L1754">        MethodHandles.Lookup lookup = JDKUtils.trustedLookup(declaringClass);</span>
+        try {
+<span class="fc" id="L1756">            MethodHandle handle = lookup.findConstructor(declaringClass, METHOD_TYPE_VOID_INT);</span>
+<span class="fc" id="L1757">            MethodType instantiatedMethodType = MethodType.methodType(declaringClass, int.class);</span>
+<span class="fc" id="L1758">            CallSite callSite = LambdaMetafactory.metafactory(</span>
+                    lookup,
+                    &quot;apply&quot;,
+                    METHOD_TYPE_INT_FUNCTION,
+                    METHOD_TYPE_OBJECT_INT,
+                    handle,
+                    instantiatedMethodType
+            );
+<span class="fc" id="L1766">            return (IntFunction) callSite.getTarget().invokeExact();</span>
+<span class="nc" id="L1767">        } catch (Throwable e) {</span>
+<span class="nc" id="L1768">            jitErrorCount.incrementAndGet();</span>
+<span class="nc" id="L1769">            jitErrorLast = e;</span>
+        }
+
+<span class="nc" id="L1772">        return null;</span>
+    }
+
+    protected &lt;T&gt; IntFunction&lt;T&gt; createIntFunction(Method factoryMethod) {
+<span class="fc" id="L1776">        Class declaringClass = factoryMethod.getDeclaringClass();</span>
+<span class="fc" id="L1777">        MethodHandles.Lookup lookup = JDKUtils.trustedLookup(declaringClass);</span>
+        try {
+<span class="fc" id="L1779">            MethodType methodType = MethodType.methodType(factoryMethod.getReturnType(), int.class);</span>
+<span class="fc" id="L1780">            MethodHandle handle = lookup.findStatic(declaringClass, factoryMethod.getName(), methodType);</span>
+<span class="fc" id="L1781">            CallSite callSite = LambdaMetafactory.metafactory(</span>
+                    lookup,
+                    &quot;apply&quot;,
+                    METHOD_TYPE_INT_FUNCTION,
+                    METHOD_TYPE_OBJECT_INT,
+                    handle,
+                    methodType
+            );
+<span class="fc" id="L1789">            return (IntFunction) callSite.getTarget().invokeExact();</span>
+<span class="nc" id="L1790">        } catch (Throwable e) {</span>
+<span class="nc" id="L1791">            jitErrorCount.incrementAndGet();</span>
+<span class="nc" id="L1792">            jitErrorLast = e;</span>
+        }
+
+<span class="nc" id="L1795">        return null;</span>
+    }
+
+    protected &lt;T&gt; Function&lt;String, T&gt; createStringFunction(Constructor constructor) {
+<span class="fc" id="L1799">        Class declaringClass = constructor.getDeclaringClass();</span>
+<span class="fc" id="L1800">        MethodHandles.Lookup lookup = JDKUtils.trustedLookup(declaringClass);</span>
+        try {
+<span class="fc" id="L1802">            MethodHandle handle = lookup.findConstructor(declaringClass, METHOD_TYPE_VOID_STRING);</span>
+<span class="fc" id="L1803">            MethodType instantiatedMethodType = MethodType.methodType(declaringClass, String.class);</span>
+<span class="fc" id="L1804">            CallSite callSite = LambdaMetafactory.metafactory(</span>
+                    lookup,
+                    &quot;apply&quot;,
+                    METHOD_TYPE_FUNCTION,
+                    METHOD_TYPE_OBJECT_OBJECT,
+                    handle,
+                    instantiatedMethodType
+            );
+<span class="fc" id="L1812">            return (Function&lt;String, T&gt;) callSite.getTarget().invokeExact();</span>
+<span class="nc" id="L1813">        } catch (Throwable e) {</span>
+<span class="nc" id="L1814">            jitErrorCount.incrementAndGet();</span>
+<span class="nc" id="L1815">            jitErrorLast = e;</span>
+        }
+
+<span class="nc" id="L1818">        return null;</span>
+    }
+
+    protected &lt;T&gt; Function&lt;String, T&gt; createStringFunction(Method factoryMethod) {
+<span class="fc" id="L1822">        Class declaringClass = factoryMethod.getDeclaringClass();</span>
+<span class="fc" id="L1823">        MethodHandles.Lookup lookup = JDKUtils.trustedLookup(declaringClass);</span>
+        try {
+<span class="fc" id="L1825">            MethodType methodType = MethodType.methodType(factoryMethod.getReturnType(), String.class);</span>
+<span class="fc" id="L1826">            MethodHandle handle = lookup.findStatic(declaringClass, factoryMethod.getName(), methodType);</span>
+<span class="fc" id="L1827">            CallSite callSite = LambdaMetafactory.metafactory(</span>
+                    lookup,
+                    &quot;apply&quot;,
+                    METHOD_TYPE_FUNCTION,
+                    METHOD_TYPE_OBJECT_OBJECT,
+                    handle,
+                    methodType
+            );
+<span class="fc" id="L1835">            return (Function&lt;String, T&gt;) callSite.getTarget().invokeExact();</span>
+<span class="nc" id="L1836">        } catch (Throwable e) {</span>
+<span class="nc" id="L1837">            jitErrorCount.incrementAndGet();</span>
+<span class="nc" id="L1838">            jitErrorLast = e;</span>
+        }
+
+<span class="nc" id="L1841">        return null;</span>
+    }
+
+    protected &lt;I, T&gt; Function&lt;I, T&gt; createValueFunction(Constructor&lt;T&gt; constructor, Class&lt;I&gt; valueClass) {
+<span class="fc" id="L1845">        Class declaringClass = constructor.getDeclaringClass();</span>
+<span class="fc" id="L1846">        MethodHandles.Lookup lookup = JDKUtils.trustedLookup(declaringClass);</span>
+        try {
+<span class="fc" id="L1848">            MethodType methodType = MethodType.methodType(void.class, valueClass);</span>
+<span class="fc" id="L1849">            MethodHandle handle = lookup.findConstructor(declaringClass, methodType);</span>
+<span class="fc" id="L1850">            MethodType instantiatedMethodType = MethodType.methodType(declaringClass, valueClass);</span>
+<span class="fc" id="L1851">            CallSite callSite = LambdaMetafactory.metafactory(</span>
+                    lookup,
+                    &quot;apply&quot;,
+                    METHOD_TYPE_FUNCTION,
+                    METHOD_TYPE_OBJECT_OBJECT,
+                    handle,
+                    instantiatedMethodType
+            );
+<span class="fc" id="L1859">            return (Function&lt;I, T&gt;) callSite.getTarget().invokeExact();</span>
+<span class="nc" id="L1860">        } catch (Throwable e) {</span>
+<span class="nc" id="L1861">            jitErrorCount.incrementAndGet();</span>
+<span class="nc" id="L1862">            jitErrorLast = e;</span>
+        }
+
+<span class="nc" id="L1865">        return null;</span>
+    }
+
+    protected &lt;I, T&gt; Function&lt;I, T&gt; createValueFunction(Method factoryMethod, Class valueClass) {
+<span class="fc" id="L1869">        Class declaringClass = factoryMethod.getDeclaringClass();</span>
+<span class="fc" id="L1870">        MethodHandles.Lookup lookup = JDKUtils.trustedLookup(declaringClass);</span>
+        try {
+<span class="fc" id="L1872">            MethodType methodType = MethodType.methodType(factoryMethod.getReturnType(), valueClass);</span>
+<span class="fc" id="L1873">            MethodHandle handle = lookup.findStatic(declaringClass, factoryMethod.getName(), methodType);</span>
+<span class="fc" id="L1874">            CallSite callSite = LambdaMetafactory.metafactory(</span>
+                    lookup,
+                    &quot;apply&quot;,
+                    METHOD_TYPE_FUNCTION,
+                    METHOD_TYPE_OBJECT_OBJECT,
+                    handle,
+                    methodType
+            );
+<span class="fc" id="L1882">            return (Function&lt;I, T&gt;) callSite.getTarget().invokeExact();</span>
+<span class="nc" id="L1883">        } catch (Throwable e) {</span>
+<span class="nc" id="L1884">            jitErrorCount.incrementAndGet();</span>
+<span class="nc" id="L1885">            jitErrorLast = e;</span>
+        }
+
+<span class="nc" id="L1888">        return null;</span>
+    }
+
+    public &lt;T, R&gt; Function&lt;T, R&gt; createBuildFunction(Method builderMethod) {
+        try {
+<span class="fc" id="L1893">            return createBuildFunctionLambda(builderMethod);</span>
+<span class="nc" id="L1894">        } catch (Throwable e) {</span>
+<span class="nc" id="L1895">            jitErrorCount.incrementAndGet();</span>
+<span class="nc" id="L1896">            jitErrorLast = e;</span>
+        }
+
+<span class="nc" id="L1899">        builderMethod.setAccessible(true);</span>
+
+<span class="nc" id="L1901">        return (T o) -&gt; {</span>
+            try {
+<span class="nc" id="L1903">                return (R) builderMethod.invoke(o);</span>
+<span class="nc" id="L1904">            } catch (Throwable e) {</span>
+<span class="nc" id="L1905">                throw new JSONException(&quot;create instance error&quot;, e);</span>
+            }
+        };
+    }
+
+    &lt;T, R&gt; Function&lt;T, R&gt; createBuildFunctionLambda(Method builderMethod) {
+<span class="fc" id="L1911">        MethodHandles.Lookup lookup = JDKUtils.trustedLookup(builderMethod.getDeclaringClass());</span>
+        try {
+<span class="fc" id="L1913">            MethodHandle target = lookup.findVirtual(builderMethod.getDeclaringClass(),</span>
+<span class="fc" id="L1914">                    builderMethod.getName(),</span>
+<span class="fc" id="L1915">                    MethodType.methodType(builderMethod.getReturnType())</span>
+            );
+<span class="fc" id="L1917">            MethodType func = target.type();</span>
+
+<span class="fc" id="L1919">            CallSite callSite = LambdaMetafactory.metafactory(</span>
+                    lookup,
+                    &quot;apply&quot;,
+                    METHOD_TYPE_FUNCTION,
+<span class="fc" id="L1923">                    func.erase(),</span>
+                    target,
+                    func
+            );
+
+<span class="fc" id="L1928">            Object object = callSite</span>
+<span class="fc" id="L1929">                    .getTarget()</span>
+<span class="fc" id="L1930">                    .invoke();</span>
+<span class="fc" id="L1931">            return (Function&lt;T, R&gt;) object;</span>
+<span class="nc" id="L1932">        } catch (Throwable e) {</span>
+<span class="nc" id="L1933">            throw new JSONException(&quot;create fieldReader error&quot;, e);</span>
+        }
+    }
+
+    public &lt;T&gt; FieldReader createFieldReader(
+            Class&lt;T&gt; objectType,
+            String fieldName,
+            Type fieldType,
+            Class fieldClass,
+            Method method
+    ) {
+<span class="fc" id="L1944">        return createFieldReaderMethod(</span>
+                objectType,
+                objectType,
+                fieldName,
+                0,
+                0L,
+                null,
+                null,
+                null,
+                null,
+                fieldType,
+                fieldClass,
+                method,
+                null
+        );
+    }
+
+    public &lt;T&gt; FieldReader createFieldReader(
+            Class&lt;T&gt; objectType,
+            String fieldName,
+            String format,
+            Type fieldType,
+            Class fieldClass,
+            Method method
+    ) {
+<span class="fc" id="L1969">        return createFieldReaderMethod(objectType, fieldName, format, fieldType, fieldClass, method);</span>
+    }
+
+    public &lt;T&gt; FieldReader createFieldReaderMethod(
+            Class&lt;T&gt; objectClass,
+            String fieldName,
+            String format,
+            Type fieldType,
+            Class fieldClass,
+            Method method
+    ) {
+<span class="fc" id="L1980">        return createFieldReaderMethod(</span>
+                objectClass,
+                objectClass,
+                fieldName,
+                0,
+                0L,
+                format,
+                null,
+                null,
+                null,
+                fieldType,
+                fieldClass,
+                method,
+                null
+        );
+    }
+
+    public &lt;T&gt; FieldReader createFieldReaderParam(
+            Class&lt;T&gt; objectClass,
+            Type objectType,
+            String fieldName,
+            int ordinal,
+            long features,
+            String format,
+            Type fieldType,
+            Class fieldClass,
+            String paramName,
+            Class declaringClass,
+            Parameter parameter,
+            JSONSchema schema
+    ) {
+<span class="fc" id="L2011">        return createFieldReaderParam(</span>
+                objectClass,
+                objectType,
+                fieldName,
+                ordinal,
+                features,
+                format,
+                fieldType,
+                fieldClass,
+                paramName,
+                declaringClass,
+                parameter,
+                schema,
+                null
+        );
+    }
+
+    public &lt;T&gt; FieldReader createFieldReaderParam(
+            Class&lt;T&gt; objectClass,
+            Type objectType,
+            String fieldName,
+            int ordinal,
+            long features,
+            String format,
+            Type fieldType,
+            Class fieldClass,
+            String paramName,
+            Class declaringClass,
+            Parameter parameter,
+            JSONSchema schema,
+            ObjectReader initReader
+    ) {
+<span class="fc" id="L2043">        return createFieldReaderParam(</span>
+                objectClass,
+                objectType,
+                fieldName,
+                ordinal,
+                features,
+                format,
+                null,
+                null,
+                fieldType,
+                fieldClass,
+                paramName,
+                declaringClass,
+                parameter,
+                schema,
+                initReader
+        );
+    }
+
+    public &lt;T&gt; FieldReader createFieldReaderParam(
+            Class&lt;T&gt; objectClass,
+            Type objectType,
+            String fieldName,
+            int ordinal,
+            long features,
+            String format,
+            Locale locale,
+            Object defaultValue,
+            Type fieldType,
+            Class fieldClass,
+            String paramName,
+            Class declaringClass,
+            Parameter parameter,
+            JSONSchema schema,
+            ObjectReader initReader
+    ) {
+<span class="fc bfc" id="L2079" title="All 4 branches covered.">        if (defaultValue instanceof String &amp;&amp; fieldClass.isEnum()) {</span>
+<span class="fc" id="L2080">            defaultValue = Enum.valueOf(fieldClass, (String) defaultValue);</span>
+        }
+
+<span class="fc bfc" id="L2083" title="All 2 branches covered.">        if (initReader != null) {</span>
+<span class="fc" id="L2084">            FieldReaderObjectParam paramReader = new FieldReaderObjectParam(</span>
+                    fieldName,
+                    fieldType,
+                    fieldClass,
+                    paramName,
+                    parameter,
+                    ordinal,
+                    features,
+                    format,
+                    locale,
+                    defaultValue,
+                    schema
+            );
+<span class="fc" id="L2097">            paramReader.initReader = initReader;</span>
+<span class="fc" id="L2098">            return paramReader;</span>
+        }
+
+<span class="pc bpc" id="L2101" title="1 of 4 branches missed.">        if (fieldType == byte.class || fieldType == Byte.class) {</span>
+<span class="fc" id="L2102">            return new FieldReaderInt8Param(fieldName, fieldClass, paramName, parameter, ordinal, features, format, locale, defaultValue, schema);</span>
+        }
+
+<span class="pc bpc" id="L2105" title="1 of 4 branches missed.">        if (fieldType == short.class || fieldType == Short.class) {</span>
+<span class="fc" id="L2106">            return new FieldReaderInt16Param(fieldName, fieldClass, paramName, parameter, ordinal, features, format, locale, defaultValue, schema);</span>
+        }
+
+<span class="fc bfc" id="L2109" title="All 4 branches covered.">        if (fieldType == int.class || fieldType == Integer.class) {</span>
+<span class="fc" id="L2110">            return new FieldReaderInt32Param(fieldName, fieldClass, paramName, parameter, ordinal, features, format, locale, defaultValue, schema);</span>
+        }
+
+<span class="fc bfc" id="L2113" title="All 4 branches covered.">        if (fieldType == long.class || fieldType == Long.class) {</span>
+<span class="fc" id="L2114">            return new FieldReaderInt64Param(fieldName, fieldClass, paramName, parameter, ordinal, features, format, locale, defaultValue, schema);</span>
+        }
+
+<span class="fc" id="L2117">        Type fieldTypeResolved = null;</span>
+<span class="fc" id="L2118">        Class fieldClassResolved = null;</span>
+<span class="fc bfc" id="L2119" title="All 4 branches covered.">        if (!(fieldType instanceof Class) &amp;&amp; objectType != null) {</span>
+<span class="fc" id="L2120">            fieldTypeResolved = BeanUtils.getParamType(TypeReference.get(objectType), objectClass, declaringClass, parameter, fieldType);</span>
+<span class="fc bfc" id="L2121" title="All 2 branches covered.">            if (fieldTypeResolved != null) {</span>
+<span class="fc" id="L2122">                fieldClassResolved = TypeUtils.getMapping(fieldTypeResolved);</span>
+            }
+        }
+<span class="fc bfc" id="L2125" title="All 2 branches covered.">        if (fieldTypeResolved == null) {</span>
+<span class="fc" id="L2126">            fieldTypeResolved = fieldType;</span>
+        }
+<span class="fc bfc" id="L2128" title="All 2 branches covered.">        if (fieldClassResolved == null) {</span>
+<span class="fc" id="L2129">            fieldClassResolved = fieldClass;</span>
+        }
+
+<span class="fc" id="L2132">        return new FieldReaderObjectParam(</span>
+                fieldName,
+                fieldTypeResolved,
+                fieldClassResolved,
+                paramName,
+                parameter,
+                ordinal,
+                features,
+                format,
+                locale,
+                defaultValue,
+                schema);
+    }
+
+    public &lt;T&gt; FieldReader createFieldReaderMethod(
+            Class&lt;T&gt; objectClass,
+            Type objectType,
+            String fieldName,
+            int ordinal,
+            long features,
+            String format,
+            Locale locale,
+            Object defaultValue,
+            String schema,
+            Type fieldType,
+            Class fieldClass,
+            Method method,
+            ObjectReader initReader
+    ) {
+<span class="fc" id="L2161">        return createFieldReaderMethod(</span>
+                objectClass,
+                objectType,
+                fieldName,
+                ordinal,
+                features,
+                format,
+                locale,
+                defaultValue,
+                schema,
+                fieldType,
+                fieldClass,
+                method,
+                initReader,
+                null,
+                null
+        );
+    }
+
+    public &lt;T&gt; FieldReader createFieldReaderMethod(
+            Class&lt;T&gt; objectClass,
+            Type objectType,
+            String fieldName,
+            int ordinal,
+            long features,
+            String format,
+            Locale locale,
+            Object defaultValue,
+            String schema,
+            Type fieldType,
+            Class fieldClass,
+            Method method,
+            ObjectReader initReader,
+            String keyName,
+            BiConsumer arrayToMapDuplicateHandler
+    ) {
+<span class="fc bfc" id="L2197" title="All 2 branches covered.">        if (method != null) {</span>
+<span class="fc" id="L2198">            method.setAccessible(true);</span>
+        }
+
+<span class="fc bfc" id="L2201" title="All 4 branches covered.">        if (defaultValue instanceof String &amp;&amp; fieldClass.isEnum()) {</span>
+<span class="fc" id="L2202">            defaultValue = Enum.valueOf(fieldClass, (String) defaultValue);</span>
+        }
+
+<span class="fc bfc" id="L2205" title="All 4 branches covered.">        if (defaultValue != null &amp;&amp; defaultValue.getClass() != fieldClass) {</span>
+            Function typeConvert = JSONFactory
+<span class="fc" id="L2207">                    .getDefaultObjectReaderProvider()</span>
+<span class="fc" id="L2208">                    .getTypeConvert(defaultValue.getClass(), fieldType);</span>
+<span class="pc bpc" id="L2209" title="1 of 2 branches missed.">            if (typeConvert != null) {</span>
+<span class="fc" id="L2210">                defaultValue = typeConvert.apply(defaultValue);</span>
+            } else {
+<span class="nc" id="L2212">                throw new JSONException(&quot;illegal defaultValue : &quot; + defaultValue + &quot;, class &quot; + fieldClass.getName());</span>
+            }
+        }
+
+<span class="fc" id="L2216">        JSONSchema jsonSchema = null;</span>
+<span class="pc bpc" id="L2217" title="1 of 4 branches missed.">        if (schema != null &amp;&amp; !schema.isEmpty()) {</span>
+<span class="fc" id="L2218">            JSONObject object = JSON.parseObject(schema);</span>
+<span class="pc bpc" id="L2219" title="1 of 2 branches missed.">            if (!object.isEmpty()) {</span>
+<span class="fc" id="L2220">                jsonSchema = JSONSchema.of(object, fieldClass);</span>
+            }
+        }
+
+<span class="fc bfc" id="L2224" title="All 2 branches covered.">        if (initReader != null) {</span>
+<span class="fc" id="L2225">            FieldReaderObject fieldReaderObjectMethod = new FieldReaderObject(</span>
+                    fieldName,
+                    fieldType,
+                    fieldClass,
+                    ordinal,
+                    features | FieldInfo.READ_USING_MASK,
+                    format,
+                    locale,
+                    defaultValue,
+                    jsonSchema,
+                    method,
+                    null,
+                    null
+            );
+<span class="fc" id="L2239">            fieldReaderObjectMethod.initReader = initReader;</span>
+<span class="fc" id="L2240">            return fieldReaderObjectMethod;</span>
+        }
+
+<span class="fc bfc" id="L2243" title="All 2 branches covered.">        if (fieldType == boolean.class) {</span>
+<span class="fc" id="L2244">            return new FieldReaderBoolValueMethod(fieldName, ordinal, features, format, (Boolean) defaultValue, jsonSchema, method);</span>
+        }
+
+<span class="fc bfc" id="L2247" title="All 2 branches covered.">        if (fieldType == Boolean.class) {</span>
+<span class="fc" id="L2248">            return new FieldReaderBoolMethod(fieldName, fieldType, fieldClass, ordinal, features, format, locale, (Boolean) defaultValue, jsonSchema, method);</span>
+        }
+
+<span class="fc bfc" id="L2251" title="All 2 branches covered.">        if (fieldType == byte.class) {</span>
+<span class="fc" id="L2252">            return new FieldReaderInt8ValueMethod(fieldName, fieldType, fieldClass, ordinal, features, format, locale, (Byte) defaultValue, jsonSchema, method);</span>
+        }
+
+<span class="fc bfc" id="L2255" title="All 2 branches covered.">        if (fieldType == short.class) {</span>
+<span class="fc" id="L2256">            return new FieldReaderInt16ValueMethod(fieldName, fieldType, fieldClass, ordinal, features, format, locale, (Short) defaultValue, jsonSchema, method);</span>
+        }
+
+<span class="fc bfc" id="L2259" title="All 2 branches covered.">        if (fieldType == int.class) {</span>
+<span class="fc" id="L2260">            return new FieldReaderInt32ValueMethod(fieldName, fieldType, fieldClass, ordinal, features, format, (Integer) defaultValue, jsonSchema, method);</span>
+        }
+
+<span class="fc bfc" id="L2263" title="All 2 branches covered.">        if (fieldType == long.class) {</span>
+<span class="fc" id="L2264">            return new FieldReaderInt64ValueMethod(fieldName, fieldType, fieldClass, ordinal, features, format, locale, (Long) defaultValue, jsonSchema, method);</span>
+        }
+
+<span class="fc bfc" id="L2267" title="All 2 branches covered.">        if (fieldType == float.class) {</span>
+<span class="fc" id="L2268">            return new FieldReaderFloatValueMethod(fieldName, fieldType, fieldClass, ordinal, features, format, locale, (Float) defaultValue, jsonSchema, method);</span>
+        }
+
+<span class="fc bfc" id="L2271" title="All 2 branches covered.">        if (fieldType == double.class) {</span>
+<span class="fc" id="L2272">            return new FieldReaderDoubleValueMethod(fieldName, fieldType, fieldClass, ordinal, features, format, locale, (Double) defaultValue, jsonSchema, method);</span>
+        }
+
+<span class="fc bfc" id="L2275" title="All 2 branches covered.">        if (fieldType == Byte.class) {</span>
+<span class="fc" id="L2276">            return new FieldReaderInt8Method(fieldName, fieldType, fieldClass, ordinal, features, format, locale, (Byte) defaultValue, jsonSchema, method);</span>
+        }
+
+<span class="fc bfc" id="L2279" title="All 2 branches covered.">        if (fieldType == Short.class) {</span>
+<span class="fc" id="L2280">            return new FieldReaderInt16Method(fieldName, fieldType, fieldClass, ordinal, features, format, locale, (Short) defaultValue, jsonSchema, method);</span>
+        }
+
+<span class="fc bfc" id="L2283" title="All 2 branches covered.">        if (fieldType == Integer.class) {</span>
+<span class="fc" id="L2284">            return new FieldReaderInt32Method(fieldName, ordinal, features, format, locale, (Integer) defaultValue, jsonSchema, method);</span>
+        }
+
+<span class="fc bfc" id="L2287" title="All 2 branches covered.">        if (fieldType == Long.class) {</span>
+<span class="fc" id="L2288">            return new FieldReaderInt64Method(fieldName, ordinal, features, format, locale, (Long) defaultValue, jsonSchema, method);</span>
+        }
+
+<span class="fc bfc" id="L2291" title="All 2 branches covered.">        if (fieldType == Float.class) {</span>
+<span class="fc" id="L2292">            return new FieldReaderFloatMethod(fieldName, ordinal, features, format, locale, (Float) defaultValue, jsonSchema, method);</span>
+        }
+
+<span class="fc bfc" id="L2295" title="All 2 branches covered.">        if (fieldType == Double.class) {</span>
+<span class="fc" id="L2296">            return new FieldReaderDoubleMethod(fieldName, ordinal, features, format, (Double) defaultValue, jsonSchema, method);</span>
+        }
+
+<span class="fc bfc" id="L2299" title="All 2 branches covered.">        if (fieldClass == BigDecimal.class) {</span>
+<span class="fc" id="L2300">            return new FieldReaderBigDecimalMethod(fieldName, fieldType, fieldClass, ordinal, features, format, locale, (BigDecimal) defaultValue, jsonSchema, method);</span>
+        }
+
+<span class="fc bfc" id="L2303" title="All 2 branches covered.">        if (fieldClass == BigInteger.class) {</span>
+<span class="fc" id="L2304">            return new FieldReaderBigIntegerMethod(fieldName, fieldType, fieldClass, ordinal, features, format, locale, (BigInteger) defaultValue, jsonSchema, method);</span>
+        }
+
+<span class="fc bfc" id="L2307" title="All 2 branches covered.">        if (fieldType == String.class) {</span>
+<span class="fc" id="L2308">            return new FieldReaderStringMethod(fieldName, fieldType, fieldClass, ordinal, features, format, locale, (String) defaultValue, jsonSchema, method);</span>
+        }
+
+<span class="fc bfc" id="L2311" title="All 2 branches covered.">        if (fieldType == LocalDate.class) {</span>
+<span class="fc" id="L2312">            return new FieldReaderLocalDate(</span>
+                    fieldName,
+                    fieldType,
+                    fieldClass,
+                    ordinal,
+                    features,
+                    format,
+                    locale,
+                    defaultValue,
+                    jsonSchema,
+                    method,
+                    null,
+                    null
+            );
+        }
+
+<span class="fc bfc" id="L2328" title="All 2 branches covered.">        if (fieldType == OffsetDateTime.class) {</span>
+<span class="fc" id="L2329">            return new FieldReaderOffsetDateTime(</span>
+                    fieldName,
+                    fieldType,
+                    fieldClass,
+                    ordinal,
+                    features,
+                    format,
+                    locale,
+                    defaultValue,
+                    jsonSchema,
+                    method,
+                    null,
+                    null
+            );
+        }
+
+<span class="fc bfc" id="L2345" title="All 2 branches covered.">        if (fieldType == UUID.class) {</span>
+<span class="fc" id="L2346">            return new FieldReaderUUID(</span>
+                    fieldName,
+                    fieldType,
+                    fieldClass,
+                    ordinal,
+                    features,
+                    format,
+                    locale,
+                    defaultValue,
+                    jsonSchema,
+                    method,
+                    null,
+                    null
+            );
+        }
+
+<span class="fc bfc" id="L2362" title="All 2 branches covered.">        if (fieldType == String[].class) {</span>
+<span class="fc" id="L2363">            return new FieldReaderStringArray(</span>
+                    fieldName,
+                    fieldType,
+                    fieldClass,
+                    ordinal,
+                    features,
+                    format,
+                    locale,
+                    defaultValue,
+                    jsonSchema,
+                    method,
+                    null,
+                    null
+            );
+        }
+
+<span class="fc" id="L2379">        Type fieldTypeResolved = null;</span>
+<span class="fc" id="L2380">        Class fieldClassResolved = null;</span>
+<span class="pc bpc" id="L2381" title="1 of 4 branches missed.">        if (!(fieldType instanceof Class) || !(objectType instanceof Class)) {</span>
+<span class="fc" id="L2382">            fieldTypeResolved = BeanUtils.getFieldType(TypeReference.get(objectType), objectClass, method, fieldType);</span>
+<span class="fc" id="L2383">            fieldClassResolved = TypeUtils.getMapping(fieldTypeResolved);</span>
+        }
+
+<span class="fc bfc" id="L2386" title="All 2 branches covered.">        if (method.getParameterCount() == 0) {</span>
+<span class="fc bfc" id="L2387" title="All 2 branches covered.">            if (fieldClass == AtomicInteger.class) {</span>
+<span class="fc" id="L2388">                return new FieldReaderAtomicIntegerMethodReadOnly(fieldName, fieldClass, ordinal, jsonSchema, method);</span>
+            }
+
+<span class="fc bfc" id="L2391" title="All 2 branches covered.">            if (fieldClass == AtomicLong.class) {</span>
+<span class="fc" id="L2392">                return new FieldReaderAtomicLongReadOnly(fieldName, fieldClass, ordinal, jsonSchema, method);</span>
+            }
+
+<span class="fc bfc" id="L2395" title="All 2 branches covered.">            if (fieldClass == AtomicIntegerArray.class) {</span>
+<span class="fc" id="L2396">                return new FieldReaderAtomicIntegerArrayReadOnly(fieldName, fieldClass, ordinal, jsonSchema, method);</span>
+            }
+
+<span class="fc bfc" id="L2399" title="All 2 branches covered.">            if (fieldClass == AtomicLongArray.class) {</span>
+<span class="fc" id="L2400">                return new FieldReaderAtomicLongArrayReadOnly(fieldName, fieldClass, ordinal, jsonSchema, method);</span>
+            }
+
+<span class="fc bfc" id="L2403" title="All 2 branches covered.">            if (fieldClass == AtomicBoolean.class) {</span>
+<span class="fc" id="L2404">                return new FieldReaderAtomicBooleanMethodReadOnly(fieldName, fieldClass, ordinal, jsonSchema, method);</span>
+            }
+
+<span class="fc bfc" id="L2407" title="All 2 branches covered.">            if (fieldClass == AtomicReference.class) {</span>
+<span class="fc" id="L2408">                return new FieldReaderAtomicReferenceMethodReadOnly(fieldName, fieldType, fieldClass, ordinal, jsonSchema, method);</span>
+            }
+
+<span class="fc bfc" id="L2411" title="All 2 branches covered.">            if (Collection.class.isAssignableFrom(fieldClass)) {</span>
+<span class="fc" id="L2412">                Field field = null;</span>
+<span class="fc" id="L2413">                String methodName = method.getName();</span>
+<span class="pc bpc" id="L2414" title="1 of 2 branches missed.">                if (methodName.startsWith(&quot;get&quot;)) {</span>
+<span class="fc" id="L2415">                    String getterName = BeanUtils.getterName(methodName, PropertyNamingStrategy.CamelCase.name());</span>
+<span class="fc" id="L2416">                    field = BeanUtils.getDeclaredField(method.getDeclaringClass(), getterName);</span>
+                }
+<span class="fc bfc" id="L2418" title="All 2 branches covered.">                return new FieldReaderCollectionMethodReadOnly(</span>
+                        fieldName,
+                        fieldTypeResolved != null ? fieldTypeResolved : fieldType,
+                        fieldClass,
+                        ordinal,
+                        features,
+                        format,
+                        jsonSchema,
+                        method,
+                        field
+                );
+            }
+
+<span class="fc bfc" id="L2431" title="All 2 branches covered.">            if (Map.class.isAssignableFrom(fieldClass)) {</span>
+<span class="fc" id="L2432">                Field field = null;</span>
+<span class="fc" id="L2433">                String methodName = method.getName();</span>
+<span class="pc bpc" id="L2434" title="1 of 2 branches missed.">                if (methodName.startsWith(&quot;get&quot;)) {</span>
+<span class="fc" id="L2435">                    String getterName = BeanUtils.getterName(methodName, PropertyNamingStrategy.CamelCase.name());</span>
+<span class="fc" id="L2436">                    field = BeanUtils.getDeclaredField(method.getDeclaringClass(), getterName);</span>
+                }
+<span class="fc" id="L2438">                return new FieldReaderMapMethodReadOnly(</span>
+                        fieldName,
+                        fieldType,
+                        fieldClass,
+                        ordinal,
+                        features,
+                        format,
+                        jsonSchema,
+                        method,
+                        field,
+                        keyName,
+                        arrayToMapDuplicateHandler
+                );
+            }
+
+<span class="pc bpc" id="L2453" title="1 of 2 branches missed.">            if (!objectClass.isInterface()) {</span>
+<span class="nc" id="L2454">                return null;</span>
+            }
+        }
+
+<span class="fc bfc" id="L2458" title="All 6 branches covered.">        boolean list = fieldClass == List.class</span>
+                || fieldClass == ArrayList.class
+                || fieldClass == LinkedList.class
+<span class="pc bpc" id="L2461" title="1 of 2 branches missed.">                || &quot;cn.hutool.json.JSONArray&quot;.equals(fieldClass.getName());</span>
+<span class="fc bfc" id="L2462" title="All 2 branches covered.">        if (list) {</span>
+<span class="fc bfc" id="L2463" title="All 2 branches covered.">            if (fieldTypeResolved instanceof ParameterizedType) {</span>
+<span class="fc" id="L2464">                ParameterizedType parameterizedType = (ParameterizedType) fieldTypeResolved;</span>
+<span class="fc" id="L2465">                Type[] actualTypeArguments = parameterizedType.getActualTypeArguments();</span>
+<span class="pc bpc" id="L2466" title="1 of 2 branches missed.">                if (actualTypeArguments.length == 1) {</span>
+<span class="fc" id="L2467">                    Type itemType = actualTypeArguments[0];</span>
+<span class="fc" id="L2468">                    Class itemClass = TypeUtils.getMapping(itemType);</span>
+
+<span class="fc bfc" id="L2470" title="All 2 branches covered.">                    if (itemClass == String.class) {</span>
+<span class="fc" id="L2471">                        return new FieldReaderList(fieldName, fieldTypeResolved, fieldClass, String.class, String.class, ordinal, features, format, locale, null, jsonSchema, method, null, null);</span>
+                    }
+
+<span class="fc" id="L2474">                    return new FieldReaderList(fieldName, fieldTypeResolved, fieldClassResolved, itemType, itemClass, ordinal, features, format, locale, null, jsonSchema, method, null, null);</span>
+                }
+            }
+<span class="fc" id="L2477">            return new FieldReaderList(fieldName, fieldType, fieldClass, Object.class, Object.class, ordinal, features, format, locale, null, jsonSchema, method, null, null);</span>
+        }
+
+<span class="fc bfc" id="L2480" title="All 2 branches covered.">        if (fieldClass == Date.class) {</span>
+<span class="fc" id="L2481">            return new FieldReaderDate(fieldName, fieldType, fieldClass, ordinal, features, format, locale, defaultValue, jsonSchema, null, method, null);</span>
+        }
+
+<span class="fc bfc" id="L2484" title="All 4 branches covered.">        if (fieldClass == StackTraceElement[].class &amp;&amp; method.getDeclaringClass() == Throwable.class) {</span>
+<span class="pc bpc" id="L2485" title="1 of 2 branches missed.">            return new FieldReaderStackTrace(</span>
+                    fieldName,
+                    fieldTypeResolved != null ? fieldTypeResolved : fieldType,
+                    fieldClass,
+                    ordinal,
+                    features,
+                    format,
+                    locale,
+                    defaultValue,
+                    jsonSchema,
+                    method,
+                    null,
+                    (BiConsumer&lt;Throwable, StackTraceElement[]&gt;) Throwable::setStackTrace
+            );
+        }
+
+<span class="fc" id="L2501">        Field field = null;</span>
+<span class="fc bfc" id="L2502" title="All 2 branches covered.">        if ((features &amp; FieldInfo.UNWRAPPED_MASK) != 0) {</span>
+<span class="fc" id="L2503">            String methodName = method.getName();</span>
+<span class="pc bpc" id="L2504" title="1 of 2 branches missed.">            if (methodName.startsWith(&quot;set&quot;)) {</span>
+<span class="fc" id="L2505">                String setterName = BeanUtils.setterName(methodName, PropertyNamingStrategy.CamelCase.name());</span>
+<span class="fc" id="L2506">                field = BeanUtils.getDeclaredField(method.getDeclaringClass(), setterName);</span>
+                try {
+<span class="fc" id="L2508">                    field.setAccessible(true);</span>
+<span class="nc" id="L2509">                } catch (Throwable ignored) {</span>
+                    // ignored
+<span class="fc" id="L2511">                }</span>
+            }
+        }
+
+<span class="fc bfc" id="L2515" title="All 2 branches covered.">        if (Map.class.isAssignableFrom(fieldClass)) {</span>
+<span class="fc bfc" id="L2516" title="All 2 branches covered.">            return new FieldReaderMapMethod(</span>
+                    fieldName,
+                    fieldTypeResolved != null ? fieldTypeResolved : fieldType,
+                    fieldClass,
+                    ordinal,
+                    features,
+                    format,
+                    locale,
+                    defaultValue,
+                    jsonSchema,
+                    method,
+                    field,
+                    null,
+                    keyName,
+                    arrayToMapDuplicateHandler
+            );
+        }
+
+<span class="fc bfc" id="L2534" title="All 2 branches covered.">        return new FieldReaderObject(</span>
+                fieldName,
+                fieldTypeResolved != null ? fieldTypeResolved : fieldType,
+                fieldClass,
+                ordinal,
+                features,
+                format,
+                locale,
+                defaultValue,
+                jsonSchema,
+                method,
+                field,
+                null
+        );
+    }
+
+    public &lt;T&gt; FieldReader&lt;T&gt; createFieldReader(
+            String fieldName,
+            Type fieldType,
+            Field field
+    ) {
+<span class="fc" id="L2555">        return createFieldReader(fieldName, null, fieldType, field);</span>
+    }
+
+    public &lt;T&gt; FieldReader&lt;T&gt; createFieldReader(
+            String fieldName,
+            Field field
+    ) {
+<span class="fc" id="L2562">        return createFieldReader(fieldName, null, field.getGenericType(), field);</span>
+    }
+
+    public &lt;T&gt; FieldReader createFieldReader(
+            String fieldName,
+            Method method
+    ) {
+<span class="fc" id="L2569">        Class&lt;?&gt; declaringClass = method.getDeclaringClass();</span>
+<span class="fc" id="L2570">        int parameterCount = method.getParameterCount();</span>
+
+        Class fieldClass;
+        Type fieldType;
+<span class="pc bpc" id="L2574" title="1 of 2 branches missed.">        if (parameterCount == 0) {</span>
+<span class="nc" id="L2575">            fieldClass = method.getReturnType();</span>
+<span class="nc" id="L2576">            fieldType = method.getGenericReturnType();</span>
+<span class="pc bpc" id="L2577" title="1 of 2 branches missed.">        } else if (parameterCount == 1) {</span>
+<span class="fc" id="L2578">            fieldClass = method.getParameterTypes()[0];</span>
+<span class="fc" id="L2579">            fieldType = method.getGenericParameterTypes()[0];</span>
+        } else {
+<span class="nc" id="L2581">            throw new JSONException(&quot;illegal setter method &quot; + method);</span>
+        }
+
+<span class="fc" id="L2584">        return createFieldReaderMethod(</span>
+                declaringClass,
+                declaringClass,
+                fieldName,
+                0,
+                0L,
+                null,
+                null,
+                null,
+                null,
+                fieldType,
+                fieldClass,
+                method,
+                null
+        );
+    }
+
+    public &lt;T&gt; FieldReader&lt;T&gt; createFieldReader(
+            String fieldName,
+            String format,
+            Type fieldType,
+            Field field
+    ) {
+<span class="fc" id="L2607">        Class objectClass = field.getDeclaringClass();</span>
+<span class="fc" id="L2608">        return createFieldReader(objectClass, objectClass, fieldName, 0, format, fieldType, field.getType(), field);</span>
+    }
+
+    public &lt;T&gt; FieldReader&lt;T&gt; createFieldReader(
+            Class objectClass,
+            Type objectType,
+            String fieldName,
+            long features,
+            String format,
+            Type fieldType,
+            Class fieldClass,
+            Field field
+    ) {
+<span class="fc" id="L2621">        return createFieldReader(</span>
+                objectClass,
+                objectType,
+                fieldName,
+                0,
+                features,
+                format,
+                null,
+                null,
+                null,
+                fieldType,
+<span class="fc" id="L2632">                field.getType(),</span>
+                field,
+                null,
+                null,
+                null
+        );
+    }
+
+    public &lt;T&gt; FieldReader&lt;T&gt; createFieldReader(
+            Class objectClass,
+            Type objectType,
+            String fieldName,
+            int ordinal,
+            long features,
+            String format,
+            Locale locale,
+            Object defaultValue,
+            String schema,
+            Type fieldType,
+            Class fieldClass,
+            Field field,
+            ObjectReader initReader
+    ) {
+<span class="fc" id="L2655">        return createFieldReader(</span>
+                objectClass,
+                objectType,
+                fieldName,
+                0,
+                features,
+                format,
+                locale,
+                defaultValue,
+                schema,
+                fieldType,
+<span class="fc" id="L2666">                field.getType(),</span>
+                field,
+                initReader,
+                null,
+                null
+        );
+    }
+
+    public &lt;T&gt; FieldReader&lt;T&gt; createFieldReader(
+            Class objectClass,
+            Type objectType,
+            String fieldName,
+            int ordinal,
+            long features,
+            String format,
+            Locale locale,
+            Object defaultValue,
+            String schema,
+            Type fieldType,
+            Class fieldClass,
+            Field field,
+            ObjectReader initReader,
+            String keyName,
+            BiConsumer arrayToMapDuplicateHandler
+    ) {
+<span class="fc bfc" id="L2691" title="All 4 branches covered.">        if (defaultValue instanceof String &amp;&amp; fieldClass.isEnum()) {</span>
+<span class="fc" id="L2692">            defaultValue = Enum.valueOf(fieldClass, (String) defaultValue);</span>
+        }
+<span class="fc bfc" id="L2694" title="All 4 branches covered.">        if (defaultValue != null &amp;&amp; defaultValue.getClass() != fieldClass) {</span>
+            ObjectReaderProvider provider = JSONFactory
+<span class="fc" id="L2696">                    .getDefaultObjectReaderProvider();</span>
+<span class="fc" id="L2697">            Function typeConvert = provider.getTypeConvert(defaultValue.getClass(), fieldType);</span>
+<span class="pc bpc" id="L2698" title="1 of 2 branches missed.">            if (typeConvert != null) {</span>
+<span class="fc" id="L2699">                defaultValue = typeConvert.apply(defaultValue);</span>
+            } else {
+<span class="nc" id="L2701">                throw new JSONException(&quot;illegal defaultValue : &quot; + defaultValue + &quot;, class &quot; + fieldClass.getName());</span>
+            }
+        }
+
+<span class="fc" id="L2705">        JSONSchema jsonSchema = null;</span>
+<span class="pc bpc" id="L2706" title="1 of 4 branches missed.">        if (schema != null &amp;&amp; !schema.isEmpty()) {</span>
+<span class="fc" id="L2707">            JSONObject object = JSON.parseObject(schema);</span>
+<span class="pc bpc" id="L2708" title="1 of 2 branches missed.">            if (!object.isEmpty()) {</span>
+<span class="fc" id="L2709">                jsonSchema = JSONSchema.of(object, fieldClass);</span>
+            }
+        }
+
+<span class="pc bpc" id="L2713" title="1 of 2 branches missed.">        if (field != null) {</span>
+<span class="fc" id="L2714">            String objectClassName = objectClass.getName();</span>
+<span class="pc bpc" id="L2715" title="2 of 8 branches missed.">            if (!objectClassName.startsWith(&quot;java.lang&quot;) &amp;&amp; !objectClassName.startsWith(&quot;java.time&quot;) &amp;&amp; !field.getDeclaringClass().getName().startsWith(&quot;java.lang&quot;) &amp;&amp; !field.getDeclaringClass().getName().startsWith(&quot;java.time&quot;)) {</span>
+<span class="fc" id="L2716">                field.setAccessible(true);</span>
+            }
+        }
+
+<span class="fc bfc" id="L2720" title="All 2 branches covered.">        if (initReader != null) {</span>
+<span class="fc" id="L2721">            FieldReaderObjectField fieldReader = new FieldReaderObjectField(fieldName, fieldType, fieldClass, ordinal, features | FieldInfo.READ_USING_MASK, format, locale, defaultValue, jsonSchema, field);</span>
+<span class="fc" id="L2722">            fieldReader.initReader = initReader;</span>
+<span class="fc" id="L2723">            return fieldReader;</span>
+        }
+
+<span class="fc bfc" id="L2726" title="All 2 branches covered.">        if (fieldClass == int.class) {</span>
+<span class="fc" id="L2727">            return new FieldReaderInt32ValueField(fieldName, fieldClass, ordinal, format, (Integer) defaultValue, jsonSchema, field);</span>
+        }
+<span class="fc bfc" id="L2729" title="All 2 branches covered.">        if (fieldClass == Integer.class) {</span>
+<span class="fc" id="L2730">            return new FieldReaderInt32Field(fieldName, fieldClass, ordinal, features, format, (Integer) defaultValue, jsonSchema, field);</span>
+        }
+
+<span class="fc bfc" id="L2733" title="All 2 branches covered.">        if (fieldClass == long.class) {</span>
+<span class="fc" id="L2734">            return new FieldReaderInt64ValueField(fieldName, fieldClass, ordinal, features, format, (Long) defaultValue, jsonSchema, field);</span>
+        }
+<span class="fc bfc" id="L2736" title="All 2 branches covered.">        if (fieldClass == Long.class) {</span>
+<span class="fc" id="L2737">            return new FieldReaderInt64Field(fieldName, fieldClass, ordinal, features, format, (Long) defaultValue, jsonSchema, field);</span>
+        }
+
+<span class="fc bfc" id="L2740" title="All 2 branches covered.">        if (fieldClass == short.class) {</span>
+<span class="fc" id="L2741">            return new FieldReaderInt16ValueField(fieldName, fieldClass, ordinal, features, format, (Short) defaultValue, jsonSchema, field);</span>
+        }
+
+<span class="fc bfc" id="L2744" title="All 2 branches covered.">        if (fieldClass == Short.class) {</span>
+<span class="fc" id="L2745">            return new FieldReaderInt16Field(fieldName, fieldClass, ordinal, features, format, (Short) defaultValue, jsonSchema, field);</span>
+        }
+
+<span class="fc bfc" id="L2748" title="All 2 branches covered.">        if (fieldClass == boolean.class) {</span>
+<span class="fc" id="L2749">            return new FieldReaderBoolValueField(fieldName, ordinal, features, format, (Boolean) defaultValue, jsonSchema, field);</span>
+        }
+
+<span class="fc bfc" id="L2752" title="All 2 branches covered.">        if (fieldClass == Boolean.class) {</span>
+<span class="fc" id="L2753">            return new FieldReaderBoolField(fieldName, fieldClass, ordinal, features, format, (Boolean) defaultValue, jsonSchema, field);</span>
+        }
+
+<span class="fc bfc" id="L2756" title="All 2 branches covered.">        if (fieldClass == byte.class) {</span>
+<span class="fc" id="L2757">            return new FieldReaderInt8ValueField(fieldName, fieldClass, ordinal, features, format, (Byte) defaultValue, jsonSchema, field);</span>
+        }
+
+<span class="fc bfc" id="L2760" title="All 2 branches covered.">        if (fieldClass == Byte.class) {</span>
+<span class="fc" id="L2761">            return new FieldReaderInt8Field(fieldName, fieldClass, ordinal, features, format, (Byte) defaultValue, jsonSchema, field);</span>
+        }
+
+<span class="fc bfc" id="L2764" title="All 2 branches covered.">        if (fieldClass == float.class) {</span>
+<span class="fc" id="L2765">            return new FieldReaderFloatValueField(fieldName, fieldClass, ordinal, features, format, (Float) defaultValue, jsonSchema, field);</span>
+        }
+<span class="fc bfc" id="L2767" title="All 2 branches covered.">        if (fieldClass == Float.class) {</span>
+<span class="fc" id="L2768">            return new FieldReaderFloatField(fieldName, fieldClass, ordinal, features, format, (Float) defaultValue, jsonSchema, field);</span>
+        }
+
+<span class="fc bfc" id="L2771" title="All 2 branches covered.">        if (fieldClass == double.class) {</span>
+<span class="fc" id="L2772">            return new FieldReaderDoubleValueField(fieldName, fieldClass, ordinal, features, format, (Double) defaultValue, jsonSchema, field);</span>
+        }
+<span class="fc bfc" id="L2774" title="All 2 branches covered.">        if (fieldClass == Double.class) {</span>
+<span class="fc" id="L2775">            return new FieldReaderDoubleField(fieldName, fieldClass, ordinal, features, format, (Double) defaultValue, jsonSchema, field);</span>
+        }
+
+<span class="fc bfc" id="L2778" title="All 2 branches covered.">        if (fieldClass == char.class) {</span>
+<span class="fc" id="L2779">            return new FieldReaderCharValueField(fieldName, ordinal, features, format, (Character) defaultValue, jsonSchema, field);</span>
+        }
+
+<span class="fc bfc" id="L2782" title="All 2 branches covered.">        if (fieldClass == BigDecimal.class) {</span>
+<span class="fc" id="L2783">            return new FieldReaderBigDecimalField(fieldName, fieldClass, ordinal, features, format, (BigDecimal) defaultValue, jsonSchema, field);</span>
+        }
+
+<span class="fc bfc" id="L2786" title="All 2 branches covered.">        if (fieldClass == BigInteger.class) {</span>
+<span class="fc" id="L2787">            return new FieldReaderBigIntegerField(fieldName, fieldClass, ordinal, features, format, (BigInteger) defaultValue, jsonSchema, field);</span>
+        }
+
+<span class="fc bfc" id="L2790" title="All 2 branches covered.">        if (fieldClass == String.class) {</span>
+<span class="fc" id="L2791">            return new FieldReaderStringField(fieldName, fieldClass, ordinal, features, format, (String) defaultValue, jsonSchema, field);</span>
+        }
+
+<span class="fc bfc" id="L2794" title="All 2 branches covered.">        if (fieldType == String[].class) {</span>
+<span class="fc" id="L2795">            return new FieldReaderStringArray(</span>
+                    fieldName,
+                    fieldType,
+                    fieldClass,
+                    ordinal,
+                    features,
+                    format,
+                    locale,
+                    defaultValue,
+                    jsonSchema,
+                    null,
+                    field,
+                    null
+            );
+        }
+
+<span class="fc bfc" id="L2811" title="All 2 branches covered.">        if (fieldClass == Date.class) {</span>
+<span class="fc" id="L2812">            return new FieldReaderDate(fieldName, fieldType, fieldClass, ordinal, features, format, locale, defaultValue, jsonSchema, field, null, null);</span>
+        }
+
+<span class="fc bfc" id="L2815" title="All 2 branches covered.">        if (fieldClass == AtomicBoolean.class) {</span>
+<span class="fc" id="L2816">            return new FieldReaderAtomicBooleanFieldReadOnly(fieldName, fieldClass, ordinal, format, (AtomicBoolean) defaultValue, jsonSchema, field);</span>
+        }
+
+<span class="fc bfc" id="L2819" title="All 2 branches covered.">        if (fieldClass == AtomicReference.class) {</span>
+<span class="fc" id="L2820">            return new FieldReaderAtomicReferenceField(fieldName, fieldType, fieldClass, ordinal, format, jsonSchema, field);</span>
+        }
+
+<span class="fc" id="L2823">        Type fieldTypeResolved = null;</span>
+<span class="fc" id="L2824">        Class fieldClassResolved = null;</span>
+<span class="fc bfc" id="L2825" title="All 2 branches covered.">        if (!(fieldType instanceof Class)) {</span>
+<span class="fc" id="L2826">            fieldTypeResolved = BeanUtils.getFieldType(TypeReference.get(objectType), objectClass, field, fieldType);</span>
+<span class="fc" id="L2827">            fieldClassResolved = TypeUtils.getMapping(fieldTypeResolved);</span>
+        }
+
+<span class="fc" id="L2830">        boolean finalField = Modifier.isFinal(field.getModifiers());</span>
+<span class="fc bfc" id="L2831" title="All 2 branches covered.">        if (Collection.class.isAssignableFrom(fieldClass)) {</span>
+<span class="fc bfc" id="L2832" title="All 2 branches covered.">            if (fieldTypeResolved instanceof ParameterizedType) {</span>
+<span class="fc" id="L2833">                ParameterizedType parameterizedType = (ParameterizedType) fieldTypeResolved;</span>
+<span class="fc" id="L2834">                Type[] actualTypeArguments = parameterizedType.getActualTypeArguments();</span>
+
+<span class="fc bfc" id="L2836" title="All 2 branches covered.">                if (actualTypeArguments.length == 1) {</span>
+<span class="fc" id="L2837">                    Type itemType = actualTypeArguments[0];</span>
+<span class="fc" id="L2838">                    Class itemClass = TypeUtils.getMapping(itemType);</span>
+<span class="fc bfc" id="L2839" title="All 2 branches covered.">                    if (itemClass == String.class) {</span>
+<span class="fc bfc" id="L2840" title="All 2 branches covered.">                        if (finalField) {</span>
+<span class="pc bpc" id="L2841" title="1 of 2 branches missed.">                            if ((features &amp; JSONReader.Feature.FieldBased.mask) != 0) {</span>
+<span class="nc" id="L2842">                                return new FieldReaderListField(fieldName, fieldTypeResolved, fieldClassResolved, String.class, String.class, ordinal, features, format, locale, null, jsonSchema, field);</span>
+                            }
+
+<span class="fc" id="L2845">                            return new FieldReaderCollectionFieldReadOnly(fieldName, fieldTypeResolved, fieldClassResolved, ordinal, features, format, jsonSchema, field);</span>
+                        }
+
+<span class="fc" id="L2848">                        return new FieldReaderListField(fieldName, fieldTypeResolved, fieldClassResolved, String.class, String.class, ordinal, features, format, locale, null, jsonSchema, field);</span>
+                    }
+
+<span class="fc" id="L2851">                    return new FieldReaderListField(</span>
+                            fieldName,
+                            fieldTypeResolved,
+                            fieldClassResolved,
+                            itemType,
+                            itemClass,
+                            ordinal,
+                            features,
+                            format,
+                            locale,
+                            (Collection) defaultValue,
+                            jsonSchema,
+                            field
+                    );
+                }
+            }
+
+<span class="fc" id="L2868">            Type itemType = null;</span>
+<span class="fc bfc" id="L2869" title="All 2 branches covered.">            if (fieldType instanceof ParameterizedType) {</span>
+<span class="fc" id="L2870">                Type[] actualTypeArguments = ((ParameterizedType) fieldType).getActualTypeArguments();</span>
+<span class="pc bpc" id="L2871" title="1 of 2 branches missed.">                if (actualTypeArguments.length &gt; 0) {</span>
+<span class="nc" id="L2872">                    itemType = actualTypeArguments[0];</span>
+                }
+            }
+<span class="pc bpc" id="L2875" title="1 of 2 branches missed.">            if (itemType == null) {</span>
+<span class="fc" id="L2876">                itemType = Object.class;</span>
+            }
+<span class="fc" id="L2878">            Class itemClass = TypeUtils.getClass(itemType);</span>
+
+<span class="fc" id="L2880">            return new FieldReaderListField(</span>
+                    fieldName,
+                    fieldType,
+                    fieldClass,
+                    itemType,
+                    itemClass,
+                    ordinal,
+                    features,
+                    format,
+                    locale,
+                    (Collection) defaultValue,
+                    jsonSchema,
+                    field
+            );
+        }
+
+<span class="fc bfc" id="L2896" title="All 2 branches covered.">        if (Map.class.isAssignableFrom(fieldClass)) {</span>
+<span class="fc bfc" id="L2897" title="All 2 branches covered.">            if (fieldTypeResolved instanceof ParameterizedType) {</span>
+<span class="fc" id="L2898">                ParameterizedType parameterizedType = (ParameterizedType) fieldTypeResolved;</span>
+<span class="fc" id="L2899">                Type[] actualTypeArguments = parameterizedType.getActualTypeArguments();</span>
+
+<span class="pc bpc" id="L2901" title="1 of 2 branches missed.">                if (actualTypeArguments.length == 2) {</span>
+<span class="pc bpc" id="L2902" title="1 of 4 branches missed.">                    if (finalField &amp;&amp; ((features &amp; JSONReader.Feature.FieldBased.mask) == 0)) {</span>
+<span class="fc" id="L2903">                        return new FieldReaderMapFieldReadOnly(</span>
+                                fieldName,
+                                fieldTypeResolved,
+                                fieldClassResolved,
+                                ordinal,
+                                features,
+                                format,
+                                jsonSchema,
+                                field,
+                                keyName,
+                                arrayToMapDuplicateHandler
+                        );
+                    }
+                }
+            }
+        }
+
+<span class="fc bfc" id="L2920" title="All 2 branches covered.">        if (finalField) {</span>
+<span class="fc bfc" id="L2921" title="All 2 branches covered.">            if (fieldClass == int[].class) {</span>
+<span class="fc" id="L2922">                return new FieldReaderInt32ValueArrayFinalField(fieldName, fieldClass, ordinal, features, format, (int[]) defaultValue, jsonSchema, field);</span>
+            }
+
+<span class="fc bfc" id="L2925" title="All 2 branches covered.">            if (fieldClass == long[].class) {</span>
+<span class="fc" id="L2926">                return new FieldReaderInt64ValueArrayFinalField(fieldName, fieldClass, ordinal, features, format, (long[]) defaultValue, jsonSchema, field);</span>
+            }
+        }
+
+<span class="fc bfc" id="L2930" title="All 2 branches covered.">        if (fieldClassResolved != null) {</span>
+<span class="fc bfc" id="L2931" title="All 2 branches covered.">            if ((features &amp; FieldInfo.UNWRAPPED_MASK) != 0</span>
+<span class="pc bpc" id="L2932" title="1 of 2 branches missed.">                    &amp;&amp; Map.class.isAssignableFrom(fieldClassResolved)</span>
+            ) {
+<span class="fc" id="L2934">                return new FieldReaderMapFieldReadOnly(fieldName,</span>
+                        fieldTypeResolved,
+                        fieldClass,
+                        ordinal,
+                        features,
+                        format,
+                        jsonSchema,
+                        field,
+                        keyName,
+                        arrayToMapDuplicateHandler
+                );
+            }
+
+<span class="fc bfc" id="L2947" title="All 2 branches covered.">            if (Map.class.isAssignableFrom(fieldClassResolved)) {</span>
+<span class="pc bpc" id="L2948" title="1 of 2 branches missed.">                if ((features &amp; FieldInfo.UNWRAPPED_MASK) != 0) {</span>
+<span class="nc" id="L2949">                    return new FieldReaderMapFieldReadOnly(fieldName,</span>
+                            fieldTypeResolved,
+                            fieldClass,
+                            ordinal,
+                            features,
+                            format,
+                            jsonSchema,
+                            field,
+                            keyName,
+                            arrayToMapDuplicateHandler
+                    );
+                }
+
+<span class="fc" id="L2962">                return new FieldReaderMapField(</span>
+                        fieldName,
+                        fieldTypeResolved,
+                        fieldClass,
+                        ordinal,
+                        features,
+                        format,
+                        locale,
+                        defaultValue,
+                        jsonSchema,
+                        field,
+                        keyName,
+                        arrayToMapDuplicateHandler
+                );
+            }
+
+<span class="fc" id="L2978">            return new FieldReaderObjectField(</span>
+                    fieldName,
+                    fieldTypeResolved,
+                    fieldClass,
+                    ordinal,
+                    features,
+                    format,
+                    locale,
+                    defaultValue,
+                    jsonSchema,
+                    field);
+        }
+
+<span class="fc bfc" id="L2991" title="All 2 branches covered.">        if (fieldClass == LocalDateTime.class) {</span>
+<span class="fc" id="L2992">            return new FieldReaderLocalDateTime(fieldName, fieldType, fieldClass, ordinal, features, format, locale, defaultValue, jsonSchema, field, null, null);</span>
+        }
+
+<span class="fc bfc" id="L2995" title="All 2 branches covered.">        if (fieldClass == ZonedDateTime.class) {</span>
+<span class="fc" id="L2996">            return new FieldReaderZonedDateTime(fieldName, fieldType, fieldClass, ordinal, features, format, locale, defaultValue, jsonSchema, field, null, null);</span>
+        }
+
+<span class="fc bfc" id="L2999" title="All 2 branches covered.">        if (fieldClass == Instant.class) {</span>
+<span class="fc" id="L3000">            return new FieldReaderInstant(fieldName, fieldType, fieldClass, ordinal, features, format, locale, defaultValue, jsonSchema, field, null, null);</span>
+        }
+
+<span class="fc" id="L3003">        return new FieldReaderObjectField(fieldName, fieldType, fieldClass, ordinal, features, format, locale, defaultValue, jsonSchema, field);</span>
+    }
+
+    public &lt;T, V&gt; FieldReader createFieldReader(
+            String fieldName,
+            Type fieldType,
+            Class&lt;V&gt; fieldClass,
+            long features,
+            BiConsumer&lt;T, V&gt; function
+    ) {
+<span class="fc" id="L3013">        return createFieldReader(null, null, fieldName, fieldType, fieldClass, 0, features, null, null, null, null, null, function, null);</span>
+    }
+
+    public &lt;T, V&gt; FieldReader createFieldReader(
+            String fieldName,
+            Type fieldType,
+            Class&lt;V&gt; fieldClass,
+            Method method,
+            BiConsumer&lt;T, V&gt; function
+    ) {
+<span class="fc" id="L3023">        return createFieldReader(null, null, fieldName, fieldType, fieldClass, 0, 0, null, null, null, null, method, function, null);</span>
+    }
+
+    public &lt;T, V&gt; FieldReader createFieldReader(
+            Class objectClass,
+            Type objectType,
+            String fieldName,
+            Type fieldType,
+            Class&lt;V&gt; fieldClass,
+            int ordinal,
+            long features,
+            String format,
+            Locale locale,
+            Object defaultValue,
+            JSONSchema schema,
+            Method method,
+            BiConsumer&lt;T, V&gt; function,
+            ObjectReader initReader
+    ) {
+<span class="fc bfc" id="L3042" title="All 2 branches covered.">        if (initReader != null) {</span>
+<span class="fc" id="L3043">            FieldReaderObject fieldReaderObjectMethod = new FieldReaderObject(</span>
+                    fieldName,
+                    fieldType,
+                    fieldClass,
+                    ordinal,
+                    features | FieldInfo.READ_USING_MASK,
+                    format,
+                    locale,
+                    defaultValue,
+                    schema,
+                    method,
+                    null,
+                    function
+            );
+<span class="fc" id="L3057">            fieldReaderObjectMethod.initReader = initReader;</span>
+<span class="fc" id="L3058">            return fieldReaderObjectMethod;</span>
+        }
+
+<span class="fc bfc" id="L3061" title="All 2 branches covered.">        if (fieldClass == Integer.class) {</span>
+<span class="fc" id="L3062">            return new FieldReaderInt32Func&lt;&gt;(fieldName, fieldClass, ordinal, features, format, locale, defaultValue, schema, method, function);</span>
+        }
+
+<span class="fc bfc" id="L3065" title="All 2 branches covered.">        if (fieldClass == Long.class) {</span>
+<span class="fc" id="L3066">            return new FieldReaderInt64Func&lt;&gt;(fieldName, fieldClass, ordinal, features, format, locale, defaultValue, schema, method, function);</span>
+        }
+
+<span class="fc bfc" id="L3069" title="All 2 branches covered.">        if (fieldClass == String.class) {</span>
+<span class="fc" id="L3070">            return new FieldReaderStringFunc&lt;&gt;(fieldName, fieldClass, ordinal, features, format, locale, defaultValue, schema, method, function);</span>
+        }
+
+<span class="fc bfc" id="L3073" title="All 2 branches covered.">        if (fieldClass == Boolean.class) {</span>
+<span class="fc" id="L3074">            return new FieldReaderBoolFunc&lt;&gt;(fieldName, fieldClass, ordinal, features, format, locale, defaultValue, schema, method, function);</span>
+        }
+
+<span class="fc bfc" id="L3077" title="All 2 branches covered.">        if (fieldClass == Short.class) {</span>
+<span class="fc" id="L3078">            return new FieldReaderInt16Func(fieldName, fieldClass, ordinal, features, format, locale, defaultValue, schema, method, function);</span>
+        }
+
+<span class="fc bfc" id="L3081" title="All 2 branches covered.">        if (fieldClass == Byte.class) {</span>
+<span class="fc" id="L3082">            return new FieldReaderInt8Func(fieldName, fieldClass, ordinal, features, format, locale, defaultValue, schema, method, function);</span>
+        }
+
+<span class="fc bfc" id="L3085" title="All 2 branches covered.">        if (fieldClass == BigDecimal.class) {</span>
+<span class="fc" id="L3086">            return new FieldReaderBigDecimalFunc(fieldName, fieldClass, ordinal, features, format, locale, defaultValue, schema, method, function);</span>
+        }
+
+<span class="fc bfc" id="L3089" title="All 2 branches covered.">        if (fieldClass == BigInteger.class) {</span>
+<span class="fc" id="L3090">            return new FieldReaderBigIntegerFunc(fieldName, fieldClass, ordinal, features, format, locale, defaultValue, schema, method, function);</span>
+        }
+
+<span class="fc bfc" id="L3093" title="All 2 branches covered.">        if (fieldClass == Float.class) {</span>
+<span class="fc" id="L3094">            return new FieldReaderFloatFunc(fieldName, fieldClass, ordinal, features, format, locale, (Float) defaultValue, schema, method, function);</span>
+        }
+
+<span class="fc bfc" id="L3097" title="All 2 branches covered.">        if (fieldClass == Double.class) {</span>
+<span class="fc" id="L3098">            return new FieldReaderDoubleFunc(fieldName, fieldClass, ordinal, features, format, locale, (Double) defaultValue, schema, method, function);</span>
+        }
+
+<span class="fc bfc" id="L3101" title="All 2 branches covered.">        if (fieldClass == Number.class) {</span>
+<span class="fc" id="L3102">            return new FieldReaderNumberFunc(fieldName, fieldClass, ordinal, features, format, locale, (Number) defaultValue, schema, method, function);</span>
+        }
+
+<span class="fc bfc" id="L3105" title="All 2 branches covered.">        if (fieldClass == Date.class) {</span>
+<span class="fc" id="L3106">            return new FieldReaderDate(fieldName, fieldType, fieldClass, ordinal, features, format, locale, defaultValue, schema, null, method, function);</span>
+        }
+
+<span class="fc" id="L3109">        Type fieldTypeResolved = null;</span>
+<span class="fc" id="L3110">        Class fieldClassResolved = null;</span>
+
+<span class="fc bfc" id="L3112" title="All 2 branches covered.">        if (!(fieldType instanceof Class)) {</span>
+            TypeReference&lt;?&gt; objectTypeReference;
+<span class="fc bfc" id="L3114" title="All 2 branches covered.">            if (objectType == null) {</span>
+<span class="fc" id="L3115">                objectTypeReference = null;</span>
+            } else {
+<span class="fc" id="L3117">                objectTypeReference = TypeReference.get(objectType);</span>
+            }
+<span class="fc" id="L3119">            fieldTypeResolved = BeanUtils.getFieldType(objectTypeReference, objectClass, method, fieldType);</span>
+<span class="fc" id="L3120">            fieldClassResolved = TypeUtils.getMapping(fieldTypeResolved);</span>
+        }
+
+<span class="fc bfc" id="L3123" title="All 4 branches covered.">        if (fieldClass == List.class || fieldClass == ArrayList.class) {</span>
+<span class="fc" id="L3124">            Type itemType = Object.class;</span>
+<span class="fc" id="L3125">            Class itemClass = Object.class;</span>
+<span class="fc bfc" id="L3126" title="All 2 branches covered.">            if (fieldTypeResolved instanceof ParameterizedType) {</span>
+<span class="fc" id="L3127">                ParameterizedType parameterizedType = (ParameterizedType) fieldTypeResolved;</span>
+<span class="fc" id="L3128">                Type[] actualTypeArguments = parameterizedType.getActualTypeArguments();</span>
+
+<span class="pc bpc" id="L3130" title="1 of 2 branches missed.">                if (actualTypeArguments.length == 1) {</span>
+<span class="fc" id="L3131">                    itemType = actualTypeArguments[0];</span>
+<span class="fc" id="L3132">                    itemClass = TypeUtils.getMapping(itemType);</span>
+<span class="fc bfc" id="L3133" title="All 2 branches covered.">                    if (itemClass == String.class) {</span>
+<span class="fc" id="L3134">                        return new FieldReaderList&lt;&gt;(fieldName, fieldTypeResolved, fieldClassResolved, String.class, String.class, ordinal, features, format, locale, defaultValue, schema, method, null, function);</span>
+                    }
+                }
+            }
+<span class="fc bfc" id="L3138" title="All 2 branches covered.">            boolean nullResolvedType = fieldTypeResolved == null;</span>
+<span class="fc bfc" id="L3139" title="All 4 branches covered.">            return new FieldReaderList&lt;&gt;(</span>
+                    fieldName,
+                    nullResolvedType ? fieldType : fieldTypeResolved,
+                    nullResolvedType ? fieldClass : fieldClassResolved,
+                    itemType,
+                    itemClass,
+                    ordinal, features, format, locale, defaultValue, schema, method, null, function
+            );
+        }
+
+<span class="fc bfc" id="L3149" title="All 2 branches covered.">        return new FieldReaderObjectFunc&lt;&gt;(fieldName, fieldTypeResolved == null ? fieldType : fieldTypeResolved, fieldClass, ordinal, features, format, locale, defaultValue, schema, method, function, null);</span>
+    }
+
+    protected ObjectReader createEnumReader(
+            Class objectClass,
+            Method createMethod,
+            ObjectReaderProvider provider
+    ) {
+<span class="fc" id="L3157">        FieldInfo fieldInfo = new FieldInfo();</span>
+
+<span class="fc" id="L3159">        Enum[] ordinalEnums = (Enum[]) objectClass.getEnumConstants();</span>
+
+<span class="fc" id="L3161">        Map&lt;Long, Enum&gt; enumMap = new LinkedHashMap&lt;&gt;();</span>
+<span class="fc bfc" id="L3162" title="All 4 branches covered.">        for (int i = 0; ordinalEnums != null &amp;&amp; i &lt; ordinalEnums.length; ++i) {</span>
+<span class="fc" id="L3163">            Enum e = ordinalEnums[i];</span>
+<span class="fc" id="L3164">            String name = e.name();</span>
+<span class="fc" id="L3165">            long hash = Fnv.hashCode64(name);</span>
+<span class="fc" id="L3166">            enumMap.put(hash, e);</span>
+
+            try {
+<span class="fc" id="L3169">                fieldInfo.init();</span>
+<span class="fc" id="L3170">                Field field = objectClass.getField(name);</span>
+<span class="fc" id="L3171">                provider.getFieldInfo(fieldInfo, objectClass, field);</span>
+<span class="fc" id="L3172">                String jsonFieldName = fieldInfo.fieldName;</span>
+<span class="pc bpc" id="L3173" title="2 of 6 branches missed.">                if (jsonFieldName != null &amp;&amp; !jsonFieldName.isEmpty() &amp;&amp; !jsonFieldName.equals(name)) {</span>
+<span class="fc" id="L3174">                    long jsonFieldNameHash = Fnv.hashCode64(jsonFieldName);</span>
+<span class="fc" id="L3175">                    enumMap.putIfAbsent(jsonFieldNameHash, e);</span>
+                }
+<span class="fc bfc" id="L3177" title="All 2 branches covered.">                if (fieldInfo.alternateNames != null) {</span>
+<span class="fc bfc" id="L3178" title="All 2 branches covered.">                    for (String alternateName : fieldInfo.alternateNames) {</span>
+<span class="pc bpc" id="L3179" title="2 of 4 branches missed.">                        if (alternateName == null || alternateName.isEmpty()) {</span>
+<span class="nc" id="L3180">                            continue;</span>
+                        }
+<span class="fc" id="L3182">                        long alternateNameHash = Fnv.hashCode64(alternateName);</span>
+<span class="fc" id="L3183">                        enumMap.putIfAbsent(alternateNameHash, e);</span>
+                    }
+                }
+<span class="nc" id="L3186">            } catch (Exception ignored) {</span>
+<span class="fc" id="L3187">            }</span>
+        }
+
+<span class="fc bfc" id="L3190" title="All 4 branches covered.">        for (int i = 0; ordinalEnums != null &amp;&amp; i &lt; ordinalEnums.length; ++i) {</span>
+<span class="fc" id="L3191">            Enum e = ordinalEnums[i];</span>
+<span class="fc" id="L3192">            String name = e.name();</span>
+<span class="fc" id="L3193">            long hashLCase = Fnv.hashCode64LCase(name);</span>
+<span class="fc" id="L3194">            enumMap.putIfAbsent(hashLCase, e);</span>
+        }
+
+<span class="fc" id="L3197">        long[] enumNameHashCodes = new long[enumMap.size()];</span>
+        {
+<span class="fc" id="L3199">            int i = 0;</span>
+<span class="fc bfc" id="L3200" title="All 2 branches covered.">            for (Long h : enumMap.keySet()) {</span>
+<span class="fc" id="L3201">                enumNameHashCodes[i++] = h;</span>
+<span class="fc" id="L3202">            }</span>
+<span class="fc" id="L3203">            Arrays.sort(enumNameHashCodes);</span>
+        }
+
+<span class="fc" id="L3206">        Member enumValueField = BeanUtils.getEnumValueField(objectClass, provider);</span>
+<span class="pc bpc" id="L3207" title="1 of 4 branches missed.">        if (enumValueField == null &amp;&amp; provider.modules.size() &gt; 0) {</span>
+<span class="fc" id="L3208">            Class fieldClassMixInSource = provider.getMixIn(objectClass);</span>
+<span class="fc bfc" id="L3209" title="All 2 branches covered.">            if (fieldClassMixInSource != null) {</span>
+<span class="fc" id="L3210">                Member mixedValueField = BeanUtils.getEnumValueField(fieldClassMixInSource, provider);</span>
+<span class="pc bpc" id="L3211" title="1 of 2 branches missed.">                if (mixedValueField instanceof Field) {</span>
+                    try {
+<span class="nc" id="L3213">                        enumValueField = objectClass.getField(mixedValueField.getName());</span>
+<span class="nc" id="L3214">                    } catch (NoSuchFieldException ignored) {</span>
+<span class="nc" id="L3215">                    }</span>
+<span class="pc bpc" id="L3216" title="1 of 2 branches missed.">                } else if (mixedValueField instanceof Method) {</span>
+                    try {
+<span class="fc" id="L3218">                        enumValueField = objectClass.getMethod(mixedValueField.getName());</span>
+<span class="nc" id="L3219">                    } catch (NoSuchMethodException ignored) {</span>
+<span class="fc" id="L3220">                    }</span>
+                }
+            }
+        }
+
+<span class="fc" id="L3225">        Enum[] enums = new Enum[enumNameHashCodes.length];</span>
+<span class="fc bfc" id="L3226" title="All 2 branches covered.">        for (int i = 0; i &lt; enumNameHashCodes.length; ++i) {</span>
+<span class="fc" id="L3227">            long hash = enumNameHashCodes[i];</span>
+<span class="fc" id="L3228">            Enum e = enumMap.get(hash);</span>
+<span class="fc" id="L3229">            enums[i] = e;</span>
+        }
+
+<span class="fc" id="L3232">        return new ObjectReaderImplEnum(objectClass, createMethod, enumValueField, enums, ordinalEnums, enumNameHashCodes);</span>
+    }
+
+    static ObjectReader getInitReader(
+            ObjectReaderProvider provider,
+            Type fieldType,
+            Class fieldClass,
+            FieldInfo fieldInfo
+    ) {
+<span class="fc" id="L3241">        ObjectReader initReader = fieldInfo.getInitReader();</span>
+<span class="pc bpc" id="L3242" title="4 of 8 branches missed.">        if (initReader == null &amp;&amp; (fieldInfo.keyUsing != null || fieldInfo.valueUsing != null) &amp;&amp; Map.class.isAssignableFrom(fieldClass)) {</span>
+<span class="nc" id="L3243">            ObjectReader keyReader = null;</span>
+<span class="nc bnc" id="L3244" title="All 2 branches missed.">            if (fieldInfo.keyUsing != null) {</span>
+                try {
+<span class="nc" id="L3246">                    Constructor&lt;?&gt; constructor = fieldInfo.keyUsing.getDeclaredConstructor();</span>
+<span class="nc" id="L3247">                    constructor.setAccessible(true);</span>
+<span class="nc" id="L3248">                    keyReader = (ObjectReader) constructor.newInstance();</span>
+<span class="nc" id="L3249">                } catch (Exception ignored) {</span>
+                    // ignored
+<span class="nc" id="L3251">                }</span>
+            }
+
+<span class="nc" id="L3254">            ObjectReader valueReader = null;</span>
+<span class="nc bnc" id="L3255" title="All 2 branches missed.">            if (fieldInfo.valueUsing != null) {</span>
+                try {
+<span class="nc" id="L3257">                    Constructor&lt;?&gt; constructor = fieldInfo.valueUsing.getDeclaredConstructor();</span>
+<span class="nc" id="L3258">                    constructor.setAccessible(true);</span>
+<span class="nc" id="L3259">                    valueReader = (ObjectReader) constructor.newInstance();</span>
+<span class="nc" id="L3260">                } catch (Exception ignored) {</span>
+                    // ignored
+<span class="nc" id="L3262">                }</span>
+            }
+
+<span class="nc bnc" id="L3265" title="All 4 branches missed.">            if (keyReader != null || valueReader != null) {</span>
+<span class="nc" id="L3266">                ObjectReader reader = ObjectReaderImplMap.of(fieldType, fieldClass, fieldInfo.features);</span>
+<span class="nc bnc" id="L3267" title="All 2 branches missed.">                if (reader instanceof ObjectReaderImplMapTyped) {</span>
+<span class="nc" id="L3268">                    ObjectReaderImplMapTyped mapReader = (ObjectReaderImplMapTyped) reader;</span>
+<span class="nc bnc" id="L3269" title="All 2 branches missed.">                    if (keyReader != null) {</span>
+<span class="nc" id="L3270">                        mapReader.keyObjectReader = keyReader;</span>
+                    }
+<span class="nc bnc" id="L3272" title="All 2 branches missed.">                    if (valueReader != null) {</span>
+<span class="nc" id="L3273">                        mapReader.valueObjectReader = valueReader;</span>
+                    }
+
+<span class="nc" id="L3276">                    return mapReader;</span>
+                }
+            }
+        }
+<span class="fc bfc" id="L3280" title="All 2 branches covered.">        if (initReader == null) {</span>
+<span class="fc bfc" id="L3281" title="All 4 branches covered.">            if (fieldClass == long.class || fieldClass == Long.class) {</span>
+<span class="fc" id="L3282">                ObjectReader objectReader = provider.getObjectReader(Long.class);</span>
+<span class="fc bfc" id="L3283" title="All 2 branches covered.">                if (objectReader != ObjectReaderImplInt64.INSTANCE) {</span>
+<span class="fc" id="L3284">                    initReader = objectReader;</span>
+                }
+<span class="fc bfc" id="L3286" title="All 2 branches covered.">            } else if (fieldClass == BigDecimal.class) {</span>
+<span class="fc" id="L3287">                ObjectReader objectReader = provider.getObjectReader(BigDecimal.class);</span>
+<span class="fc bfc" id="L3288" title="All 2 branches covered.">                if (objectReader != ObjectReaderImplBigDecimal.INSTANCE) {</span>
+<span class="fc" id="L3289">                    initReader = objectReader;</span>
+                }
+<span class="fc bfc" id="L3291" title="All 2 branches covered.">            } else if (fieldClass == BigInteger.class) {</span>
+<span class="fc" id="L3292">                ObjectReader objectReader = provider.getObjectReader(BigInteger.class);</span>
+<span class="fc bfc" id="L3293" title="All 2 branches covered.">                if (objectReader != ObjectReaderImplBigInteger.INSTANCE) {</span>
+<span class="fc" id="L3294">                    initReader = objectReader;</span>
+                }
+<span class="fc bfc" id="L3296" title="All 2 branches covered.">            } else if (fieldClass == Date.class) {</span>
+<span class="fc" id="L3297">                ObjectReader objectReader = provider.getObjectReader(Date.class);</span>
+<span class="fc bfc" id="L3298" title="All 2 branches covered.">                if (objectReader != ObjectReaderImplDate.INSTANCE) {</span>
+<span class="fc" id="L3299">                    initReader = objectReader;</span>
+                }
+            }
+        }
+<span class="fc" id="L3303">        return initReader;</span>
+    }
+
+    protected &lt;T&gt; FieldReader createFieldReaderLambda(
+            Class&lt;T&gt; objectClass,
+            Type objectType,
+            String fieldName,
+            int ordinal,
+            long features,
+            String format,
+            Locale locale,
+            Object defaultValue,
+            String schema,
+            Type fieldType,
+            Class fieldClass,
+            Method method,
+            ObjectReader initReader
+    ) {
+<span class="pc bpc" id="L3321" title="1 of 4 branches missed.">        if (defaultValue != null &amp;&amp; defaultValue.getClass() != fieldClass) {</span>
+            Function typeConvert = JSONFactory
+<span class="fc" id="L3323">                    .getDefaultObjectReaderProvider()</span>
+<span class="fc" id="L3324">                    .getTypeConvert(defaultValue.getClass(), fieldType);</span>
+<span class="pc bpc" id="L3325" title="1 of 2 branches missed.">            if (typeConvert != null) {</span>
+<span class="nc" id="L3326">                defaultValue = typeConvert.apply(defaultValue);</span>
+            } else {
+<span class="fc" id="L3328">                throw new JSONException(&quot;illegal defaultValue : &quot; + defaultValue + &quot;, class &quot; + fieldClass.getName());</span>
+            }
+        }
+
+<span class="fc" id="L3332">        JSONSchema jsonSchema = null;</span>
+<span class="pc bpc" id="L3333" title="1 of 4 branches missed.">        if (schema != null &amp;&amp; !schema.isEmpty()) {</span>
+<span class="fc" id="L3334">            JSONObject object = JSON.parseObject(schema);</span>
+<span class="pc bpc" id="L3335" title="1 of 2 branches missed.">            if (!object.isEmpty()) {</span>
+<span class="fc" id="L3336">                jsonSchema = JSONSchema.of(object, fieldClass);</span>
+            }
+        }
+
+<span class="fc bfc" id="L3340" title="All 2 branches covered.">        if (initReader != null) {</span>
+<span class="fc" id="L3341">            BiConsumer function = (BiConsumer) lambdaSetter(objectClass, fieldClass, method);</span>
+<span class="fc" id="L3342">            return createFieldReader(objectClass, objectType, fieldName, fieldType, fieldClass, ordinal, features, format, locale, defaultValue, jsonSchema, method, function, initReader);</span>
+        }
+
+<span class="fc bfc" id="L3345" title="All 2 branches covered.">        if (fieldType == boolean.class) {</span>
+<span class="fc" id="L3346">            ObjBoolConsumer function = (ObjBoolConsumer) lambdaSetter(objectClass, fieldClass, method);</span>
+<span class="fc" id="L3347">            return new FieldReaderBoolValFunc&lt;&gt;(fieldName, ordinal, jsonSchema, method, function);</span>
+        }
+
+<span class="fc bfc" id="L3350" title="All 2 branches covered.">        if (fieldType == byte.class) {</span>
+<span class="fc" id="L3351">            ObjByteConsumer function = (ObjByteConsumer) lambdaSetter(objectClass, fieldClass, method);</span>
+<span class="fc" id="L3352">            return new FieldReaderInt8ValueFunc&lt;&gt;(fieldName, ordinal, jsonSchema, method, function);</span>
+        }
+
+<span class="fc bfc" id="L3355" title="All 2 branches covered.">        if (fieldType == short.class) {</span>
+<span class="fc" id="L3356">            ObjShortConsumer function = (ObjShortConsumer) lambdaSetter(objectClass, fieldClass, method);</span>
+<span class="fc" id="L3357">            return new FieldReaderInt16ValueFunc&lt;&gt;(fieldName, ordinal, features, format, locale, (Short) defaultValue, jsonSchema, method, function);</span>
+        }
+
+<span class="fc bfc" id="L3360" title="All 2 branches covered.">        if (fieldType == int.class) {</span>
+<span class="fc" id="L3361">            ObjIntConsumer function = (ObjIntConsumer) lambdaSetter(objectClass, fieldClass, method);</span>
+<span class="fc" id="L3362">            return new FieldReaderInt32ValueFunc&lt;&gt;(fieldName, ordinal, (Integer) defaultValue, jsonSchema, method, function);</span>
+        }
+
+<span class="fc bfc" id="L3365" title="All 2 branches covered.">        if (fieldType == long.class) {</span>
+<span class="fc" id="L3366">            ObjLongConsumer function = (ObjLongConsumer) lambdaSetter(objectClass, fieldClass, method);</span>
+<span class="fc" id="L3367">            return new FieldReaderInt64ValueFunc&lt;&gt;(fieldName, ordinal, (Long) defaultValue, jsonSchema, method, function);</span>
+        }
+
+<span class="fc bfc" id="L3370" title="All 2 branches covered.">        if (fieldType == char.class) {</span>
+<span class="fc" id="L3371">            ObjCharConsumer function = (ObjCharConsumer) lambdaSetter(objectClass, fieldClass, method);</span>
+<span class="fc" id="L3372">            return new FieldReaderCharValueFunc&lt;&gt;(fieldName, ordinal, format, (Character) defaultValue, jsonSchema, method, function);</span>
+        }
+
+<span class="fc bfc" id="L3375" title="All 2 branches covered.">        if (fieldType == float.class) {</span>
+<span class="fc" id="L3376">            ObjFloatConsumer function = (ObjFloatConsumer) lambdaSetter(objectClass, fieldClass, method);</span>
+<span class="fc" id="L3377">            return new FieldReaderFloatValueFunc&lt;&gt;(fieldName, ordinal, (Float) defaultValue, jsonSchema, method, function);</span>
+        }
+
+<span class="fc bfc" id="L3380" title="All 2 branches covered.">        if (fieldType == double.class) {</span>
+<span class="fc" id="L3381">            ObjDoubleConsumer function = (ObjDoubleConsumer) lambdaSetter(objectClass, fieldClass, method);</span>
+<span class="fc" id="L3382">            return new FieldReaderDoubleValueFunc&lt;&gt;(fieldName, ordinal, (Double) defaultValue, jsonSchema, method, function);</span>
+        }
+
+<span class="fc" id="L3385">        BiConsumer consumer = (BiConsumer) lambdaSetter(objectClass, fieldClass, method);</span>
+<span class="fc" id="L3386">        return createFieldReader(objectClass, objectType, fieldName, fieldType, fieldClass, ordinal, features, format, locale, defaultValue, jsonSchema, method, consumer, null);</span>
+    }
+
+    protected Object lambdaSetter(Class objectClass, Class fieldClass, Method method) {
+<span class="fc" id="L3390">        MethodHandles.Lookup lookup = JDKUtils.trustedLookup(objectClass);</span>
+
+<span class="fc" id="L3392">        Class&lt;?&gt; returnType = method.getReturnType();</span>
+<span class="fc" id="L3393">        LambdaSetterInfo lambdaInfo = methodTypeMapping.get(fieldClass);</span>
+
+        MethodType samMethodType;
+        MethodType invokedType;
+<span class="fc" id="L3397">        MethodType methodType = null;</span>
+<span class="fc bfc" id="L3398" title="All 2 branches covered.">        if (lambdaInfo != null) {</span>
+<span class="fc" id="L3399">            samMethodType = lambdaInfo.sameMethodMethod;</span>
+<span class="fc" id="L3400">            invokedType = lambdaInfo.invokedType;</span>
+<span class="fc bfc" id="L3401" title="All 2 branches covered.">            if (returnType == void.class) {</span>
+<span class="fc" id="L3402">                methodType = lambdaInfo.methodType;</span>
+            }
+        } else {
+<span class="fc" id="L3405">            samMethodType = METHOD_TYPE_VOO;</span>
+<span class="fc" id="L3406">            invokedType = METHOD_TYPE_BI_CONSUMER;</span>
+        }
+
+<span class="fc bfc" id="L3409" title="All 2 branches covered.">        if (methodType == null) {</span>
+<span class="fc" id="L3410">            methodType = MethodType.methodType(returnType, fieldClass);</span>
+        }
+
+        try {
+<span class="fc" id="L3414">            MethodHandle target = lookup.findVirtual(objectClass, method.getName(), methodType);</span>
+<span class="fc" id="L3415">            MethodType instantiatedMethodType = MethodType.methodType(void.class, objectClass, fieldClass);</span>
+<span class="fc" id="L3416">            CallSite callSite = LambdaMetafactory.metafactory(</span>
+                    lookup,
+                    &quot;accept&quot;,
+                    invokedType,
+                    samMethodType,
+                    target,
+                    instantiatedMethodType
+            );
+
+<span class="fc" id="L3425">            return callSite</span>
+<span class="fc" id="L3426">                    .getTarget()</span>
+<span class="fc" id="L3427">                    .invoke();</span>
+<span class="nc" id="L3428">        } catch (Throwable e) {</span>
+<span class="nc" id="L3429">            throw new JSONException(&quot;create fieldReader error&quot;, e);</span>
+        }
+    }
+
+    public Function&lt;Consumer, ByteArrayValueConsumer&gt; createByteArrayValueConsumerCreator(
+            Class objectClass,
+            FieldReader[] fieldReaderArray
+    ) {
+<span class="nc" id="L3437">        return null;</span>
+    }
+
+    public Function&lt;Consumer, CharArrayValueConsumer&gt; createCharArrayValueConsumerCreator(
+            Class objectClass,
+            FieldReader[] fieldReaderArray
+    ) {
+<span class="nc" id="L3444">        return null;</span>
+    }
+
+    private List&lt;FieldReader&gt; listOf(FieldReader fieldReader) {
+<span class="fc" id="L3448">        List&lt;FieldReader&gt; list = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L3449">        list.add(fieldReader);</span>
+<span class="fc" id="L3450">        return list;</span>
+    }
+
+    private void putIfAbsent(Map&lt;String, List&lt;FieldReader&gt;&gt; fieldReaders,
+                             String fieldName,
+                             FieldReader fieldReader,
+                             Class objectClass) {
+<span class="fc" id="L3457">        List&lt;FieldReader&gt; origin = fieldReaders.get(fieldName);</span>
+<span class="fc bfc" id="L3458" title="All 2 branches covered.">        if (origin == null) {</span>
+<span class="fc" id="L3459">            fieldReaders.put(fieldName, listOf(fieldReader));</span>
+<span class="fc" id="L3460">            return;</span>
+        }
+<span class="fc bfc" id="L3462" title="All 2 branches covered.">        if (!fieldReader.isReadOnly()) {</span>
+<span class="fc" id="L3463">            FieldReader sameReader = null;</span>
+<span class="fc bfc" id="L3464" title="All 2 branches covered.">            for (int i = 0; i &lt; origin.size(); i++) {</span>
+<span class="fc" id="L3465">                FieldReader tempReader = origin.get(i);</span>
+<span class="fc bfc" id="L3466" title="All 2 branches covered.">                if (tempReader.sameTo(fieldReader)) {</span>
+<span class="fc" id="L3467">                    sameReader = tempReader;</span>
+<span class="fc" id="L3468">                    break;</span>
+                }
+            }
+<span class="fc bfc" id="L3471" title="All 2 branches covered.">            if (sameReader != null) {</span>
+<span class="fc bfc" id="L3472" title="All 4 branches covered.">                if (sameReader.compareTo(fieldReader) &gt; 0 || !sameReader.belongTo(objectClass)) {</span>
+<span class="fc" id="L3473">                    origin.set(origin.indexOf(sameReader), fieldReader);</span>
+                }
+            } else {
+<span class="fc" id="L3476">                origin.add(fieldReader);</span>
+            }
+        }
+<span class="fc" id="L3479">    }</span>
+
+    private FieldReader[] toFieldReaderArray(Map&lt;String, List&lt;FieldReader&gt;&gt; fieldReaders) {
+<span class="fc" id="L3482">        int size = fieldReaders.values().stream().mapToInt(Collection::size).sum();</span>
+<span class="fc" id="L3483">        FieldReader[] fieldReaderArray = new FieldReader[size];</span>
+<span class="fc" id="L3484">        fieldReaders.values().stream().flatMap(Collection::stream).collect(Collectors.toList()).toArray(fieldReaderArray);</span>
+<span class="fc" id="L3485">        Arrays.sort(fieldReaderArray);</span>
+<span class="fc" id="L3486">        return fieldReaderArray;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.8.202204050719</span></div></body></html>

@@ -1,0 +1,755 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>CSVReaderUTF8.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">fastjson2</a> &gt; <a href="index.source.html" class="el_package">com.alibaba.fastjson2.support.csv</a> &gt; <span class="el_source">CSVReaderUTF8.java</span></div><h1>CSVReaderUTF8.java</h1><pre class="source lang-java linenums">package com.alibaba.fastjson2.support.csv;
+
+import com.alibaba.fastjson2.JSONException;
+import com.alibaba.fastjson2.JSONFactory;
+import com.alibaba.fastjson2.reader.*;
+import com.alibaba.fastjson2.stream.StreamReader;
+import com.alibaba.fastjson2.util.DateUtils;
+import com.alibaba.fastjson2.util.Fnv;
+import com.alibaba.fastjson2.util.IOUtils;
+import com.alibaba.fastjson2.util.TypeUtils;
+
+import java.io.IOException;
+import java.io.InputStream;
+import java.lang.reflect.Type;
+import java.math.BigDecimal;
+import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
+import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Consumer;
+import java.util.function.Function;
+
+import static com.alibaba.fastjson2.util.DateUtils.DEFAULT_ZONE_ID;
+
+final class CSVReaderUTF8&lt;T&gt;
+        extends CSVReader&lt;T&gt; {
+<span class="fc" id="L27">    static final Map&lt;Long, Function&lt;Consumer, ByteArrayValueConsumer&gt;&gt; valueConsumerCreators</span>
+            = new ConcurrentHashMap&lt;&gt;();
+
+    byte[] buf;
+    InputStream input;
+<span class="fc" id="L32">    Charset charset = StandardCharsets.UTF_8;</span>
+    ByteArrayValueConsumer valueConsumer;
+
+<span class="fc" id="L35">    CSVReaderUTF8(Feature... features) {</span>
+<span class="fc bfc" id="L36" title="All 2 branches covered.">        for (Feature feature : features) {</span>
+<span class="fc" id="L37">            this.features |= feature.mask;</span>
+        }
+<span class="fc" id="L39">    }</span>
+
+    CSVReaderUTF8(byte[] bytes, int off, int len, Charset charset, Class&lt;T&gt; objectClass) {
+<span class="fc" id="L42">        super(objectClass);</span>
+<span class="fc" id="L43">        this.buf = bytes;</span>
+<span class="fc" id="L44">        this.off = off;</span>
+<span class="fc" id="L45">        this.end = off + len;</span>
+<span class="fc" id="L46">        this.charset = charset;</span>
+<span class="fc" id="L47">    }</span>
+
+<span class="fc" id="L49">    CSVReaderUTF8(byte[] bytes, int off, int len, Charset charset, ByteArrayValueConsumer valueConsumer) {</span>
+<span class="fc" id="L50">        this.valueConsumer = valueConsumer;</span>
+<span class="fc" id="L51">        this.buf = bytes;</span>
+<span class="fc" id="L52">        this.off = off;</span>
+<span class="fc" id="L53">        this.end = off + len;</span>
+<span class="fc" id="L54">        this.charset = charset;</span>
+<span class="fc" id="L55">    }</span>
+
+    CSVReaderUTF8(byte[] bytes, int off, int len, Type[] types) {
+<span class="fc" id="L58">        super(types);</span>
+<span class="fc" id="L59">        this.buf = bytes;</span>
+<span class="fc" id="L60">        this.off = off;</span>
+<span class="fc" id="L61">        this.end = off + len;</span>
+<span class="fc" id="L62">        this.types = types;</span>
+<span class="fc" id="L63">    }</span>
+
+    CSVReaderUTF8(byte[] bytes, int off, int len, Class&lt;T&gt; objectClass) {
+<span class="fc" id="L66">        super(objectClass);</span>
+<span class="fc" id="L67">        this.buf = bytes;</span>
+<span class="fc" id="L68">        this.off = off;</span>
+<span class="fc" id="L69">        this.end = off + len;</span>
+<span class="fc" id="L70">    }</span>
+
+    CSVReaderUTF8(InputStream input, Charset charset, Type[] types) {
+<span class="fc" id="L73">        super(types);</span>
+<span class="fc" id="L74">        this.charset = charset;</span>
+<span class="fc" id="L75">        this.input = input;</span>
+<span class="fc" id="L76">    }</span>
+
+    CSVReaderUTF8(InputStream input, Charset charset, Class&lt;T&gt; objectClass) {
+<span class="fc" id="L79">        super(objectClass);</span>
+<span class="fc" id="L80">        this.charset = charset;</span>
+<span class="fc" id="L81">        this.input = input;</span>
+<span class="fc" id="L82">    }</span>
+
+<span class="fc" id="L84">    CSVReaderUTF8(InputStream input, Charset charset, ByteArrayValueConsumer valueConsumer) {</span>
+<span class="fc" id="L85">        this.charset = charset;</span>
+<span class="fc" id="L86">        this.input = input;</span>
+<span class="fc" id="L87">        this.valueConsumer = valueConsumer;</span>
+<span class="fc" id="L88">    }</span>
+
+    protected boolean seekLine() throws IOException {
+<span class="fc" id="L91">        byte[] buf = this.buf;</span>
+<span class="fc" id="L92">        int off = this.off;</span>
+<span class="fc bfc" id="L93" title="All 2 branches covered.">        if (buf == null) {</span>
+<span class="pc bpc" id="L94" title="1 of 2 branches missed.">            if (input != null) {</span>
+<span class="fc" id="L95">                buf = this.buf = new byte[SIZE_512K];</span>
+<span class="fc" id="L96">                int cnt = input.read(buf);</span>
+<span class="pc bpc" id="L97" title="1 of 2 branches missed.">                if (cnt == -1) {</span>
+<span class="nc" id="L98">                    inputEnd = true;</span>
+<span class="nc" id="L99">                    return false;</span>
+                }
+<span class="fc" id="L101">                this.end = cnt;</span>
+
+<span class="pc bpc" id="L103" title="1 of 2 branches missed.">                if (end &gt; 3) {</span>
+                    // UTF8-BOM EF BB BF
+<span class="pc bpc" id="L105" title="2 of 6 branches missed.">                    if (buf[0] == -17 &amp;&amp; buf[1] == -69 &amp;&amp; buf[2] == -65) {</span>
+<span class="fc" id="L106">                        off = 3;</span>
+<span class="fc" id="L107">                        lineNextStart = off;</span>
+                    }
+                }
+            }
+        }
+
+<span class="pc bpc" id="L113" title="1 of 2 branches missed.">        for (int k = 0; k &lt; 3; ++k) {</span>
+<span class="fc" id="L114">            lineTerminated = false;</span>
+
+<span class="fc bfc" id="L116" title="All 2 branches covered.">            for (int i = off; i &lt; end; i++) {</span>
+<span class="fc" id="L117">                byte ch = buf[i];</span>
+<span class="fc bfc" id="L118" title="All 2 branches covered.">                if (ch == '&quot;') {</span>
+<span class="fc" id="L119">                    lineSize++;</span>
+<span class="fc bfc" id="L120" title="All 2 branches covered.">                    if (!quote) {</span>
+<span class="fc" id="L121">                        quote = true;</span>
+                    } else {
+<span class="fc" id="L123">                        int n = i + 1;</span>
+<span class="fc bfc" id="L124" title="All 2 branches covered.">                        if (n &gt;= end) {</span>
+<span class="fc" id="L125">                            break;</span>
+                        }
+<span class="fc bfc" id="L127" title="All 2 branches covered.">                        if (buf[n] == '&quot;') {</span>
+<span class="fc" id="L128">                            lineSize++;</span>
+<span class="fc" id="L129">                            i++;</span>
+                        } else {
+<span class="fc" id="L131">                            quote = false;</span>
+                        }
+                    }
+<span class="fc" id="L134">                    continue;</span>
+                }
+
+<span class="fc bfc" id="L137" title="All 2 branches covered.">                if (quote) {</span>
+<span class="fc" id="L138">                    lineSize++;</span>
+<span class="fc" id="L139">                    continue;</span>
+                }
+
+<span class="fc bfc" id="L142" title="All 2 branches covered.">                if (ch == '\n') {</span>
+<span class="pc bpc" id="L143" title="1 of 4 branches missed.">                    if (lineSize &gt; 0 || (features &amp; Feature.IgnoreEmptyLine.mask) == 0) {</span>
+<span class="fc" id="L144">                        rowCount++;</span>
+                    }
+<span class="fc" id="L146">                    lineTerminated = true;</span>
+<span class="fc" id="L147">                    lineSize = 0;</span>
+<span class="fc" id="L148">                    lineEnd = i;</span>
+<span class="fc" id="L149">                    lineStart = lineNextStart;</span>
+<span class="fc" id="L150">                    lineNextStart = off = i + 1;</span>
+
+<span class="fc" id="L152">                    break;</span>
+<span class="pc bpc" id="L153" title="1 of 2 branches missed.">                } else if (ch == '\r') {</span>
+<span class="nc bnc" id="L154" title="All 4 branches missed.">                    if (lineSize &gt; 0 || (features &amp; Feature.IgnoreEmptyLine.mask) == 0) {</span>
+<span class="nc" id="L155">                        rowCount++;</span>
+                    }
+
+<span class="nc" id="L158">                    lineTerminated = true;</span>
+<span class="nc" id="L159">                    lineSize = 0;</span>
+<span class="nc" id="L160">                    lineEnd = i;</span>
+
+<span class="nc" id="L162">                    int n = i + 1;</span>
+<span class="nc bnc" id="L163" title="All 2 branches missed.">                    if (n &gt;= end) {</span>
+<span class="nc" id="L164">                        break;</span>
+                    }
+<span class="nc bnc" id="L166" title="All 2 branches missed.">                    if (buf[n] == '\n') {</span>
+<span class="nc" id="L167">                        i++;</span>
+                    }
+
+<span class="nc" id="L170">                    lineStart = lineNextStart;</span>
+<span class="nc" id="L171">                    lineNextStart = off = i + 1;</span>
+
+<span class="nc" id="L173">                    break;</span>
+                } else {
+<span class="fc" id="L175">                    lineSize++;</span>
+                }
+            }
+
+<span class="fc bfc" id="L179" title="All 2 branches covered.">            if (!lineTerminated) {</span>
+<span class="pc bpc" id="L180" title="1 of 4 branches missed.">                if (input != null &amp;&amp; !inputEnd) {</span>
+<span class="fc" id="L181">                    int len = end - off;</span>
+<span class="fc bfc" id="L182" title="All 2 branches covered.">                    if (off &gt; 0) {</span>
+<span class="fc bfc" id="L183" title="All 2 branches covered.">                        if (len &gt; 0) {</span>
+<span class="fc" id="L184">                            System.arraycopy(buf, off, buf, 0, len);</span>
+                        }
+<span class="fc" id="L186">                        lineStart = lineNextStart = 0;</span>
+<span class="fc" id="L187">                        off = 0;</span>
+<span class="fc" id="L188">                        end = len;</span>
+<span class="fc" id="L189">                        quote = false;</span>
+                    }
+
+<span class="fc" id="L192">                    int cnt = input.read(buf, end, buf.length - end);</span>
+<span class="fc bfc" id="L193" title="All 2 branches covered.">                    if (cnt == -1) {</span>
+<span class="fc" id="L194">                        inputEnd = true;</span>
+<span class="fc bfc" id="L195" title="All 2 branches covered.">                        if (off == end) {</span>
+<span class="fc" id="L196">                            this.off = off;</span>
+<span class="fc" id="L197">                            return false;</span>
+                        }
+                    } else {
+<span class="fc" id="L200">                        end += cnt;</span>
+<span class="fc" id="L201">                        continue;</span>
+                    }
+                }
+
+<span class="fc" id="L205">                lineStart = lineNextStart;</span>
+<span class="fc" id="L206">                lineEnd = end;</span>
+<span class="fc" id="L207">                rowCount++;</span>
+<span class="fc" id="L208">                lineSize = 0;</span>
+<span class="fc" id="L209">                off = end;</span>
+            }
+
+<span class="fc bfc" id="L212" title="All 2 branches covered.">            lineTerminated = off == end;</span>
+<span class="fc" id="L213">            break;</span>
+        }
+
+<span class="fc" id="L216">        this.off = off;</span>
+<span class="fc" id="L217">        return true;</span>
+    }
+
+    Object readValue(byte[] bytes, int off, int len, Type type) {
+<span class="pc bpc" id="L221" title="1 of 2 branches missed.">        if (len == 0) {</span>
+<span class="nc" id="L222">            return null;</span>
+        }
+
+<span class="fc bfc" id="L225" title="All 2 branches covered.">        if (type == Integer.class) {</span>
+<span class="fc" id="L226">            return TypeUtils.parseInt(bytes, off, len);</span>
+        }
+
+<span class="fc bfc" id="L229" title="All 2 branches covered.">        if (type == Long.class) {</span>
+<span class="fc" id="L230">            return TypeUtils.parseLong(bytes, off, len);</span>
+        }
+
+<span class="fc bfc" id="L233" title="All 2 branches covered.">        if (type == BigDecimal.class) {</span>
+<span class="fc" id="L234">            return TypeUtils.parseBigDecimal(bytes, off, len);</span>
+        }
+
+<span class="fc bfc" id="L237" title="All 2 branches covered.">        if (type == Float.class) {</span>
+<span class="fc" id="L238">            return TypeUtils.parseFloat(bytes, off, len);</span>
+        }
+
+<span class="fc bfc" id="L241" title="All 2 branches covered.">        if (type == Double.class) {</span>
+<span class="fc" id="L242">            return TypeUtils.parseDouble(bytes, off, len);</span>
+        }
+
+<span class="fc bfc" id="L245" title="All 2 branches covered.">        if (type == Date.class) {</span>
+<span class="fc" id="L246">            long millis = DateUtils.parseMillis(bytes, off, len, charset, DEFAULT_ZONE_ID);</span>
+<span class="fc" id="L247">            return new Date(millis);</span>
+        }
+
+<span class="pc bpc" id="L250" title="1 of 2 branches missed.">        if (type == Boolean.class) {</span>
+<span class="nc" id="L251">            return TypeUtils.parseBoolean(bytes, off, len);</span>
+        }
+
+<span class="fc" id="L254">        String str = new String(bytes, off, len, charset);</span>
+<span class="fc" id="L255">        return TypeUtils.cast(str, type);</span>
+    }
+
+    public boolean isEnd() {
+<span class="fc" id="L259">        return inputEnd;</span>
+    }
+
+    public Object[] readLineValues(boolean strings) {
+        try {
+<span class="fc bfc" id="L264" title="All 2 branches covered.">            if (inputEnd) {</span>
+<span class="fc" id="L265">                return null;</span>
+            }
+
+<span class="fc bfc" id="L268" title="All 2 branches covered.">            if (input == null) {</span>
+<span class="pc bpc" id="L269" title="1 of 2 branches missed.">                if (off &gt;= end) {</span>
+<span class="nc" id="L270">                    return null;</span>
+                }
+            }
+
+<span class="fc" id="L274">            boolean result = seekLine();</span>
+
+<span class="fc bfc" id="L276" title="All 2 branches covered.">            if (!result) {</span>
+<span class="fc" id="L277">                return null;</span>
+            }
+<span class="nc" id="L279">        } catch (IOException e) {</span>
+<span class="nc" id="L280">            throw new JSONException(&quot;seekLine error&quot;, e);</span>
+<span class="fc" id="L281">        }</span>
+
+<span class="fc" id="L283">        Object[] values = null;</span>
+<span class="fc" id="L284">        List&lt;Object&gt; valueList = null;</span>
+<span class="fc bfc" id="L285" title="All 2 branches covered.">        if (columns != null) {</span>
+<span class="fc bfc" id="L286" title="All 2 branches covered.">            if (strings) {</span>
+<span class="fc" id="L287">                values = new String[columns.size()];</span>
+            } else {
+<span class="fc" id="L289">                values = new Object[columns.size()];</span>
+            }
+        }
+
+<span class="fc" id="L293">        boolean quote = false;</span>
+<span class="fc" id="L294">        int valueStart = lineStart;</span>
+<span class="fc" id="L295">        int valueSize = 0;</span>
+<span class="fc" id="L296">        int escapeCount = 0;</span>
+<span class="fc" id="L297">        int columnIndex = 0;</span>
+<span class="fc bfc" id="L298" title="All 2 branches covered.">        for (int i = lineStart; i &lt; lineEnd; ++i) {</span>
+<span class="fc" id="L299">            byte ch = buf[i];</span>
+
+<span class="fc bfc" id="L301" title="All 2 branches covered.">            if (quote) {</span>
+<span class="fc bfc" id="L302" title="All 2 branches covered.">                if (ch == '&quot;') {</span>
+<span class="fc" id="L303">                    int n = i + 1;</span>
+<span class="fc bfc" id="L304" title="All 2 branches covered.">                    if (n &lt; lineEnd) {</span>
+<span class="fc" id="L305">                        byte c1 = buf[n];</span>
+<span class="fc bfc" id="L306" title="All 2 branches covered.">                        if (c1 == '&quot;') {</span>
+<span class="fc" id="L307">                            valueSize += 2;</span>
+<span class="fc" id="L308">                            escapeCount++;</span>
+<span class="fc" id="L309">                            ++i;</span>
+<span class="fc" id="L310">                            continue;</span>
+<span class="pc bpc" id="L311" title="1 of 2 branches missed.">                        } else if (c1 == ',') {</span>
+<span class="fc" id="L312">                            ++i;</span>
+<span class="fc" id="L313">                            ch = c1;</span>
+                        }
+<span class="pc bpc" id="L315" title="1 of 2 branches missed.">                    } else if (n == lineEnd) {</span>
+<span class="fc" id="L316">                        break;</span>
+                    }
+<span class="fc" id="L318">                } else {</span>
+<span class="fc" id="L319">                    valueSize++;</span>
+<span class="fc" id="L320">                    continue;</span>
+                }
+            } else {
+<span class="fc bfc" id="L323" title="All 2 branches covered.">                if (ch == '&quot;') {</span>
+<span class="fc" id="L324">                    quote = true;</span>
+<span class="fc" id="L325">                    continue;</span>
+                }
+            }
+
+<span class="fc bfc" id="L329" title="All 2 branches covered.">            if (ch == ',') {</span>
+<span class="fc bfc" id="L330" title="All 4 branches covered.">                Type type = types != null &amp;&amp; columnIndex &lt; types.length ? types[columnIndex] : null;</span>
+
+                Object value;
+<span class="fc bfc" id="L333" title="All 2 branches covered.">                if (quote) {</span>
+<span class="fc bfc" id="L334" title="All 2 branches covered.">                    if (escapeCount == 0) {</span>
+<span class="pc bpc" id="L335" title="5 of 8 branches missed.">                        if (type == null || type == String.class || type == Object.class || strings) {</span>
+<span class="fc" id="L336">                            value = new String(buf, valueStart + 1, valueSize, charset);</span>
+                        } else {
+                            try {
+<span class="nc" id="L339">                                value = readValue(buf, valueStart + 1, valueSize, type);</span>
+<span class="nc" id="L340">                            } catch (Exception e) {</span>
+<span class="nc" id="L341">                                value = error(columnIndex, e);</span>
+<span class="nc" id="L342">                            }</span>
+                        }
+                    } else {
+<span class="fc" id="L345">                        byte[] bytes = new byte[valueSize - escapeCount];</span>
+<span class="fc" id="L346">                        int valueEnd = valueStart + valueSize;</span>
+<span class="fc bfc" id="L347" title="All 2 branches covered.">                        for (int j = valueStart + 1, k = 0; j &lt; valueEnd; ++j) {</span>
+<span class="fc" id="L348">                            byte c = buf[j];</span>
+<span class="fc" id="L349">                            bytes[k++] = c;</span>
+<span class="pc bpc" id="L350" title="1 of 4 branches missed.">                            if (c == '&quot;' &amp;&amp; buf[j + 1] == '&quot;') {</span>
+<span class="fc" id="L351">                                ++j;</span>
+                            }
+                        }
+
+<span class="pc bpc" id="L355" title="5 of 6 branches missed.">                        if (type == null || type == String.class || type == Object.class) {</span>
+<span class="fc" id="L356">                            value = new String(bytes, 0, bytes.length, charset);</span>
+                        } else {
+                            try {
+<span class="nc" id="L359">                                value = readValue(bytes, 0, bytes.length, type);</span>
+<span class="nc" id="L360">                            } catch (Exception e) {</span>
+<span class="nc" id="L361">                                value = error(columnIndex, e);</span>
+<span class="nc" id="L362">                            }</span>
+                        }
+<span class="fc" id="L364">                    }</span>
+                } else {
+<span class="pc bpc" id="L366" title="2 of 8 branches missed.">                    if (type == null || type == String.class || type == Object.class || strings) {</span>
+                        byte c0, c1;
+<span class="pc bpc" id="L368" title="1 of 4 branches missed.">                        if (valueSize == 1 &amp;&amp; (c0 = buf[valueStart]) &gt;= 0) {</span>
+<span class="fc" id="L369">                            value = TypeUtils.toString((char) c0);</span>
+<span class="pc bpc" id="L370" title="2 of 6 branches missed.">                        } else if (valueSize == 2</span>
+                                &amp;&amp; (c0 = buf[valueStart]) &gt;= 0
+                                &amp;&amp; (c1 = buf[valueStart + 1]) &gt;= 0
+                        ) {
+<span class="fc" id="L374">                            value = TypeUtils.toString((char) c0, (char) c1);</span>
+                        } else {
+<span class="fc" id="L376">                            value = new String(buf, valueStart, valueSize, charset);</span>
+                        }
+                    } else {
+                        try {
+<span class="fc" id="L380">                            value = readValue(buf, valueStart, valueSize, type);</span>
+<span class="nc" id="L381">                        } catch (Exception e) {</span>
+<span class="nc" id="L382">                            value = error(columnIndex, e);</span>
+<span class="fc" id="L383">                        }</span>
+                    }
+                }
+
+<span class="fc bfc" id="L387" title="All 2 branches covered.">                if (values != null) {</span>
+<span class="pc bpc" id="L388" title="1 of 2 branches missed.">                    if (columnIndex &lt; values.length) {</span>
+<span class="fc" id="L389">                        values[columnIndex] = value;</span>
+                    }
+                } else {
+<span class="fc bfc" id="L392" title="All 2 branches covered.">                    if (valueList == null) {</span>
+<span class="fc" id="L393">                        valueList = new ArrayList&lt;&gt;();</span>
+                    }
+<span class="fc" id="L395">                    valueList.add(value);</span>
+                }
+
+<span class="fc" id="L398">                quote = false;</span>
+<span class="fc" id="L399">                valueStart = i + 1;</span>
+<span class="fc" id="L400">                valueSize = 0;</span>
+<span class="fc" id="L401">                escapeCount = 0;</span>
+<span class="fc" id="L402">                columnIndex++;</span>
+<span class="fc" id="L403">                continue;</span>
+            }
+
+<span class="fc" id="L406">            valueSize++;</span>
+        }
+
+<span class="pc bpc" id="L409" title="1 of 4 branches missed.">        if (valueSize &gt; 0 || quote) {</span>
+<span class="fc bfc" id="L410" title="All 4 branches covered.">            Type type = types != null &amp;&amp; columnIndex &lt; types.length ? types[columnIndex] : null;</span>
+
+            Object value;
+<span class="fc bfc" id="L413" title="All 2 branches covered.">            if (quote) {</span>
+<span class="pc bpc" id="L414" title="1 of 2 branches missed.">                if (escapeCount == 0) {</span>
+<span class="pc bpc" id="L415" title="7 of 8 branches missed.">                    if (type == null || type == String.class || type == Object.class || strings) {</span>
+<span class="fc" id="L416">                        value = new String(buf, valueStart + 1, valueSize, charset);</span>
+                    } else {
+                        try {
+<span class="nc" id="L419">                            value = readValue(buf, valueStart + 1, valueSize, type);</span>
+<span class="nc" id="L420">                        } catch (Exception e) {</span>
+<span class="nc" id="L421">                            value = error(columnIndex, e);</span>
+<span class="nc" id="L422">                        }</span>
+                    }
+                } else {
+<span class="nc" id="L425">                    byte[] bytes = new byte[valueSize - escapeCount];</span>
+<span class="nc" id="L426">                    int valueEnd = lineEnd;</span>
+<span class="nc bnc" id="L427" title="All 2 branches missed.">                    for (int j = valueStart + 1, k = 0; j &lt; valueEnd; ++j) {</span>
+<span class="nc" id="L428">                        byte c = buf[j];</span>
+<span class="nc" id="L429">                        bytes[k++] = c;</span>
+<span class="nc bnc" id="L430" title="All 4 branches missed.">                        if (c == '&quot;' &amp;&amp; buf[j + 1] == '&quot;') {</span>
+<span class="nc" id="L431">                            ++j;</span>
+                        }
+                    }
+
+<span class="nc bnc" id="L435" title="All 8 branches missed.">                    if (type == null || type == String.class || type == Object.class || strings) {</span>
+<span class="nc" id="L436">                        value = new String(bytes, 0, bytes.length, charset);</span>
+                    } else {
+                        try {
+<span class="nc" id="L439">                            value = readValue(bytes, 0, bytes.length, type);</span>
+<span class="nc" id="L440">                        } catch (Exception e) {</span>
+<span class="nc" id="L441">                            value = error(columnIndex, e);</span>
+<span class="nc" id="L442">                        }</span>
+                    }
+<span class="nc" id="L444">                }</span>
+            } else {
+<span class="pc bpc" id="L446" title="2 of 8 branches missed.">                if (type == null || type == String.class || type == Object.class || strings) {</span>
+                    byte c0, c1;
+<span class="pc bpc" id="L448" title="1 of 4 branches missed.">                    if (valueSize == 1 &amp;&amp; (c0 = buf[valueStart]) &gt;= 0) {</span>
+<span class="fc" id="L449">                        value = TypeUtils.toString((char) c0);</span>
+<span class="pc bpc" id="L450" title="2 of 6 branches missed.">                    } else if (valueSize == 2</span>
+                            &amp;&amp; (c0 = buf[valueStart]) &gt;= 0
+                            &amp;&amp; (c1 = buf[valueStart + 1]) &gt;= 0
+                    ) {
+<span class="fc" id="L454">                        value = TypeUtils.toString((char) c0, (char) c1);</span>
+                    } else {
+<span class="fc" id="L456">                        value = new String(buf, valueStart, valueSize, charset);</span>
+                    }
+                } else {
+                    try {
+<span class="fc" id="L460">                        value = readValue(buf, valueStart, valueSize, type);</span>
+<span class="nc" id="L461">                    } catch (Exception e) {</span>
+<span class="nc" id="L462">                        value = error(columnIndex, e);</span>
+<span class="fc" id="L463">                    }</span>
+                }
+            }
+
+<span class="fc bfc" id="L467" title="All 2 branches covered.">            if (values != null) {</span>
+<span class="pc bpc" id="L468" title="1 of 2 branches missed.">                if (columnIndex &lt; values.length) {</span>
+<span class="fc" id="L469">                    values[columnIndex] = value;</span>
+                }
+            } else {
+<span class="pc bpc" id="L472" title="1 of 2 branches missed.">                if (valueList == null) {</span>
+<span class="nc" id="L473">                    valueList = new ArrayList&lt;&gt;();</span>
+                }
+<span class="fc" id="L475">                valueList.add(value);</span>
+            }
+        }
+
+<span class="fc bfc" id="L479" title="All 2 branches covered.">        if (values == null) {</span>
+<span class="pc bpc" id="L480" title="1 of 2 branches missed.">            if (valueList != null) {</span>
+<span class="fc bfc" id="L481" title="All 2 branches covered.">                if (strings) {</span>
+<span class="fc" id="L482">                    values = new String[valueList.size()];</span>
+                } else {
+<span class="fc" id="L484">                    values = new Object[valueList.size()];</span>
+                }
+<span class="fc" id="L486">                valueList.toArray(values);</span>
+            }
+        }
+
+<span class="fc bfc" id="L490" title="All 4 branches covered.">        if (input == null &amp;&amp; off == end) {</span>
+<span class="fc" id="L491">            inputEnd = true;</span>
+        }
+
+<span class="fc" id="L494">        return values;</span>
+    }
+
+    @Override
+    public void close() {
+<span class="pc bpc" id="L499" title="1 of 2 branches missed.">        if (input != null) {</span>
+<span class="fc" id="L500">            IOUtils.close(input);</span>
+        }
+<span class="fc" id="L502">    }</span>
+
+    public void statAll() {
+<span class="fc" id="L505">        ByteArrayValueConsumer consumer = (row, column, bytes, off, len, charset) -&gt; {</span>
+<span class="fc" id="L506">            StreamReader.ColumnStat stat = getColumnStat(column);</span>
+<span class="fc" id="L507">            stat.stat(bytes, off, len, charset);</span>
+<span class="fc" id="L508">        };</span>
+<span class="fc" id="L509">        readAll(consumer, Integer.MAX_VALUE);</span>
+<span class="fc" id="L510">    }</span>
+
+    public void statAll(int maxRows) {
+<span class="fc" id="L513">        ByteArrayValueConsumer consumer = (row, column, bytes, off, len, charset) -&gt; {</span>
+<span class="fc" id="L514">            StreamReader.ColumnStat stat = getColumnStat(column);</span>
+<span class="fc" id="L515">            stat.stat(bytes, off, len, charset);</span>
+<span class="fc" id="L516">        };</span>
+<span class="fc" id="L517">        readAll(consumer, maxRows);</span>
+<span class="fc" id="L518">    }</span>
+
+    public void readAll() {
+<span class="pc bpc" id="L521" title="1 of 2 branches missed.">        if (valueConsumer == null) {</span>
+<span class="fc" id="L522">            throw new JSONException(&quot;unsupported operation, consumer is null&quot;);</span>
+        }
+
+<span class="nc" id="L525">        readAll(valueConsumer, Integer.MAX_VALUE);</span>
+<span class="nc" id="L526">    }</span>
+
+    public void readAll(int maxRows) {
+<span class="pc bpc" id="L529" title="1 of 2 branches missed.">        if (valueConsumer == null) {</span>
+<span class="fc" id="L530">            throw new JSONException(&quot;unsupported operation, consumer is null&quot;);</span>
+        }
+
+<span class="nc" id="L533">        readAll(valueConsumer, maxRows);</span>
+<span class="nc" id="L534">    }</span>
+
+    public void readLineObjectAll(boolean readHeader, Consumer&lt;T&gt; consumer) {
+<span class="pc bpc" id="L537" title="1 of 2 branches missed.">        if (readHeader) {</span>
+<span class="fc" id="L538">            readHeader();</span>
+        }
+
+<span class="pc bpc" id="L541" title="1 of 2 branches missed.">        if (fieldReaders == null) {</span>
+            while (true) {
+<span class="nc" id="L543">                Object[] line = readLineValues(false);</span>
+<span class="nc bnc" id="L544" title="All 2 branches missed.">                if (line == null) {</span>
+<span class="nc" id="L545">                    break;</span>
+                }
+<span class="nc" id="L547">                consumer.accept((T) line);</span>
+<span class="nc" id="L548">            }</span>
+<span class="nc" id="L549">            return;</span>
+        }
+
+<span class="fc" id="L552">        ObjectReaderProvider provider = JSONFactory.getDefaultObjectReaderProvider();</span>
+
+        // valueConsumerCreators
+<span class="pc bpc" id="L555" title="1 of 2 branches missed.">        if (this.fieldReaders == null) {</span>
+<span class="nc bnc" id="L556" title="All 2 branches missed.">            if (objectClass != null) {</span>
+<span class="nc" id="L557">                ObjectReaderAdapter objectReader = (ObjectReaderAdapter) provider.getObjectReader(objectClass);</span>
+<span class="nc" id="L558">                this.fieldReaders = objectReader.getFieldReaders();</span>
+<span class="nc" id="L559">                this.objectCreator = provider.createObjectCreator(objectClass, features);</span>
+            }
+        }
+
+        Function&lt;Consumer, ByteArrayValueConsumer&gt; valueConsumerCreator;
+<span class="fc" id="L564">        String[] strings = new String[this.fieldReaders.length + 1];</span>
+<span class="fc" id="L565">        strings[0] = objectClass.getName();</span>
+<span class="fc bfc" id="L566" title="All 2 branches covered.">        for (int i = 0; i &lt; this.fieldReaders.length; i++) {</span>
+<span class="fc" id="L567">            strings[i + 1] = this.fieldReaders[i].fieldName;</span>
+        }
+<span class="fc" id="L569">        long fullNameHash = Fnv.hashCode64(strings);</span>
+<span class="fc" id="L570">        valueConsumerCreator = valueConsumerCreators.get(fullNameHash);</span>
+<span class="fc bfc" id="L571" title="All 2 branches covered.">        if (valueConsumerCreator == null) {</span>
+<span class="fc" id="L572">            valueConsumerCreator = provider</span>
+<span class="fc" id="L573">                    .createValueConsumerCreator(objectClass, fieldReaders);</span>
+<span class="pc bpc" id="L574" title="1 of 2 branches missed.">            if (valueConsumerCreator != null) {</span>
+<span class="fc" id="L575">                valueConsumerCreators.putIfAbsent(fullNameHash, valueConsumerCreator);</span>
+            }
+        }
+
+<span class="fc" id="L579">        ByteArrayValueConsumer bytesConsumer = null;</span>
+<span class="pc bpc" id="L580" title="1 of 2 branches missed.">        if (valueConsumerCreator != null) {</span>
+<span class="fc" id="L581">            bytesConsumer = valueConsumerCreator.apply(consumer);</span>
+        }
+
+<span class="pc bpc" id="L584" title="1 of 2 branches missed.">        if (bytesConsumer == null) {</span>
+<span class="nc" id="L585">            bytesConsumer = new ByteArrayConsumerImpl(consumer);</span>
+        }
+
+<span class="fc" id="L588">        readAll(bytesConsumer, Integer.MAX_VALUE);</span>
+<span class="fc" id="L589">    }</span>
+
+    class ByteArrayConsumerImpl
+            implements ByteArrayValueConsumer {
+        protected Object object;
+        final Consumer consumer;
+
+<span class="fc" id="L596">        public ByteArrayConsumerImpl(Consumer consumer) {</span>
+<span class="fc" id="L597">            this.consumer = consumer;</span>
+<span class="fc" id="L598">        }</span>
+
+        @Override
+        public final void beforeRow(int row) {
+<span class="fc bfc" id="L602" title="All 2 branches covered.">            if (objectCreator != null) {</span>
+<span class="fc" id="L603">                object = objectCreator.get();</span>
+            }
+<span class="fc" id="L605">        }</span>
+
+        @Override
+        public void accept(int row, int column, byte[] bytes, int off, int len, Charset charset) {
+<span class="pc bpc" id="L609" title="2 of 4 branches missed.">            if (column &gt;= fieldReaders.length || len == 0) {</span>
+<span class="nc" id="L610">                return;</span>
+            }
+
+<span class="fc" id="L613">            FieldReader fieldReader = fieldReaders[column];</span>
+<span class="fc" id="L614">            Object fieldValue = readValue(bytes, off, len, fieldReader.fieldType);</span>
+<span class="fc" id="L615">            fieldReader.accept(object, fieldValue);</span>
+<span class="fc" id="L616">        }</span>
+
+        @Override
+        public final void afterRow(int row) {
+<span class="fc" id="L620">            consumer.accept(object);</span>
+<span class="fc" id="L621">            object = null;</span>
+<span class="fc" id="L622">        }</span>
+    }
+
+    private void readAll(ByteArrayValueConsumer consumer, int maxRows) {
+<span class="fc" id="L626">        consumer.start();</span>
+
+<span class="pc bpc" id="L628" title="1 of 4 branches missed.">        for (int r = 0; r &lt; maxRows || maxRows &lt; 0; ++r) {</span>
+            try {
+<span class="fc bfc" id="L630" title="All 2 branches covered.">                if (inputEnd) {</span>
+<span class="fc" id="L631">                    break;</span>
+                }
+
+<span class="fc bfc" id="L634" title="All 2 branches covered.">                if (input == null) {</span>
+<span class="fc bfc" id="L635" title="All 2 branches covered.">                    if (off &gt;= end) {</span>
+<span class="fc" id="L636">                        break;</span>
+                    }
+                }
+
+<span class="fc" id="L640">                boolean result = seekLine();</span>
+
+<span class="pc bpc" id="L642" title="1 of 2 branches missed.">                if (!result) {</span>
+<span class="nc" id="L643">                    break;</span>
+                }
+<span class="nc" id="L645">            } catch (IOException e) {</span>
+<span class="nc" id="L646">                throw new JSONException(&quot;seekLine error&quot;, e);</span>
+<span class="fc" id="L647">            }</span>
+
+<span class="fc" id="L649">            consumer.beforeRow(rowCount);</span>
+
+<span class="fc" id="L651">            boolean quote = false;</span>
+<span class="fc" id="L652">            int valueStart = lineStart;</span>
+<span class="fc" id="L653">            int valueSize = 0;</span>
+<span class="fc" id="L654">            int escapeCount = 0;</span>
+<span class="fc" id="L655">            int columnIndex = 0;</span>
+<span class="fc bfc" id="L656" title="All 2 branches covered.">            for (int i = lineStart; i &lt; lineEnd; ++i) {</span>
+<span class="fc" id="L657">                byte ch = buf[i];</span>
+
+<span class="pc bpc" id="L659" title="1 of 2 branches missed.">                if (quote) {</span>
+<span class="nc bnc" id="L660" title="All 2 branches missed.">                    if (ch == '&quot;') {</span>
+<span class="nc" id="L661">                        int n = i + 1;</span>
+<span class="nc bnc" id="L662" title="All 2 branches missed.">                        if (n &lt; lineEnd) {</span>
+<span class="nc" id="L663">                            byte c1 = buf[n];</span>
+<span class="nc bnc" id="L664" title="All 2 branches missed.">                            if (c1 == '&quot;') {</span>
+<span class="nc" id="L665">                                valueSize += 2;</span>
+<span class="nc" id="L666">                                escapeCount++;</span>
+<span class="nc" id="L667">                                ++i;</span>
+<span class="nc" id="L668">                                continue;</span>
+<span class="nc bnc" id="L669" title="All 2 branches missed.">                            } else if (c1 == ',') {</span>
+<span class="nc" id="L670">                                ++i;</span>
+<span class="nc" id="L671">                                ch = c1;</span>
+                            }
+<span class="nc bnc" id="L673" title="All 2 branches missed.">                        } else if (n == lineEnd) {</span>
+<span class="nc" id="L674">                            break;</span>
+                        }
+<span class="nc" id="L676">                    } else {</span>
+<span class="nc" id="L677">                        valueSize++;</span>
+<span class="nc" id="L678">                        continue;</span>
+                    }
+                } else {
+<span class="pc bpc" id="L681" title="1 of 2 branches missed.">                    if (ch == '&quot;') {</span>
+<span class="nc" id="L682">                        quote = true;</span>
+<span class="nc" id="L683">                        continue;</span>
+                    }
+                }
+
+<span class="fc bfc" id="L687" title="All 2 branches covered.">                if (ch == ',') {</span>
+<span class="fc" id="L688">                    byte[] columnBuf = buf;</span>
+<span class="fc" id="L689">                    int columnStart = 0;</span>
+<span class="fc" id="L690">                    int columnSize = valueSize;</span>
+<span class="pc bpc" id="L691" title="1 of 2 branches missed.">                    if (quote) {</span>
+<span class="nc bnc" id="L692" title="All 2 branches missed.">                        if (escapeCount == 0) {</span>
+<span class="nc" id="L693">                            columnStart = valueStart + 1;</span>
+                        } else {
+<span class="nc" id="L695">                            byte[] bytes = new byte[valueSize - escapeCount];</span>
+<span class="nc" id="L696">                            int valueEnd = valueStart + valueSize;</span>
+<span class="nc bnc" id="L697" title="All 2 branches missed.">                            for (int j = valueStart + 1, k = 0; j &lt; valueEnd; ++j) {</span>
+<span class="nc" id="L698">                                byte c = buf[j];</span>
+<span class="nc" id="L699">                                bytes[k++] = c;</span>
+<span class="nc bnc" id="L700" title="All 4 branches missed.">                                if (c == '&quot;' &amp;&amp; buf[j + 1] == '&quot;') {</span>
+<span class="nc" id="L701">                                    ++j;</span>
+                                }
+                            }
+
+<span class="nc" id="L705">                            columnBuf = bytes;</span>
+<span class="nc" id="L706">                            columnSize = bytes.length;</span>
+<span class="nc" id="L707">                        }</span>
+                    } else {
+<span class="fc" id="L709">                        columnStart = valueStart;</span>
+                    }
+<span class="fc" id="L711">                    consumer.accept(rowCount, columnIndex, columnBuf, columnStart, columnSize, charset);</span>
+
+<span class="fc" id="L713">                    quote = false;</span>
+<span class="fc" id="L714">                    valueStart = i + 1;</span>
+<span class="fc" id="L715">                    valueSize = 0;</span>
+<span class="fc" id="L716">                    escapeCount = 0;</span>
+<span class="fc" id="L717">                    columnIndex++;</span>
+<span class="fc" id="L718">                    continue;</span>
+                }
+
+<span class="fc" id="L721">                valueSize++;</span>
+            }
+
+<span class="pc bpc" id="L724" title="1 of 2 branches missed.">            if (valueSize &gt; 0) {</span>
+<span class="fc" id="L725">                byte[] columnBuf = buf;</span>
+<span class="fc" id="L726">                int columnStart = 0;</span>
+<span class="fc" id="L727">                int columnSize = valueSize;</span>
+<span class="pc bpc" id="L728" title="1 of 2 branches missed.">                if (quote) {</span>
+<span class="nc bnc" id="L729" title="All 2 branches missed.">                    if (escapeCount == 0) {</span>
+<span class="nc" id="L730">                        columnStart = valueStart + 1;</span>
+                    } else {
+<span class="nc" id="L732">                        byte[] bytes = new byte[valueSize - escapeCount];</span>
+<span class="nc" id="L733">                        int valueEnd = lineEnd;</span>
+<span class="nc bnc" id="L734" title="All 2 branches missed.">                        for (int j = valueStart + 1, k = 0; j &lt; valueEnd; ++j) {</span>
+<span class="nc" id="L735">                            byte c = buf[j];</span>
+<span class="nc" id="L736">                            bytes[k++] = c;</span>
+<span class="nc bnc" id="L737" title="All 4 branches missed.">                            if (c == '&quot;' &amp;&amp; buf[j + 1] == '&quot;') {</span>
+<span class="nc" id="L738">                                ++j;</span>
+                            }
+                        }
+
+<span class="nc" id="L742">                        columnBuf = bytes;</span>
+<span class="nc" id="L743">                        columnSize = bytes.length;</span>
+<span class="nc" id="L744">                    }</span>
+                } else {
+<span class="fc" id="L746">                    columnStart = valueStart;</span>
+                }
+<span class="fc" id="L748">                consumer.accept(rowCount, columnIndex, columnBuf, columnStart, columnSize, charset);</span>
+            }
+<span class="fc" id="L750">            consumer.afterRow(rowCount);</span>
+        }
+<span class="fc" id="L752">        consumer.end();</span>
+<span class="fc" id="L753">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.8.202204050719</span></div></body></html>

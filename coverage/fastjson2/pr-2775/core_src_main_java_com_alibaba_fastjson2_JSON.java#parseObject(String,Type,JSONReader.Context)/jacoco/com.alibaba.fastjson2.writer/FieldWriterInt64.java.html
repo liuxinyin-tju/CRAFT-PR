@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>FieldWriterInt64.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">fastjson2</a> &gt; <a href="index.source.html" class="el_package">com.alibaba.fastjson2.writer</a> &gt; <span class="el_source">FieldWriterInt64.java</span></div><h1>FieldWriterInt64.java</h1><pre class="source lang-java linenums">package com.alibaba.fastjson2.writer;
+
+import com.alibaba.fastjson2.JSONWriter;
+import com.alibaba.fastjson2.util.TypeUtils;
+
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
+
+import static com.alibaba.fastjson2.JSONWriter.Feature.*;
+
+abstract class FieldWriterInt64&lt;T&gt;
+        extends FieldWriter&lt;T&gt; {
+    final boolean browserCompatible;
+
+    FieldWriterInt64(
+            String name,
+            int ordinal,
+            long features,
+            String format,
+            String label,
+            Class fieldClass,
+            Field field,
+            Method method
+    ) {
+<span class="fc" id="L25">        super(name, ordinal, features, format, null, label, fieldClass, fieldClass, field, method);</span>
+<span class="fc bfc" id="L26" title="All 2 branches covered.">        browserCompatible = (features &amp; JSONWriter.Feature.BrowserCompatible.mask) != 0;</span>
+<span class="fc" id="L27">    }</span>
+
+    public final void writeInt64(JSONWriter jsonWriter, long value) {
+<span class="fc" id="L30">        long features = jsonWriter.getFeatures() | this.features;</span>
+<span class="fc bfc" id="L31" title="All 2 branches covered.">        boolean writeAsString = (features &amp; (WriteNonStringValueAsString.mask | WriteLongAsString.mask)) != 0;</span>
+<span class="fc" id="L32">        writeFieldName(jsonWriter);</span>
+<span class="fc bfc" id="L33" title="All 2 branches covered.">        if (!writeAsString) {</span>
+<span class="pc bpc" id="L34" title="1 of 6 branches missed.">            writeAsString = browserCompatible &amp;&amp; !TypeUtils.isJavaScriptSupport(value) &amp;&amp; !jsonWriter.jsonb;</span>
+        }
+<span class="fc bfc" id="L36" title="All 2 branches covered.">        if (writeAsString) {</span>
+<span class="fc" id="L37">            jsonWriter.writeString(Long.toString(value));</span>
+        } else {
+<span class="fc" id="L39">            jsonWriter.writeInt64(value);</span>
+        }
+<span class="fc" id="L41">    }</span>
+
+    @Override
+    public boolean write(JSONWriter jsonWriter, T object) {
+        Long value;
+        try {
+<span class="fc" id="L47">            value = (Long) getFieldValue(object);</span>
+<span class="fc" id="L48">        } catch (RuntimeException error) {</span>
+<span class="pc bpc" id="L49" title="1 of 2 branches missed.">            if (jsonWriter.isIgnoreErrorGetter()) {</span>
+<span class="fc" id="L50">                return false;</span>
+            }
+<span class="nc" id="L52">            throw error;</span>
+<span class="fc" id="L53">        }</span>
+
+<span class="fc bfc" id="L55" title="All 2 branches covered.">        if (value == null) {</span>
+<span class="fc" id="L56">            long features = this.features | jsonWriter.getFeatures();</span>
+<span class="fc bfc" id="L57" title="All 2 branches covered.">            if ((features &amp; (JSONWriter.Feature.WriteNulls.mask | JSONWriter.Feature.NullAsDefaultValue.mask | JSONWriter.Feature.WriteNullNumberAsZero.mask)) == 0) {</span>
+<span class="fc" id="L58">                return false;</span>
+            }
+<span class="fc" id="L60">            writeFieldName(jsonWriter);</span>
+<span class="fc" id="L61">            jsonWriter.writeNumberNull();</span>
+<span class="fc" id="L62">            return true;</span>
+        }
+
+<span class="fc" id="L65">        writeInt64(jsonWriter, value);</span>
+<span class="fc" id="L66">        return true;</span>
+    }
+
+    @Override
+    public void writeValue(JSONWriter jsonWriter, T object) {
+<span class="fc" id="L71">        Long value = (Long) getFieldValue(object);</span>
+
+<span class="fc bfc" id="L73" title="All 2 branches covered.">        if (value == null) {</span>
+<span class="fc" id="L74">            jsonWriter.writeNull();</span>
+<span class="fc" id="L75">            return;</span>
+        }
+
+<span class="fc" id="L78">        jsonWriter.writeInt64(value);</span>
+<span class="fc" id="L79">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.8.202204050719</span></div></body></html>

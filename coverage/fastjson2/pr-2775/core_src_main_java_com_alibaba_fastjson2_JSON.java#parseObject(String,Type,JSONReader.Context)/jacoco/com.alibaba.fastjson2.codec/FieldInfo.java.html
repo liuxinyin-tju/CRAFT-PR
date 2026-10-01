@@ -1,0 +1,101 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>FieldInfo.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">fastjson2</a> &gt; <a href="index.source.html" class="el_package">com.alibaba.fastjson2.codec</a> &gt; <span class="el_source">FieldInfo.java</span></div><h1>FieldInfo.java</h1><pre class="source lang-java linenums">package com.alibaba.fastjson2.codec;
+
+import com.alibaba.fastjson2.reader.ObjectReader;
+
+import java.lang.reflect.Constructor;
+import java.util.Locale;
+import java.util.function.BiConsumer;
+
+<span class="fc" id="L9">public class FieldInfo {</span>
+    public static final long VALUE_MASK = 1L &lt;&lt; 48;
+    public static final long UNWRAPPED_MASK = 1L &lt;&lt; 49;
+    public static final long RAW_VALUE_MASK = 1L &lt;&lt; 50;
+    public static final long READ_USING_MASK = 1L &lt;&lt; 51;
+    public static final long FIELD_MASK = 1L &lt;&lt; 52;
+    public static final long DISABLE_SMART_MATCH = 1L &lt;&lt; 53;
+    public static final long JIT = 1L &lt;&lt; 54;
+    public static final long DISABLE_UNSAFE = 1L &lt;&lt; 55;
+    public static final long READ_ONLY = 1L &lt;&lt; 56;
+    public static final long DISABLE_REFERENCE_DETECT = 1L &lt;&lt; 57;
+    public static final long DISABLE_ARRAY_MAPPING = 1L &lt;&lt; 58;
+    public static final long DISABLE_AUTO_TYPE = 1L &lt;&lt; 59;
+    public static final long DISABLE_JSONB = 1L &lt;&lt; 60;
+    public static final long BACKR_EFERENCE = 1L &lt;&lt; 61;
+
+    public String fieldName;
+    public String format;
+    public String label;
+    public int ordinal;
+    public long features;
+    public boolean ignore;
+    public String[] alternateNames;
+    public Class&lt;?&gt; writeUsing;
+    public Class&lt;?&gt; keyUsing;
+    public Class&lt;?&gt; valueUsing;
+    public Class&lt;?&gt; readUsing;
+    public boolean fieldClassMixIn;
+    public boolean isTransient;
+    public String defaultValue;
+    public Locale locale;
+    public String schema;
+    public boolean required;
+    /**
+     * @since 2.0.52
+     */
+    public String arrayToMapKey;
+    public Class&lt;?&gt; arrayToMapDuplicateHandler;
+
+    public ObjectReader getInitReader() {
+<span class="fc" id="L49">        Class&lt;?&gt; calzz = readUsing;</span>
+<span class="pc bpc" id="L50" title="1 of 4 branches missed.">        if (calzz != null &amp;&amp; ObjectReader.class.isAssignableFrom(calzz)) {</span>
+            try {
+<span class="fc" id="L52">                Constructor&lt;?&gt; constructor = calzz.getDeclaredConstructor();</span>
+<span class="fc" id="L53">                constructor.setAccessible(true);</span>
+<span class="fc" id="L54">                return (ObjectReader) constructor.newInstance();</span>
+<span class="nc" id="L55">            } catch (Exception ignored) {</span>
+                // ignored
+            }
+<span class="nc" id="L58">            return null;</span>
+        }
+<span class="fc" id="L60">        return null;</span>
+    }
+
+    public BiConsumer getInitArrayToMapDuplicateHandler() {
+<span class="fc" id="L64">        Class&lt;?&gt; clazz = arrayToMapDuplicateHandler;</span>
+<span class="pc bpc" id="L65" title="1 of 4 branches missed.">        if (clazz != null &amp;&amp; BiConsumer.class.isAssignableFrom(clazz)) {</span>
+            try {
+<span class="fc" id="L67">                Constructor&lt;?&gt; constructor = clazz.getDeclaredConstructor();</span>
+<span class="fc" id="L68">                constructor.setAccessible(true);</span>
+<span class="fc" id="L69">                return (BiConsumer) constructor.newInstance();</span>
+<span class="nc" id="L70">            } catch (Exception ignored) {</span>
+                // ignored
+            }
+<span class="nc" id="L73">            return null;</span>
+        }
+<span class="fc" id="L75">        return null;</span>
+    }
+
+    public void init() {
+<span class="fc" id="L79">        fieldName = null;</span>
+<span class="fc" id="L80">        format = null;</span>
+<span class="fc" id="L81">        label = null;</span>
+<span class="fc" id="L82">        ordinal = 0;</span>
+<span class="fc" id="L83">        features = 0;</span>
+<span class="fc" id="L84">        ignore = false;</span>
+<span class="fc" id="L85">        alternateNames = null;</span>
+<span class="fc" id="L86">        writeUsing = null;</span>
+<span class="fc" id="L87">        keyUsing = null;</span>
+<span class="fc" id="L88">        valueUsing = null;</span>
+<span class="fc" id="L89">        readUsing = null;</span>
+<span class="fc" id="L90">        fieldClassMixIn = false;</span>
+<span class="fc" id="L91">        isTransient = false;</span>
+<span class="fc" id="L92">        defaultValue = null;</span>
+<span class="fc" id="L93">        locale = null;</span>
+<span class="fc" id="L94">        schema = null;</span>
+<span class="fc" id="L95">        required = false;</span>
+
+<span class="fc" id="L97">        arrayToMapKey = null;</span>
+<span class="fc" id="L98">        arrayToMapDuplicateHandler = null;</span>
+<span class="fc" id="L99">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.8.202204050719</span></div></body></html>

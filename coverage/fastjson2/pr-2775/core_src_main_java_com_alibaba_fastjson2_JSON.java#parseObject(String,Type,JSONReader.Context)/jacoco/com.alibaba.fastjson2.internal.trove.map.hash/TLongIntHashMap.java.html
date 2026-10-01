@@ -1,0 +1,488 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>TLongIntHashMap.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">fastjson2</a> &gt; <a href="index.source.html" class="el_package">com.alibaba.fastjson2.internal.trove.map.hash</a> &gt; <span class="el_source">TLongIntHashMap.java</span></div><h1>TLongIntHashMap.java</h1><pre class="source lang-java linenums">///////////////////////////////////////////////////////////////////////////////
+// Copyright (c) 2001, Eric D. Friedman All Rights Reserved.
+// Copyright (c) 2009, Rob Eden All Rights Reserved.
+// Copyright (c) 2009, Jeff Randall All Rights Reserved.
+//
+// This library is free software; you can redistribute it and/or
+// modify it under the terms of the GNU Lesser General Public
+// License as published by the Free Software Foundation; either
+// version 2.1 of the License, or (at your option) any later version.
+//
+// This library is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public
+// License along with this program; if not, write to the Free Software
+// Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+///////////////////////////////////////////////////////////////////////////////
+
+package com.alibaba.fastjson2.internal.trove.map.hash;
+
+import java.util.Arrays;
+import java.util.function.BiFunction;
+
+/**
+ * An open addressed Map implementation for long keys and int values.
+ *
+ * @author Eric D. Friedman
+ * @author Rob Eden
+ * @author Jeff Randall
+ */
+public final class TLongIntHashMap {
+    static final int largestPrime;
+<span class="fc" id="L35">    static final int[] primeCapacities = {</span>
+            //chunk #1
+            5, 11, 23, 47, 97, 197, 397, 797, 1597, 3203, 6421, 12853, 25717, 51437, 102877, 205759,
+            411527, 823117, 1646237, 3292489, 6584983, 13169977, 26339969, 52679969, 105359939,
+            210719881, 421439783, 842879579, 1685759167,
+
+            //chunk #2
+            433, 877, 1759, 3527, 7057, 14143, 28289, 56591, 113189, 226379, 452759, 905551, 1811107,
+            3622219, 7244441, 14488931, 28977863, 57955739, 115911563, 231823147, 463646329, 927292699,
+            1854585413,
+
+            //chunk #3
+            953, 1907, 3821, 7643, 15287, 30577, 61169, 122347, 244703, 489407, 978821, 1957651, 3915341,
+            7830701, 15661423, 31322867, 62645741, 125291483, 250582987, 501165979, 1002331963,
+            2004663929,
+
+            //chunk #4
+            1039, 2081, 4177, 8363, 16729, 33461, 66923, 133853, 267713, 535481, 1070981, 2141977, 4283963,
+            8567929, 17135863, 34271747, 68543509, 137087021, 274174111, 548348231, 1096696463,
+
+            //chunk #5
+            31, 67, 137, 277, 557, 1117, 2237, 4481, 8963, 17929, 35863, 71741, 143483, 286973, 573953,
+            1147921, 2295859, 4591721, 9183457, 18366923, 36733847, 73467739, 146935499, 293871013,
+            587742049, 1175484103,
+
+            //chunk #6
+            599, 1201, 2411, 4831, 9677, 19373, 38747, 77509, 155027, 310081, 620171, 1240361, 2480729,
+            4961459, 9922933, 19845871, 39691759, 79383533, 158767069, 317534141, 635068283, 1270136683,
+
+            //chunk #7
+            311, 631, 1277, 2557, 5119, 10243, 20507, 41017, 82037, 164089, 328213, 656429, 1312867,
+            2625761, 5251529, 10503061, 21006137, 42012281, 84024581, 168049163, 336098327, 672196673,
+            1344393353,
+
+            //chunk #8
+            3, 7, 17, 37, 79, 163, 331, 673, 1361, 2729, 5471, 10949, 21911, 43853, 87719, 175447, 350899,
+            701819, 1403641, 2807303, 5614657, 11229331, 22458671, 44917381, 89834777, 179669557,
+            359339171, 718678369, 1437356741,
+
+            //chunk #9
+            43, 89, 179, 359, 719, 1439, 2879, 5779, 11579, 23159, 46327, 92657, 185323, 370661, 741337,
+            1482707, 2965421, 5930887, 11861791, 23723597, 47447201, 94894427, 189788857, 379577741,
+            759155483, 1518310967,
+
+            //chunk #10
+            379, 761, 1523, 3049, 6101, 12203, 24407, 48817, 97649, 195311, 390647, 781301, 1562611,
+            3125257, 6250537, 12501169, 25002389, 50004791, 100009607, 200019221, 400038451, 800076929,
+            1600153859
+    };
+
+    static { //initializer
+        // The above prime numbers are formatted for human readability.
+        // To find numbers fast, we sort them once and for all.
+
+<span class="fc" id="L89">        Arrays.sort(primeCapacities);</span>
+<span class="fc" id="L90">        largestPrime = primeCapacities[primeCapacities.length - 1];</span>
+<span class="fc" id="L91">    }</span>
+
+    static int nextPrime(int desiredCapacity) {
+<span class="pc bpc" id="L94" title="1 of 2 branches missed.">        if (desiredCapacity &gt;= largestPrime) {</span>
+<span class="nc" id="L95">            return largestPrime;</span>
+        }
+<span class="fc" id="L97">        int i = Arrays.binarySearch(primeCapacities, desiredCapacity);</span>
+<span class="pc bpc" id="L98" title="1 of 2 branches missed.">        if (i &lt; 0) {</span>
+            // desired capacity not found, choose next prime greater
+            // than desired capacity
+<span class="fc" id="L101">            i = -i - 1; // remember the semantics of binarySearch...</span>
+        }
+<span class="fc" id="L103">        return primeCapacities[i];</span>
+    }
+
+    private int[] values;
+    private long[] set;
+    private boolean consumeFreeSlot;
+    private int size;
+    private int free;
+    private int maxSize;
+
+    /**
+     * Creates a new &lt;code&gt;TLongIntHashMap&lt;/code&gt; instance with the default
+     * capacity and load factor.
+     */
+<span class="fc" id="L117">    public TLongIntHashMap() {</span>
+<span class="fc" id="L118">        int capacity = 37;</span>
+<span class="fc" id="L119">        maxSize = 18;</span>
+<span class="fc" id="L120">        free = 37; // reset the free element count</span>
+
+<span class="fc" id="L122">        set = new long[capacity];</span>
+<span class="fc" id="L123">        values = new int[capacity];</span>
+<span class="fc" id="L124">    }</span>
+
+<span class="fc" id="L126">    public TLongIntHashMap(long key, int value) {</span>
+        // int capacity = 37;
+<span class="fc" id="L128">        maxSize = 18;</span>
+<span class="fc" id="L129">        set = new long[37];</span>
+<span class="fc" id="L130">        values = new int[37];</span>
+<span class="fc" id="L131">        consumeFreeSlot = true;</span>
+
+        // int hash = ((int) (key ^ (key &gt;&gt;&gt; 32))) &amp; 0x7fffffff;
+<span class="fc" id="L134">        int index = (((int) (key ^ (key &gt;&gt;&gt; 32))) &amp; 0x7fffffff) % set.length;</span>
+<span class="fc" id="L135">        set[index] = key;</span>
+<span class="fc" id="L136">        values[index] = value;</span>
+<span class="fc" id="L137">        free = 36; // capacity - 1;</span>
+<span class="fc" id="L138">        size = 1;</span>
+<span class="fc" id="L139">    }</span>
+
+    public void put(long key, int value) {
+//        int index = insertKey( key );
+        int index;
+        {
+<span class="fc" id="L145">            int hash = ((int) (key ^ (key &gt;&gt;&gt; 32))) &amp; 0x7fffffff;</span>
+<span class="fc" id="L146">            index = hash % set.length;</span>
+<span class="fc" id="L147">            long setKey = set[index];</span>
+
+<span class="fc" id="L149">            consumeFreeSlot = false;</span>
+
+<span class="fc bfc" id="L151" title="All 2 branches covered.">            if (setKey == 0) {</span>
+<span class="fc" id="L152">                consumeFreeSlot = true;</span>
+//                insertKeyAt(index, key);
+<span class="fc" id="L154">                set[index] = key;</span>
+<span class="fc bfc" id="L155" title="All 2 branches covered.">            } else if (setKey == key) {</span>
+<span class="fc" id="L156">                index = -index - 1;   // already stored</span>
+            } else {
+                // already FULL or REMOVED, must probe
+//                index = insertKeyRehash(key, index, hash);
+                {
+                    // compute the double hash
+<span class="fc" id="L162">                    final int length = set.length;</span>
+<span class="fc" id="L163">                    int probe = 1 + (hash % (length - 2));</span>
+<span class="fc" id="L164">                    final int loopIndex = index;</span>
+
+                    /**
+                     * Look until FREE slot or we start to loop
+                     */
+                    do {
+<span class="fc" id="L170">                        index -= probe;</span>
+<span class="fc bfc" id="L171" title="All 2 branches covered.">                        if (index &lt; 0) {</span>
+<span class="fc" id="L172">                            index += length;</span>
+                        }
+<span class="fc" id="L174">                        setKey = set[index];</span>
+
+                        // A FREE slot stops the search
+<span class="fc bfc" id="L177" title="All 2 branches covered.">                        if (setKey == 0) {</span>
+<span class="fc" id="L178">                            consumeFreeSlot = true;</span>
+<span class="fc" id="L179">                            set[index] = key;  // insert value</span>
+<span class="fc" id="L180">                            break;</span>
+                        }
+
+<span class="fc bfc" id="L183" title="All 2 branches covered.">                        if (setKey == key) {</span>
+<span class="fc" id="L184">                            index = -index - 1;</span>
+<span class="fc" id="L185">                            break;</span>
+                        }
+
+                        // Detect loop
+<span class="pc bpc" id="L189" title="1 of 2 branches missed.">                    } while (index != loopIndex);</span>
+                }
+            }
+        }
+
+<span class="fc" id="L194">        boolean isNewMapping = true;</span>
+<span class="fc bfc" id="L195" title="All 2 branches covered.">        if (index &lt; 0) {</span>
+<span class="fc" id="L196">            index = -index - 1;</span>
+<span class="fc" id="L197">            isNewMapping = false;</span>
+        }
+<span class="fc" id="L199">        values[index] = value;</span>
+
+<span class="fc bfc" id="L201" title="All 2 branches covered.">        if (isNewMapping) {</span>
+<span class="pc bpc" id="L202" title="1 of 2 branches missed.">            if (consumeFreeSlot) {</span>
+<span class="fc" id="L203">                free--;</span>
+            }
+
+            // rehash whenever we exhaust the available space in the table
+<span class="pc bpc" id="L207" title="1 of 4 branches missed.">            if (++size &gt; maxSize || free == 0) {</span>
+                // choose a new capacity suited to the new state of the table
+                // if we've grown beyond our maximum size, double capacity;
+                // if we've exhausted the free spots, rehash to the same capacity,
+                // which will free up any stale removed slots for reuse.
+<span class="fc" id="L212">                int capacity = set.length;</span>
+<span class="pc bpc" id="L213" title="1 of 2 branches missed.">                int newCapacity = size &gt; maxSize ? nextPrime(capacity &lt;&lt; 1) : capacity;</span>
+//                rehash(newCapacity);
+                {
+<span class="fc" id="L216">                    int oldCapacity = set.length;</span>
+
+<span class="fc" id="L218">                    long[] oldKeys = set;</span>
+<span class="fc" id="L219">                    int[] oldVals = values;</span>
+
+<span class="fc" id="L221">                    set = new long[newCapacity];</span>
+<span class="fc" id="L222">                    values = new int[newCapacity];</span>
+
+<span class="fc bfc" id="L224" title="All 2 branches covered.">                    for (int i = oldCapacity; i-- &gt; 0; ) {</span>
+<span class="fc bfc" id="L225" title="All 2 branches covered.">                        if (oldKeys[i] != 0) {</span>
+<span class="fc" id="L226">                            long o = oldKeys[i];</span>
+<span class="fc" id="L227">                            index = insertKey(o);</span>
+<span class="fc" id="L228">                            values[index] = oldVals[i];</span>
+<span class="fc" id="L229">                        }</span>
+                    }
+                }
+
+<span class="fc" id="L233">                capacity = set.length;</span>
+                // computeMaxSize(capacity);
+<span class="fc" id="L235">                maxSize = Math.min(capacity - 1, (int) (capacity * 0.5f));</span>
+<span class="fc" id="L236">                free = capacity - size; // reset the free element count</span>
+            }
+        }
+<span class="fc" id="L239">    }</span>
+
+    public int putIfAbsent(long key, int value) {
+//        int index = insertKey( key );
+        int index;
+        {
+<span class="fc" id="L245">            int hash = ((int) (key ^ (key &gt;&gt;&gt; 32))) &amp; 0x7fffffff;</span>
+<span class="fc" id="L246">            index = hash % set.length;</span>
+<span class="fc" id="L247">            long setKey = set[index];</span>
+
+<span class="fc" id="L249">            consumeFreeSlot = false;</span>
+
+<span class="fc bfc" id="L251" title="All 2 branches covered.">            if (setKey == 0) {</span>
+<span class="fc" id="L252">                consumeFreeSlot = true;</span>
+//                insertKeyAt(index, key);
+<span class="fc" id="L254">                set[index] = key;</span>
+<span class="fc bfc" id="L255" title="All 2 branches covered.">            } else if (setKey == key) {</span>
+<span class="fc" id="L256">                index = -index - 1;   // already stored</span>
+            } else {
+                // already FULL or REMOVED, must probe
+//                index = insertKeyRehash(key, index, hash);
+                {
+                    // compute the double hash
+<span class="fc" id="L262">                    final int loopIndex = index;</span>
+
+                    /**
+                     * Look until FREE slot or we start to loop
+                     */
+                    do {
+//                        int probe = 1 + (hash % (set.length - 2));
+//                        index -= (probe);
+<span class="fc" id="L270">                        index -= (1 + (hash % (set.length - 2)));</span>
+<span class="fc bfc" id="L271" title="All 2 branches covered.">                        if (index &lt; 0) {</span>
+<span class="fc" id="L272">                            index += set.length;</span>
+                        }
+<span class="fc" id="L274">                        setKey = set[index];</span>
+
+                        // A FREE slot stops the search
+<span class="fc bfc" id="L277" title="All 2 branches covered.">                        if (setKey == 0) {</span>
+<span class="fc" id="L278">                            consumeFreeSlot = true;</span>
+<span class="fc" id="L279">                            set[index] = key;  // insert value</span>
+<span class="fc" id="L280">                            break;</span>
+                        }
+
+<span class="fc bfc" id="L283" title="All 2 branches covered.">                        if (setKey == key) {</span>
+<span class="fc" id="L284">                            index = -index - 1;</span>
+<span class="fc" id="L285">                            break;</span>
+                        }
+
+                        // Detect loop
+<span class="pc bpc" id="L289" title="1 of 2 branches missed.">                    } while (index != loopIndex);</span>
+                }
+            }
+        }
+
+<span class="fc bfc" id="L294" title="All 2 branches covered.">        if (index &lt; 0) {</span>
+<span class="fc" id="L295">            return values[-index - 1];</span>
+        }
+
+<span class="fc" id="L298">        values[index] = value;</span>
+
+<span class="pc bpc" id="L300" title="1 of 2 branches missed.">        if (consumeFreeSlot) {</span>
+<span class="fc" id="L301">            free--;</span>
+        }
+
+        // rehash whenever we exhaust the available space in the table
+<span class="pc bpc" id="L305" title="1 of 4 branches missed.">        if (++size &gt; maxSize || free == 0) {</span>
+            // choose a new capacity suited to the new state of the table
+            // if we've grown beyond our maximum size, double capacity;
+            // if we've exhausted the free spots, rehash to the same capacity,
+            // which will free up any stale removed slots for reuse.
+<span class="fc" id="L310">            int capacity = set.length;</span>
+//                rehash(newCapacity);
+<span class="fc" id="L312">            rehash(capacity);</span>
+
+<span class="fc" id="L314">            capacity = set.length;</span>
+            // computeMaxSize(capacity);
+<span class="fc" id="L316">            maxSize = Math.min(capacity - 1, (int) (capacity * 0.5f));</span>
+<span class="fc" id="L317">            free = capacity - size; // reset the free element count</span>
+        }
+
+<span class="fc" id="L320">        return value;</span>
+    }
+
+    private void rehash(int capacity) {
+<span class="pc bpc" id="L324" title="1 of 2 branches missed.">        int newCapacity = size &gt; maxSize ? nextPrime(capacity &lt;&lt; 1) : capacity;</span>
+
+<span class="fc" id="L326">        int oldCapacity = set.length;</span>
+
+<span class="fc" id="L328">        long[] oldKeys = set;</span>
+<span class="fc" id="L329">        int[] oldVals = values;</span>
+
+<span class="fc" id="L331">        set = new long[newCapacity];</span>
+<span class="fc" id="L332">        values = new int[newCapacity];</span>
+
+<span class="fc bfc" id="L334" title="All 2 branches covered.">        for (int i = oldCapacity; i-- &gt; 0; ) {</span>
+<span class="fc" id="L335">            long key = oldKeys[i];</span>
+<span class="fc bfc" id="L336" title="All 2 branches covered.">            if (key != 0) {</span>
+<span class="fc" id="L337">                values[insertKey(key)] = oldVals[i];</span>
+            }
+<span class="fc" id="L339">        }</span>
+<span class="fc" id="L340">    }</span>
+
+    public int get(long key) {
+<span class="fc" id="L343">        final int DEFAULT_ENTRY_VALUE = -1;</span>
+
+<span class="fc" id="L345">        int length = set.length;</span>
+<span class="fc" id="L346">        int hash = ((int) (key ^ (key &gt;&gt;&gt; 32))) &amp; 0x7fffffff;</span>
+<span class="fc" id="L347">        int index = hash % length;</span>
+<span class="fc" id="L348">        long setKey = set[index];</span>
+
+<span class="fc bfc" id="L350" title="All 2 branches covered.">        if (setKey == 0) {</span>
+<span class="fc" id="L351">            return DEFAULT_ENTRY_VALUE;</span>
+        }
+
+<span class="fc bfc" id="L354" title="All 2 branches covered.">        if (setKey == key) {</span>
+<span class="fc" id="L355">            return values[index];</span>
+        }
+
+        // indexRehashed
+<span class="fc" id="L359">        int setLength = set.length;</span>
+<span class="fc" id="L360">        int probe = 1 + (hash % (setLength - 2));</span>
+<span class="fc" id="L361">        final int loopIndex = index;</span>
+
+        do {
+<span class="fc" id="L364">            index -= probe;</span>
+<span class="fc bfc" id="L365" title="All 2 branches covered.">            if (index &lt; 0) {</span>
+<span class="fc" id="L366">                index += setLength;</span>
+            }
+<span class="fc" id="L368">            setKey = set[index];</span>
+
+<span class="fc bfc" id="L370" title="All 2 branches covered.">            if (setKey == 0) {</span>
+<span class="fc" id="L371">                return DEFAULT_ENTRY_VALUE;</span>
+            }
+
+<span class="fc bfc" id="L374" title="All 2 branches covered.">            if (key == set[index]) {</span>
+<span class="fc" id="L375">                return values[index];</span>
+            }
+<span class="pc bpc" id="L377" title="1 of 2 branches missed.">        } while (index != loopIndex);</span>
+
+<span class="nc" id="L379">        return DEFAULT_ENTRY_VALUE;</span>
+    }
+
+    public boolean forEachEntry(BiFunction&lt;Long, Integer, Boolean&gt; procedure) {
+<span class="fc" id="L383">        long[] keys = set;</span>
+<span class="fc" id="L384">        int[] values = this.values;</span>
+<span class="fc bfc" id="L385" title="All 2 branches covered.">        for (int i = keys.length; i-- &gt; 0; ) {</span>
+<span class="pc bpc" id="L386" title="1 of 4 branches missed.">            if (set[i] != 0 &amp;&amp; !procedure.apply(keys[i], values[i])) {</span>
+<span class="nc" id="L387">                return false;</span>
+            }
+        }
+<span class="fc" id="L390">        return true;</span>
+    }
+
+    @Override
+    public String toString() {
+<span class="fc" id="L395">        final StringBuilder buf = new StringBuilder(&quot;{&quot;);</span>
+<span class="fc" id="L396">        forEachEntry(new BiFunction&lt;Long, Integer, Boolean&gt;() {</span>
+<span class="fc" id="L397">            private boolean first = true;</span>
+
+            @Override
+            public Boolean apply(Long key, Integer value) {
+<span class="fc bfc" id="L401" title="All 2 branches covered.">                if (first) {</span>
+<span class="fc" id="L402">                    first = false;</span>
+                } else {
+<span class="fc" id="L404">                    buf.append(&quot;, &quot;);</span>
+                }
+<span class="fc" id="L406">                buf.append(key);</span>
+<span class="fc" id="L407">                buf.append(&quot;=&quot;);</span>
+<span class="fc" id="L408">                buf.append(value);</span>
+<span class="fc" id="L409">                return true;</span>
+            }
+        });
+<span class="fc" id="L412">        buf.append(&quot;}&quot;);</span>
+<span class="fc" id="L413">        return buf.toString();</span>
+    }
+
+    public int size() {
+<span class="fc" id="L417">        return size;</span>
+    }
+
+    /**
+     * Locates the index at which &lt;tt&gt;val&lt;/tt&gt; can be inserted.  if
+     * there is already a value equal()ing &lt;tt&gt;val&lt;/tt&gt; in the set,
+     * returns that value as a negative integer.
+     *
+     * @param key an &lt;code&gt;long&lt;/code&gt; value
+     * @return an &lt;code&gt;int&lt;/code&gt; value
+     */
+    private int insertKey(long key) {
+        int hash, index;
+
+<span class="fc" id="L431">        hash = ((int) (key ^ (key &gt;&gt;&gt; 32))) &amp; 0x7fffffff;</span>
+<span class="fc" id="L432">        index = hash % set.length;</span>
+<span class="fc bfc" id="L433" title="All 2 branches covered.">        boolean state = set[index] != 0;</span>
+
+<span class="fc" id="L435">        consumeFreeSlot = false;</span>
+
+<span class="fc bfc" id="L437" title="All 2 branches covered.">        if (!state) {</span>
+<span class="fc" id="L438">            consumeFreeSlot = true;</span>
+//            insertKeyAt(index, key);
+<span class="fc" id="L440">            set[index] = key;  // insert value</span>
+
+<span class="fc" id="L442">            return index;      // empty, all done</span>
+        }
+
+<span class="pc bpc" id="L445" title="1 of 2 branches missed.">        if (set[index] == key) {</span>
+<span class="nc" id="L446">            return -index - 1;   // already stored</span>
+        }
+
+        // already FULL or REMOVED, must probe
+//        return insertKeyRehash(key, index, hash);
+        {
+            // compute the double hash
+<span class="fc" id="L453">            final int length = set.length;</span>
+<span class="fc" id="L454">            int probe = 1 + (hash % (length - 2));</span>
+<span class="fc" id="L455">            final int loopIndex = index;</span>
+
+            /**
+             * Look until FREE slot or we start to loop
+             */
+            do {
+<span class="fc" id="L461">                index -= probe;</span>
+<span class="fc bfc" id="L462" title="All 2 branches covered.">                if (index &lt; 0) {</span>
+<span class="fc" id="L463">                    index += length;</span>
+                }
+
+<span class="fc bfc" id="L466" title="All 2 branches covered.">                state = set[index] != 0;</span>
+
+                // A FREE slot stops the search
+<span class="fc bfc" id="L469" title="All 2 branches covered.">                if (!state) {</span>
+<span class="fc" id="L470">                    consumeFreeSlot = true;</span>
+//                    insertKeyAt(index, val);
+<span class="fc" id="L472">                    set[index] = key;  // insert value</span>
+<span class="fc" id="L473">                    return index;</span>
+                }
+
+<span class="pc bpc" id="L476" title="1 of 2 branches missed.">                if (set[index] == key) {</span>
+<span class="nc" id="L477">                    return -index - 1;</span>
+                }
+
+                // Detect loop
+<span class="pc bpc" id="L481" title="1 of 2 branches missed.">            } while (index != loopIndex);</span>
+
+            // Can a resizing strategy be found that resizes the set?
+<span class="nc" id="L484">            throw new IllegalStateException(&quot;No free or removed slots available. Key set full?!!&quot;);</span>
+        }
+    }
+} // TLongIntHashMap
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.8.202204050719</span></div></body></html>

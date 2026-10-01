@@ -1,0 +1,567 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>JSONPathSegmentIndex.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">fastjson2</a> &gt; <a href="index.source.html" class="el_package">com.alibaba.fastjson2</a> &gt; <span class="el_source">JSONPathSegmentIndex.java</span></div><h1>JSONPathSegmentIndex.java</h1><pre class="source lang-java linenums">package com.alibaba.fastjson2;
+
+import com.alibaba.fastjson2.util.IOUtils;
+
+import java.lang.reflect.Array;
+import java.nio.charset.StandardCharsets;
+import java.util.*;
+import java.util.function.BiFunction;
+
+import static com.alibaba.fastjson2.JSONReader.EOI;
+import static com.alibaba.fastjson2.util.JDKUtils.LATIN1;
+import static com.alibaba.fastjson2.util.JDKUtils.STRING_CREATOR_JDK11;
+
+final class JSONPathSegmentIndex
+        extends JSONPathSegment {
+<span class="fc" id="L16">    static final JSONPathSegmentIndex ZERO = new JSONPathSegmentIndex(0);</span>
+<span class="fc" id="L17">    static final JSONPathSegmentIndex ONE = new JSONPathSegmentIndex(1);</span>
+<span class="fc" id="L18">    static final JSONPathSegmentIndex TWO = new JSONPathSegmentIndex(2);</span>
+
+<span class="fc" id="L20">    static final JSONPathSegmentIndex LAST = new JSONPathSegmentIndex(-1);</span>
+
+    final int index;
+
+<span class="fc" id="L24">    public JSONPathSegmentIndex(int index) {</span>
+<span class="fc" id="L25">        this.index = index;</span>
+<span class="fc" id="L26">    }</span>
+
+    static JSONPathSegmentIndex of(int index) {
+<span class="fc bfc" id="L29" title="All 2 branches covered.">        if (index == 0) {</span>
+<span class="fc" id="L30">            return ZERO;</span>
+        }
+<span class="fc bfc" id="L32" title="All 2 branches covered.">        if (index == 1) {</span>
+<span class="fc" id="L33">            return ONE;</span>
+        }
+<span class="fc bfc" id="L35" title="All 2 branches covered.">        if (index == 2) {</span>
+<span class="fc" id="L36">            return TWO;</span>
+        }
+<span class="fc bfc" id="L38" title="All 2 branches covered.">        if (index == -1) {</span>
+<span class="fc" id="L39">            return LAST;</span>
+        }
+<span class="fc" id="L41">        return new JSONPathSegmentIndex(index);</span>
+    }
+
+    @Override
+    public void eval(JSONPath.Context context) {
+<span class="fc bfc" id="L46" title="All 2 branches covered.">        Object object = context.parent == null</span>
+                ? context.root
+                : context.parent.value;
+
+<span class="fc bfc" id="L50" title="All 2 branches covered.">        if (object == null) {</span>
+<span class="fc" id="L51">            context.eval = true;</span>
+<span class="fc" id="L52">            return;</span>
+        }
+
+<span class="fc bfc" id="L55" title="All 2 branches covered.">        if (object instanceof List) {</span>
+<span class="fc" id="L56">            List list = (List) object;</span>
+<span class="fc bfc" id="L57" title="All 2 branches covered.">            if (index &gt;= 0) {</span>
+<span class="fc bfc" id="L58" title="All 2 branches covered.">                if (index &lt; list.size()) {</span>
+<span class="fc" id="L59">                    context.value = list.get(index);</span>
+                }
+            } else {
+<span class="fc" id="L62">                int itemIndex = list.size() + this.index;</span>
+<span class="fc bfc" id="L63" title="All 2 branches covered.">                if (itemIndex &gt;= 0) {</span>
+<span class="pc bpc" id="L64" title="1 of 2 branches missed.">                    if (itemIndex &lt; list.size()) {</span>
+<span class="fc" id="L65">                        context.value = list.get(itemIndex);</span>
+                    }
+                }
+            }
+<span class="fc" id="L69">            context.eval = true;</span>
+<span class="fc" id="L70">            return;</span>
+        }
+
+<span class="fc bfc" id="L73" title="All 10 branches covered.">        if ((object instanceof SortedSet || object instanceof LinkedHashSet || object instanceof Queue)</span>
+<span class="fc bfc" id="L74" title="All 2 branches covered.">                || (index == 0 &amp;&amp; object instanceof Collection &amp;&amp; ((Collection&lt;?&gt;) object).size() == 1)</span>
+        ) {
+<span class="fc" id="L76">            Collection collection = (Collection) object;</span>
+<span class="fc" id="L77">            int i = 0;</span>
+<span class="fc bfc" id="L78" title="All 2 branches covered.">            for (Iterator it = collection.iterator(); it.hasNext(); ++i) {</span>
+<span class="fc" id="L79">                Object item = it.next();</span>
+<span class="fc bfc" id="L80" title="All 2 branches covered.">                if (i == index) {</span>
+<span class="fc" id="L81">                    context.value = item;</span>
+<span class="fc" id="L82">                    break;</span>
+                }
+            }
+<span class="fc" id="L85">            context.eval = true;</span>
+<span class="fc" id="L86">            return;</span>
+        }
+
+<span class="fc bfc" id="L89" title="All 2 branches covered.">        if (object instanceof Object[]) {</span>
+<span class="fc" id="L90">            Object[] array = (Object[]) object;</span>
+<span class="fc bfc" id="L91" title="All 2 branches covered.">            if (index &gt;= 0) {</span>
+<span class="fc bfc" id="L92" title="All 2 branches covered.">                if (index &lt; array.length) {</span>
+<span class="fc" id="L93">                    context.value = array[index];</span>
+                }
+            } else {
+<span class="fc" id="L96">                int itemIndex = array.length + this.index;</span>
+<span class="fc bfc" id="L97" title="All 2 branches covered.">                if (itemIndex &gt;= 0) {</span>
+<span class="pc bpc" id="L98" title="1 of 2 branches missed.">                    if (itemIndex &lt; array.length) {</span>
+<span class="fc" id="L99">                        context.value = array[itemIndex];</span>
+                    }
+                }
+            }
+<span class="fc" id="L103">            context.eval = true;</span>
+<span class="fc" id="L104">            return;</span>
+        }
+
+<span class="fc" id="L107">        Class objectClass = object.getClass();</span>
+<span class="fc bfc" id="L108" title="All 2 branches covered.">        if (objectClass.isArray()) {</span>
+<span class="fc" id="L109">            int length = Array.getLength(object);</span>
+<span class="fc bfc" id="L110" title="All 2 branches covered.">            if (index &gt;= 0) {</span>
+<span class="fc bfc" id="L111" title="All 2 branches covered.">                if (index &lt; length) {</span>
+<span class="fc" id="L112">                    context.value = Array.get(object, index);</span>
+                }
+            } else {
+<span class="fc" id="L115">                int itemIndex = length + this.index;</span>
+<span class="fc bfc" id="L116" title="All 2 branches covered.">                if (itemIndex &gt;= 0) {</span>
+<span class="pc bpc" id="L117" title="1 of 2 branches missed.">                    if (itemIndex &lt; length) {</span>
+<span class="fc" id="L118">                        context.value = Array.get(object, itemIndex);</span>
+                    }
+                }
+            }
+<span class="fc" id="L122">            context.eval = true;</span>
+<span class="fc" id="L123">            return;</span>
+        }
+
+<span class="fc bfc" id="L126" title="All 2 branches covered.">        if (object instanceof JSONPath.Sequence) {</span>
+<span class="fc" id="L127">            List sequence = ((JSONPath.Sequence) object).values;</span>
+<span class="fc" id="L128">            JSONArray values = new JSONArray(sequence.size());</span>
+<span class="fc bfc" id="L129" title="All 2 branches covered.">            for (Object o : sequence) {</span>
+<span class="fc" id="L130">                context.value = o;</span>
+<span class="fc" id="L131">                JSONPath.Context itemContext = new JSONPath.Context(context.path, context, context.current, context.next, context.readerFeatures);</span>
+<span class="fc" id="L132">                eval(itemContext);</span>
+<span class="fc" id="L133">                values.add(itemContext.value);</span>
+<span class="fc" id="L134">            }</span>
+<span class="fc bfc" id="L135" title="All 2 branches covered.">            if (context.next != null) {</span>
+<span class="fc" id="L136">                context.value = new JSONPath.Sequence(values);</span>
+            } else {
+<span class="fc" id="L138">                context.value = values;</span>
+            }
+<span class="fc" id="L140">            context.eval = true;</span>
+<span class="fc" id="L141">            return;</span>
+        }
+
+<span class="fc bfc" id="L144" title="All 2 branches covered.">        if (Map.class.isAssignableFrom(objectClass)) {</span>
+<span class="fc" id="L145">            context.value = eval((Map) object);</span>
+<span class="fc" id="L146">            context.eval = true;</span>
+<span class="fc" id="L147">            return;</span>
+        }
+
+        // lax mode
+<span class="fc bfc" id="L151" title="All 2 branches covered.">        if (index == 0) {</span>
+<span class="fc" id="L152">            context.value = object;</span>
+<span class="fc" id="L153">            context.eval = true;</span>
+<span class="fc" id="L154">            return;</span>
+        }
+
+<span class="fc" id="L157">        throw new JSONException(&quot;jsonpath not support operate : &quot; + context.path + &quot;, objectClass&quot; + objectClass.getName());</span>
+    }
+
+    private Object eval(Map object) {
+<span class="fc" id="L161">        Object value = object.get(index);</span>
+<span class="fc bfc" id="L162" title="All 2 branches covered.">        if (value == null) {</span>
+<span class="fc" id="L163">            value = object.get(Integer.toString(index));</span>
+        }
+
+<span class="fc bfc" id="L166" title="All 2 branches covered.">        if (value == null) {</span>
+<span class="fc" id="L167">            int size = object.size();</span>
+<span class="fc" id="L168">            Iterator it = object.entrySet().iterator();</span>
+<span class="pc bpc" id="L169" title="1 of 6 branches missed.">            if (size == 1 || object instanceof LinkedHashMap || object instanceof SortedMap) {</span>
+<span class="pc bpc" id="L170" title="1 of 6 branches missed.">                for (int i = 0; i &lt;= index &amp;&amp; i &lt; size &amp;&amp; it.hasNext(); ++i) {</span>
+<span class="fc" id="L171">                    Map.Entry entry = (Map.Entry) it.next();</span>
+<span class="fc" id="L172">                    Object entryKey = entry.getKey();</span>
+<span class="fc" id="L173">                    Object entryValue = entry.getValue();</span>
+<span class="pc bpc" id="L174" title="1 of 2 branches missed.">                    if (entryKey instanceof Long) {</span>
+<span class="nc bnc" id="L175" title="All 2 branches missed.">                        if (entryKey.equals((long) index)) {</span>
+<span class="nc" id="L176">                            value = entryValue;</span>
+<span class="nc" id="L177">                            break;</span>
+                        }
+                    } else {
+<span class="fc bfc" id="L180" title="All 2 branches covered.">                        if (i == index) {</span>
+<span class="fc" id="L181">                            value = entryValue;</span>
+                        }
+                    }
+                }
+            } else {
+<span class="pc bpc" id="L186" title="1 of 6 branches missed.">                for (int i = 0; i &lt;= index &amp;&amp; i &lt; object.size() &amp;&amp; it.hasNext(); ++i) {</span>
+<span class="fc" id="L187">                    Map.Entry entry = (Map.Entry) it.next();</span>
+<span class="fc" id="L188">                    Object entryKey = entry.getKey();</span>
+<span class="fc" id="L189">                    Object entryValue = entry.getValue();</span>
+<span class="pc bpc" id="L190" title="1 of 2 branches missed.">                    if (entryKey instanceof Long) {</span>
+<span class="nc bnc" id="L191" title="All 2 branches missed.">                        if (entryKey.equals((long) index)) {</span>
+<span class="nc" id="L192">                            value = entryValue;</span>
+<span class="nc" id="L193">                            break;</span>
+                        }
+                    }
+                }
+            }
+        }
+<span class="fc" id="L199">        return value;</span>
+    }
+
+    @Override
+    public void set(JSONPath.Context context, Object value) {
+<span class="fc bfc" id="L204" title="All 2 branches covered.">        Object object = context.parent == null</span>
+                ? context.root
+                : context.parent.value;
+
+<span class="fc bfc" id="L208" title="All 2 branches covered.">        if (object instanceof List) {</span>
+<span class="fc" id="L209">            List list = (List) object;</span>
+<span class="fc bfc" id="L210" title="All 2 branches covered.">            if (index &gt;= 0) {</span>
+<span class="fc bfc" id="L211" title="All 2 branches covered.">                if (index &gt; list.size()) {</span>
+<span class="fc bfc" id="L212" title="All 2 branches covered.">                    for (int i = list.size(); i &lt; index; ++i) {</span>
+<span class="fc" id="L213">                        list.add(null);</span>
+                    }
+                }
+<span class="fc bfc" id="L216" title="All 2 branches covered.">                if (index &lt; list.size()) {</span>
+<span class="fc" id="L217">                    list.set(index, value);</span>
+<span class="pc bpc" id="L218" title="1 of 2 branches missed.">                } else if (index &lt;= list.size()) {</span>
+<span class="fc" id="L219">                    list.add(value);</span>
+                }
+            } else {
+<span class="fc" id="L222">                int itemIndex = list.size() + this.index;</span>
+<span class="fc bfc" id="L223" title="All 2 branches covered.">                if (itemIndex &gt;= 0) {</span>
+<span class="fc" id="L224">                    list.set(itemIndex, value);</span>
+                }
+            }
+<span class="fc" id="L227">            return;</span>
+        }
+
+<span class="fc bfc" id="L230" title="All 2 branches covered.">        if (object instanceof Object[]) {</span>
+<span class="fc" id="L231">            Object[] array = (Object[]) object;</span>
+<span class="fc" id="L232">            int length = array.length;</span>
+<span class="fc bfc" id="L233" title="All 2 branches covered.">            if (index &gt;= 0) {</span>
+<span class="fc bfc" id="L234" title="All 2 branches covered.">                if (index &lt; length) {</span>
+<span class="fc" id="L235">                    array[index] = value;</span>
+                }
+            } else {
+<span class="fc" id="L238">                int arrayIndex = length + index;</span>
+<span class="fc bfc" id="L239" title="All 2 branches covered.">                if (arrayIndex &gt;= 0) {</span>
+<span class="pc bpc" id="L240" title="1 of 2 branches missed.">                    if (arrayIndex &lt; length) {</span>
+<span class="fc" id="L241">                        array[arrayIndex] = value;</span>
+                    }
+                }
+            }
+<span class="fc" id="L245">            return;</span>
+        }
+
+<span class="pc bpc" id="L248" title="1 of 4 branches missed.">        if (object != null &amp;&amp; object.getClass().isArray()) {</span>
+<span class="fc" id="L249">            int length = Array.getLength(object);</span>
+<span class="fc bfc" id="L250" title="All 2 branches covered.">            if (index &gt;= 0) {</span>
+<span class="fc bfc" id="L251" title="All 2 branches covered.">                if (index &lt; length) {</span>
+<span class="fc" id="L252">                    Array.set(object, index, value);</span>
+                }
+            } else {
+<span class="fc" id="L255">                int arrayIndex = length + index;</span>
+<span class="fc bfc" id="L256" title="All 2 branches covered.">                if (arrayIndex &gt;= 0) {</span>
+<span class="pc bpc" id="L257" title="1 of 2 branches missed.">                    if (arrayIndex &lt; length) {</span>
+<span class="fc" id="L258">                        Array.set(object, arrayIndex, value);</span>
+                    }
+                }
+            }
+<span class="fc" id="L262">            return;</span>
+        }
+
+<span class="fc" id="L265">        throw new JSONException(&quot;UnsupportedOperation&quot;);</span>
+    }
+
+    @Override
+    public void setCallback(JSONPath.Context context, BiFunction callback) {
+<span class="fc bfc" id="L270" title="All 2 branches covered.">        Object object = context.parent == null</span>
+                ? context.root
+                : context.parent.value;
+
+<span class="fc bfc" id="L274" title="All 2 branches covered.">        if (object instanceof List) {</span>
+<span class="fc" id="L275">            List list = (List) object;</span>
+<span class="fc bfc" id="L276" title="All 2 branches covered.">            if (index &gt;= 0) {</span>
+<span class="fc bfc" id="L277" title="All 2 branches covered.">                if (index &lt; list.size()) {</span>
+<span class="fc" id="L278">                    Object value = list.get(index);</span>
+<span class="fc" id="L279">                    value = callback.apply(object, value);</span>
+<span class="fc" id="L280">                    list.set(index, value);</span>
+<span class="fc" id="L281">                }</span>
+            } else {
+<span class="fc" id="L283">                int itemIndex = list.size() + this.index;</span>
+<span class="fc bfc" id="L284" title="All 2 branches covered.">                if (itemIndex &gt;= 0) {</span>
+<span class="fc" id="L285">                    Object value = list.get(itemIndex);</span>
+<span class="fc" id="L286">                    value = callback.apply(object, value);</span>
+<span class="fc" id="L287">                    list.set(itemIndex, value);</span>
+                }
+            }
+<span class="fc" id="L290">            return;</span>
+        }
+
+<span class="fc bfc" id="L293" title="All 2 branches covered.">        if (object instanceof Object[]) {</span>
+<span class="fc" id="L294">            Object[] array = (Object[]) object;</span>
+<span class="fc bfc" id="L295" title="All 2 branches covered.">            if (index &gt;= 0) {</span>
+<span class="fc bfc" id="L296" title="All 2 branches covered.">                if (index &lt; array.length) {</span>
+<span class="fc" id="L297">                    Object value = array[index];</span>
+<span class="fc" id="L298">                    value = callback.apply(object, value);</span>
+<span class="fc" id="L299">                    array[index] = value;</span>
+<span class="fc" id="L300">                }</span>
+            } else {
+<span class="fc" id="L302">                int itemIndex = array.length + this.index;</span>
+<span class="fc bfc" id="L303" title="All 2 branches covered.">                if (itemIndex &gt;= 0) {</span>
+<span class="fc" id="L304">                    Object value = array[itemIndex];</span>
+<span class="fc" id="L305">                    value = callback.apply(object, value);</span>
+<span class="fc" id="L306">                    array[itemIndex] = value;</span>
+                }
+            }
+<span class="fc" id="L309">            return;</span>
+        }
+
+<span class="pc bpc" id="L312" title="1 of 4 branches missed.">        if (object != null &amp;&amp; object.getClass().isArray()) {</span>
+<span class="fc" id="L313">            int length = Array.getLength(object);</span>
+<span class="fc bfc" id="L314" title="All 2 branches covered.">            if (index &gt;= 0) {</span>
+<span class="fc bfc" id="L315" title="All 2 branches covered.">                if (index &lt; length) {</span>
+<span class="fc" id="L316">                    Object value = Array.get(object, index);</span>
+<span class="fc" id="L317">                    value = callback.apply(object, value);</span>
+<span class="fc" id="L318">                    Array.set(object, index, value);</span>
+<span class="fc" id="L319">                }</span>
+            } else {
+<span class="fc" id="L321">                int arrayIndex = length + index;</span>
+<span class="fc bfc" id="L322" title="All 2 branches covered.">                if (arrayIndex &gt;= 0) {</span>
+<span class="fc" id="L323">                    Object value = Array.get(object, arrayIndex);</span>
+<span class="fc" id="L324">                    value = callback.apply(object, value);</span>
+<span class="fc" id="L325">                    Array.set(object, arrayIndex, value);</span>
+                }
+            }
+<span class="fc" id="L328">            return;</span>
+        }
+
+<span class="fc" id="L331">        throw new JSONException(&quot;UnsupportedOperation&quot;);</span>
+    }
+
+    @Override
+    public boolean remove(JSONPath.Context context) {
+<span class="fc bfc" id="L336" title="All 2 branches covered.">        Object object = context.parent == null</span>
+                ? context.root
+                : context.parent.value;
+
+<span class="pc bpc" id="L340" title="1 of 2 branches missed.">        if (object instanceof List) {</span>
+<span class="fc" id="L341">            List list = (List) object;</span>
+<span class="fc bfc" id="L342" title="All 2 branches covered.">            if (index &gt;= 0) {</span>
+<span class="fc bfc" id="L343" title="All 2 branches covered.">                if (index &lt; list.size()) {</span>
+<span class="fc" id="L344">                    list.remove(index);</span>
+<span class="fc" id="L345">                    return true;</span>
+                }
+            } else {
+<span class="fc" id="L348">                int itemIndex = list.size() + this.index;</span>
+<span class="fc bfc" id="L349" title="All 2 branches covered.">                if (itemIndex &gt;= 0) {</span>
+<span class="fc" id="L350">                    list.remove(itemIndex);</span>
+<span class="fc" id="L351">                    return true;</span>
+                }
+            }
+<span class="fc" id="L354">            return false;</span>
+        }
+
+<span class="nc" id="L357">        throw new JSONException(&quot;UnsupportedOperation&quot;);</span>
+    }
+
+    @Override
+    public void setInt(JSONPath.Context context, int value) {
+<span class="pc bpc" id="L362" title="1 of 2 branches missed.">        Object object = context.parent == null</span>
+                ? context.root
+                : context.parent.value;
+<span class="fc bfc" id="L365" title="All 2 branches covered.">        if (object instanceof int[]) {</span>
+<span class="fc" id="L366">            int[] array = (int[]) object;</span>
+<span class="fc bfc" id="L367" title="All 2 branches covered.">            if (index &gt;= 0) {</span>
+<span class="fc bfc" id="L368" title="All 2 branches covered.">                if (index &lt; array.length) {</span>
+<span class="fc" id="L369">                    array[index] = value;</span>
+                }
+            } else {
+<span class="fc" id="L372">                int arrayIndex = array.length + index;</span>
+<span class="fc bfc" id="L373" title="All 2 branches covered.">                if (arrayIndex &gt;= 0) {</span>
+<span class="fc" id="L374">                    array[arrayIndex] = value;</span>
+                }
+            }
+<span class="fc" id="L377">            return;</span>
+        }
+
+<span class="fc bfc" id="L380" title="All 2 branches covered.">        if (object instanceof long[]) {</span>
+<span class="fc" id="L381">            long[] array = (long[]) object;</span>
+<span class="fc bfc" id="L382" title="All 2 branches covered.">            if (index &gt;= 0) {</span>
+<span class="fc bfc" id="L383" title="All 2 branches covered.">                if (index &lt; array.length) {</span>
+<span class="fc" id="L384">                    array[index] = value;</span>
+                }
+            } else {
+<span class="fc" id="L387">                int arrayIndex = array.length + index;</span>
+<span class="fc bfc" id="L388" title="All 2 branches covered.">                if (arrayIndex &gt;= 0) {</span>
+<span class="fc" id="L389">                    array[arrayIndex] = value;</span>
+                }
+            }
+<span class="fc" id="L392">            return;</span>
+        }
+
+<span class="fc" id="L395">        set(context, value);</span>
+<span class="fc" id="L396">    }</span>
+
+    @Override
+    public void setLong(JSONPath.Context context, long value) {
+<span class="pc bpc" id="L400" title="1 of 2 branches missed.">        Object object = context.parent == null</span>
+                ? context.root
+                : context.parent.value;
+<span class="fc bfc" id="L403" title="All 2 branches covered.">        if (object instanceof int[]) {</span>
+<span class="fc" id="L404">            int[] array = (int[]) object;</span>
+<span class="fc bfc" id="L405" title="All 2 branches covered.">            if (index &gt;= 0) {</span>
+<span class="fc bfc" id="L406" title="All 2 branches covered.">                if (index &lt; array.length) {</span>
+<span class="fc" id="L407">                    array[index] = (int) value;</span>
+                }
+            } else {
+<span class="fc" id="L410">                int arrayIndex = array.length + index;</span>
+<span class="fc bfc" id="L411" title="All 2 branches covered.">                if (arrayIndex &gt;= 0) {</span>
+<span class="fc" id="L412">                    array[arrayIndex] = (int) value;</span>
+                }
+            }
+<span class="fc" id="L415">            return;</span>
+        }
+
+<span class="fc bfc" id="L418" title="All 2 branches covered.">        if (object instanceof long[]) {</span>
+<span class="fc" id="L419">            long[] array = (long[]) object;</span>
+<span class="fc bfc" id="L420" title="All 2 branches covered.">            if (index &gt;= 0) {</span>
+<span class="fc bfc" id="L421" title="All 2 branches covered.">                if (index &lt; array.length) {</span>
+<span class="fc" id="L422">                    array[index] = value;</span>
+                }
+            } else {
+<span class="fc" id="L425">                int arrayIndex = array.length + index;</span>
+<span class="fc bfc" id="L426" title="All 2 branches covered.">                if (arrayIndex &gt;= 0) {</span>
+<span class="fc" id="L427">                    array[arrayIndex] = value;</span>
+                }
+            }
+<span class="fc" id="L430">            return;</span>
+        }
+
+<span class="fc" id="L433">        set(context, value);</span>
+<span class="fc" id="L434">    }</span>
+
+    @Override
+    public void accept(JSONReader jsonReader, JSONPath.Context context) {
+<span class="pc bpc" id="L438" title="4 of 8 branches missed.">        if (context.parent != null</span>
+                &amp;&amp; (context.parent.eval
+                || (context.parent.current instanceof CycleNameSegment &amp;&amp; context.next == null))
+        ) {
+<span class="nc" id="L442">            eval(context);</span>
+<span class="nc" id="L443">            return;</span>
+        }
+
+<span class="fc bfc" id="L446" title="All 2 branches covered.">        if (jsonReader.jsonb) {</span>
+<span class="fc" id="L447">            int itemCnt = jsonReader.startArray();</span>
+<span class="pc bpc" id="L448" title="1 of 2 branches missed.">            for (int i = 0; i &lt; itemCnt; i++) {</span>
+<span class="fc bfc" id="L449" title="All 2 branches covered.">                boolean match = index == i;</span>
+<span class="fc bfc" id="L450" title="All 2 branches covered.">                if (!match) {</span>
+<span class="fc" id="L451">                    jsonReader.skipValue();</span>
+<span class="fc" id="L452">                    continue;</span>
+                }
+
+<span class="pc bpc" id="L455" title="1 of 4 branches missed.">                if (jsonReader.isArray() || jsonReader.isObject()) {</span>
+<span class="pc bpc" id="L456" title="1 of 2 branches missed.">                    if (context.next != null) {</span>
+<span class="fc" id="L457">                        break;</span>
+                    }
+                }
+
+<span class="fc" id="L461">                context.value = jsonReader.readAny();</span>
+<span class="fc" id="L462">                context.eval = true;</span>
+<span class="fc" id="L463">                break;</span>
+            }
+<span class="fc" id="L465">            return;</span>
+        }
+
+<span class="fc bfc" id="L468" title="All 2 branches covered.">        if (jsonReader.ch == '{') {</span>
+<span class="fc" id="L469">            Map object = jsonReader.readObject();</span>
+<span class="fc" id="L470">            context.value = eval(object);</span>
+<span class="fc" id="L471">            context.eval = true;</span>
+<span class="fc" id="L472">            return;</span>
+        }
+
+<span class="fc" id="L475">        jsonReader.next();</span>
+        _for:
+<span class="fc bfc" id="L477" title="All 2 branches covered.">        for (int i = 0; jsonReader.ch != EOI; ++i) {</span>
+<span class="fc bfc" id="L478" title="All 2 branches covered.">            if (jsonReader.ch == ']') {</span>
+<span class="fc" id="L479">                jsonReader.next();</span>
+<span class="fc" id="L480">                context.eval = true;</span>
+<span class="fc" id="L481">                break;</span>
+            }
+
+<span class="fc bfc" id="L484" title="All 4 branches covered.">            boolean match = index == -1 || index == i;</span>
+
+<span class="fc bfc" id="L486" title="All 2 branches covered.">            if (!match) {</span>
+<span class="fc" id="L487">                jsonReader.skipValue();</span>
+<span class="pc bpc" id="L488" title="1 of 2 branches missed.">                if (jsonReader.ch == ',') {</span>
+<span class="nc" id="L489">                    jsonReader.next();</span>
+                }
+                continue;
+            }
+
+            Object val;
+<span class="pc bpc" id="L495" title="2 of 7 branches missed.">            switch (jsonReader.ch) {</span>
+                case '-':
+                case '+':
+                case '0':
+                case '1':
+                case '2':
+                case '3':
+                case '4':
+                case '5':
+                case '6':
+                case '7':
+                case '8':
+                case '9':
+                case '.':
+<span class="fc" id="L509">                    jsonReader.readNumber0();</span>
+<span class="fc" id="L510">                    val = jsonReader.getNumber();</span>
+<span class="fc" id="L511">                    break;</span>
+                case '[':
+<span class="pc bpc" id="L513" title="2 of 4 branches missed.">                    if (context.next != null &amp;&amp; !(context.next instanceof EvalSegment)) {</span>
+<span class="fc" id="L514">                        break _for;</span>
+                    }
+<span class="nc" id="L516">                    val = jsonReader.readArray();</span>
+<span class="nc" id="L517">                    break;</span>
+                case '{':
+<span class="pc bpc" id="L519" title="1 of 4 branches missed.">                    if (context.next != null &amp;&amp; !(context.next instanceof EvalSegment)) {</span>
+<span class="fc" id="L520">                        break _for;</span>
+                    }
+<span class="fc" id="L522">                    val = jsonReader.readObject();</span>
+<span class="fc" id="L523">                    break;</span>
+                case '&quot;':
+                case '\'':
+<span class="fc" id="L526">                    val = jsonReader.readString();</span>
+<span class="fc" id="L527">                    break;</span>
+                case 't':
+                case 'f':
+<span class="nc" id="L530">                    val = jsonReader.readBoolValue();</span>
+<span class="nc" id="L531">                    break;</span>
+                case 'n':
+<span class="nc" id="L533">                    jsonReader.readNull();</span>
+<span class="nc" id="L534">                    val = null;</span>
+<span class="nc" id="L535">                    break;</span>
+                default:
+<span class="fc" id="L537">                    throw new JSONException(jsonReader.info(&quot;not support : &quot; + jsonReader.ch));</span>
+            }
+
+<span class="pc bpc" id="L540" title="1 of 2 branches missed.">            if (index == -1) {</span>
+<span class="nc bnc" id="L541" title="All 2 branches missed.">                if (jsonReader.ch == ']') {</span>
+<span class="nc" id="L542">                    context.value = val;</span>
+                }
+            } else {
+<span class="fc" id="L545">                context.value = val;</span>
+            }
+        }
+<span class="fc" id="L548">    }</span>
+
+    @Override
+    public String toString() {
+<span class="fc bfc" id="L552" title="All 2 branches covered.">        int size = (index &lt; 0) ? IOUtils.stringSize(-index) + 1 : IOUtils.stringSize(index);</span>
+<span class="fc" id="L553">        byte[] bytes = new byte[size + 2];</span>
+<span class="fc" id="L554">        bytes[0] = '[';</span>
+<span class="fc" id="L555">        IOUtils.getChars(index, bytes.length - 1, bytes);</span>
+<span class="fc" id="L556">        bytes[bytes.length - 1] = ']';</span>
+
+        String str;
+<span class="pc bpc" id="L559" title="1 of 2 branches missed.">        if (STRING_CREATOR_JDK11 != null) {</span>
+<span class="nc" id="L560">            str = STRING_CREATOR_JDK11.apply(bytes, LATIN1);</span>
+        } else {
+<span class="fc" id="L562">            str = new String(bytes, StandardCharsets.ISO_8859_1);</span>
+        }
+<span class="fc" id="L564">        return str;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.8.202204050719</span></div></body></html>

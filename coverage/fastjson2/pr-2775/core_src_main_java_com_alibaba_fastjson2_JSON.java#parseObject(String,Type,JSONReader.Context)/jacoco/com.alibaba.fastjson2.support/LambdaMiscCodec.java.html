@@ -1,0 +1,858 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>LambdaMiscCodec.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">fastjson2</a> &gt; <a href="index.source.html" class="el_package">com.alibaba.fastjson2.support</a> &gt; <span class="el_source">LambdaMiscCodec.java</span></div><h1>LambdaMiscCodec.java</h1><pre class="source lang-java linenums">package com.alibaba.fastjson2.support;
+
+import com.alibaba.fastjson2.JSONException;
+import com.alibaba.fastjson2.reader.ObjectReader;
+import com.alibaba.fastjson2.reader.ObjectReaders;
+import com.alibaba.fastjson2.util.JDKUtils;
+import com.alibaba.fastjson2.writer.ObjectWriter;
+import com.alibaba.fastjson2.writer.ObjectWriters;
+
+import java.lang.invoke.*;
+import java.lang.reflect.*;
+import java.math.BigDecimal;
+import java.util.function.*;
+
+import static com.alibaba.fastjson2.util.TypeUtils.*;
+
+<span class="nc" id="L17">public class LambdaMiscCodec {</span>
+    static volatile boolean hppcError;
+    static volatile Throwable errorLast;
+
+    public static ObjectWriter getObjectWriter(Type objectType, Class objectClass) {
+<span class="pc bpc" id="L22" title="1 of 2 branches missed.">        if (hppcError) {</span>
+<span class="nc" id="L23">            return null;</span>
+        }
+
+<span class="fc" id="L26">        String className = objectClass.getName();</span>
+
+<span class="pc bpc" id="L28" title="1 of 10 branches missed.">        switch (className) {</span>
+            case &quot;gnu.trove.set.hash.TByteHashSet&quot;:
+            case &quot;gnu.trove.stack.array.TByteArrayStack&quot;:
+            case &quot;gnu.trove.list.array.TByteArrayList&quot;:
+            case &quot;com.carrotsearch.hppc.ByteArrayList&quot;: {
+                try {
+<span class="fc" id="L34">                    return ObjectWriters.ofToByteArray(</span>
+<span class="fc" id="L35">                            createFunction(</span>
+<span class="fc" id="L36">                                    objectClass.getMethod(&quot;toArray&quot;)</span>
+                            )
+                    );
+<span class="nc" id="L39">                } catch (NoSuchMethodException | SecurityException e) {</span>
+<span class="nc" id="L40">                    throw new JSONException(&quot;illegal state&quot;, e);</span>
+                }
+            }
+            case &quot;gnu.trove.set.hash.TShortHashSet&quot;:
+            case &quot;gnu.trove.list.array.TShortArrayList&quot;:
+            case &quot;com.carrotsearch.hppc.ShortArrayList&quot;: {
+                try {
+<span class="fc" id="L47">                    return ObjectWriters.ofToShortArray(</span>
+<span class="fc" id="L48">                            createFunction(</span>
+<span class="fc" id="L49">                                    objectClass.getMethod(&quot;toArray&quot;)</span>
+                            )
+                    );
+<span class="nc" id="L52">                } catch (NoSuchMethodException | SecurityException e) {</span>
+<span class="nc" id="L53">                    throw new JSONException(&quot;illegal state&quot;, e);</span>
+                }
+            }
+            case &quot;gnu.trove.list.array.TIntArrayList&quot;:
+            case &quot;gnu.trove.set.hash.TIntHashSet&quot;:
+            case &quot;com.carrotsearch.hppc.IntArrayList&quot;:
+            case &quot;com.carrotsearch.hppc.IntHashSet&quot;: {
+                try {
+<span class="fc" id="L61">                    return ObjectWriters.ofToIntArray(</span>
+<span class="fc" id="L62">                            createFunction(</span>
+<span class="fc" id="L63">                                    objectClass.getMethod(&quot;toArray&quot;)</span>
+                            )
+                    );
+<span class="nc" id="L66">                } catch (NoSuchMethodException | SecurityException e) {</span>
+<span class="nc" id="L67">                    throw new JSONException(&quot;illegal state&quot;, e);</span>
+                }
+            }
+            case &quot;gnu.trove.list.array.TLongArrayList&quot;:
+            case &quot;gnu.trove.set.hash.TLongHashSet&quot;:
+            case &quot;com.carrotsearch.hppc.LongArrayList&quot;:
+            case &quot;com.carrotsearch.hppc.LongHashSet&quot;: {
+                try {
+<span class="fc" id="L75">                    return ObjectWriters.ofToLongArray(</span>
+<span class="fc" id="L76">                            createFunction(</span>
+<span class="fc" id="L77">                                    objectClass.getMethod(&quot;toArray&quot;)</span>
+                            )
+                    );
+<span class="nc" id="L80">                } catch (NoSuchMethodException | SecurityException e) {</span>
+<span class="nc" id="L81">                    throw new JSONException(&quot;illegal state&quot;, e);</span>
+                }
+            }
+            case &quot;gnu.trove.list.array.TCharArrayList&quot;:
+            case &quot;com.carrotsearch.hppc.CharArrayList&quot;:
+            case &quot;com.carrotsearch.hppc.CharHashSet&quot;: {
+                try {
+<span class="fc" id="L88">                    return ObjectWriters.ofToCharArray(</span>
+<span class="fc" id="L89">                            createFunction(</span>
+<span class="fc" id="L90">                                    objectClass.getMethod(&quot;toArray&quot;)</span>
+                            )
+                    );
+<span class="nc" id="L93">                } catch (NoSuchMethodException | SecurityException e) {</span>
+<span class="nc" id="L94">                    throw new JSONException(&quot;illegal state&quot;, e);</span>
+                }
+            }
+            case &quot;gnu.trove.list.array.TFloatArrayList&quot;:
+            case &quot;com.carrotsearch.hppc.FloatArrayList&quot;: {
+                try {
+<span class="fc" id="L100">                    return ObjectWriters.ofToFloatArray(</span>
+<span class="fc" id="L101">                            createFunction(</span>
+<span class="fc" id="L102">                                    objectClass.getMethod(&quot;toArray&quot;)</span>
+                            )
+                    );
+<span class="nc" id="L105">                } catch (NoSuchMethodException | SecurityException e) {</span>
+<span class="nc" id="L106">                    throw new JSONException(&quot;illegal state&quot;, e);</span>
+                }
+            }
+            case &quot;gnu.trove.list.array.TDoubleArrayList&quot;:
+            case &quot;com.carrotsearch.hppc.DoubleArrayList&quot;: {
+                try {
+<span class="fc" id="L112">                    return ObjectWriters.ofToDoubleArray(</span>
+<span class="fc" id="L113">                            createFunction(</span>
+<span class="fc" id="L114">                                    objectClass.getMethod(&quot;toArray&quot;)</span>
+                            )
+                    );
+<span class="nc" id="L117">                } catch (NoSuchMethodException | SecurityException e) {</span>
+<span class="nc" id="L118">                    throw new JSONException(&quot;illegal state&quot;, e);</span>
+                }
+            }
+            case &quot;com.carrotsearch.hppc.BitSet&quot;: {
+<span class="fc" id="L122">                MethodHandles.Lookup lookup = JDKUtils.trustedLookup(objectClass);</span>
+                try {
+<span class="fc" id="L124">                    ToLongFunction functionSize = createToLongFunction(</span>
+<span class="fc" id="L125">                            objectClass.getMethod(&quot;size&quot;)</span>
+                    );
+
+<span class="fc" id="L128">                    MethodHandle getHandler = lookup.findVirtual(objectClass, &quot;get&quot;, MethodType.methodType(boolean.class, int.class));</span>
+<span class="fc" id="L129">                    CallSite getCallSite = LambdaMetafactory.metafactory(</span>
+                            lookup,
+                            &quot;apply&quot;,
+<span class="fc" id="L132">                            MethodType.methodType(BiFunction.class),</span>
+<span class="fc" id="L133">                            MethodType.methodType(Object.class, Object.class, Object.class),</span>
+                            getHandler,
+<span class="fc" id="L135">                            MethodType.methodType(Boolean.class, objectClass, Integer.class)</span>
+                    );
+<span class="fc" id="L137">                    BiFunction&lt;Object, Integer, Boolean&gt; functionGet</span>
+<span class="fc" id="L138">                            = (BiFunction&lt;Object, Integer, Boolean&gt;) getCallSite.getTarget().invokeExact();</span>
+
+<span class="fc" id="L140">                    return ObjectWriters.ofToBooleanArray(functionSize, functionGet);</span>
+<span class="nc" id="L141">                } catch (Throwable ignored) {</span>
+<span class="nc" id="L142">                    hppcError = true;</span>
+                    // ignored
+                }
+<span class="nc" id="L145">                break;</span>
+            }
+            case &quot;org.bson.types.Decimal128&quot;:
+                try {
+<span class="fc" id="L149">                    return ObjectWriters.ofToBigDecimal(</span>
+<span class="fc" id="L150">                            createFunction(</span>
+<span class="fc" id="L151">                                    objectClass.getMethod(&quot;bigDecimalValue&quot;)</span>
+                            )
+                    );
+<span class="nc" id="L154">                } catch (NoSuchMethodException | SecurityException e) {</span>
+<span class="nc" id="L155">                    throw new JSONException(&quot;illegal state&quot;, e);</span>
+                }
+            default:
+                break;
+        }
+<span class="nc" id="L160">        return null;</span>
+    }
+
+    public static ObjectReader getObjectReader(Class objectClass) {
+<span class="pc bpc" id="L164" title="1 of 2 branches missed.">        if (hppcError) {</span>
+<span class="nc" id="L165">            return null;</span>
+        }
+
+<span class="fc" id="L168">        String className = objectClass.getName();</span>
+
+<span class="pc bpc" id="L170" title="1 of 16 branches missed.">        switch (className) {</span>
+            case &quot;com.carrotsearch.hppc.ByteArrayList&quot;: {
+                try {
+<span class="fc" id="L173">                    return ObjectReaders.fromByteArray(</span>
+<span class="fc" id="L174">                            createFunction(</span>
+<span class="fc" id="L175">                                    objectClass.getMethod(&quot;from&quot;, byte[].class)</span>
+                            )
+                    );
+<span class="nc" id="L178">                } catch (NoSuchMethodException | SecurityException e) {</span>
+<span class="nc" id="L179">                    throw new JSONException(&quot;illegal state&quot;, e);</span>
+                }
+            }
+            case &quot;com.carrotsearch.hppc.ShortArrayList&quot;: {
+                try {
+<span class="fc" id="L184">                    return ObjectReaders.fromShortArray(</span>
+<span class="fc" id="L185">                            createFunction(</span>
+<span class="fc" id="L186">                                    objectClass.getMethod(&quot;from&quot;, short[].class)</span>
+                            )
+                    );
+<span class="nc" id="L189">                } catch (NoSuchMethodException | SecurityException e) {</span>
+<span class="nc" id="L190">                    throw new JSONException(&quot;illegal state&quot;, e);</span>
+                }
+            }
+            case &quot;com.carrotsearch.hppc.IntArrayList&quot;:
+            case &quot;com.carrotsearch.hppc.IntHashSet&quot;: {
+                try {
+<span class="fc" id="L196">                    return ObjectReaders.fromIntArray(</span>
+<span class="fc" id="L197">                            createFunction(</span>
+<span class="fc" id="L198">                                    objectClass.getMethod(&quot;from&quot;, int[].class)</span>
+                            )
+                    );
+<span class="nc" id="L201">                } catch (NoSuchMethodException | SecurityException e) {</span>
+<span class="nc" id="L202">                    throw new JSONException(&quot;illegal state&quot;, e);</span>
+                }
+            }
+            case &quot;com.carrotsearch.hppc.LongArrayList&quot;:
+            case &quot;com.carrotsearch.hppc.LongHashSet&quot;: {
+                try {
+<span class="fc" id="L208">                    return ObjectReaders.fromLongArray(</span>
+<span class="fc" id="L209">                            createFunction(</span>
+<span class="fc" id="L210">                                    objectClass.getMethod(&quot;from&quot;, long[].class)</span>
+                            )
+                    );
+<span class="nc" id="L213">                } catch (NoSuchMethodException | SecurityException e) {</span>
+<span class="nc" id="L214">                    throw new JSONException(&quot;illegal state&quot;, e);</span>
+                }
+            }
+            case &quot;com.carrotsearch.hppc.CharArrayList&quot;:
+            case &quot;com.carrotsearch.hppc.CharHashSet&quot;: {
+                try {
+<span class="fc" id="L220">                    return ObjectReaders.fromCharArray(</span>
+<span class="fc" id="L221">                            createFunction(</span>
+<span class="fc" id="L222">                                    objectClass.getMethod(&quot;from&quot;, char[].class)</span>
+                            )
+                    );
+<span class="nc" id="L225">                } catch (NoSuchMethodException | SecurityException e) {</span>
+<span class="nc" id="L226">                    throw new JSONException(&quot;illegal state&quot;, e);</span>
+                }
+            }
+            case &quot;com.carrotsearch.hppc.FloatArrayList&quot;: {
+                try {
+<span class="fc" id="L231">                    return ObjectReaders.fromFloatArray(</span>
+<span class="fc" id="L232">                            createFunction(</span>
+<span class="fc" id="L233">                                    objectClass.getMethod(&quot;from&quot;, float[].class)</span>
+                            )
+                    );
+<span class="nc" id="L236">                } catch (NoSuchMethodException | SecurityException e) {</span>
+<span class="nc" id="L237">                    throw new JSONException(&quot;illegal state&quot;, e);</span>
+                }
+            }
+            case &quot;com.carrotsearch.hppc.DoubleArrayList&quot;: {
+                try {
+<span class="fc" id="L242">                    return ObjectReaders.fromDoubleArray(</span>
+<span class="fc" id="L243">                            createFunction(</span>
+<span class="fc" id="L244">                                    objectClass.getMethod(&quot;from&quot;, double[].class)</span>
+                            )
+                    );
+<span class="nc" id="L247">                } catch (NoSuchMethodException | SecurityException e) {</span>
+<span class="nc" id="L248">                    throw new JSONException(&quot;illegal state&quot;, e);</span>
+                }
+            }
+            case &quot;gnu.trove.set.hash.TByteHashSet&quot;:
+            case &quot;gnu.trove.stack.array.TByteArrayStack&quot;:
+            case &quot;gnu.trove.list.array.TByteArrayList&quot;: {
+                try {
+<span class="fc" id="L255">                    return ObjectReaders.fromByteArray(</span>
+<span class="fc" id="L256">                            createFunction(</span>
+<span class="fc" id="L257">                                    objectClass.getConstructor(byte[].class)</span>
+                            )
+                    );
+<span class="nc" id="L260">                } catch (NoSuchMethodException | SecurityException e) {</span>
+<span class="nc" id="L261">                    throw new JSONException(&quot;illegal state&quot;, e);</span>
+                }
+            }
+            case &quot;gnu.trove.list.array.TCharArrayList&quot;: {
+                try {
+<span class="fc" id="L266">                    return ObjectReaders.fromCharArray(</span>
+<span class="fc" id="L267">                            createFunction(</span>
+<span class="fc" id="L268">                                    objectClass.getConstructor(char[].class)</span>
+                            )
+                    );
+<span class="nc" id="L271">                } catch (NoSuchMethodException | SecurityException e) {</span>
+<span class="nc" id="L272">                    throw new JSONException(&quot;illegal state&quot;, e);</span>
+                }
+            }
+            case &quot;gnu.trove.set.hash.TShortHashSet&quot;:
+            case &quot;gnu.trove.list.array.TShortArrayList&quot;: {
+                try {
+<span class="fc" id="L278">                    return ObjectReaders.fromShortArray(</span>
+<span class="fc" id="L279">                            createFunction(</span>
+<span class="fc" id="L280">                                    objectClass.getConstructor(short[].class)</span>
+                            )
+                    );
+<span class="nc" id="L283">                } catch (NoSuchMethodException | SecurityException e) {</span>
+<span class="nc" id="L284">                    throw new JSONException(&quot;illegal state&quot;, e);</span>
+                }
+            }
+            case &quot;gnu.trove.set.hash.TIntHashSet&quot;:
+            case &quot;gnu.trove.list.array.TIntArrayList&quot;: {
+                try {
+<span class="fc" id="L290">                    return ObjectReaders.fromIntArray(</span>
+<span class="fc" id="L291">                            createFunction(</span>
+<span class="fc" id="L292">                                    objectClass.getConstructor(int[].class)</span>
+                            )
+                    );
+<span class="nc" id="L295">                } catch (NoSuchMethodException | SecurityException e) {</span>
+<span class="nc" id="L296">                    throw new JSONException(&quot;illegal state&quot;, e);</span>
+                }
+            }
+            case &quot;gnu.trove.set.hash.TLongHashSet&quot;:
+            case &quot;gnu.trove.list.array.TLongArrayList&quot;: {
+                try {
+<span class="fc" id="L302">                    return ObjectReaders.fromLongArray(</span>
+<span class="fc" id="L303">                            createFunction(</span>
+<span class="fc" id="L304">                                    objectClass.getConstructor(long[].class)</span>
+                            )
+                    );
+<span class="nc" id="L307">                } catch (NoSuchMethodException | SecurityException e) {</span>
+<span class="nc" id="L308">                    throw new JSONException(&quot;illegal state&quot;, e);</span>
+                }
+            }
+            case &quot;gnu.trove.list.array.TFloatArrayList&quot;: {
+                try {
+<span class="fc" id="L313">                    return ObjectReaders.fromFloatArray(</span>
+<span class="fc" id="L314">                            createFunction(</span>
+<span class="fc" id="L315">                                    objectClass.getConstructor(float[].class)</span>
+                            )
+                    );
+<span class="nc" id="L318">                } catch (NoSuchMethodException | SecurityException e) {</span>
+<span class="nc" id="L319">                    throw new JSONException(&quot;illegal state&quot;, e);</span>
+                }
+            }
+            case &quot;gnu.trove.list.array.TDoubleArrayList&quot;: {
+                try {
+<span class="fc" id="L324">                    return ObjectReaders.fromDoubleArray(</span>
+<span class="fc" id="L325">                            createFunction(</span>
+<span class="fc" id="L326">                                    objectClass.getConstructor(double[].class)</span>
+                            )
+                    );
+<span class="nc" id="L329">                } catch (NoSuchMethodException | SecurityException e) {</span>
+<span class="nc" id="L330">                    throw new JSONException(&quot;illegal state&quot;, e);</span>
+                }
+            }
+            case &quot;org.bson.types.Decimal128&quot;:
+                try {
+<span class="fc" id="L335">                    return ObjectReaders.fromBigDecimal(</span>
+<span class="fc" id="L336">                            createFunction(</span>
+<span class="fc" id="L337">                                    objectClass.getConstructor(BigDecimal.class)</span>
+                            )
+                    );
+<span class="nc" id="L340">                } catch (NoSuchMethodException | SecurityException e) {</span>
+<span class="nc" id="L341">                    throw new JSONException(&quot;illegal state&quot;, e);</span>
+                }
+            default:
+                break;
+        }
+
+<span class="nc" id="L347">        return null;</span>
+    }
+
+    public static LongFunction createLongFunction(Constructor constructor) {
+        try {
+<span class="fc" id="L352">            Class objectClass = constructor.getDeclaringClass();</span>
+<span class="fc" id="L353">            MethodHandles.Lookup lookup = JDKUtils.trustedLookup(objectClass);</span>
+<span class="fc" id="L354">            MethodHandle methodHandle</span>
+<span class="fc" id="L355">                    = lookup.findConstructor(</span>
+                    objectClass,
+                    METHOD_TYPE_VOID_LONG
+            );
+<span class="fc" id="L359">            MethodType invokedType = MethodType.methodType(objectClass, long.class);</span>
+<span class="fc" id="L360">            CallSite callSite = LambdaMetafactory.metafactory(</span>
+                    lookup,
+                    &quot;apply&quot;,
+                    METHOD_TYPE_LONG_FUNCTION,
+                    METHOD_TYPE_OBJECT_LONG,
+                    methodHandle,
+                    invokedType
+            );
+<span class="fc" id="L368">            return (LongFunction) callSite.getTarget().invokeExact();</span>
+<span class="nc" id="L369">        } catch (Throwable ignored) {</span>
+<span class="nc" id="L370">            errorLast = ignored;</span>
+        }
+<span class="nc" id="L372">        return new ReflectLongFunction(constructor);</span>
+    }
+
+    public static ToIntFunction createToIntFunction(Method method) {
+<span class="fc" id="L376">        Class&lt;?&gt; objectClass = method.getDeclaringClass();</span>
+        try {
+<span class="fc" id="L378">            MethodHandles.Lookup lookup = JDKUtils.trustedLookup(objectClass);</span>
+<span class="fc" id="L379">            MethodType methodType = MethodType.methodType(int.class);</span>
+<span class="fc" id="L380">            MethodHandle methodHandle</span>
+<span class="fc" id="L381">                    = lookup.findVirtual(</span>
+                    objectClass,
+<span class="fc" id="L383">                    method.getName(),</span>
+                    methodType
+            );
+<span class="fc" id="L386">            CallSite callSite = LambdaMetafactory.metafactory(</span>
+                    lookup,
+                    &quot;applyAsInt&quot;,
+                    METHOD_TYPE_TO_INT_FUNCTION,
+                    METHOD_TYPE_INT_OBJECT,
+                    methodHandle,
+<span class="fc" id="L392">                    MethodType.methodType(int.class, objectClass)</span>
+            );
+<span class="fc" id="L394">            return (ToIntFunction) callSite.getTarget().invokeExact();</span>
+<span class="nc" id="L395">        } catch (Throwable ignored) {</span>
+<span class="nc" id="L396">            errorLast = ignored;</span>
+        }
+<span class="nc" id="L398">        return new ReflectToIntFunction(method);</span>
+    }
+
+    public static ToLongFunction createToLongFunction(Method method) {
+<span class="fc" id="L402">        Class&lt;?&gt; objectClass = method.getDeclaringClass();</span>
+        try {
+<span class="fc" id="L404">            MethodHandles.Lookup lookup = JDKUtils.trustedLookup(objectClass);</span>
+<span class="fc" id="L405">            MethodType methodType = MethodType.methodType(long.class);</span>
+<span class="fc" id="L406">            MethodHandle methodHandle</span>
+<span class="fc" id="L407">                    = lookup.findVirtual(</span>
+                    objectClass,
+<span class="fc" id="L409">                    method.getName(),</span>
+                    methodType
+            );
+<span class="fc" id="L412">            CallSite callSite = LambdaMetafactory.metafactory(</span>
+                    lookup,
+                    &quot;applyAsLong&quot;,
+                    METHOD_TYPE_TO_LONG_FUNCTION,
+                    METHOD_TYPE_LONG_OBJECT,
+                    methodHandle,
+<span class="fc" id="L418">                    MethodType.methodType(long.class, objectClass)</span>
+            );
+<span class="fc" id="L420">            return (ToLongFunction) callSite.getTarget().invokeExact();</span>
+<span class="nc" id="L421">        } catch (Throwable ignored) {</span>
+<span class="nc" id="L422">            errorLast = ignored;</span>
+        }
+<span class="nc" id="L424">        return new ReflectToLongFunction(method);</span>
+    }
+
+    public static Function createFunction(Constructor constructor) {
+        try {
+<span class="fc" id="L429">            Class&lt;?&gt; declaringClass = constructor.getDeclaringClass();</span>
+<span class="fc" id="L430">            MethodHandles.Lookup lookup = JDKUtils.trustedLookup(declaringClass);</span>
+<span class="fc" id="L431">            Class&lt;?&gt;[] parameterTypes = constructor.getParameterTypes();</span>
+<span class="fc" id="L432">            Class&lt;?&gt; param0 = parameterTypes[0];</span>
+
+<span class="fc" id="L434">            MethodHandle methodHandle = lookup.findConstructor(</span>
+                    declaringClass,
+<span class="fc" id="L436">                    MethodType.methodType(void.class, param0)</span>
+            );
+
+<span class="fc" id="L439">            CallSite callSite = LambdaMetafactory.metafactory(</span>
+                    lookup,
+                    &quot;apply&quot;,
+                    METHOD_TYPE_FUNCTION,
+                    METHOD_TYPE_OBJECT_OBJECT,
+                    methodHandle,
+<span class="fc" id="L445">                    MethodType.methodType(declaringClass, param0)</span>
+            );
+<span class="fc" id="L447">            return (Function) callSite.getTarget().invokeExact();</span>
+<span class="nc" id="L448">        } catch (Throwable ignored) {</span>
+<span class="nc" id="L449">            errorLast = ignored;</span>
+        }
+
+<span class="nc" id="L452">        return new ConstructorFunction(constructor);</span>
+    }
+
+    public static Supplier createSupplier(Constructor constructor) {
+        try {
+<span class="fc" id="L457">            Class&lt;?&gt; declaringClass = constructor.getDeclaringClass();</span>
+<span class="fc" id="L458">            MethodHandles.Lookup lookup = JDKUtils.trustedLookup(declaringClass);</span>
+<span class="fc" id="L459">            MethodHandle methodHandle = lookup.findConstructor(</span>
+                    declaringClass,
+<span class="fc" id="L461">                    MethodType.methodType(void.class)</span>
+            );
+
+<span class="fc" id="L464">            CallSite callSite = LambdaMetafactory.metafactory(</span>
+                    lookup,
+                    &quot;get&quot;,
+                    METHOD_TYPE_SUPPLIER,
+                    METHOD_TYPE_OBJECT,
+                    methodHandle,
+<span class="fc" id="L470">                    MethodType.methodType(declaringClass)</span>
+            );
+<span class="fc" id="L472">            return (Supplier) callSite.getTarget().invokeExact();</span>
+<span class="nc" id="L473">        } catch (Throwable ignored) {</span>
+<span class="nc" id="L474">            errorLast = ignored;</span>
+        }
+
+<span class="nc" id="L477">        return new ConstructorSupplier(constructor);</span>
+    }
+
+    public static Supplier createSupplier(Method method) {
+        try {
+<span class="fc" id="L482">            Class&lt;?&gt; declaringClass = method.getDeclaringClass();</span>
+<span class="fc" id="L483">            Class objectClass = method.getReturnType();</span>
+<span class="fc" id="L484">            MethodHandles.Lookup lookup = JDKUtils.trustedLookup(declaringClass);</span>
+<span class="fc" id="L485">            MethodHandle methodHandle = lookup.findStatic(</span>
+                    declaringClass,
+<span class="fc" id="L487">                    method.getName(),</span>
+<span class="fc" id="L488">                    MethodType.methodType(objectClass)</span>
+            );
+
+<span class="fc" id="L491">            CallSite callSite = LambdaMetafactory.metafactory(</span>
+                    lookup,
+                    &quot;get&quot;,
+                    METHOD_TYPE_SUPPLIER,
+                    METHOD_TYPE_OBJECT,
+                    methodHandle,
+<span class="fc" id="L497">                    MethodType.methodType(objectClass)</span>
+            );
+<span class="fc" id="L499">            return (Supplier) callSite.getTarget().invokeExact();</span>
+<span class="nc" id="L500">        } catch (Throwable ignored) {</span>
+<span class="nc" id="L501">            errorLast = ignored;</span>
+        }
+
+<span class="nc" id="L504">        return new ReflectSupplier(method);</span>
+    }
+
+    public static BiFunction createBiFunction(Method method) {
+        try {
+<span class="fc" id="L509">            Class&lt;?&gt; declaringClass = method.getDeclaringClass();</span>
+<span class="fc" id="L510">            Class objectClass = method.getReturnType();</span>
+<span class="fc" id="L511">            MethodHandles.Lookup lookup = JDKUtils.trustedLookup(declaringClass);</span>
+<span class="fc" id="L512">            Class&lt;?&gt;[] parameterTypes = method.getParameterTypes();</span>
+<span class="fc" id="L513">            Class&lt;?&gt; param0 = parameterTypes[0];</span>
+
+            MethodType methodType;
+            MethodHandle methodHandle;
+<span class="fc bfc" id="L517" title="All 2 branches covered.">            if (Modifier.isStatic(method.getModifiers())) {</span>
+<span class="fc" id="L518">                Class&lt;?&gt; param1 = parameterTypes[1];</span>
+
+<span class="fc" id="L520">                methodHandle = lookup.findStatic(</span>
+                        declaringClass,
+<span class="fc" id="L522">                        method.getName(),</span>
+<span class="fc" id="L523">                        MethodType.methodType(objectClass, param0, param1)</span>
+                );
+<span class="fc" id="L525">                methodType = MethodType.methodType(objectClass, param0, param1);</span>
+<span class="fc" id="L526">            } else {</span>
+<span class="fc" id="L527">                methodHandle = lookup.findVirtual(</span>
+                        declaringClass,
+<span class="fc" id="L529">                        method.getName(),</span>
+<span class="fc" id="L530">                        MethodType.methodType(objectClass, param0)</span>
+                );
+<span class="fc" id="L532">                methodType = MethodType.methodType(objectClass, declaringClass, param0);</span>
+            }
+
+<span class="fc" id="L535">            CallSite callSite = LambdaMetafactory.metafactory(</span>
+                    lookup,
+                    &quot;apply&quot;,
+                    METHOD_TYPE_BI_FUNCTION,
+                    METHOD_TYPE_OBJECT_OBJECT_OBJECT,
+                    methodHandle,
+                    methodType
+            );
+<span class="fc" id="L543">            return (BiFunction) callSite.getTarget().invokeExact();</span>
+<span class="nc" id="L544">        } catch (Throwable ignored) {</span>
+<span class="nc" id="L545">            errorLast = ignored;</span>
+        }
+
+<span class="nc" id="L548">        return new ReflectBiFunction(method);</span>
+    }
+
+    public static BiFunction createBiFunction(Constructor constructor) {
+        try {
+<span class="fc" id="L553">            Class&lt;?&gt; declaringClass = constructor.getDeclaringClass();</span>
+<span class="fc" id="L554">            MethodHandles.Lookup lookup = JDKUtils.trustedLookup(declaringClass);</span>
+<span class="fc" id="L555">            Class&lt;?&gt;[] parameterTypes = constructor.getParameterTypes();</span>
+<span class="fc" id="L556">            Class&lt;?&gt; param0 = parameterTypes[0];</span>
+<span class="fc" id="L557">            Class&lt;?&gt; param1 = parameterTypes[1];</span>
+
+<span class="fc" id="L559">            MethodHandle methodHandle = lookup.findConstructor(</span>
+                    declaringClass,
+<span class="fc" id="L561">                    MethodType.methodType(void.class, param0, param1)</span>
+            );
+
+<span class="fc" id="L564">            CallSite callSite = LambdaMetafactory.metafactory(</span>
+                    lookup,
+                    &quot;apply&quot;,
+                    METHOD_TYPE_BI_FUNCTION,
+                    METHOD_TYPE_OBJECT_OBJECT_OBJECT,
+                    methodHandle,
+<span class="fc" id="L570">                    MethodType.methodType(declaringClass, param0, param1)</span>
+            );
+<span class="fc" id="L572">            return (BiFunction) callSite.getTarget().invokeExact();</span>
+<span class="nc" id="L573">        } catch (Throwable ignored) {</span>
+<span class="nc" id="L574">            errorLast = ignored;</span>
+        }
+
+<span class="nc" id="L577">        return new ConstructorBiFunction(constructor);</span>
+    }
+
+    static final class ConstructorSupplier
+            implements Supplier {
+        final Constructor constructor;
+
+<span class="fc" id="L584">        ConstructorSupplier(Constructor constructor) {</span>
+<span class="fc" id="L585">            this.constructor = constructor;</span>
+<span class="fc" id="L586">        }</span>
+
+        @Override
+        public Object get() {
+            try {
+<span class="fc" id="L591">                return constructor.newInstance();</span>
+<span class="nc" id="L592">            } catch (IllegalAccessException | InvocationTargetException | InstantiationException e) {</span>
+<span class="nc" id="L593">                throw new JSONException(&quot;invoke error&quot;, e);</span>
+            }
+        }
+    }
+
+    static final class ConstructorFunction
+            implements Function {
+        final Constructor constructor;
+
+<span class="fc" id="L602">        ConstructorFunction(Constructor constructor) {</span>
+<span class="fc" id="L603">            this.constructor = constructor;</span>
+<span class="fc" id="L604">        }</span>
+
+        @Override
+        public Object apply(Object arg0) {
+            try {
+<span class="fc" id="L609">                return constructor.newInstance(arg0);</span>
+<span class="fc" id="L610">            } catch (IllegalAccessException | InvocationTargetException | InstantiationException e) {</span>
+<span class="fc" id="L611">                throw new JSONException(&quot;invoke error&quot;, e);</span>
+            }
+        }
+    }
+
+    static final class ConstructorBiFunction
+            implements BiFunction {
+        final Constructor constructor;
+
+<span class="fc" id="L620">        ConstructorBiFunction(Constructor constructor) {</span>
+<span class="fc" id="L621">            this.constructor = constructor;</span>
+<span class="fc" id="L622">        }</span>
+
+        @Override
+        public Object apply(Object arg0, Object arg1) {
+            try {
+<span class="fc" id="L627">                return constructor.newInstance(arg0, arg1);</span>
+<span class="nc" id="L628">            } catch (IllegalAccessException | InvocationTargetException | InstantiationException e) {</span>
+<span class="nc" id="L629">                throw new JSONException(&quot;invoke error&quot;, e);</span>
+            }
+        }
+    }
+
+    static final class ReflectBiFunction
+            implements BiFunction {
+        final Method method;
+
+<span class="fc" id="L638">        ReflectBiFunction(Method method) {</span>
+<span class="fc" id="L639">            this.method = method;</span>
+<span class="fc" id="L640">        }</span>
+
+        @Override
+        public Object apply(Object arg0, Object arg1) {
+            try {
+<span class="pc bpc" id="L645" title="1 of 2 branches missed.">                if (Modifier.isStatic(method.getModifiers())) {</span>
+<span class="fc" id="L646">                    return method.invoke(null, arg0, arg1);</span>
+                } else {
+<span class="nc" id="L648">                    return method.invoke(arg0, arg1);</span>
+                }
+<span class="nc" id="L650">            } catch (IllegalAccessException | InvocationTargetException e) {</span>
+<span class="nc" id="L651">                throw new JSONException(&quot;invoke error&quot;, e);</span>
+            }
+        }
+    }
+
+    static final class ReflectSupplier
+            implements Supplier {
+        final Method method;
+
+<span class="fc" id="L660">        ReflectSupplier(Method method) {</span>
+<span class="fc" id="L661">            this.method = method;</span>
+<span class="fc" id="L662">        }</span>
+
+        @Override
+        public Object get() {
+            try {
+<span class="fc" id="L667">                return method.invoke(null);</span>
+<span class="nc" id="L668">            } catch (IllegalAccessException | InvocationTargetException e) {</span>
+<span class="nc" id="L669">                throw new JSONException(&quot;invoke error&quot;, e);</span>
+            }
+        }
+    }
+
+    public static Function createFunction(Method method) {
+<span class="fc" id="L675">        Class&lt;?&gt; declaringClass = method.getDeclaringClass();</span>
+<span class="fc" id="L676">        int modifiers = method.getModifiers();</span>
+<span class="fc" id="L677">        Class&lt;?&gt;[] parameterTypes = method.getParameterTypes();</span>
+
+<span class="fc" id="L679">        boolean isStatic = Modifier.isStatic(modifiers);</span>
+<span class="fc" id="L680">        Class objectClass = method.getReturnType();</span>
+        Class paramClass;
+<span class="pc bpc" id="L682" title="1 of 4 branches missed.">        if (parameterTypes.length == 1 &amp;&amp; isStatic) {</span>
+<span class="fc" id="L683">            paramClass = parameterTypes[0];</span>
+<span class="pc bpc" id="L684" title="2 of 4 branches missed.">        } else if (parameterTypes.length == 0 &amp;&amp; !isStatic) {</span>
+<span class="fc" id="L685">            paramClass = declaringClass;</span>
+        } else {
+<span class="nc" id="L687">            throw new JSONException(&quot;not support parameters &quot; + method);</span>
+        }
+
+        try {
+<span class="fc" id="L691">            MethodHandles.Lookup lookup = JDKUtils.trustedLookup(declaringClass);</span>
+            MethodHandle methodHandle;
+<span class="fc bfc" id="L693" title="All 2 branches covered.">            if (isStatic) {</span>
+<span class="fc" id="L694">                methodHandle = lookup.findStatic(</span>
+                        declaringClass,
+<span class="fc" id="L696">                        method.getName(),</span>
+<span class="fc" id="L697">                        MethodType.methodType(objectClass, paramClass)</span>
+                );
+            } else {
+<span class="fc" id="L700">                methodHandle = lookup.findVirtual(</span>
+                        declaringClass,
+<span class="fc" id="L702">                        method.getName(),</span>
+<span class="fc" id="L703">                        MethodType.methodType(objectClass)</span>
+                );
+            }
+<span class="fc" id="L706">            CallSite callSite = LambdaMetafactory.metafactory(</span>
+                    lookup,
+                    &quot;apply&quot;,
+                    METHOD_TYPE_FUNCTION,
+                    METHOD_TYPE_OBJECT_OBJECT,
+                    methodHandle,
+<span class="fc" id="L712">                    MethodType.methodType(objectClass, paramClass)</span>
+            );
+<span class="fc" id="L714">            return (Function) callSite.getTarget().invokeExact();</span>
+<span class="nc" id="L715">        } catch (Throwable ignored) {</span>
+<span class="nc" id="L716">            errorLast = ignored;</span>
+        }
+
+<span class="nc bnc" id="L719" title="All 2 branches missed.">        if (!Modifier.isStatic(method.getModifiers())) {</span>
+<span class="nc" id="L720">            return new GetterFunction(method);</span>
+        }
+
+<span class="nc" id="L723">        return new FactoryFunction(method);</span>
+    }
+
+    public static ObjIntConsumer createObjIntConsumer(Method method) {
+<span class="nc" id="L727">        Class&lt;?&gt; declaringClass = method.getDeclaringClass();</span>
+        try {
+<span class="nc" id="L729">            MethodHandles.Lookup lookup = JDKUtils.trustedLookup(declaringClass);</span>
+<span class="nc" id="L730">            MethodType methodType = MethodType.methodType(void.class, int.class);</span>
+<span class="nc" id="L731">            MethodHandle methodHandle</span>
+<span class="nc" id="L732">                    = lookup.findVirtual(</span>
+                    declaringClass,
+<span class="nc" id="L734">                    method.getName(),</span>
+                    methodType
+            );
+<span class="nc" id="L737">            CallSite callSite = LambdaMetafactory.metafactory(</span>
+                    lookup,
+                    &quot;accept&quot;,
+                    METHOD_TYPE_OBJECT_INT_CONSUMER,
+                    METHOD_TYPE_VOID_OBJECT_INT,
+                    methodHandle,
+<span class="nc" id="L743">                    MethodType.methodType(void.class, declaringClass, int.class)</span>
+            );
+<span class="nc" id="L745">            return (ObjIntConsumer) callSite.getTarget().invokeExact();</span>
+<span class="nc" id="L746">        } catch (Throwable ignored) {</span>
+<span class="nc" id="L747">            errorLast = ignored;</span>
+        }
+<span class="nc" id="L749">        return new ReflectObjIntConsumer(method);</span>
+    }
+
+    static final class ReflectObjIntConsumer
+            implements ObjIntConsumer {
+        final Method method;
+
+<span class="fc" id="L756">        public ReflectObjIntConsumer(Method method) {</span>
+<span class="fc" id="L757">            this.method = method;</span>
+<span class="fc" id="L758">        }</span>
+
+        @Override
+        public void accept(Object object, int value) {
+            try {
+<span class="fc" id="L763">                method.invoke(object, value);</span>
+<span class="nc" id="L764">            } catch (IllegalAccessException | InvocationTargetException e) {</span>
+<span class="nc" id="L765">                throw new JSONException(&quot;invoke error&quot;, e);</span>
+<span class="fc" id="L766">            }</span>
+<span class="fc" id="L767">        }</span>
+    }
+
+    static final class FactoryFunction
+            implements Function {
+        final Method method;
+
+<span class="fc" id="L774">        FactoryFunction(Method method) {</span>
+<span class="fc" id="L775">            this.method = method;</span>
+<span class="fc" id="L776">        }</span>
+
+        @Override
+        public Object apply(Object arg) {
+            try {
+<span class="fc" id="L781">                return method.invoke(null, arg);</span>
+<span class="nc" id="L782">            } catch (Exception e) {</span>
+<span class="nc" id="L783">                throw new JSONException(&quot;createInstance error&quot;, e);</span>
+            }
+        }
+    }
+
+    static final class GetterFunction
+            implements Function {
+        final Method method;
+
+<span class="nc" id="L792">        GetterFunction(Method method) {</span>
+<span class="nc" id="L793">            this.method = method;</span>
+<span class="nc" id="L794">        }</span>
+
+        @Override
+        public Object apply(Object arg) {
+            try {
+<span class="nc" id="L799">                return method.invoke(arg);</span>
+<span class="nc" id="L800">            } catch (Exception e) {</span>
+<span class="nc" id="L801">                throw new JSONException(&quot;createInstance error&quot;, e);</span>
+            }
+        }
+    }
+
+    static final class ReflectLongFunction
+            implements LongFunction {
+        final Constructor constructor;
+
+<span class="fc" id="L810">        public ReflectLongFunction(Constructor constructor) {</span>
+<span class="fc" id="L811">            this.constructor = constructor;</span>
+<span class="fc" id="L812">        }</span>
+
+        @Override
+        public Object apply(long value) {
+            try {
+<span class="fc" id="L817">                return constructor.newInstance(value);</span>
+<span class="nc" id="L818">            } catch (Exception e) {</span>
+<span class="nc" id="L819">                throw new JSONException(&quot;createInstance error&quot;, e);</span>
+            }
+        }
+    }
+
+    static final class ReflectToIntFunction
+            implements ToIntFunction {
+        final Method method;
+
+<span class="fc" id="L828">        public ReflectToIntFunction(Method method) {</span>
+<span class="fc" id="L829">            this.method = method;</span>
+<span class="fc" id="L830">        }</span>
+
+        public int applyAsInt(Object object) {
+            try {
+<span class="fc" id="L834">                return (Integer) method.invoke(object);</span>
+<span class="nc" id="L835">            } catch (Exception e) {</span>
+<span class="nc" id="L836">                throw new JSONException(&quot;applyAsInt error&quot;, e);</span>
+            }
+        }
+    }
+
+    static final class ReflectToLongFunction
+            implements ToLongFunction {
+        final Method method;
+
+<span class="fc" id="L845">        public ReflectToLongFunction(Method method) {</span>
+<span class="fc" id="L846">            this.method = method;</span>
+<span class="fc" id="L847">        }</span>
+
+        public long applyAsLong(Object object) {
+            try {
+<span class="fc" id="L851">                return (Long) method.invoke(object);</span>
+<span class="nc" id="L852">            } catch (Exception e) {</span>
+<span class="nc" id="L853">                throw new JSONException(&quot;applyAsLong error&quot;, e);</span>
+            }
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.8.202204050719</span></div></body></html>

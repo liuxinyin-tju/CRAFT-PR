@@ -1,0 +1,105 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>FieldReaderBigIntegerFunc.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">fastjson2</a> &gt; <a href="index.source.html" class="el_package">com.alibaba.fastjson2.reader</a> &gt; <span class="el_source">FieldReaderBigIntegerFunc.java</span></div><h1>FieldReaderBigIntegerFunc.java</h1><pre class="source lang-java linenums">package com.alibaba.fastjson2.reader;
+
+import com.alibaba.fastjson2.JSONException;
+import com.alibaba.fastjson2.JSONReader;
+import com.alibaba.fastjson2.schema.JSONSchema;
+import com.alibaba.fastjson2.util.TypeUtils;
+
+import java.lang.reflect.Method;
+import java.math.BigInteger;
+import java.util.Locale;
+import java.util.function.BiConsumer;
+
+final class FieldReaderBigIntegerFunc&lt;T, V&gt;
+        extends FieldReader&lt;T&gt; {
+    final BiConsumer&lt;T, V&gt; function;
+
+    public FieldReaderBigIntegerFunc(
+            String fieldName,
+            Class&lt;V&gt; fieldClass,
+            int ordinal,
+            long features,
+            String format,
+            Locale locale,
+            Object defaultValue,
+            JSONSchema schema,
+            Method method,
+            BiConsumer&lt;T, V&gt; function
+    ) {
+<span class="fc" id="L29">        super(fieldName, fieldClass, fieldClass, ordinal, features, format, locale, defaultValue, schema, method, null);</span>
+<span class="fc" id="L30">        this.function = function;</span>
+<span class="fc" id="L31">    }</span>
+
+    @Override
+    public void accept(T object, Object value) {
+<span class="fc" id="L35">        BigInteger bigInteger = TypeUtils.toBigInteger(value);</span>
+
+<span class="fc bfc" id="L37" title="All 2 branches covered.">        if (schema != null) {</span>
+<span class="fc" id="L38">            schema.assertValidate(bigInteger);</span>
+        }
+
+        try {
+<span class="fc" id="L42">            function.accept(object, (V) bigInteger);</span>
+<span class="fc" id="L43">        } catch (Exception e) {</span>
+<span class="fc" id="L44">            throw new JSONException(&quot;set &quot; + super.toString() + &quot; error&quot;, e);</span>
+<span class="fc" id="L45">        }</span>
+<span class="fc" id="L46">    }</span>
+
+    @Override
+    public void accept(T object, int value) {
+<span class="pc bpc" id="L50" title="1 of 2 branches missed.">        if (schema != null) {</span>
+<span class="nc" id="L51">            schema.assertValidate(value);</span>
+        }
+
+        try {
+<span class="pc" id="L55">            function.accept(object,</span>
+<span class="fc" id="L56">                    (V) BigInteger.valueOf(value));</span>
+<span class="fc" id="L57">        } catch (Exception e) {</span>
+<span class="fc" id="L58">            throw new JSONException(&quot;set &quot; + super.toString() + &quot; error&quot;, e);</span>
+<span class="nc" id="L59">        }</span>
+<span class="nc" id="L60">    }</span>
+
+    @Override
+    public void accept(T object, long value) {
+<span class="pc bpc" id="L64" title="1 of 2 branches missed.">        if (schema != null) {</span>
+<span class="nc" id="L65">            schema.assertValidate(value);</span>
+        }
+
+        try {
+<span class="nc" id="L69">            function.accept(object, (V) BigInteger.valueOf(value));</span>
+<span class="fc" id="L70">        } catch (Exception e) {</span>
+<span class="fc" id="L71">            throw new JSONException(&quot;set &quot; + super.toString() + &quot; error&quot;, e);</span>
+<span class="nc" id="L72">        }</span>
+<span class="nc" id="L73">    }</span>
+
+    @Override
+    public void readFieldValue(JSONReader jsonReader, T object) {
+        BigInteger fieldValue;
+        try {
+<span class="fc" id="L79">            fieldValue = jsonReader.readBigInteger();</span>
+<span class="fc" id="L80">        } catch (Exception e) {</span>
+<span class="pc bpc" id="L81" title="1 of 2 branches missed.">            if ((jsonReader.features(this.features) &amp; JSONReader.Feature.NullOnError.mask) != 0) {</span>
+<span class="fc" id="L82">                fieldValue = null;</span>
+            } else {
+<span class="nc" id="L84">                throw e;</span>
+            }
+<span class="fc" id="L86">        }</span>
+
+<span class="fc bfc" id="L88" title="All 2 branches covered.">        if (schema != null) {</span>
+<span class="fc" id="L89">            schema.assertValidate(fieldValue);</span>
+        }
+
+<span class="fc" id="L92">        function.accept(object, (V) fieldValue);</span>
+<span class="fc" id="L93">    }</span>
+
+    @Override
+    public Object readFieldValue(JSONReader jsonReader) {
+<span class="fc" id="L97">        return jsonReader.readBigInteger();</span>
+    }
+
+    @Override
+    public BiConsumer getFunction() {
+<span class="fc" id="L102">        return function;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.8.202204050719</span></div></body></html>

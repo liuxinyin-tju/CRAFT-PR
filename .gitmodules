@@ -1,0 +1,21 @@
+[submodule "multi_swe_bench/tmp/repos/fasterxml/jackson-core"]
+	path = multi_swe_bench/tmp/repos/fasterxml/jackson-core
+	url = https://github.com/FasterXML/jackson-core.git
+[submodule "multi_swe_bench/tmp/repos/fasterxml/jackson-databind"]
+	path = multi_swe_bench/tmp/repos/fasterxml/jackson-databind
+	url = https://github.com/FasterXML/jackson-databind.git
+[submodule "multi_swe_bench/tmp/repos/fasterxml/jackson-dataformat-xml"]
+	path = multi_swe_bench/tmp/repos/fasterxml/jackson-dataformat-xml
+	url = https://github.com/FasterXML/jackson-dataformat-xml.git
+[submodule "multi_swe_bench/tmp/repos/google/gson"]
+	path = multi_swe_bench/tmp/repos/google/gson
+	url = https://github.com/google/gson.git
+[submodule "multi_swe_bench/tmp/repos/google/guava"]
+	path = multi_swe_bench/tmp/repos/google/guava
+	url = https://github.com/google/guava.git
+[submodule "multi_swe_bench/tmp/repos/googlecontainertools/jib"]
+	path = multi_swe_bench/tmp/repos/googlecontainertools/jib
+	url = https://github.com/GoogleContainerTools/jib.git
+[submodule "multi_swe_bench/tmp/repos/mockito/mockito"]
+	path = multi_swe_bench/tmp/repos/mockito/mockito
+	url = https://github.com/mockito/mockito.git

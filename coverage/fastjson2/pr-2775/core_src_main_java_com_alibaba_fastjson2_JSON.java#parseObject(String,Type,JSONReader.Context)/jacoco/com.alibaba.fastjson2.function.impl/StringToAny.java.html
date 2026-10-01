@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>StringToAny.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">fastjson2</a> &gt; <a href="index.source.html" class="el_package">com.alibaba.fastjson2.function.impl</a> &gt; <span class="el_source">StringToAny.java</span></div><h1>StringToAny.java</h1><pre class="source lang-java linenums">package com.alibaba.fastjson2.function.impl;
+
+import com.alibaba.fastjson2.JSON;
+import com.alibaba.fastjson2.JSONArray;
+import com.alibaba.fastjson2.JSONException;
+import com.alibaba.fastjson2.util.DateUtils;
+import com.alibaba.fastjson2.util.IOUtils;
+
+import java.math.BigDecimal;
+import java.math.BigInteger;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+import java.util.function.Function;
+
+public class StringToAny
+        implements Function {
+    final Object defaultValue;
+    final Class targetClass;
+
+<span class="fc" id="L21">    public StringToAny(Class targetClass, Object defaultValue) {</span>
+<span class="fc" id="L22">        this.targetClass = targetClass;</span>
+<span class="fc" id="L23">        this.defaultValue = defaultValue;</span>
+<span class="fc" id="L24">    }</span>
+
+    @Override
+    public Object apply(Object from) {
+<span class="fc" id="L28">        String str = (String) from;</span>
+<span class="fc bfc" id="L29" title="All 6 branches covered.">        if (str == null || &quot;null&quot;.equals(str) || str.isEmpty()) {</span>
+<span class="fc" id="L30">            return defaultValue;</span>
+        }
+
+<span class="fc bfc" id="L33" title="All 4 branches covered.">        if (targetClass == byte.class || targetClass == Byte.class) {</span>
+<span class="fc" id="L34">            return Byte.parseByte(str);</span>
+        }
+
+<span class="fc bfc" id="L37" title="All 4 branches covered.">        if (targetClass == short.class || targetClass == Short.class) {</span>
+<span class="fc" id="L38">            return Short.parseShort(str);</span>
+        }
+
+<span class="fc bfc" id="L41" title="All 4 branches covered.">        if (targetClass == int.class || targetClass == Integer.class) {</span>
+<span class="fc" id="L42">            return Integer.parseInt(str);</span>
+        }
+
+<span class="fc bfc" id="L45" title="All 4 branches covered.">        if (targetClass == long.class || targetClass == Long.class) {</span>
+<span class="fc bfc" id="L46" title="All 2 branches covered.">            if (!IOUtils.isNumber(str)) {</span>
+<span class="fc bfc" id="L47" title="All 2 branches covered.">                if (str.length() == 19) {</span>
+<span class="fc" id="L48">                    return DateUtils.parseMillis(str, DateUtils.DEFAULT_ZONE_ID);</span>
+                }
+            }
+<span class="fc" id="L51">            return Long.parseLong(str);</span>
+        }
+
+<span class="fc bfc" id="L54" title="All 4 branches covered.">        if (targetClass == float.class || targetClass == Float.class) {</span>
+<span class="fc" id="L55">            return Float.parseFloat(str);</span>
+        }
+
+<span class="fc bfc" id="L58" title="All 4 branches covered.">        if (targetClass == double.class || targetClass == Double.class) {</span>
+<span class="fc" id="L59">            return Double.parseDouble(str);</span>
+        }
+
+<span class="fc bfc" id="L62" title="All 4 branches covered.">        if (targetClass == char.class || targetClass == Character.class) {</span>
+<span class="fc" id="L63">            return str.charAt(0);</span>
+        }
+
+<span class="fc bfc" id="L66" title="All 4 branches covered.">        if (targetClass == boolean.class || targetClass == Boolean.class) {</span>
+<span class="fc" id="L67">            return &quot;true&quot;.equals(str);</span>
+        }
+
+<span class="fc bfc" id="L70" title="All 2 branches covered.">        if (targetClass == BigDecimal.class) {</span>
+<span class="fc" id="L71">            return new BigDecimal(str);</span>
+        }
+
+<span class="fc bfc" id="L74" title="All 2 branches covered.">        if (targetClass == BigInteger.class) {</span>
+<span class="fc" id="L75">            return new BigInteger(str);</span>
+        }
+
+<span class="pc bpc" id="L78" title="1 of 6 branches missed.">        if (targetClass == Collections.class || targetClass == List.class || targetClass == JSONArray.class) {</span>
+<span class="fc" id="L79">            char firstChar = str.charAt(0);</span>
+<span class="fc bfc" id="L80" title="All 2 branches covered.">            if (firstChar == '[') {</span>
+<span class="fc" id="L81">                return JSON.parseObject(str, targetClass);</span>
+            }
+
+<span class="fc" id="L84">            int commaIndex = str.indexOf(',');</span>
+<span class="pc bpc" id="L85" title="1 of 2 branches missed.">            if (commaIndex != -1) {</span>
+<span class="fc" id="L86">                String[] items = str.split(&quot;,&quot;);</span>
+<span class="fc" id="L87">                return Arrays.asList(items);</span>
+            }
+        }
+
+<span class="fc" id="L91">        throw new JSONException(&quot;can not convert to &quot; + targetClass + &quot;, value : &quot; + str);</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.8.202204050719</span></div></body></html>

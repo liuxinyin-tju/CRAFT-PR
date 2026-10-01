@@ -1,0 +1,661 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>JSONFactory.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">fastjson2</a> &gt; <a href="index.source.html" class="el_package">com.alibaba.fastjson2</a> &gt; <span class="el_source">JSONFactory.java</span></div><h1>JSONFactory.java</h1><pre class="source lang-java linenums">package com.alibaba.fastjson2;
+
+import com.alibaba.fastjson2.filter.ExtraProcessor;
+import com.alibaba.fastjson2.filter.Filter;
+import com.alibaba.fastjson2.reader.ObjectReader;
+import com.alibaba.fastjson2.reader.ObjectReaderCreator;
+import com.alibaba.fastjson2.reader.ObjectReaderProvider;
+import com.alibaba.fastjson2.util.IOUtils;
+import com.alibaba.fastjson2.util.JDKUtils;
+import com.alibaba.fastjson2.util.TypeUtils;
+import com.alibaba.fastjson2.writer.ObjectWriter;
+import com.alibaba.fastjson2.writer.ObjectWriterCreator;
+import com.alibaba.fastjson2.writer.ObjectWriterProvider;
+
+import java.io.InputStream;
+import java.lang.reflect.Type;
+import java.security.AccessController;
+import java.security.PrivilegedAction;
+import java.time.ZoneId;
+import java.util.*;
+import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
+import java.util.function.Function;
+import java.util.function.Supplier;
+
+import static com.alibaba.fastjson2.util.JDKUtils.VECTOR_BIT_LENGTH;
+
+<span class="nc" id="L27">public final class JSONFactory {</span>
+    static volatile Throwable initErrorLast;
+
+    public static final String CREATOR;
+
+    public static final String PROPERTY_DENY_PROPERTY = &quot;fastjson2.parser.deny&quot;;
+    public static final String PROPERTY_AUTO_TYPE_ACCEPT = &quot;fastjson2.autoTypeAccept&quot;;
+    public static final String PROPERTY_AUTO_TYPE_HANDLER = &quot;fastjson2.autoTypeHandler&quot;;
+    public static final String PROPERTY_AUTO_TYPE_BEFORE_HANDLER = &quot;fastjson2.autoTypeBeforeHandler&quot;;
+
+    static boolean useJacksonAnnotation;
+    static boolean useGsonAnnotation;
+
+    public static String getProperty(String key) {
+<span class="fc" id="L41">        return DEFAULT_PROPERTIES.getProperty(key);</span>
+    }
+
+    static long defaultReaderFeatures;
+    static String defaultReaderFormat;
+    static ZoneId defaultReaderZoneId;
+
+    static long defaultWriterFeatures;
+    static String defaultWriterFormat;
+    static ZoneId defaultWriterZoneId;
+    static boolean defaultWriterAlphabetic;
+    static final boolean disableReferenceDetect;
+    static final boolean disableArrayMapping;
+    static final boolean disableJSONB;
+    static final boolean disableAutoType;
+    static final boolean disableSmartMatch;
+
+    static Supplier&lt;Map&gt; defaultObjectSupplier;
+    static Supplier&lt;List&gt; defaultArraySupplier;
+
+<span class="fc" id="L61">    static final NameCacheEntry[] NAME_CACHE = new NameCacheEntry[8192];</span>
+<span class="fc" id="L62">    static final NameCacheEntry2[] NAME_CACHE2 = new NameCacheEntry2[8192];</span>
+
+    static final Function&lt;JSONWriter.Context, JSONWriter&gt; INCUBATOR_VECTOR_WRITER_CREATOR_UTF8;
+    static final Function&lt;JSONWriter.Context, JSONWriter&gt; INCUBATOR_VECTOR_WRITER_CREATOR_UTF16;
+    static final JSONReaderUTF8Creator INCUBATOR_VECTOR_READER_CREATOR_ASCII;
+    static final JSONReaderUTF8Creator INCUBATOR_VECTOR_READER_CREATOR_UTF8;
+    static final JSONReaderUTF16Creator INCUBATOR_VECTOR_READER_CREATOR_UTF16;
+
+<span class="fc" id="L70">    static int defaultDecimalMaxScale = 2048;</span>
+
+    interface JSONReaderUTF8Creator {
+        JSONReader create(JSONReader.Context ctx, String str, byte[] bytes, int offset, int length);
+    }
+
+    interface JSONReaderUTF16Creator {
+        JSONReader create(JSONReader.Context ctx, String str, char[] chars, int offset, int length);
+    }
+
+    static final class NameCacheEntry {
+        final String name;
+        final long value;
+
+<span class="fc" id="L84">        public NameCacheEntry(String name, long value) {</span>
+<span class="fc" id="L85">            this.name = name;</span>
+<span class="fc" id="L86">            this.value = value;</span>
+<span class="fc" id="L87">        }</span>
+    }
+
+    static final class NameCacheEntry2 {
+        final String name;
+        final long value0;
+        final long value1;
+
+<span class="fc" id="L95">        public NameCacheEntry2(String name, long value0, long value1) {</span>
+<span class="fc" id="L96">            this.name = name;</span>
+<span class="fc" id="L97">            this.value0 = value0;</span>
+<span class="fc" id="L98">            this.value1 = value1;</span>
+<span class="fc" id="L99">        }</span>
+    }
+
+<span class="fc" id="L102">    static final char[] CA = new char[]{</span>
+            'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H',
+            'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P',
+            'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X',
+            'Y', 'Z', 'a', 'b', 'c', 'd', 'e', 'f',
+            'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n',
+            'o', 'p', 'q', 'r', 's', 't', 'u', 'v',
+            'w', 'x', 'y', 'z', '0', '1', '2', '3',
+            '4', '5', '6', '7', '8', '9', '+', '/'
+    };
+
+<span class="fc" id="L113">    static final int[] DIGITS2 = new int[]{</span>
+            +0, +0, +0, +0, +0, +0, +0, +0, +0, +0, +0, +0, +0, +0, +0, +0,
+            +0, +0, +0, +0, +0, +0, +0, +0, +0, +0, +0, +0, +0, +0, +0, +0,
+            +0, +0, +0, +0, +0, +0, +0, +0, +0, +0, +0, +0, +0, +0, +0, +0,
+            +0, +1, +2, +3, +4, +5, +6, +7, +8, +9, +0, +0, +0, +0, +0, +0,
+            +0, 10, 11, 12, 13, 14, 15, +0, +0, +0, +0, +0, +0, +0, +0, +0,
+            +0, +0, +0, +0, +0, +0, +0, +0, +0, +0, +0, +0, +0, +0, +0, +0,
+            +0, 10, 11, 12, 13, 14, 15
+    };
+
+<span class="fc" id="L123">    static final float[] FLOAT_10_POW = {</span>
+            1.0e0f, 1.0e1f, 1.0e2f, 1.0e3f, 1.0e4f, 1.0e5f,
+            1.0e6f, 1.0e7f, 1.0e8f, 1.0e9f, 1.0e10f
+    };
+
+<span class="fc" id="L128">    static final double[] DOUBLE_10_POW = {</span>
+            1.0e0, 1.0e1, 1.0e2, 1.0e3, 1.0e4,
+            1.0e5, 1.0e6, 1.0e7, 1.0e8, 1.0e9,
+            1.0e10, 1.0e11, 1.0e12, 1.0e13, 1.0e14,
+            1.0e15, 1.0e16, 1.0e17, 1.0e18, 1.0e19,
+            1.0e20, 1.0e21, 1.0e22
+    };
+
+<span class="fc" id="L136">    static final Double DOUBLE_ZERO = (double) 0;</span>
+
+    static {
+<span class="fc" id="L139">        Properties properties = new Properties();</span>
+
+<span class="fc" id="L141">        InputStream inputStream = AccessController.doPrivileged((PrivilegedAction&lt;InputStream&gt;) () -&gt; {</span>
+<span class="fc" id="L142">            ClassLoader cl = Thread.currentThread().getContextClassLoader();</span>
+
+<span class="fc" id="L144">            final String resourceFile = &quot;fastjson2.properties&quot;;</span>
+
+<span class="pc bpc" id="L146" title="1 of 2 branches missed.">            if (cl != null) {</span>
+<span class="fc" id="L147">                return cl.getResourceAsStream(resourceFile);</span>
+            } else {
+<span class="nc" id="L149">                return ClassLoader.getSystemResourceAsStream(resourceFile);</span>
+            }
+        });
+<span class="pc bpc" id="L152" title="1 of 2 branches missed.">        if (inputStream != null) {</span>
+            try {
+<span class="nc" id="L154">                properties.load(inputStream);</span>
+<span class="nc" id="L155">            } catch (java.io.IOException ignored) {</span>
+            } finally {
+<span class="nc" id="L157">                IOUtils.close(inputStream);</span>
+            }
+        }
+<span class="fc" id="L160">        DEFAULT_PROPERTIES = properties;</span>
+
+        {
+<span class="fc" id="L163">            String property = System.getProperty(&quot;fastjson2.creator&quot;);</span>
+<span class="pc bpc" id="L164" title="1 of 2 branches missed.">            if (property != null) {</span>
+<span class="nc" id="L165">                property = property.trim();</span>
+            }
+
+<span class="pc bpc" id="L168" title="3 of 4 branches missed.">            if (property == null || property.isEmpty()) {</span>
+<span class="fc" id="L169">                property = properties.getProperty(&quot;fastjson2.creator&quot;);</span>
+<span class="pc bpc" id="L170" title="1 of 2 branches missed.">                if (property != null) {</span>
+<span class="nc" id="L171">                    property = property.trim();</span>
+                }
+            }
+
+<span class="pc bpc" id="L175" title="1 of 2 branches missed.">            CREATOR = property == null ? &quot;asm&quot; : property;</span>
+        }
+        {
+<span class="fc" id="L178">            boolean disableReferenceDetect0 = false,</span>
+<span class="fc" id="L179">                    disableArrayMapping0 = false,</span>
+<span class="fc" id="L180">                    disableJSONB0 = false,</span>
+<span class="fc" id="L181">                    disableAutoType0 = false,</span>
+<span class="fc" id="L182">                    disableSmartMatch0 = false;</span>
+<span class="fc" id="L183">            String features = System.getProperty(&quot;fastjson2.features&quot;);</span>
+<span class="pc bpc" id="L184" title="1 of 2 branches missed.">            if (features == null) {</span>
+<span class="fc" id="L185">                features = getProperty(&quot;fastjson2.features&quot;);</span>
+            }
+<span class="pc bpc" id="L187" title="1 of 2 branches missed.">            if (features != null) {</span>
+<span class="nc bnc" id="L188" title="All 2 branches missed.">                for (String feature : features.split(&quot;,&quot;)) {</span>
+<span class="nc bnc" id="L189" title="All 6 branches missed.">                    switch (feature) {</span>
+                        case &quot;disableReferenceDetect&quot;:
+<span class="nc" id="L191">                            disableReferenceDetect0 = true;</span>
+<span class="nc" id="L192">                            break;</span>
+                        case &quot;disableArrayMapping&quot;:
+<span class="nc" id="L194">                            disableArrayMapping0 = true;</span>
+<span class="nc" id="L195">                            break;</span>
+                        case &quot;disableJSONB&quot;:
+<span class="nc" id="L197">                            disableJSONB0 = true;</span>
+<span class="nc" id="L198">                            break;</span>
+                        case &quot;disableAutoType&quot;:
+<span class="nc" id="L200">                            disableAutoType0 = true;</span>
+<span class="nc" id="L201">                            break;</span>
+                        case &quot;disableSmartMatch&quot;:
+<span class="nc" id="L203">                            disableSmartMatch0 = true;</span>
+<span class="nc" id="L204">                            break;</span>
+                        default:
+                            break;
+                    }
+                }
+            }
+
+<span class="fc" id="L211">            disableReferenceDetect = disableReferenceDetect0;</span>
+<span class="fc" id="L212">            disableArrayMapping = disableArrayMapping0;</span>
+<span class="fc" id="L213">            disableJSONB = disableJSONB0;</span>
+<span class="fc" id="L214">            disableAutoType = disableAutoType0;</span>
+<span class="fc" id="L215">            disableSmartMatch = disableSmartMatch0;</span>
+        }
+
+<span class="fc" id="L218">        useJacksonAnnotation = getPropertyBool(properties, &quot;fastjson2.useJacksonAnnotation&quot;, true);</span>
+<span class="fc" id="L219">        useGsonAnnotation = getPropertyBool(properties, &quot;fastjson2.useGsonAnnotation&quot;, true);</span>
+<span class="fc" id="L220">        defaultWriterAlphabetic = getPropertyBool(properties, &quot;fastjson2.writer.alphabetic&quot;, true);</span>
+
+<span class="fc" id="L222">        boolean readerVector = getPropertyBool(properties, &quot;fastjson2.readerVector&quot;, false);</span>
+
+<span class="fc" id="L224">        Function&lt;JSONWriter.Context, JSONWriter&gt; incubatorVectorCreatorUTF8 = null;</span>
+<span class="fc" id="L225">        Function&lt;JSONWriter.Context, JSONWriter&gt; incubatorVectorCreatorUTF16 = null;</span>
+<span class="fc" id="L226">        JSONReaderUTF8Creator readerCreatorASCII = null;</span>
+<span class="fc" id="L227">        JSONReaderUTF8Creator readerCreatorUTF8 = null;</span>
+<span class="fc" id="L228">        JSONReaderUTF16Creator readerCreatorUTF16 = null;</span>
+<span class="pc bpc" id="L229" title="1 of 2 branches missed.">        if (JDKUtils.VECTOR_SUPPORT) {</span>
+<span class="nc bnc" id="L230" title="All 2 branches missed.">            if (VECTOR_BIT_LENGTH &gt;= 64) {</span>
+                try {
+<span class="nc" id="L232">                    Class&lt;?&gt; factoryClass = Class.forName(&quot;com.alibaba.fastjson2.JSONWriterUTF8Vector$Factory&quot;);</span>
+<span class="nc" id="L233">                    incubatorVectorCreatorUTF8 = (Function&lt;JSONWriter.Context, JSONWriter&gt;) factoryClass.newInstance();</span>
+<span class="nc" id="L234">                } catch (Throwable e) {</span>
+<span class="nc" id="L235">                    initErrorLast = e;</span>
+<span class="nc" id="L236">                }</span>
+
+                try {
+<span class="nc" id="L239">                    Class&lt;?&gt; factoryClass = Class.forName(&quot;com.alibaba.fastjson2.JSONWriterUTF16Vector$Factory&quot;);</span>
+<span class="nc" id="L240">                    incubatorVectorCreatorUTF16 = (Function&lt;JSONWriter.Context, JSONWriter&gt;) factoryClass.newInstance();</span>
+<span class="nc" id="L241">                } catch (Throwable e) {</span>
+<span class="nc" id="L242">                    initErrorLast = e;</span>
+<span class="nc" id="L243">                }</span>
+
+<span class="nc bnc" id="L245" title="All 2 branches missed.">                if (readerVector) {</span>
+                    try {
+<span class="nc" id="L247">                        Class&lt;?&gt; factoryClass = Class.forName(&quot;com.alibaba.fastjson2.JSONReaderASCIIVector$Factory&quot;);</span>
+<span class="nc" id="L248">                        readerCreatorASCII = (JSONReaderUTF8Creator) factoryClass.newInstance();</span>
+<span class="nc" id="L249">                    } catch (Throwable e) {</span>
+<span class="nc" id="L250">                        initErrorLast = e;</span>
+<span class="nc" id="L251">                    }</span>
+
+                    try {
+<span class="nc" id="L254">                        Class&lt;?&gt; factoryClass = Class.forName(&quot;com.alibaba.fastjson2.JSONReaderUTF8Vector$Factory&quot;);</span>
+<span class="nc" id="L255">                        readerCreatorUTF8 = (JSONReaderUTF8Creator) factoryClass.newInstance();</span>
+<span class="nc" id="L256">                    } catch (Throwable e) {</span>
+<span class="nc" id="L257">                        initErrorLast = e;</span>
+<span class="nc" id="L258">                    }</span>
+                }
+            }
+
+<span class="nc bnc" id="L262" title="All 4 branches missed.">            if (VECTOR_BIT_LENGTH &gt;= 128 &amp;&amp; readerVector) {</span>
+                try {
+<span class="nc" id="L264">                    Class&lt;?&gt; factoryClass = Class.forName(&quot;com.alibaba.fastjson2.JSONReaderUTF16Vector$Factory&quot;);</span>
+<span class="nc" id="L265">                    readerCreatorUTF16 = (JSONReaderUTF16Creator) factoryClass.newInstance();</span>
+<span class="nc" id="L266">                } catch (Throwable e) {</span>
+<span class="nc" id="L267">                    initErrorLast = e;</span>
+<span class="nc" id="L268">                }</span>
+            }
+        }
+<span class="fc" id="L271">        INCUBATOR_VECTOR_WRITER_CREATOR_UTF8 = incubatorVectorCreatorUTF8;</span>
+<span class="fc" id="L272">        INCUBATOR_VECTOR_WRITER_CREATOR_UTF16 = incubatorVectorCreatorUTF16;</span>
+<span class="fc" id="L273">        INCUBATOR_VECTOR_READER_CREATOR_ASCII = readerCreatorASCII;</span>
+<span class="fc" id="L274">        INCUBATOR_VECTOR_READER_CREATOR_UTF8 = readerCreatorUTF8;</span>
+<span class="fc" id="L275">        INCUBATOR_VECTOR_READER_CREATOR_UTF16 = readerCreatorUTF16;</span>
+    }
+
+    private static boolean getPropertyBool(Properties properties, String name, boolean defaultValue) {
+<span class="fc" id="L279">        boolean propertyValue = defaultValue;</span>
+
+<span class="fc" id="L281">        String property = System.getProperty(name);</span>
+<span class="pc bpc" id="L282" title="1 of 2 branches missed.">        if (property != null) {</span>
+<span class="nc" id="L283">            property = property.trim();</span>
+<span class="nc bnc" id="L284" title="All 2 branches missed.">            if (property.isEmpty()) {</span>
+<span class="nc" id="L285">                property = properties.getProperty(name);</span>
+<span class="nc bnc" id="L286" title="All 2 branches missed.">                if (property != null) {</span>
+<span class="nc" id="L287">                    property = property.trim();</span>
+                }
+            }
+<span class="nc bnc" id="L290" title="All 2 branches missed.">            if (defaultValue) {</span>
+<span class="nc bnc" id="L291" title="All 2 branches missed.">                if (&quot;false&quot;.equals(property)) {</span>
+<span class="nc" id="L292">                    propertyValue = false;</span>
+                }
+            } else {
+<span class="nc bnc" id="L295" title="All 2 branches missed.">                if (&quot;true&quot;.equals(property)) {</span>
+<span class="nc" id="L296">                    propertyValue = true;</span>
+                }
+            }
+        }
+
+<span class="fc" id="L301">        return propertyValue;</span>
+    }
+
+    private static String getProperty(Properties properties, String name) {
+<span class="nc" id="L305">        String property = System.getProperty(name);</span>
+<span class="nc bnc" id="L306" title="All 2 branches missed.">        if (property != null) {</span>
+<span class="nc" id="L307">            property = property.trim();</span>
+<span class="nc bnc" id="L308" title="All 2 branches missed.">            if (property.isEmpty()) {</span>
+<span class="nc" id="L309">                property = properties.getProperty(name);</span>
+<span class="nc bnc" id="L310" title="All 2 branches missed.">                if (property != null) {</span>
+<span class="nc" id="L311">                    property = property.trim();</span>
+                }
+            }
+        }
+
+<span class="nc" id="L316">        return property;</span>
+    }
+
+    public static boolean isUseJacksonAnnotation() {
+<span class="fc" id="L320">        return useJacksonAnnotation;</span>
+    }
+
+    public static boolean isUseGsonAnnotation() {
+<span class="fc" id="L324">        return useGsonAnnotation;</span>
+    }
+
+    public static void setUseJacksonAnnotation(boolean useJacksonAnnotation) {
+<span class="fc" id="L328">        JSONFactory.useJacksonAnnotation = useJacksonAnnotation;</span>
+<span class="fc" id="L329">    }</span>
+
+    static final CacheItem[] CACHE_ITEMS;
+
+    static {
+<span class="fc" id="L334">        final CacheItem[] items = new CacheItem[16];</span>
+<span class="fc bfc" id="L335" title="All 2 branches covered.">        for (int i = 0; i &lt; items.length; i++) {</span>
+<span class="fc" id="L336">            items[i] = new CacheItem();</span>
+        }
+<span class="fc" id="L338">        CACHE_ITEMS = items;</span>
+    }
+
+    static final int CACHE_THRESHOLD = 1024 * 1024 * 4;
+<span class="fc" id="L342">    static final AtomicReferenceFieldUpdater&lt;CacheItem, char[]&gt; CHARS_UPDATER</span>
+<span class="fc" id="L343">            = AtomicReferenceFieldUpdater.newUpdater(CacheItem.class, char[].class, &quot;chars&quot;);</span>
+<span class="fc" id="L344">    static final AtomicReferenceFieldUpdater&lt;CacheItem, byte[]&gt; BYTES_UPDATER</span>
+<span class="fc" id="L345">            = AtomicReferenceFieldUpdater.newUpdater(CacheItem.class, byte[].class, &quot;bytes&quot;);</span>
+
+<span class="fc" id="L347">    static final class CacheItem {</span>
+        volatile char[] chars;
+        volatile byte[] bytes;
+    }
+
+    static final Properties DEFAULT_PROPERTIES;
+
+<span class="fc" id="L354">    static final ObjectWriterProvider defaultObjectWriterProvider = new ObjectWriterProvider();</span>
+<span class="fc" id="L355">    static final ObjectReaderProvider defaultObjectReaderProvider = new ObjectReaderProvider();</span>
+
+    static final JSONPathCompiler defaultJSONPathCompiler;
+
+    static {
+<span class="fc" id="L360">        JSONPathCompilerReflect compiler = null;</span>
+<span class="pc bpc" id="L361" title="1 of 2 branches missed.">        switch (JSONFactory.CREATOR) {</span>
+            case &quot;reflect&quot;:
+            case &quot;lambda&quot;:
+<span class="nc" id="L364">                compiler = JSONPathCompilerReflect.INSTANCE;</span>
+<span class="nc" id="L365">                break;</span>
+            default:
+                try {
+<span class="pc bpc" id="L368" title="2 of 4 branches missed.">                    if (!JDKUtils.ANDROID &amp;&amp; !JDKUtils.GRAAL) {</span>
+<span class="fc" id="L369">                        compiler = JSONPathCompilerReflectASM.INSTANCE;</span>
+                    }
+<span class="nc" id="L371">                } catch (Throwable ignored) {</span>
+                    // ignored
+<span class="fc" id="L373">                }</span>
+<span class="pc bpc" id="L374" title="1 of 2 branches missed.">                if (compiler == null) {</span>
+<span class="nc" id="L375">                    compiler = JSONPathCompilerReflect.INSTANCE;</span>
+                }
+                break;
+        }
+<span class="fc" id="L379">        defaultJSONPathCompiler = compiler;</span>
+    }
+
+<span class="fc" id="L382">    static final ThreadLocal&lt;ObjectReaderCreator&gt; readerCreatorLocal = new ThreadLocal&lt;&gt;();</span>
+<span class="fc" id="L383">    static final ThreadLocal&lt;ObjectReaderProvider&gt; readerProviderLocal = new ThreadLocal&lt;&gt;();</span>
+<span class="fc" id="L384">    static final ThreadLocal&lt;ObjectWriterCreator&gt; writerCreatorLocal = new ThreadLocal&lt;&gt;();</span>
+
+<span class="fc" id="L386">    static final ThreadLocal&lt;JSONPathCompiler&gt; jsonPathCompilerLocal = new ThreadLocal&lt;&gt;();</span>
+
+<span class="fc" id="L388">    static final ObjectReader&lt;JSONArray&gt; ARRAY_READER = JSONFactory.getDefaultObjectReaderProvider().getObjectReader(JSONArray.class);</span>
+<span class="fc" id="L389">    static final ObjectReader&lt;JSONObject&gt; OBJECT_READER = JSONFactory.getDefaultObjectReaderProvider().getObjectReader(JSONObject.class);</span>
+
+    static final byte[] UUID_VALUES;
+
+    static {
+<span class="fc" id="L394">        UUID_VALUES = new byte['f' + 1 - '0'];</span>
+<span class="fc bfc" id="L395" title="All 2 branches covered.">        for (char c = '0'; c &lt;= '9'; c++) {</span>
+<span class="fc" id="L396">            UUID_VALUES[c - '0'] = (byte) (c - '0');</span>
+        }
+<span class="fc bfc" id="L398" title="All 2 branches covered.">        for (char c = 'a'; c &lt;= 'f'; c++) {</span>
+<span class="fc" id="L399">            UUID_VALUES[c - '0'] = (byte) (c - 'a' + 10);</span>
+        }
+<span class="fc bfc" id="L401" title="All 2 branches covered.">        for (char c = 'A'; c &lt;= 'F'; c++) {</span>
+<span class="fc" id="L402">            UUID_VALUES[c - '0'] = (byte) (c - 'A' + 10);</span>
+        }
+<span class="fc" id="L404">    }</span>
+
+    /**
+     * @param objectSupplier
+     * @since 2.0.15
+     */
+    public static void setDefaultObjectSupplier(Supplier&lt;Map&gt; objectSupplier) {
+<span class="fc" id="L411">        defaultObjectSupplier = objectSupplier;</span>
+<span class="fc" id="L412">    }</span>
+
+    /**
+     * @param arraySupplier
+     * @since 2.0.15
+     */
+    public static void setDefaultArraySupplier(Supplier&lt;List&gt; arraySupplier) {
+<span class="fc" id="L419">        defaultArraySupplier = arraySupplier;</span>
+<span class="fc" id="L420">    }</span>
+
+    public static Supplier&lt;Map&gt; getDefaultObjectSupplier() {
+<span class="fc" id="L423">        return defaultObjectSupplier;</span>
+    }
+
+    public static Supplier&lt;List&gt; getDefaultArraySupplier() {
+<span class="fc" id="L427">        return defaultArraySupplier;</span>
+    }
+
+    public static JSONWriter.Context createWriteContext() {
+<span class="fc" id="L431">        return new JSONWriter.Context(defaultObjectWriterProvider);</span>
+    }
+
+    public static JSONWriter.Context createWriteContext(ObjectWriterProvider provider, JSONWriter.Feature... features) {
+<span class="fc" id="L435">        JSONWriter.Context context = new JSONWriter.Context(provider);</span>
+<span class="fc" id="L436">        context.config(features);</span>
+<span class="fc" id="L437">        return context;</span>
+    }
+
+    public static JSONWriter.Context createWriteContext(JSONWriter.Feature... features) {
+<span class="fc" id="L441">        return new JSONWriter.Context(defaultObjectWriterProvider, features);</span>
+    }
+
+    public static JSONReader.Context createReadContext() {
+<span class="fc" id="L445">        ObjectReaderProvider provider = JSONFactory.getDefaultObjectReaderProvider();</span>
+<span class="fc" id="L446">        return new JSONReader.Context(provider);</span>
+    }
+
+    public static JSONReader.Context createReadContext(long features) {
+<span class="fc" id="L450">        ObjectReaderProvider provider = JSONFactory.getDefaultObjectReaderProvider();</span>
+<span class="fc" id="L451">        return new JSONReader.Context(provider, features);</span>
+    }
+
+    public static JSONReader.Context createReadContext(JSONReader.Feature... features) {
+<span class="fc" id="L455">        JSONReader.Context context = new JSONReader.Context(</span>
+<span class="fc" id="L456">                JSONFactory.getDefaultObjectReaderProvider()</span>
+        );
+<span class="fc bfc" id="L458" title="All 2 branches covered.">        for (int i = 0; i &lt; features.length; i++) {</span>
+<span class="fc" id="L459">            context.features |= features[i].mask;</span>
+        }
+<span class="fc" id="L461">        return context;</span>
+    }
+
+    public static JSONReader.Context createReadContext(Filter filter, JSONReader.Feature... features) {
+<span class="fc" id="L465">        ObjectReaderProvider provider = JSONFactory.getDefaultObjectReaderProvider();</span>
+<span class="fc" id="L466">        JSONReader.Context context = new JSONReader.Context(provider);</span>
+
+<span class="fc bfc" id="L468" title="All 2 branches covered.">        if (filter instanceof JSONReader.AutoTypeBeforeHandler) {</span>
+<span class="fc" id="L469">            context.autoTypeBeforeHandler = (JSONReader.AutoTypeBeforeHandler) filter;</span>
+        }
+
+<span class="fc bfc" id="L472" title="All 2 branches covered.">        if (filter instanceof ExtraProcessor) {</span>
+<span class="fc" id="L473">            context.extraProcessor = (ExtraProcessor) filter;</span>
+        }
+
+<span class="fc bfc" id="L476" title="All 2 branches covered.">        for (int i = 0; i &lt; features.length; i++) {</span>
+<span class="fc" id="L477">            context.features |= features[i].mask;</span>
+        }
+<span class="fc" id="L479">        return context;</span>
+    }
+
+    public static JSONReader.Context createReadContext(ObjectReaderProvider provider, JSONReader.Feature... features) {
+<span class="pc bpc" id="L483" title="1 of 2 branches missed.">        if (provider == null) {</span>
+<span class="nc" id="L484">            provider = getDefaultObjectReaderProvider();</span>
+        }
+
+<span class="fc" id="L487">        JSONReader.Context context = new JSONReader.Context(provider);</span>
+<span class="fc" id="L488">        context.config(features);</span>
+<span class="fc" id="L489">        return context;</span>
+    }
+
+    public static JSONReader.Context createReadContext(SymbolTable symbolTable) {
+<span class="fc" id="L493">        ObjectReaderProvider provider = JSONFactory.getDefaultObjectReaderProvider();</span>
+<span class="fc" id="L494">        return new JSONReader.Context(provider, symbolTable);</span>
+    }
+
+    public static JSONReader.Context createReadContext(SymbolTable symbolTable, JSONReader.Feature... features) {
+<span class="fc" id="L498">        ObjectReaderProvider provider = JSONFactory.getDefaultObjectReaderProvider();</span>
+<span class="fc" id="L499">        JSONReader.Context context = new JSONReader.Context(provider, symbolTable);</span>
+<span class="fc" id="L500">        context.config(features);</span>
+<span class="fc" id="L501">        return context;</span>
+    }
+
+    public static JSONReader.Context createReadContext(Supplier&lt;Map&gt; objectSupplier, JSONReader.Feature... features) {
+<span class="fc" id="L505">        ObjectReaderProvider provider = JSONFactory.getDefaultObjectReaderProvider();</span>
+<span class="fc" id="L506">        JSONReader.Context context = new JSONReader.Context(provider);</span>
+<span class="fc" id="L507">        context.setObjectSupplier(objectSupplier);</span>
+<span class="fc" id="L508">        context.config(features);</span>
+<span class="fc" id="L509">        return context;</span>
+    }
+
+    public static JSONReader.Context createReadContext(
+            Supplier&lt;Map&gt; objectSupplier,
+            Supplier&lt;List&gt; arraySupplier,
+            JSONReader.Feature... features
+    ) {
+<span class="fc" id="L517">        ObjectReaderProvider provider = JSONFactory.getDefaultObjectReaderProvider();</span>
+<span class="fc" id="L518">        JSONReader.Context context = new JSONReader.Context(provider);</span>
+<span class="fc" id="L519">        context.setObjectSupplier(objectSupplier);</span>
+<span class="fc" id="L520">        context.setArraySupplier(arraySupplier);</span>
+<span class="fc" id="L521">        context.config(features);</span>
+<span class="fc" id="L522">        return context;</span>
+    }
+
+    public static ObjectReader getObjectReader(Type type, long features) {
+<span class="fc" id="L526">        return getDefaultObjectReaderProvider()</span>
+<span class="fc" id="L527">                .getObjectReader(type, JSONReader.Feature.FieldBased.isEnabled(features));</span>
+    }
+
+    public static ObjectWriter getObjectWriter(Type type, long features) {
+<span class="fc" id="L531">        return getDefaultObjectWriterProvider()</span>
+<span class="fc" id="L532">                .getObjectWriter(type, TypeUtils.getClass(type), JSONWriter.Feature.FieldBased.isEnabled(features));</span>
+    }
+
+    public static ObjectWriterProvider getDefaultObjectWriterProvider() {
+<span class="fc" id="L536">        return defaultObjectWriterProvider;</span>
+    }
+
+    public static ObjectReaderProvider getDefaultObjectReaderProvider() {
+<span class="fc" id="L540">        ObjectReaderProvider providerLocal = readerProviderLocal.get();</span>
+<span class="pc bpc" id="L541" title="1 of 2 branches missed.">        if (providerLocal != null) {</span>
+<span class="nc" id="L542">            return providerLocal;</span>
+        }
+
+<span class="fc" id="L545">        return defaultObjectReaderProvider;</span>
+    }
+
+    public static JSONPathCompiler getDefaultJSONPathCompiler() {
+<span class="fc" id="L549">        JSONPathCompiler compilerLocal = jsonPathCompilerLocal.get();</span>
+<span class="pc bpc" id="L550" title="1 of 2 branches missed.">        if (compilerLocal != null) {</span>
+<span class="nc" id="L551">            return compilerLocal;</span>
+        }
+
+<span class="fc" id="L554">        return defaultJSONPathCompiler;</span>
+    }
+
+    public static void setContextReaderCreator(ObjectReaderCreator creator) {
+<span class="fc" id="L558">        readerCreatorLocal.set(creator);</span>
+<span class="fc" id="L559">    }</span>
+
+    public static void setContextObjectReaderProvider(ObjectReaderProvider creator) {
+<span class="fc" id="L562">        readerProviderLocal.set(creator);</span>
+<span class="fc" id="L563">    }</span>
+
+    public static ObjectReaderCreator getContextReaderCreator() {
+<span class="fc" id="L566">        return readerCreatorLocal.get();</span>
+    }
+
+    public static void setContextJSONPathCompiler(JSONPathCompiler compiler) {
+<span class="fc" id="L570">        jsonPathCompilerLocal.set(compiler);</span>
+<span class="fc" id="L571">    }</span>
+
+    public static void setContextWriterCreator(ObjectWriterCreator creator) {
+<span class="fc" id="L574">        writerCreatorLocal.set(creator);</span>
+<span class="fc" id="L575">    }</span>
+
+    public static ObjectWriterCreator getContextWriterCreator() {
+<span class="fc" id="L578">        return writerCreatorLocal.get();</span>
+    }
+
+    public interface JSONPathCompiler {
+        JSONPath compile(Class objectClass, JSONPath path);
+    }
+
+    public static long getDefaultReaderFeatures() {
+<span class="nc" id="L586">        return defaultReaderFeatures;</span>
+    }
+
+    public static ZoneId getDefaultReaderZoneId() {
+<span class="nc" id="L590">        return defaultReaderZoneId;</span>
+    }
+
+    public static String getDefaultReaderFormat() {
+<span class="nc" id="L594">        return defaultReaderFormat;</span>
+    }
+
+    public static long getDefaultWriterFeatures() {
+<span class="nc" id="L598">        return defaultWriterFeatures;</span>
+    }
+
+    public static ZoneId getDefaultWriterZoneId() {
+<span class="nc" id="L602">        return defaultWriterZoneId;</span>
+    }
+
+    public static String getDefaultWriterFormat() {
+<span class="fc" id="L606">        return defaultWriterFormat;</span>
+    }
+
+    public static boolean isDefaultWriterAlphabetic() {
+<span class="fc" id="L610">        return defaultWriterAlphabetic;</span>
+    }
+
+    public static void setDefaultWriterAlphabetic(boolean defaultWriterAlphabetic) {
+<span class="fc" id="L614">        JSONFactory.defaultWriterAlphabetic = defaultWriterAlphabetic;</span>
+<span class="fc" id="L615">    }</span>
+
+    public static boolean isDisableReferenceDetect() {
+<span class="fc" id="L618">        return disableReferenceDetect;</span>
+    }
+
+    public static boolean isDisableAutoType() {
+<span class="fc" id="L622">        return disableAutoType;</span>
+    }
+
+    public static boolean isDisableJSONB() {
+<span class="fc" id="L626">        return disableJSONB;</span>
+    }
+
+    public static boolean isDisableArrayMapping() {
+<span class="fc" id="L630">        return disableArrayMapping;</span>
+    }
+
+    public static void setDisableReferenceDetect(boolean disableReferenceDetect) {
+<span class="fc" id="L634">        defaultObjectWriterProvider.setDisableReferenceDetect(disableReferenceDetect);</span>
+<span class="fc" id="L635">        defaultObjectReaderProvider.setDisableReferenceDetect(disableReferenceDetect);</span>
+<span class="fc" id="L636">    }</span>
+
+    public static void setDisableArrayMapping(boolean disableArrayMapping) {
+<span class="fc" id="L639">        defaultObjectWriterProvider.setDisableArrayMapping(disableArrayMapping);</span>
+<span class="fc" id="L640">        defaultObjectReaderProvider.setDisableArrayMapping(disableArrayMapping);</span>
+<span class="fc" id="L641">    }</span>
+
+    public static void setDisableJSONB(boolean disableJSONB) {
+<span class="fc" id="L644">        defaultObjectWriterProvider.setDisableJSONB(disableJSONB);</span>
+<span class="fc" id="L645">        defaultObjectReaderProvider.setDisableJSONB(disableJSONB);</span>
+<span class="fc" id="L646">    }</span>
+
+    public static void setDisableAutoType(boolean disableAutoType) {
+<span class="fc" id="L649">        defaultObjectWriterProvider.setDisableAutoType(disableAutoType);</span>
+<span class="fc" id="L650">        defaultObjectReaderProvider.setDisableAutoType(disableAutoType);</span>
+<span class="fc" id="L651">    }</span>
+
+    public static boolean isDisableSmartMatch() {
+<span class="fc" id="L654">        return disableSmartMatch;</span>
+    }
+
+    public static void setDisableSmartMatch(boolean disableSmartMatch) {
+<span class="fc" id="L658">        defaultObjectReaderProvider.setDisableSmartMatch(disableSmartMatch);</span>
+<span class="fc" id="L659">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.8.202204050719</span></div></body></html>

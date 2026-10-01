@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>FactoryFunction.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">fastjson2</a> &gt; <a href="index.source.html" class="el_package">com.alibaba.fastjson2.reader</a> &gt; <span class="el_source">FactoryFunction.java</span></div><h1>FactoryFunction.java</h1><pre class="source lang-java linenums">package com.alibaba.fastjson2.reader;
+
+import com.alibaba.fastjson2.JSONException;
+import com.alibaba.fastjson2.support.LambdaMiscCodec;
+import com.alibaba.fastjson2.util.Fnv;
+
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
+import java.lang.reflect.Parameter;
+import java.util.Map;
+import java.util.function.BiFunction;
+import java.util.function.Function;
+
+final class FactoryFunction&lt;T&gt;
+        implements Function&lt;Map&lt;Long, Object&gt;, T&gt; {
+    final Method factoryMethod;
+    final Function function;
+    final BiFunction biFunction;
+    final String[] paramNames;
+    final long[] hashCodes;
+
+<span class="fc" id="L22">    FactoryFunction(Method factoryMethod, String... paramNames) {</span>
+<span class="fc" id="L23">        this.factoryMethod = factoryMethod;</span>
+<span class="fc" id="L24">        Parameter[] parameters = factoryMethod.getParameters();</span>
+<span class="fc" id="L25">        this.paramNames = new String[parameters.length];</span>
+<span class="fc" id="L26">        this.hashCodes = new long[parameters.length];</span>
+<span class="fc bfc" id="L27" title="All 2 branches covered.">        for (int i = 0; i &lt; parameters.length; i++) {</span>
+            String name;
+<span class="pc bpc" id="L29" title="1 of 2 branches missed.">            if (i &lt; paramNames.length) {</span>
+<span class="fc" id="L30">                name = paramNames[i];</span>
+            } else {
+<span class="nc" id="L32">                name = parameters[i].getName();</span>
+            }
+<span class="fc" id="L34">            paramNames[i] = name;</span>
+<span class="fc" id="L35">            hashCodes[i] = Fnv.hashCode64(name);</span>
+        }
+
+<span class="fc" id="L38">        Function function = null;</span>
+<span class="fc" id="L39">        BiFunction biFunction = null;</span>
+<span class="pc bpc" id="L40" title="1 of 2 branches missed.">        if (ObjectReaderCreator.JIT) {</span>
+<span class="fc" id="L41">            int parameterCount = factoryMethod.getParameterCount();</span>
+<span class="fc bfc" id="L42" title="All 2 branches covered.">            if (parameterCount == 1) {</span>
+<span class="fc" id="L43">                function = LambdaMiscCodec.createFunction(factoryMethod);</span>
+<span class="fc bfc" id="L44" title="All 2 branches covered.">            } else if (parameterCount == 2) {</span>
+<span class="fc" id="L45">                biFunction = LambdaMiscCodec.createBiFunction(factoryMethod);</span>
+            }
+        }
+<span class="fc" id="L48">        this.function = function;</span>
+<span class="fc" id="L49">        this.biFunction = biFunction;</span>
+<span class="fc" id="L50">    }</span>
+
+    @Override
+    public T apply(Map&lt;Long, Object&gt; values) {
+<span class="fc bfc" id="L54" title="All 2 branches covered.">        if (function != null) {</span>
+<span class="fc" id="L55">            Object arg = values.get(hashCodes[0]);</span>
+<span class="fc" id="L56">            return (T) function.apply(arg);</span>
+        }
+
+<span class="fc bfc" id="L59" title="All 2 branches covered.">        if (biFunction != null) {</span>
+<span class="fc" id="L60">            Object arg0 = values.get(hashCodes[0]);</span>
+<span class="fc" id="L61">            Object arg1 = values.get(hashCodes[1]);</span>
+<span class="fc" id="L62">            return (T) biFunction.apply(arg0, arg1);</span>
+        }
+
+<span class="fc" id="L65">        Object[] args = new Object[hashCodes.length];</span>
+<span class="fc bfc" id="L66" title="All 2 branches covered.">        for (int i = 0; i &lt; args.length; i++) {</span>
+<span class="fc" id="L67">            args[i] = values.get(hashCodes[i]);</span>
+        }
+        try {
+<span class="fc" id="L70">            return (T) factoryMethod.invoke(null, args);</span>
+<span class="fc" id="L71">        } catch (IllegalAccessException | InvocationTargetException | IllegalArgumentException e) {</span>
+<span class="fc" id="L72">            throw new JSONException(&quot;invoke factoryMethod error&quot;, e);</span>
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.8.202204050719</span></div></body></html>

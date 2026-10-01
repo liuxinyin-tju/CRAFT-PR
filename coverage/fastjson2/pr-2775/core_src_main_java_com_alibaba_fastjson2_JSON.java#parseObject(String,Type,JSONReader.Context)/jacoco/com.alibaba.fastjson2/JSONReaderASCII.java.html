@@ -1,0 +1,1571 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>JSONReaderASCII.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">fastjson2</a> &gt; <a href="index.source.html" class="el_package">com.alibaba.fastjson2</a> &gt; <span class="el_source">JSONReaderASCII.java</span></div><h1>JSONReaderASCII.java</h1><pre class="source lang-java linenums">package com.alibaba.fastjson2;
+
+import com.alibaba.fastjson2.util.Fnv;
+import com.alibaba.fastjson2.util.JDKUtils;
+import com.alibaba.fastjson2.util.TypeUtils;
+
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
+
+import static com.alibaba.fastjson2.JSONFactory.*;
+import static com.alibaba.fastjson2.util.JDKUtils.*;
+
+class JSONReaderASCII
+        extends JSONReaderUTF8 {
+    final String str;
+
+    JSONReaderASCII(Context ctx, String str, byte[] bytes, int offset, int length) {
+<span class="fc" id="L19">        super(ctx, str, bytes, offset, length);</span>
+<span class="fc" id="L20">        this.str = str;</span>
+<span class="fc" id="L21">        nameAscii = true;</span>
+<span class="fc" id="L22">    }</span>
+
+    JSONReaderASCII(Context ctx, InputStream is) {
+<span class="fc" id="L25">        super(ctx, is);</span>
+<span class="fc" id="L26">        nameAscii = true;</span>
+<span class="fc" id="L27">        str = null;</span>
+<span class="fc" id="L28">    }</span>
+
+    @Override
+    public final void next() {
+<span class="fc" id="L32">        final byte[] bytes = this.bytes;</span>
+<span class="fc" id="L33">        int offset = this.offset;</span>
+<span class="fc bfc" id="L34" title="All 2 branches covered.">        int ch = offset &gt;= end ? EOI : bytes[offset++];</span>
+<span class="fc bfc" id="L35" title="All 8 branches covered.">        while (ch == '\0' || (ch &gt; 0 &amp;&amp; ch &lt;= ' ' &amp;&amp; ((1L &lt;&lt; ch) &amp; SPACE) != 0)) {</span>
+<span class="fc bfc" id="L36" title="All 2 branches covered.">            ch = offset == end ? EOI : bytes[offset++];</span>
+        }
+
+<span class="fc" id="L39">        this.offset = offset;</span>
+<span class="fc" id="L40">        this.ch = (char) (ch &amp; 0xFF);</span>
+<span class="fc bfc" id="L41" title="All 2 branches covered.">        if (ch == '/') {</span>
+<span class="fc" id="L42">            skipComment();</span>
+        }
+<span class="fc" id="L44">    }</span>
+
+    public final boolean nextIfObjectStart() {
+<span class="fc" id="L47">        int ch = this.ch;</span>
+<span class="fc bfc" id="L48" title="All 2 branches covered.">        if (ch != '{') {</span>
+<span class="fc" id="L49">            return false;</span>
+        }
+
+<span class="fc" id="L52">        final byte[] bytes = this.bytes;</span>
+<span class="fc" id="L53">        int offset = this.offset;</span>
+<span class="fc bfc" id="L54" title="All 2 branches covered.">        ch = offset == end ? EOI : bytes[offset++];</span>
+<span class="pc bpc" id="L55" title="1 of 6 branches missed.">        while (ch == '\0' || (ch &lt;= ' ' &amp;&amp; ((1L &lt;&lt; ch) &amp; SPACE) != 0)) {</span>
+<span class="pc bpc" id="L56" title="1 of 2 branches missed.">            ch = offset == end ? EOI : bytes[offset++];</span>
+        }
+
+<span class="fc" id="L59">        this.ch = (char) (ch &amp; 0xFF);</span>
+<span class="fc" id="L60">        this.offset = offset;</span>
+
+<span class="fc bfc" id="L62" title="All 2 branches covered.">        if (ch == '/') {</span>
+<span class="fc" id="L63">            skipComment();</span>
+        }
+<span class="fc" id="L65">        return true;</span>
+    }
+
+    @Override
+    public final boolean nextIfNullOrEmptyString() {
+<span class="fc" id="L70">        final char first = this.ch;</span>
+<span class="fc" id="L71">        final int end = this.end;</span>
+<span class="fc" id="L72">        int offset = this.offset;</span>
+<span class="fc" id="L73">        byte[] bytes = this.bytes;</span>
+<span class="pc bpc" id="L74" title="4 of 10 branches missed.">        if (first == 'n'</span>
+                &amp;&amp; offset + 2 &lt; end
+                &amp;&amp; bytes[offset] == 'u'
+                &amp;&amp; bytes[offset + 1] == 'l'
+                &amp;&amp; bytes[offset + 2] == 'l'
+        ) {
+<span class="fc" id="L80">            offset += 3;</span>
+<span class="pc bpc" id="L81" title="1 of 8 branches missed.">        } else if ((first == '&quot;' || first == '\'') &amp;&amp; offset &lt; end &amp;&amp; bytes[offset] == first) {</span>
+<span class="fc" id="L82">            offset++;</span>
+        } else {
+<span class="fc" id="L84">            return false;</span>
+        }
+
+<span class="fc bfc" id="L87" title="All 2 branches covered.">        int ch = offset == end ? EOI : bytes[offset++];</span>
+
+<span class="pc bpc" id="L89" title="1 of 6 branches missed.">        while (ch &gt;= 0 &amp;&amp; ch &lt;= ' ' &amp;&amp; ((1L &lt;&lt; ch) &amp; SPACE) != 0) {</span>
+<span class="fc bfc" id="L90" title="All 2 branches covered.">            ch = offset == end ? EOI : bytes[offset++];</span>
+        }
+
+<span class="fc bfc" id="L93" title="All 4 branches covered.">        if (comma = (ch == ',')) {</span>
+<span class="fc bfc" id="L94" title="All 2 branches covered.">            ch = offset == end ? EOI : bytes[offset++];</span>
+        }
+
+<span class="pc bpc" id="L97" title="1 of 6 branches missed.">        while (ch &gt;= 0 &amp;&amp; ch &lt;= ' ' &amp;&amp; ((1L &lt;&lt; ch) &amp; SPACE) != 0) {</span>
+<span class="fc bfc" id="L98" title="All 2 branches covered.">            ch = offset == end ? EOI : bytes[offset++];</span>
+        }
+
+<span class="fc" id="L101">        this.offset = offset;</span>
+<span class="fc" id="L102">        this.ch = (char) (ch &amp; 0xFF);</span>
+<span class="fc" id="L103">        return true;</span>
+    }
+
+    @Override
+    public final long readFieldNameHashCode() {
+<span class="fc" id="L108">        final byte[] bytes = this.bytes;</span>
+<span class="fc" id="L109">        int ch = this.ch;</span>
+<span class="pc bpc" id="L110" title="1 of 4 branches missed.">        if (ch != '&quot;' &amp;&amp; ch != '\'') {</span>
+<span class="pc bpc" id="L111" title="1 of 4 branches missed.">            if ((context.features &amp; Feature.AllowUnQuotedFieldNames.mask) != 0 &amp;&amp; isFirstIdentifier(ch)) {</span>
+<span class="fc" id="L112">                return readFieldNameHashCodeUnquote();</span>
+            }
+<span class="pc bpc" id="L114" title="2 of 4 branches missed.">            if (ch == '}' || isNull()) {</span>
+<span class="nc" id="L115">                return -1;</span>
+            }
+
+            String errorMsg, preFieldName;
+<span class="pc bpc" id="L119" title="5 of 6 branches missed.">            if (ch == '[' &amp;&amp; nameBegin &gt; 0 &amp;&amp; (preFieldName = getFieldName()) != null) {</span>
+<span class="nc" id="L120">                errorMsg = &quot;illegal fieldName input &quot; + ch + &quot;, previous fieldName &quot; + preFieldName;</span>
+            } else {
+<span class="fc" id="L122">                errorMsg = &quot;illegal fieldName input &quot; + ch;</span>
+            }
+
+<span class="fc" id="L125">            throw new JSONException(info(errorMsg));</span>
+        }
+
+<span class="fc" id="L128">        final int quote = ch;</span>
+
+<span class="fc" id="L130">        this.nameAscii = true;</span>
+<span class="fc" id="L131">        this.nameEscape = false;</span>
+<span class="fc" id="L132">        int offset = this.nameBegin = this.offset;</span>
+
+<span class="fc" id="L134">        long nameValue = 0;</span>
+
+<span class="fc bfc" id="L136" title="All 2 branches covered.">        if (offset + 9 &lt; end) {</span>
+            byte c0, c1, c2, c3, c4, c5, c6, c7;
+
+<span class="fc bfc" id="L139" title="All 2 branches covered.">            if ((c0 = bytes[offset]) == quote) {</span>
+<span class="fc" id="L140">                nameValue = 0;</span>
+<span class="pc bpc" id="L141" title="2 of 6 branches missed.">            } else if ((c1 = bytes[offset + 1]) == quote &amp;&amp; c0 != '\\' &amp;&amp; c0 &gt; 0) {</span>
+<span class="fc" id="L142">                nameValue = c0;</span>
+<span class="fc" id="L143">                this.nameLength = 1;</span>
+<span class="fc" id="L144">                this.nameEnd = offset + 1;</span>
+<span class="fc" id="L145">                offset += 2;</span>
+<span class="pc bpc" id="L146" title="4 of 10 branches missed.">            } else if ((c2 = bytes[offset + 2]) == quote</span>
+                    &amp;&amp; c0 != '\\' &amp;&amp; c1 != '\\'
+                    &amp;&amp; c0 &gt;= 0 &amp;&amp; c1 &gt; 0
+            ) {
+<span class="fc" id="L150">                nameValue = (c1 &lt;&lt; 8)</span>
+                        + c0;
+<span class="fc" id="L152">                this.nameLength = 2;</span>
+<span class="fc" id="L153">                this.nameEnd = offset + 2;</span>
+<span class="fc" id="L154">                offset += 3;</span>
+<span class="pc bpc" id="L155" title="6 of 14 branches missed.">            } else if ((c3 = bytes[offset + 3]) == quote</span>
+                    &amp;&amp; c0 != '\\' &amp;&amp; c1 != '\\' &amp;&amp; c2 != '\\'
+                    &amp;&amp; c0 &gt;= 0 &amp;&amp; c1 &gt;= 0 &amp;&amp; c2 &gt; 0
+            ) {
+<span class="fc" id="L159">                nameValue</span>
+                        = (c2 &lt;&lt; 16)
+                        + (c1 &lt;&lt; 8)
+                        + c0;
+<span class="fc" id="L163">                this.nameLength = 3;</span>
+<span class="fc" id="L164">                this.nameEnd = offset + 3;</span>
+<span class="fc" id="L165">                offset += 4;</span>
+<span class="pc bpc" id="L166" title="8 of 18 branches missed.">            } else if ((c4 = bytes[offset + 4]) == quote</span>
+                    &amp;&amp; c0 != '\\' &amp;&amp; c1 != '\\' &amp;&amp; c2 != '\\' &amp;&amp; c3 != '\\'
+                    &amp;&amp; c0 &gt;= 0 &amp;&amp; c1 &gt;= 0 &amp;&amp; c2 &gt;= 0 &amp;&amp; c3 &gt; 0
+            ) {
+<span class="fc" id="L170">                nameValue</span>
+                        = (c3 &lt;&lt; 24)
+                        + (c2 &lt;&lt; 16)
+                        + (c1 &lt;&lt; 8)
+                        + c0;
+<span class="fc" id="L175">                this.nameLength = 4;</span>
+<span class="fc" id="L176">                this.nameEnd = offset + 4;</span>
+<span class="fc" id="L177">                offset += 5;</span>
+<span class="pc bpc" id="L178" title="9 of 22 branches missed.">            } else if ((c5 = bytes[offset + 5]) == quote</span>
+                    &amp;&amp; c0 != '\\' &amp;&amp; c1 != '\\' &amp;&amp; c2 != '\\' &amp;&amp; c3 != '\\' &amp;&amp; c4 != '\\'
+                    &amp;&amp; c0 &gt;= 0 &amp;&amp; c1 &gt;= 0 &amp;&amp; c2 &gt;= 0 &amp;&amp; c3 &gt;= 0 &amp;&amp; c4 &gt; 0
+            ) {
+<span class="fc" id="L182">                nameValue</span>
+                        = (((long) c4) &lt;&lt; 32)
+                        + (c3 &lt;&lt; 24)
+                        + (c2 &lt;&lt; 16)
+                        + (c1 &lt;&lt; 8)
+                        + c0;
+<span class="fc" id="L188">                this.nameLength = 5;</span>
+<span class="fc" id="L189">                this.nameEnd = offset + 5;</span>
+<span class="fc" id="L190">                offset += 6;</span>
+<span class="pc bpc" id="L191" title="10 of 26 branches missed.">            } else if ((c6 = bytes[offset + 6]) == quote</span>
+                    &amp;&amp; c0 != '\\' &amp;&amp; c1 != '\\' &amp;&amp; c2 != '\\' &amp;&amp; c3 != '\\' &amp;&amp; c4 != '\\' &amp;&amp; c5 != '\\'
+                    &amp;&amp; c0 &gt;= 0 &amp;&amp; c1 &gt;= 0 &amp;&amp; c2 &gt;= 0 &amp;&amp; c3 &gt;= 0 &amp;&amp; c4 &gt;= 0 &amp;&amp; c5 &gt; 0
+            ) {
+<span class="fc" id="L195">                nameValue</span>
+                        = (((long) c5) &lt;&lt; 40)
+                        + (((long) c4) &lt;&lt; 32)
+                        + (c3 &lt;&lt; 24)
+                        + (c2 &lt;&lt; 16)
+                        + (c1 &lt;&lt; 8)
+                        + c0;
+<span class="fc" id="L202">                this.nameLength = 6;</span>
+<span class="fc" id="L203">                this.nameEnd = offset + 6;</span>
+<span class="fc" id="L204">                offset += 7;</span>
+<span class="pc bpc" id="L205" title="13 of 30 branches missed.">            } else if ((c7 = bytes[offset + 7]) == quote</span>
+                    &amp;&amp; c0 != '\\' &amp;&amp; c1 != '\\' &amp;&amp; c2 != '\\' &amp;&amp; c3 != '\\' &amp;&amp; c4 != '\\' &amp;&amp; c5 != '\\' &amp;&amp; c6 != '\\'
+                    &amp;&amp; c0 &gt;= 0 &amp;&amp; c1 &gt;= 0 &amp;&amp; c2 &gt;= 0 &amp;&amp; c3 &gt;= 0 &amp;&amp; c4 &gt;= 0 &amp;&amp; c5 &gt;= 0 &amp;&amp; c6 &gt; 0
+            ) {
+<span class="fc" id="L209">                nameValue</span>
+                        = (((long) c6) &lt;&lt; 48)
+                        + (((long) c5) &lt;&lt; 40)
+                        + (((long) c4) &lt;&lt; 32)
+                        + (c3 &lt;&lt; 24)
+                        + (c2 &lt;&lt; 16)
+                        + (c1 &lt;&lt; 8)
+                        + c0;
+<span class="fc" id="L217">                this.nameLength = 7;</span>
+<span class="fc" id="L218">                this.nameEnd = offset + 7;</span>
+<span class="fc" id="L219">                offset += 8;</span>
+<span class="pc bpc" id="L220" title="15 of 34 branches missed.">            } else if (bytes[offset + 8] == quote</span>
+                    &amp;&amp; c0 != '\\' &amp;&amp; c1 != '\\' &amp;&amp; c2 != '\\' &amp;&amp; c3 != '\\' &amp;&amp; c4 != '\\' &amp;&amp; c5 != '\\' &amp;&amp; c6 != '\\' &amp;&amp; c7 != '\\'
+                    &amp;&amp; c0 &gt;= 0 &amp;&amp; c1 &gt;= 0 &amp;&amp; c2 &gt;= 0 &amp;&amp; c3 &gt;= 0 &amp;&amp; c4 &gt;= 0 &amp;&amp; c5 &gt;= 0 &amp;&amp; c6 &gt;= 0 &amp;&amp; c7 &gt; 0
+            ) {
+<span class="fc" id="L224">                nameValue</span>
+                        = (((long) c7) &lt;&lt; 56)
+                        + (((long) c6) &lt;&lt; 48)
+                        + (((long) c5) &lt;&lt; 40)
+                        + (((long) c4) &lt;&lt; 32)
+                        + (c3 &lt;&lt; 24)
+                        + (c2 &lt;&lt; 16)
+                        + (c1 &lt;&lt; 8)
+                        + c0;
+<span class="fc" id="L233">                this.nameLength = 8;</span>
+<span class="fc" id="L234">                this.nameEnd = offset + 8;</span>
+<span class="fc" id="L235">                offset += 9;</span>
+            }
+        }
+
+<span class="fc bfc" id="L239" title="All 2 branches covered.">        if (nameValue == 0) {</span>
+<span class="fc bfc" id="L240" title="All 2 branches covered.">            for (int i = 0; offset &lt; end; offset++, i++) {</span>
+<span class="fc" id="L241">                ch = bytes[offset] &amp; 0xFF;</span>
+
+<span class="fc bfc" id="L243" title="All 2 branches covered.">                if (ch == quote) {</span>
+<span class="fc bfc" id="L244" title="All 2 branches covered.">                    if (i == 0) {</span>
+<span class="fc" id="L245">                        offset = this.nameBegin;</span>
+<span class="fc" id="L246">                        break;</span>
+                    }
+
+<span class="fc" id="L249">                    this.nameLength = i;</span>
+<span class="fc" id="L250">                    this.nameEnd = offset;</span>
+<span class="fc" id="L251">                    offset++;</span>
+<span class="fc" id="L252">                    break;</span>
+                }
+
+<span class="fc bfc" id="L255" title="All 2 branches covered.">                if (ch == '\\') {</span>
+<span class="fc" id="L256">                    nameEscape = true;</span>
+<span class="fc" id="L257">                    ch = bytes[++offset];</span>
+<span class="fc bfc" id="L258" title="All 3 branches covered.">                    switch (ch) {</span>
+                        case 'u': {
+<span class="fc" id="L260">                            ch = char4(bytes[offset + 1], bytes[offset + 2], bytes[offset + 3], bytes[offset + 4]);</span>
+<span class="fc" id="L261">                            offset += 4;</span>
+<span class="fc" id="L262">                            break;</span>
+                        }
+                        case 'x': {
+<span class="fc" id="L265">                            ch = char2(bytes[offset + 1], bytes[offset + 2]);</span>
+<span class="fc" id="L266">                            offset += 2;</span>
+<span class="fc" id="L267">                            break;</span>
+                        }
+                        case '\\':
+                        case '&quot;':
+                        default:
+<span class="fc" id="L272">                            ch = char1(ch);</span>
+                            break;
+                    }
+<span class="fc bfc" id="L275" title="All 2 branches covered.">                    if (ch &gt; 0xFF) {</span>
+<span class="fc" id="L276">                        nameAscii = false;</span>
+                    }
+<span class="pc bpc" id="L278" title="2 of 4 branches missed.">                } else if (ch == -61 || ch == -62) {</span>
+<span class="nc" id="L279">                    byte c1 = bytes[++offset];</span>
+<span class="nc" id="L280">                    ch = (char) (((ch &amp; 0x1F) &lt;&lt; 6)</span>
+                            | (c1 &amp; 0x3F));
+<span class="nc" id="L282">                    nameAscii = false;</span>
+                }
+
+<span class="pc bpc" id="L285" title="1 of 10 branches missed.">                if (ch &gt; 0xFF || ch &lt; 0 || i &gt;= 8 || (i == 0 &amp;&amp; ch == 0)) {</span>
+<span class="fc" id="L286">                    nameValue = 0;</span>
+<span class="fc" id="L287">                    offset = this.nameBegin;</span>
+<span class="fc" id="L288">                    break;</span>
+                }
+
+<span class="pc bpc" id="L291" title="1 of 9 branches missed.">                switch (i) {</span>
+                    case 0:
+<span class="fc" id="L293">                        nameValue = (byte) ch;</span>
+<span class="fc" id="L294">                        break;</span>
+                    case 1:
+<span class="fc" id="L296">                        nameValue = (((byte) ch) &lt;&lt; 8) + (nameValue &amp; 0xFFL);</span>
+<span class="fc" id="L297">                        break;</span>
+                    case 2:
+<span class="fc" id="L299">                        nameValue = (((byte) ch) &lt;&lt; 16) + (nameValue &amp; 0xFFFFL);</span>
+<span class="fc" id="L300">                        break;</span>
+                    case 3:
+<span class="fc" id="L302">                        nameValue = (((byte) ch) &lt;&lt; 24) + (nameValue &amp; 0xFFFFFFL);</span>
+<span class="fc" id="L303">                        break;</span>
+                    case 4:
+<span class="fc" id="L305">                        nameValue = (((long) (byte) ch) &lt;&lt; 32) + (nameValue &amp; 0xFFFFFFFFL);</span>
+<span class="fc" id="L306">                        break;</span>
+                    case 5:
+<span class="fc" id="L308">                        nameValue = (((long) (byte) ch) &lt;&lt; 40L) + (nameValue &amp; 0xFFFFFFFFFFL);</span>
+<span class="fc" id="L309">                        break;</span>
+                    case 6:
+<span class="fc" id="L311">                        nameValue = (((long) (byte) ch) &lt;&lt; 48L) + (nameValue &amp; 0xFFFFFFFFFFFFL);</span>
+<span class="fc" id="L312">                        break;</span>
+                    case 7:
+<span class="fc" id="L314">                        nameValue = (((long) (byte) ch) &lt;&lt; 56L) + (nameValue &amp; 0xFFFFFFFFFFFFFFL);</span>
+<span class="fc" id="L315">                        break;</span>
+                    default:
+                        break;
+                }
+            }
+        }
+
+        long hashCode;
+<span class="fc bfc" id="L323" title="All 2 branches covered.">        if (nameValue != 0) {</span>
+<span class="fc" id="L324">            hashCode = nameValue;</span>
+        } else {
+<span class="fc" id="L326">            hashCode = Fnv.MAGIC_HASH_CODE;</span>
+<span class="fc" id="L327">            for (int i = 0; ; ++i) {</span>
+<span class="fc" id="L328">                ch = bytes[offset];</span>
+<span class="fc bfc" id="L329" title="All 2 branches covered.">                if (ch == '\\') {</span>
+<span class="fc" id="L330">                    nameEscape = true;</span>
+<span class="fc" id="L331">                    ch = bytes[++offset];</span>
+<span class="fc bfc" id="L332" title="All 3 branches covered.">                    switch (ch) {</span>
+                        case 'u': {
+<span class="fc" id="L334">                            ch = char4(bytes[offset + 1], bytes[offset + 2], bytes[offset + 3], bytes[offset + 4]);</span>
+<span class="fc" id="L335">                            offset += 4;</span>
+<span class="fc" id="L336">                            break;</span>
+                        }
+                        case 'x': {
+<span class="fc" id="L339">                            ch = char2(bytes[offset + 1], bytes[offset + 2]);</span>
+<span class="fc" id="L340">                            offset += 2;</span>
+<span class="fc" id="L341">                            break;</span>
+                        }
+                        case '\\':
+                        case '&quot;':
+                        default:
+<span class="fc" id="L346">                            ch = char1(ch);</span>
+                            break;
+                    }
+<span class="fc" id="L349">                    offset++;</span>
+<span class="fc" id="L350">                    hashCode ^= ch;</span>
+<span class="fc" id="L351">                    hashCode *= Fnv.MAGIC_PRIME;</span>
+<span class="fc" id="L352">                    continue;</span>
+                }
+
+<span class="fc bfc" id="L355" title="All 2 branches covered.">                if (ch == quote) {</span>
+<span class="fc" id="L356">                    this.nameLength = i;</span>
+<span class="fc" id="L357">                    this.nameEnd = offset;</span>
+<span class="fc" id="L358">                    offset++;</span>
+<span class="fc" id="L359">                    break;</span>
+                }
+
+<span class="fc" id="L362">                offset++;</span>
+<span class="fc" id="L363">                hashCode ^= ch;</span>
+<span class="fc" id="L364">                hashCode *= Fnv.MAGIC_PRIME;</span>
+            }
+        }
+
+<span class="fc bfc" id="L368" title="All 2 branches covered.">        ch = offset == end ? EOI : bytes[offset++];</span>
+<span class="fc bfc" id="L369" title="All 4 branches covered.">        while (ch &lt;= ' ' &amp;&amp; ((1L &lt;&lt; ch) &amp; SPACE) != 0) {</span>
+<span class="pc bpc" id="L370" title="1 of 2 branches missed.">            ch = offset == end ? EOI : bytes[offset++];</span>
+        }
+
+<span class="fc bfc" id="L373" title="All 2 branches covered.">        if (ch != ':') {</span>
+<span class="fc" id="L374">            throw new JSONException(info(&quot;expect ':', but &quot; + ch));</span>
+        }
+
+<span class="fc bfc" id="L377" title="All 2 branches covered.">        ch = offset == end ? EOI : bytes[offset++];</span>
+<span class="fc bfc" id="L378" title="All 4 branches covered.">        while (ch &lt;= ' ' &amp;&amp; ((1L &lt;&lt; ch) &amp; SPACE) != 0) {</span>
+<span class="pc bpc" id="L379" title="1 of 2 branches missed.">            ch = offset == end ? EOI : bytes[offset++];</span>
+        }
+
+<span class="fc" id="L382">        this.offset = offset;</span>
+<span class="fc" id="L383">        this.ch = (char) (ch &amp; 0xFF);</span>
+
+<span class="fc" id="L385">        return hashCode;</span>
+    }
+
+    @Override
+    public final long readFieldNameHashCodeUnquote() {
+<span class="fc" id="L390">        this.nameEscape = false;</span>
+<span class="fc" id="L391">        int offset = this.offset, end = this.end;</span>
+<span class="fc" id="L392">        final byte[] bytes = this.bytes;</span>
+<span class="fc" id="L393">        int ch = this.ch;</span>
+<span class="fc" id="L394">        this.nameBegin = offset - 1;</span>
+<span class="fc" id="L395">        int first = ch;</span>
+<span class="fc" id="L396">        long nameValue = 0;</span>
+        _for:
+<span class="pc bpc" id="L398" title="1 of 2 branches missed.">        for (int i = 0; offset &lt;= end; ++i) {</span>
+<span class="fc bfc" id="L399" title="All 2 branches covered.">            switch (ch) {</span>
+                case ' ':
+                case '\n':
+                case '\r':
+                case '\t':
+                case '\f':
+                case '\b':
+                case '.':
+                case '-':
+                case '+':
+                case '*':
+                case '/':
+                case '&gt;':
+                case '&lt;':
+                case '=':
+                case '!':
+                case '[':
+                case ']':
+                case '{':
+                case '}':
+                case '(':
+                case ')':
+                case ',':
+                case ':':
+                case '|':
+                case '&amp;':
+                case EOI:
+<span class="fc" id="L426">                    nameLength = i;</span>
+<span class="fc bfc" id="L427" title="All 2 branches covered.">                    this.nameEnd = ch == EOI ? offset : offset - 1;</span>
+<span class="pc bpc" id="L428" title="1 of 4 branches missed.">                    if (ch &lt;= ' ' &amp;&amp; ((1L &lt;&lt; ch) &amp; SPACE) != 0) {</span>
+<span class="nc bnc" id="L429" title="All 2 branches missed.">                        ch = offset == end ? EOI : (char) bytes[offset++];</span>
+                    }
+                    break _for;
+                default:
+                    break;
+            }
+
+<span class="fc bfc" id="L436" title="All 2 branches covered.">            if (ch == '\\') {</span>
+<span class="fc" id="L437">                nameEscape = true;</span>
+<span class="fc" id="L438">                ch = (char) bytes[offset++];</span>
+<span class="pc bpc" id="L439" title="3 of 4 branches missed.">                switch (ch) {</span>
+                    case 'u': {
+<span class="fc" id="L441">                        ch = char4(bytes[offset], bytes[offset + 1], bytes[offset + 2], bytes[offset + 3]);</span>
+<span class="fc" id="L442">                        offset += 4;</span>
+<span class="fc" id="L443">                        break;</span>
+                    }
+                    case 'x': {
+<span class="nc" id="L446">                        ch = char2(bytes[offset], bytes[offset + 1]);</span>
+<span class="nc" id="L447">                        offset += 2;</span>
+<span class="nc" id="L448">                        break;</span>
+                    }
+                    case '\\':
+                    case '&quot;':
+                    case '.':
+                    case '-':
+                    case '+':
+                    case '*':
+                    case '/':
+                    case '&gt;':
+                    case '&lt;':
+                    case '=':
+                    case '@':
+                    case ':':
+<span class="nc" id="L462">                        break;</span>
+                    default:
+<span class="nc" id="L464">                        ch = char1(ch);</span>
+                        break;
+                }
+            }
+
+<span class="pc bpc" id="L469" title="1 of 8 branches missed.">            if (ch &gt; 0xFF || i &gt;= 8 || (i == 0 &amp;&amp; ch == 0)) {</span>
+<span class="fc" id="L470">                nameValue = 0;</span>
+<span class="fc" id="L471">                ch = first;</span>
+<span class="fc" id="L472">                offset = this.nameBegin + 1;</span>
+<span class="fc" id="L473">                break;</span>
+            }
+
+<span class="fc" id="L476">            byte c = (byte) ch;</span>
+<span class="pc bpc" id="L477" title="1 of 9 branches missed.">            switch (i) {</span>
+                case 0:
+<span class="fc" id="L479">                    nameValue = c;</span>
+<span class="fc" id="L480">                    break;</span>
+                case 1:
+<span class="fc" id="L482">                    nameValue = (c &lt;&lt; 8) + (nameValue &amp; 0xFFL);</span>
+<span class="fc" id="L483">                    break;</span>
+                case 2:
+<span class="fc" id="L485">                    nameValue = (c &lt;&lt; 16) + (nameValue &amp; 0xFFFFL);</span>
+<span class="fc" id="L486">                    break;</span>
+                case 3:
+<span class="fc" id="L488">                    nameValue = (c &lt;&lt; 24) + (nameValue &amp; 0xFFFFFFL);</span>
+<span class="fc" id="L489">                    break;</span>
+                case 4:
+<span class="fc" id="L491">                    nameValue = (((long) c) &lt;&lt; 32) + (nameValue &amp; 0xFFFFFFFFL);</span>
+<span class="fc" id="L492">                    break;</span>
+                case 5:
+<span class="fc" id="L494">                    nameValue = (((long) c) &lt;&lt; 40L) + (nameValue &amp; 0xFFFFFFFFFFL);</span>
+<span class="fc" id="L495">                    break;</span>
+                case 6:
+<span class="fc" id="L497">                    nameValue = (((long) c) &lt;&lt; 48L) + (nameValue &amp; 0xFFFFFFFFFFFFL);</span>
+<span class="fc" id="L498">                    break;</span>
+                case 7:
+<span class="fc" id="L500">                    nameValue = (((long) c) &lt;&lt; 56L) + (nameValue &amp; 0xFFFFFFFFFFFFFFL);</span>
+<span class="fc" id="L501">                    break;</span>
+                default:
+                    break;
+            }
+
+<span class="fc bfc" id="L506" title="All 2 branches covered.">            ch = offset == end ? EOI : (bytes[offset++] &amp; 0xFF);</span>
+        }
+
+        long hashCode;
+
+<span class="fc bfc" id="L511" title="All 2 branches covered.">        if (nameValue != 0) {</span>
+<span class="fc" id="L512">            hashCode = nameValue;</span>
+        } else {
+<span class="fc" id="L514">            hashCode = Fnv.MAGIC_HASH_CODE;</span>
+            _for:
+<span class="fc" id="L516">            for (int i = 0; ; ++i) {</span>
+<span class="fc bfc" id="L517" title="All 2 branches covered.">                if (ch == '\\') {</span>
+<span class="fc" id="L518">                    nameEscape = true;</span>
+<span class="fc" id="L519">                    ch = bytes[offset++];</span>
+<span class="pc bpc" id="L520" title="3 of 4 branches missed.">                    switch (ch) {</span>
+                        case 'u': {
+<span class="fc" id="L522">                            ch = char4(bytes[offset], bytes[offset + 1], bytes[offset + 2], bytes[offset + 3]);</span>
+<span class="fc" id="L523">                            offset += 4;</span>
+<span class="fc" id="L524">                            break;</span>
+                        }
+                        case 'x': {
+<span class="nc" id="L527">                            ch = char2(bytes[offset], bytes[offset + 1]);</span>
+<span class="nc" id="L528">                            offset += 2;</span>
+<span class="nc" id="L529">                            break;</span>
+                        }
+                        case '\\':
+                        case '&quot;':
+                        case '.':
+                        case '-':
+                        case '+':
+                        case '*':
+                        case '/':
+                        case '&gt;':
+                        case '&lt;':
+                        case '=':
+                        case '@':
+                        case ':':
+<span class="nc" id="L543">                            break;</span>
+                        default:
+<span class="nc" id="L545">                            ch = char1(ch);</span>
+                            break;
+                    }
+
+<span class="fc" id="L549">                    hashCode ^= ch;</span>
+<span class="fc" id="L550">                    hashCode *= Fnv.MAGIC_PRIME;</span>
+<span class="pc bpc" id="L551" title="1 of 2 branches missed.">                    ch = offset == end ? EOI : (bytes[offset++] &amp; 0xFF);</span>
+<span class="fc" id="L552">                    continue;</span>
+                }
+
+<span class="fc bfc" id="L555" title="All 2 branches covered.">                switch (ch) {</span>
+                    case ' ':
+                    case '\n':
+                    case '\r':
+                    case '\t':
+                    case '\f':
+                    case '\b':
+                    case '.':
+                    case '-':
+                    case '+':
+                    case '*':
+                    case '/':
+                    case '&gt;':
+                    case '&lt;':
+                    case '=':
+                    case '!':
+                    case '[':
+                    case ']':
+                    case '{':
+                    case '}':
+                    case '(':
+                    case ')':
+                    case ',':
+                    case ':':
+                    case EOI:
+<span class="fc" id="L580">                        nameLength = i;</span>
+<span class="fc bfc" id="L581" title="All 2 branches covered.">                        this.nameEnd = ch == EOI ? offset : offset - 1;</span>
+<span class="pc bpc" id="L582" title="1 of 4 branches missed.">                        while (ch &lt;= ' ' &amp;&amp; ((1L &lt;&lt; ch) &amp; SPACE) != 0) {</span>
+<span class="nc bnc" id="L583" title="All 2 branches missed.">                            ch = offset == end ? EOI : (bytes[offset++] &amp; 0xFF);</span>
+                        }
+                        break _for;
+                    default:
+                        break;
+                }
+
+<span class="fc" id="L590">                hashCode ^= ch;</span>
+<span class="fc" id="L591">                hashCode *= Fnv.MAGIC_PRIME;</span>
+
+<span class="pc bpc" id="L593" title="1 of 2 branches missed.">                ch = offset == end ? EOI : (bytes[offset++] &amp; 0xFF);</span>
+            }
+        }
+
+<span class="fc bfc" id="L597" title="All 2 branches covered.">        if (ch == ':') {</span>
+<span class="pc bpc" id="L598" title="1 of 2 branches missed.">            ch = offset == end ? EOI : (bytes[offset++] &amp; 0xFF);</span>
+<span class="pc bpc" id="L599" title="1 of 4 branches missed.">            while (ch &lt;= ' ' &amp;&amp; ((1L &lt;&lt; ch) &amp; SPACE) != 0) {</span>
+<span class="pc bpc" id="L600" title="1 of 2 branches missed.">                ch = offset == end ? EOI : (bytes[offset++] &amp; 0xFF);</span>
+            }
+        }
+
+<span class="fc" id="L604">        this.offset = offset;</span>
+<span class="fc" id="L605">        this.ch = (char) ch;</span>
+
+<span class="fc" id="L607">        return hashCode;</span>
+    }
+
+    public static long getLong(byte[] bytes, int off) {
+<span class="nc" id="L611">        return UNSAFE.getLong(</span>
+                bytes,
+                ARRAY_BYTE_BASE_OFFSET + off
+        );
+    }
+
+    @Override
+    public final long readValueHashCode() {
+<span class="fc" id="L619">        int ch = this.ch;</span>
+<span class="pc bpc" id="L620" title="1 of 4 branches missed.">        if (ch != '&quot;' &amp;&amp; ch != '\'') {</span>
+<span class="fc" id="L621">            return -1;</span>
+        }
+
+<span class="fc" id="L624">        final byte[] bytes = this.bytes;</span>
+<span class="fc" id="L625">        final int quote = ch;</span>
+
+<span class="fc" id="L627">        this.nameAscii = true;</span>
+<span class="fc" id="L628">        this.nameEscape = false;</span>
+<span class="fc" id="L629">        int offset = this.nameBegin = this.offset;</span>
+
+<span class="fc" id="L631">        long nameValue = 0;</span>
+<span class="pc bpc" id="L632" title="1 of 2 branches missed.">        for (int i = 0; offset &lt; end; offset++, i++) {</span>
+<span class="fc" id="L633">            ch = bytes[offset];</span>
+
+<span class="fc bfc" id="L635" title="All 2 branches covered.">            if (ch == quote) {</span>
+<span class="pc bpc" id="L636" title="1 of 2 branches missed.">                if (i == 0) {</span>
+<span class="nc" id="L637">                    nameValue = 0;</span>
+<span class="nc" id="L638">                    offset = this.nameBegin;</span>
+<span class="nc" id="L639">                    break;</span>
+                }
+
+<span class="fc" id="L642">                this.nameLength = i;</span>
+<span class="fc" id="L643">                this.nameEnd = offset;</span>
+<span class="fc" id="L644">                offset++;</span>
+<span class="fc" id="L645">                break;</span>
+            }
+
+<span class="fc bfc" id="L648" title="All 2 branches covered.">            if (ch == '\\') {</span>
+<span class="fc" id="L649">                nameEscape = true;</span>
+<span class="fc" id="L650">                ch = bytes[++offset];</span>
+<span class="fc bfc" id="L651" title="All 3 branches covered.">                switch (ch) {</span>
+                    case 'u': {
+<span class="fc" id="L653">                        ch = char4(bytes[offset + 1], bytes[offset + 2], bytes[offset + 3], bytes[offset + 4]);</span>
+<span class="fc" id="L654">                        offset += 4;</span>
+<span class="fc" id="L655">                        break;</span>
+                    }
+                    case 'x': {
+<span class="fc" id="L658">                        ch = char2(bytes[offset + 1], bytes[offset + 2]);</span>
+<span class="fc" id="L659">                        offset += 2;</span>
+<span class="fc" id="L660">                        break;</span>
+                    }
+                    case '\\':
+                    case '&quot;':
+                    default:
+<span class="fc" id="L665">                        ch = char1(ch);</span>
+<span class="fc" id="L666">                        break;</span>
+                }
+<span class="pc bpc" id="L668" title="2 of 4 branches missed.">            } else if (ch == -61 || ch == -62) {</span>
+<span class="nc" id="L669">                ch = (char) (((ch &amp; 0x1F) &lt;&lt; 6) | (bytes[++offset] &amp; 0x3F));</span>
+            }
+
+<span class="pc bpc" id="L672" title="1 of 10 branches missed.">            if (ch &gt; 0xFF || ch &lt; 0 || i &gt;= 8 || (i == 0 &amp;&amp; ch == 0)) {</span>
+<span class="fc" id="L673">                nameValue = 0;</span>
+<span class="fc" id="L674">                offset = this.nameBegin;</span>
+<span class="fc" id="L675">                break;</span>
+            }
+
+<span class="pc bpc" id="L678" title="1 of 9 branches missed.">            switch (i) {</span>
+                case 0:
+<span class="fc" id="L680">                    nameValue = (byte) ch;</span>
+<span class="fc" id="L681">                    break;</span>
+                case 1:
+<span class="fc" id="L683">                    nameValue = (((byte) ch) &lt;&lt; 8) + (nameValue &amp; 0xFFL);</span>
+<span class="fc" id="L684">                    break;</span>
+                case 2:
+<span class="fc" id="L686">                    nameValue = (((byte) ch) &lt;&lt; 16) + (nameValue &amp; 0xFFFFL);</span>
+<span class="fc" id="L687">                    break;</span>
+                case 3:
+<span class="fc" id="L689">                    nameValue = (((byte) ch) &lt;&lt; 24) + (nameValue &amp; 0xFFFFFFL);</span>
+<span class="fc" id="L690">                    break;</span>
+                case 4:
+<span class="fc" id="L692">                    nameValue = (((long) (byte) ch) &lt;&lt; 32) + (nameValue &amp; 0xFFFFFFFFL);</span>
+<span class="fc" id="L693">                    break;</span>
+                case 5:
+<span class="fc" id="L695">                    nameValue = (((long) (byte) ch) &lt;&lt; 40L) + (nameValue &amp; 0xFFFFFFFFFFL);</span>
+<span class="fc" id="L696">                    break;</span>
+                case 6:
+<span class="fc" id="L698">                    nameValue = (((long) (byte) ch) &lt;&lt; 48L) + (nameValue &amp; 0xFFFFFFFFFFFFL);</span>
+<span class="fc" id="L699">                    break;</span>
+                case 7:
+<span class="fc" id="L701">                    nameValue = (((long) (byte) ch) &lt;&lt; 56L) + (nameValue &amp; 0xFFFFFFFFFFFFFFL);</span>
+<span class="fc" id="L702">                    break;</span>
+                default:
+                    break;
+            }
+        }
+
+        long hashCode;
+<span class="fc bfc" id="L709" title="All 2 branches covered.">        if (nameValue != 0) {</span>
+<span class="fc" id="L710">            hashCode = nameValue;</span>
+        } else {
+<span class="fc" id="L712">            hashCode = Fnv.MAGIC_HASH_CODE;</span>
+<span class="fc" id="L713">            for (int i = 0; ; ++i) {</span>
+<span class="fc" id="L714">                ch = bytes[offset];</span>
+<span class="fc bfc" id="L715" title="All 2 branches covered.">                if (ch == '\\') {</span>
+<span class="fc" id="L716">                    nameEscape = true;</span>
+<span class="fc" id="L717">                    ch = bytes[++offset];</span>
+<span class="pc bpc" id="L718" title="1 of 3 branches missed.">                    switch (ch) {</span>
+                        case 'u': {
+<span class="fc" id="L720">                            ch = char4(bytes[offset + 1], bytes[offset + 2], bytes[offset + 3], bytes[offset + 4]);</span>
+<span class="fc" id="L721">                            offset += 4;</span>
+<span class="fc" id="L722">                            break;</span>
+                        }
+                        case 'x': {
+<span class="fc" id="L725">                            ch = char2(bytes[offset + 1], bytes[offset + 2]);</span>
+<span class="fc" id="L726">                            offset += 2;</span>
+<span class="fc" id="L727">                            break;</span>
+                        }
+                        case '\\':
+                        case '&quot;':
+                        default:
+<span class="nc" id="L732">                            ch = char1(ch);</span>
+                            break;
+                    }
+<span class="fc" id="L735">                    offset++;</span>
+<span class="fc" id="L736">                    hashCode ^= ch;</span>
+<span class="fc" id="L737">                    hashCode *= Fnv.MAGIC_PRIME;</span>
+<span class="fc" id="L738">                    continue;</span>
+                }
+
+<span class="fc bfc" id="L741" title="All 2 branches covered.">                if (ch == '&quot;') {</span>
+<span class="fc" id="L742">                    this.nameLength = i;</span>
+<span class="fc" id="L743">                    this.nameEnd = offset;</span>
+<span class="fc" id="L744">                    offset++;</span>
+<span class="fc" id="L745">                    break;</span>
+                }
+
+<span class="fc" id="L748">                offset++;</span>
+<span class="fc" id="L749">                hashCode ^= ch;</span>
+<span class="fc" id="L750">                hashCode *= Fnv.MAGIC_PRIME;</span>
+            }
+        }
+
+<span class="fc bfc" id="L754" title="All 2 branches covered.">        ch = offset == end ? EOI : bytes[offset++];</span>
+<span class="fc bfc" id="L755" title="All 4 branches covered.">        while (ch &lt;= ' ' &amp;&amp; ((1L &lt;&lt; ch) &amp; SPACE) != 0) {</span>
+<span class="pc bpc" id="L756" title="1 of 2 branches missed.">            ch = offset == end ? EOI : bytes[offset++];</span>
+        }
+
+<span class="fc bfc" id="L759" title="All 4 branches covered.">        if (comma = (ch == ',')) {</span>
+<span class="fc bfc" id="L760" title="All 2 branches covered.">            ch = offset == end ? EOI : bytes[offset++];</span>
+<span class="fc bfc" id="L761" title="All 4 branches covered.">            while (ch &lt;= ' ' &amp;&amp; ((1L &lt;&lt; ch) &amp; SPACE) != 0) {</span>
+<span class="pc bpc" id="L762" title="1 of 2 branches missed.">                ch = offset == end ? EOI : bytes[offset++];</span>
+            }
+        }
+
+<span class="fc" id="L766">        this.offset = offset;</span>
+<span class="fc" id="L767">        this.ch = (char) (ch &amp; 0xFF);</span>
+
+<span class="fc" id="L769">        return hashCode;</span>
+    }
+
+    @Override
+    public final long getNameHashCodeLCase() {
+<span class="fc" id="L774">        final byte[] bytes = this.bytes;</span>
+<span class="fc" id="L775">        int offset = nameBegin;</span>
+<span class="fc" id="L776">        long nameValue = 0;</span>
+<span class="pc bpc" id="L777" title="1 of 2 branches missed.">        for (int i = 0; offset &lt; end; offset++) {</span>
+<span class="fc" id="L778">            int c = bytes[offset];</span>
+
+<span class="fc bfc" id="L780" title="All 2 branches covered.">            if (c == '\\') {</span>
+<span class="fc" id="L781">                c = bytes[++offset];</span>
+<span class="fc bfc" id="L782" title="All 3 branches covered.">                switch (c) {</span>
+                    case 'u': {
+<span class="fc" id="L784">                        c = char4(bytes[offset + 1], bytes[offset + 2], bytes[offset + 3], bytes[offset + 4]);</span>
+<span class="fc" id="L785">                        offset += 4;</span>
+<span class="fc" id="L786">                        break;</span>
+                    }
+                    case 'x': {
+<span class="fc" id="L789">                        c = char2(bytes[offset + 1], bytes[offset + 2]);</span>
+<span class="fc" id="L790">                        offset += 2;</span>
+<span class="fc" id="L791">                        break;</span>
+                    }
+                    case '\\':
+                    case '&quot;':
+                    default:
+<span class="fc" id="L796">                        c = char1(c);</span>
+<span class="fc" id="L797">                        break;</span>
+                }
+<span class="fc bfc" id="L799" title="All 2 branches covered.">            } else if (c == '&quot;') {</span>
+<span class="fc" id="L800">                break;</span>
+            }
+
+<span class="pc bpc" id="L803" title="2 of 10 branches missed.">            if (c &gt; 0xFF || c &lt; 0 || i &gt;= 8 || (i == 0 &amp;&amp; c == 0)) {</span>
+<span class="fc" id="L804">                nameValue = 0;</span>
+<span class="fc" id="L805">                offset = this.nameBegin;</span>
+<span class="fc" id="L806">                break;</span>
+            }
+
+<span class="fc bfc" id="L809" title="All 6 branches covered.">            if (c == '_' || c == '-' || c == ' ') {</span>
+<span class="fc" id="L810">                byte c1 = bytes[offset + 1];</span>
+<span class="pc bpc" id="L811" title="1 of 6 branches missed.">                if (c1 != '&quot;' &amp;&amp; c1 != '\'' &amp;&amp; c1 != c) {</span>
+<span class="fc" id="L812">                    continue;</span>
+                }
+            }
+
+<span class="fc bfc" id="L816" title="All 4 branches covered.">            if (c &gt;= 'A' &amp;&amp; c &lt;= 'Z') {</span>
+<span class="fc" id="L817">                c = (char) (c + 32);</span>
+            }
+
+<span class="pc bpc" id="L820" title="1 of 9 branches missed.">            switch (i) {</span>
+                case 0:
+<span class="fc" id="L822">                    nameValue = (byte) c;</span>
+<span class="fc" id="L823">                    break;</span>
+                case 1:
+<span class="fc" id="L825">                    nameValue = (((byte) c) &lt;&lt; 8) + (nameValue &amp; 0xFFL);</span>
+<span class="fc" id="L826">                    break;</span>
+                case 2:
+<span class="fc" id="L828">                    nameValue = (((byte) c) &lt;&lt; 16) + (nameValue &amp; 0xFFFFL);</span>
+<span class="fc" id="L829">                    break;</span>
+                case 3:
+<span class="fc" id="L831">                    nameValue = (((byte) c) &lt;&lt; 24) + (nameValue &amp; 0xFFFFFFL);</span>
+<span class="fc" id="L832">                    break;</span>
+                case 4:
+<span class="fc" id="L834">                    nameValue = (((long) (byte) c) &lt;&lt; 32) + (nameValue &amp; 0xFFFFFFFFL);</span>
+<span class="fc" id="L835">                    break;</span>
+                case 5:
+<span class="fc" id="L837">                    nameValue = (((long) (byte) c) &lt;&lt; 40) + (nameValue &amp; 0xFFFFFFFFFFL);</span>
+<span class="fc" id="L838">                    break;</span>
+                case 6:
+<span class="fc" id="L840">                    nameValue = (((long) (byte) c) &lt;&lt; 48) + (nameValue &amp; 0xFFFFFFFFFFFFL);</span>
+<span class="fc" id="L841">                    break;</span>
+                case 7:
+<span class="fc" id="L843">                    nameValue = (((long) (byte) c) &lt;&lt; 56) + (nameValue &amp; 0xFFFFFFFFFFFFFFL);</span>
+<span class="fc" id="L844">                    break;</span>
+                default:
+                    break;
+            }
+<span class="fc" id="L848">            ++i;</span>
+        }
+
+<span class="fc bfc" id="L851" title="All 2 branches covered.">        if (nameValue != 0) {</span>
+<span class="fc" id="L852">            return nameValue;</span>
+        }
+
+<span class="fc" id="L855">        long hashCode = Fnv.MAGIC_HASH_CODE;</span>
+<span class="pc bpc" id="L856" title="1 of 2 branches missed.">        while (offset &lt; end) {</span>
+<span class="fc" id="L857">            int c = bytes[offset];</span>
+
+<span class="fc bfc" id="L859" title="All 2 branches covered.">            if (c == '\\') {</span>
+<span class="fc" id="L860">                c = bytes[++offset];</span>
+<span class="pc bpc" id="L861" title="1 of 3 branches missed.">                switch (c) {</span>
+                    case 'u': {
+<span class="fc" id="L863">                        c = char4(bytes[offset + 1], bytes[offset + 2], bytes[offset + 3], bytes[offset + 4]);</span>
+<span class="fc" id="L864">                        offset += 4;</span>
+<span class="fc" id="L865">                        break;</span>
+                    }
+                    case 'x': {
+<span class="nc" id="L868">                        c = char2(bytes[offset + 1], bytes[offset + 2]);</span>
+<span class="nc" id="L869">                        offset += 2;</span>
+<span class="nc" id="L870">                        break;</span>
+                    }
+                    case '\\':
+                    case '&quot;':
+                    default:
+<span class="fc" id="L875">                        c = char1(c);</span>
+<span class="fc" id="L876">                        break;</span>
+                }
+<span class="fc bfc" id="L878" title="All 2 branches covered.">            } else if (c == '&quot;') {</span>
+<span class="fc" id="L879">                break;</span>
+            }
+
+<span class="fc" id="L882">            offset++;</span>
+<span class="pc bpc" id="L883" title="2 of 6 branches missed.">            if (c == '_' || c == '-' || c == ' ') {</span>
+<span class="fc" id="L884">                byte c1 = bytes[offset];</span>
+<span class="pc bpc" id="L885" title="3 of 6 branches missed.">                if (c1 != '&quot;' &amp;&amp; c1 != '\'' &amp;&amp; c1 != c) {</span>
+<span class="fc" id="L886">                    continue;</span>
+                }
+            }
+
+<span class="fc bfc" id="L890" title="All 4 branches covered.">            if (c &gt;= 'A' &amp;&amp; c &lt;= 'Z') {</span>
+<span class="fc" id="L891">                c = (char) (c + 32);</span>
+            }
+<span class="pc bpc" id="L893" title="1 of 2 branches missed.">            hashCode ^= c &lt; 0 ? (c &amp; 0xFF) : c;</span>
+<span class="fc" id="L894">            hashCode *= Fnv.MAGIC_PRIME;</span>
+<span class="fc" id="L895">        }</span>
+
+<span class="fc" id="L897">        return hashCode;</span>
+    }
+
+    @Override
+    public final String getFieldName() {
+<span class="fc" id="L902">        final byte[] bytes = this.bytes;</span>
+<span class="fc" id="L903">        int offset = nameBegin;</span>
+<span class="fc" id="L904">        int length = nameEnd - offset;</span>
+<span class="fc bfc" id="L905" title="All 2 branches covered.">        if (!nameEscape) {</span>
+<span class="fc bfc" id="L906" title="All 2 branches covered.">            if (this.str != null) {</span>
+<span class="fc" id="L907">                return this.str.substring(offset, nameEnd);</span>
+<span class="pc bpc" id="L908" title="1 of 2 branches missed.">            } else if (ANDROID) {</span>
+<span class="nc" id="L909">                return getLatin1String(offset, length);</span>
+            } else {
+<span class="fc" id="L911">                return new String(bytes, offset, length, StandardCharsets.ISO_8859_1);</span>
+            }
+        }
+
+<span class="pc bpc" id="L915" title="1 of 2 branches missed.">        if (JDKUtils.STRING_CREATOR_JDK11 != null) {</span>
+<span class="nc" id="L916">            byte[] chars = new byte[nameLength];</span>
+            forStmt:
+<span class="nc bnc" id="L918" title="All 2 branches missed.">            for (int i = 0; offset &lt; nameEnd; ++i) {</span>
+<span class="nc" id="L919">                byte b = bytes[offset];</span>
+
+<span class="nc bnc" id="L921" title="All 2 branches missed.">                if (b == '\\') {</span>
+<span class="nc" id="L922">                    b = bytes[++offset];</span>
+<span class="nc bnc" id="L923" title="All 4 branches missed.">                    switch (b) {</span>
+                        case 'u': {
+<span class="nc" id="L925">                            char ch = char4(bytes[offset + 1], bytes[offset + 2], bytes[offset + 3], bytes[offset + 4]);</span>
+<span class="nc" id="L926">                            offset += 4;</span>
+<span class="nc bnc" id="L927" title="All 2 branches missed.">                            if (ch &gt; 0xFF) {</span>
+<span class="nc" id="L928">                                chars = null;</span>
+<span class="nc" id="L929">                                break forStmt;</span>
+                            }
+<span class="nc" id="L931">                            b = (byte) ch;</span>
+<span class="nc" id="L932">                            break;</span>
+                        }
+                        case 'x': {
+<span class="nc" id="L935">                            char c = char2(bytes[offset + 1], bytes[offset + 2]);</span>
+<span class="nc" id="L936">                            offset += 2;</span>
+<span class="nc bnc" id="L937" title="All 2 branches missed.">                            if (c &gt; 0xFF) {</span>
+<span class="nc" id="L938">                                chars = null;</span>
+<span class="nc" id="L939">                                break forStmt;</span>
+                            }
+<span class="nc" id="L941">                            b = (byte) c;</span>
+<span class="nc" id="L942">                            break;</span>
+                        }
+                        case '\\':
+                        case '&quot;':
+                        case '.':
+                        case '-':
+                        case '+':
+                        case '*':
+                        case '/':
+                        case '&gt;':
+                        case '&lt;':
+                        case '=':
+                        case '@':
+                        case ':':
+<span class="nc" id="L956">                            break;</span>
+                        default:
+<span class="nc" id="L958">                            b = (byte) char1(b);</span>
+<span class="nc" id="L959">                            break;</span>
+                    }
+<span class="nc bnc" id="L961" title="All 2 branches missed.">                } else if (b == '&quot;') {</span>
+<span class="nc" id="L962">                    break;</span>
+                }
+<span class="nc" id="L964">                chars[i] = b;</span>
+<span class="nc" id="L965">                offset++;</span>
+            }
+
+<span class="nc bnc" id="L968" title="All 2 branches missed.">            if (chars != null) {</span>
+<span class="nc" id="L969">                return STRING_CREATOR_JDK11.apply(chars, LATIN1);</span>
+            }
+        }
+
+<span class="fc" id="L973">        offset = nameBegin;</span>
+<span class="fc" id="L974">        char[] chars = new char[nameLength];</span>
+<span class="fc bfc" id="L975" title="All 2 branches covered.">        for (int i = 0; offset &lt; nameEnd; ++i) {</span>
+<span class="fc" id="L976">            char ch = (char) (bytes[offset] &amp; 0xff);</span>
+
+<span class="fc bfc" id="L978" title="All 2 branches covered.">            if (ch == '\\') {</span>
+<span class="fc" id="L979">                ch = (char) bytes[++offset];</span>
+<span class="pc bpc" id="L980" title="1 of 4 branches missed.">                switch (ch) {</span>
+                    case 'u': {
+<span class="fc" id="L982">                        ch = char4(bytes[offset + 1], bytes[offset + 2], bytes[offset + 3], bytes[offset + 4]);</span>
+<span class="fc" id="L983">                        offset += 4;</span>
+<span class="fc" id="L984">                        break;</span>
+                    }
+                    case 'x': {
+<span class="fc" id="L987">                        ch = char2(bytes[offset + 1], bytes[offset + 2]);</span>
+<span class="fc" id="L988">                        offset += 2;</span>
+<span class="fc" id="L989">                        break;</span>
+                    }
+                    case '.':
+                    case '-':
+                    case '+':
+                    case '*':
+                    case '/':
+                    case '&gt;':
+                    case '&lt;':
+                    case '=':
+                    case '@':
+<span class="nc" id="L1000">                        break;</span>
+                    default:
+<span class="fc" id="L1002">                        ch = char1(ch);</span>
+<span class="fc" id="L1003">                        break;</span>
+                }
+<span class="pc bpc" id="L1005" title="1 of 2 branches missed.">            } else if (ch == '&quot;') {</span>
+<span class="nc" id="L1006">                break;</span>
+            }
+<span class="fc" id="L1008">            chars[i] = ch;</span>
+<span class="fc" id="L1009">            offset++;</span>
+        }
+
+<span class="fc" id="L1012">        return new String(chars);</span>
+    }
+
+    @Override
+    public final String readFieldName() {
+<span class="fc" id="L1017">        final char quote = ch;</span>
+<span class="pc bpc" id="L1018" title="1 of 4 branches missed.">        if (quote != '&quot;' &amp;&amp; quote != '\'') {</span>
+<span class="pc bpc" id="L1019" title="1 of 4 branches missed.">            if ((context.features &amp; Feature.AllowUnQuotedFieldNames.mask) != 0 &amp;&amp; isFirstIdentifier(quote)) {</span>
+<span class="fc" id="L1020">                return readFieldNameUnquote();</span>
+            }
+
+<span class="fc" id="L1023">            return null;</span>
+        }
+
+<span class="fc" id="L1026">        final byte[] bytes = this.bytes;</span>
+<span class="fc" id="L1027">        this.nameEscape = false;</span>
+<span class="fc" id="L1028">        int offset = this.nameBegin = this.offset;</span>
+<span class="fc" id="L1029">        final int nameBegin = this.nameBegin;</span>
+<span class="fc bfc" id="L1030" title="All 2 branches covered.">        for (int i = 0; offset &lt; end; ++i) {</span>
+<span class="fc" id="L1031">            int c = bytes[offset];</span>
+<span class="fc bfc" id="L1032" title="All 2 branches covered.">            if (c == '\\') {</span>
+<span class="fc" id="L1033">                nameEscape = true;</span>
+<span class="fc" id="L1034">                c = bytes[offset + 1];</span>
+<span class="pc bpc" id="L1035" title="1 of 4 branches missed.">                offset += (c == 'u' ? 6 : (c == 'x' ? 4 : 2));</span>
+<span class="fc" id="L1036">                continue;</span>
+            }
+
+<span class="fc bfc" id="L1039" title="All 2 branches covered.">            if (c == quote) {</span>
+<span class="fc" id="L1040">                this.nameLength = i;</span>
+<span class="fc" id="L1041">                this.nameEnd = offset;</span>
+<span class="fc" id="L1042">                offset++;</span>
+<span class="fc" id="L1043">                c = bytes[offset];</span>
+
+<span class="pc bpc" id="L1045" title="1 of 4 branches missed.">                while (c &lt;= ' ' &amp;&amp; ((1L &lt;&lt; c) &amp; SPACE) != 0) {</span>
+<span class="fc" id="L1046">                    offset++;</span>
+<span class="fc" id="L1047">                    c = bytes[offset];</span>
+                }
+<span class="pc bpc" id="L1049" title="1 of 2 branches missed.">                if (c != ':') {</span>
+<span class="nc" id="L1050">                    throw syntaxError(offset, ch);</span>
+                }
+
+<span class="fc" id="L1053">                offset++;</span>
+<span class="fc bfc" id="L1054" title="All 2 branches covered.">                if (offset &gt;= end) {</span>
+<span class="fc" id="L1055">                    this.ch = EOI;</span>
+<span class="fc" id="L1056">                    throw syntaxError(offset, ch);</span>
+                }
+
+<span class="fc" id="L1059">                c = bytes[offset];</span>
+
+<span class="pc bpc" id="L1061" title="1 of 4 branches missed.">                while (c &lt;= ' ' &amp;&amp; ((1L &lt;&lt; c) &amp; SPACE) != 0) {</span>
+<span class="fc" id="L1062">                    offset++;</span>
+<span class="fc" id="L1063">                    c = bytes[offset];</span>
+                }
+
+<span class="fc" id="L1066">                this.offset = offset + 1;</span>
+<span class="fc" id="L1067">                this.ch = (char) c;</span>
+<span class="fc" id="L1068">                break;</span>
+            }
+
+<span class="fc" id="L1071">            offset++;</span>
+        }
+
+<span class="fc bfc" id="L1074" title="All 2 branches covered.">        if (nameEnd &lt; nameBegin) {</span>
+<span class="fc" id="L1075">            throw new JSONException(&quot;syntax error : &quot; + offset);</span>
+        }
+
+<span class="fc bfc" id="L1078" title="All 2 branches covered.">        if (!nameEscape) {</span>
+<span class="fc" id="L1079">            long nameValue0 = -1, nameValue1 = -1;</span>
+<span class="fc" id="L1080">            int length = nameEnd - nameBegin;</span>
+<span class="fc bfc" id="L1081" title="All 17 branches covered.">            switch (length) {</span>
+                case 1:
+<span class="fc" id="L1083">                    return TypeUtils.toString(bytes[nameBegin]);</span>
+                case 2:
+<span class="fc" id="L1085">                    return TypeUtils.toString(</span>
+                            bytes[nameBegin],
+                            bytes[nameBegin + 1]
+                    );
+                case 3:
+<span class="fc" id="L1090">                    nameValue0</span>
+                            = (bytes[nameBegin + 2] &lt;&lt; 16)
+                            + ((bytes[nameBegin + 1] &amp; 0xFF) &lt;&lt; 8)
+                            + (bytes[nameBegin] &amp; 0xFF);
+<span class="fc" id="L1094">                    break;</span>
+                case 4:
+<span class="fc" id="L1096">                    nameValue0</span>
+                            = (bytes[nameBegin + 3] &lt;&lt; 24)
+                            + ((bytes[nameBegin + 2] &amp; 0xFF) &lt;&lt; 16)
+                            + ((bytes[nameBegin + 1] &amp; 0xFF) &lt;&lt; 8)
+                            + (bytes[nameBegin] &amp; 0xFF);
+<span class="fc" id="L1101">                    break;</span>
+                case 5:
+<span class="fc" id="L1103">                    nameValue0</span>
+                            = (((long) bytes[nameBegin + 4]) &lt;&lt; 32)
+                            + ((bytes[nameBegin + 3] &amp; 0xFFL) &lt;&lt; 24)
+                            + ((bytes[nameBegin + 2] &amp; 0xFFL) &lt;&lt; 16)
+                            + ((bytes[nameBegin + 1] &amp; 0xFFL) &lt;&lt; 8)
+                            + (bytes[nameBegin] &amp; 0xFFL);
+<span class="fc" id="L1109">                    break;</span>
+                case 6:
+<span class="fc" id="L1111">                    nameValue0</span>
+                            = (((long) bytes[nameBegin + 5]) &lt;&lt; 40)
+                            + ((bytes[nameBegin + 4] &amp; 0xFFL) &lt;&lt; 32)
+                            + ((bytes[nameBegin + 3] &amp; 0xFFL) &lt;&lt; 24)
+                            + ((bytes[nameBegin + 2] &amp; 0xFFL) &lt;&lt; 16)
+                            + ((bytes[nameBegin + 1] &amp; 0xFFL) &lt;&lt; 8)
+                            + (bytes[nameBegin] &amp; 0xFFL);
+<span class="fc" id="L1118">                    break;</span>
+                case 7:
+<span class="fc" id="L1120">                    nameValue0</span>
+                            = (((long) bytes[nameBegin + 6]) &lt;&lt; 48)
+                            + ((bytes[nameBegin + 5] &amp; 0xFFL) &lt;&lt; 40)
+                            + ((bytes[nameBegin + 4] &amp; 0xFFL) &lt;&lt; 32)
+                            + ((bytes[nameBegin + 3] &amp; 0xFFL) &lt;&lt; 24)
+                            + ((bytes[nameBegin + 2] &amp; 0xFFL) &lt;&lt; 16)
+                            + ((bytes[nameBegin + 1] &amp; 0xFFL) &lt;&lt; 8)
+                            + (bytes[nameBegin] &amp; 0xFFL);
+<span class="fc" id="L1128">                    break;</span>
+                case 8:
+<span class="fc" id="L1130">                    nameValue0</span>
+                            = (((long) bytes[nameBegin + 7]) &lt;&lt; 56)
+                            + ((bytes[nameBegin + 6] &amp; 0xFFL) &lt;&lt; 48)
+                            + ((bytes[nameBegin + 5] &amp; 0xFFL) &lt;&lt; 40)
+                            + ((bytes[nameBegin + 4] &amp; 0xFFL) &lt;&lt; 32)
+                            + ((bytes[nameBegin + 3] &amp; 0xFFL) &lt;&lt; 24)
+                            + ((bytes[nameBegin + 2] &amp; 0xFFL) &lt;&lt; 16)
+                            + ((bytes[nameBegin + 1] &amp; 0xFFL) &lt;&lt; 8)
+                            + (bytes[nameBegin] &amp; 0xFFL);
+<span class="fc" id="L1139">                    break;</span>
+                case 9:
+<span class="fc" id="L1141">                    nameValue0 = bytes[nameBegin];</span>
+<span class="fc" id="L1142">                    nameValue1</span>
+                            = (((long) bytes[nameBegin + 8]) &lt;&lt; 56)
+                            + ((bytes[nameBegin + 7] &amp; 0xFFL) &lt;&lt; 48)
+                            + ((bytes[nameBegin + 6] &amp; 0xFFL) &lt;&lt; 40)
+                            + ((bytes[nameBegin + 5] &amp; 0xFFL) &lt;&lt; 32)
+                            + ((bytes[nameBegin + 4] &amp; 0xFFL) &lt;&lt; 24)
+                            + ((bytes[nameBegin + 3] &amp; 0xFFL) &lt;&lt; 16)
+                            + ((bytes[nameBegin + 2] &amp; 0xFFL) &lt;&lt; 8)
+                            + (bytes[nameBegin + 1] &amp; 0xFFL);
+<span class="fc" id="L1151">                    break;</span>
+                case 10:
+<span class="fc" id="L1153">                    nameValue0</span>
+                            = (bytes[nameBegin + 1] &lt;&lt; 8)
+                            + (bytes[nameBegin]);
+<span class="fc" id="L1156">                    nameValue1</span>
+                            = (((long) bytes[nameBegin + 9]) &lt;&lt; 56)
+                            + ((bytes[nameBegin + 8] &amp; 0xFFL) &lt;&lt; 48)
+                            + ((bytes[nameBegin + 7] &amp; 0xFFL) &lt;&lt; 40)
+                            + ((bytes[nameBegin + 6] &amp; 0xFFL) &lt;&lt; 32)
+                            + ((bytes[nameBegin + 5] &amp; 0xFFL) &lt;&lt; 24)
+                            + ((bytes[nameBegin + 4] &amp; 0xFFL) &lt;&lt; 16)
+                            + ((bytes[nameBegin + 3] &amp; 0xFFL) &lt;&lt; 8)
+                            + (bytes[nameBegin + 2] &amp; 0xFFL);
+<span class="fc" id="L1165">                    break;</span>
+                case 11:
+<span class="fc" id="L1167">                    nameValue0</span>
+                            = (bytes[nameBegin + 2] &lt;&lt; 16)
+                            + (bytes[nameBegin + 1] &lt;&lt; 8)
+                            + (bytes[nameBegin]);
+<span class="fc" id="L1171">                    nameValue1</span>
+                            = (((long) bytes[nameBegin + 10]) &lt;&lt; 56)
+                            + ((bytes[nameBegin + 9] &amp; 0xFFL) &lt;&lt; 48)
+                            + ((bytes[nameBegin + 8] &amp; 0xFFL) &lt;&lt; 40)
+                            + ((bytes[nameBegin + 7] &amp; 0xFFL) &lt;&lt; 32)
+                            + ((bytes[nameBegin + 6] &amp; 0xFFL) &lt;&lt; 24)
+                            + ((bytes[nameBegin + 5] &amp; 0xFFL) &lt;&lt; 16)
+                            + ((bytes[nameBegin + 4] &amp; 0xFFL) &lt;&lt; 8)
+                            + (bytes[nameBegin + 3] &amp; 0xFFL);
+<span class="fc" id="L1180">                    break;</span>
+                case 12:
+<span class="fc" id="L1182">                    nameValue0</span>
+                            = (bytes[nameBegin + 3] &lt;&lt; 24)
+                            + (bytes[nameBegin + 2] &lt;&lt; 16)
+                            + (bytes[nameBegin + 1] &lt;&lt; 8)
+                            + (bytes[nameBegin]);
+<span class="fc" id="L1187">                    nameValue1</span>
+                            = (((long) bytes[nameBegin + 11]) &lt;&lt; 56)
+                            + ((bytes[nameBegin + 10] &amp; 0xFFL) &lt;&lt; 48)
+                            + ((bytes[nameBegin + 9] &amp; 0xFFL) &lt;&lt; 40)
+                            + ((bytes[nameBegin + 8] &amp; 0xFFL) &lt;&lt; 32)
+                            + ((bytes[nameBegin + 7] &amp; 0xFFL) &lt;&lt; 24)
+                            + ((bytes[nameBegin + 6] &amp; 0xFFL) &lt;&lt; 16)
+                            + ((bytes[nameBegin + 5] &amp; 0xFFL) &lt;&lt; 8)
+                            + (bytes[nameBegin + 4] &amp; 0xFFL);
+<span class="fc" id="L1196">                    break;</span>
+                case 13:
+<span class="fc" id="L1198">                    nameValue0</span>
+                            = (((long) bytes[nameBegin + 4]) &lt;&lt; 32)
+                            + (((long) bytes[nameBegin + 3]) &lt;&lt; 24)
+                            + (((long) bytes[nameBegin + 2]) &lt;&lt; 16)
+                            + (((long) bytes[nameBegin + 1]) &lt;&lt; 8)
+                            + ((long) bytes[nameBegin]);
+<span class="fc" id="L1204">                    nameValue1</span>
+                            = (((long) bytes[nameBegin + 12]) &lt;&lt; 56)
+                            + ((bytes[nameBegin + 11] &amp; 0xFFL) &lt;&lt; 48)
+                            + ((bytes[nameBegin + 10] &amp; 0xFFL) &lt;&lt; 40)
+                            + ((bytes[nameBegin + 9] &amp; 0xFFL) &lt;&lt; 32)
+                            + ((bytes[nameBegin + 8] &amp; 0xFFL) &lt;&lt; 24)
+                            + ((bytes[nameBegin + 7] &amp; 0xFFL) &lt;&lt; 16)
+                            + ((bytes[nameBegin + 6] &amp; 0xFFL) &lt;&lt; 8)
+                            + (bytes[nameBegin + 5] &amp; 0xFFL);
+<span class="fc" id="L1213">                    break;</span>
+                case 14:
+<span class="fc" id="L1215">                    nameValue0</span>
+                            = (((long) bytes[nameBegin + 5]) &lt;&lt; 40)
+                            + ((bytes[nameBegin + 4] &amp; 0xFFL) &lt;&lt; 32)
+                            + ((bytes[nameBegin + 3] &amp; 0xFFL) &lt;&lt; 24)
+                            + ((bytes[nameBegin + 2] &amp; 0xFFL) &lt;&lt; 16)
+                            + ((bytes[nameBegin + 1] &amp; 0xFFL) &lt;&lt; 8)
+                            + (bytes[nameBegin] &amp; 0xFFL);
+<span class="fc" id="L1222">                    nameValue1</span>
+                            = (((long) bytes[nameBegin + 13]) &lt;&lt; 56)
+                            + ((bytes[nameBegin + 12] &amp; 0xFFL) &lt;&lt; 48)
+                            + ((bytes[nameBegin + 11] &amp; 0xFFL) &lt;&lt; 40)
+                            + ((bytes[nameBegin + 10] &amp; 0xFFL) &lt;&lt; 32)
+                            + ((bytes[nameBegin + 9] &amp; 0xFFL) &lt;&lt; 24)
+                            + ((bytes[nameBegin + 8] &amp; 0xFFL) &lt;&lt; 16)
+                            + ((bytes[nameBegin + 7] &amp; 0xFFL) &lt;&lt; 8)
+                            + (bytes[nameBegin + 6] &amp; 0xFFL);
+<span class="fc" id="L1231">                    break;</span>
+                case 15:
+<span class="fc" id="L1233">                    nameValue0</span>
+                            = (((long) bytes[nameBegin + 6]) &lt;&lt; 48)
+                            + ((bytes[nameBegin + 5] &amp; 0xFFL) &lt;&lt; 40)
+                            + ((bytes[nameBegin + 4] &amp; 0xFFL) &lt;&lt; 32)
+                            + ((bytes[nameBegin + 3] &amp; 0xFFL) &lt;&lt; 24)
+                            + ((bytes[nameBegin + 2] &amp; 0xFFL) &lt;&lt; 16)
+                            + ((bytes[nameBegin + 1] &amp; 0xFFL) &lt;&lt; 8)
+                            + (bytes[nameBegin] &amp; 0xFFL);
+<span class="fc" id="L1241">                    nameValue1</span>
+                            = (((long) bytes[nameBegin + 14]) &lt;&lt; 56)
+                            + ((bytes[nameBegin + 13] &amp; 0xFFL) &lt;&lt; 48)
+                            + ((bytes[nameBegin + 12] &amp; 0xFFL) &lt;&lt; 40)
+                            + ((bytes[nameBegin + 11] &amp; 0xFFL) &lt;&lt; 32)
+                            + ((bytes[nameBegin + 10] &amp; 0xFFL) &lt;&lt; 24)
+                            + ((bytes[nameBegin + 9] &amp; 0xFFL) &lt;&lt; 16)
+                            + ((bytes[nameBegin + 8] &amp; 0xFFL) &lt;&lt; 8)
+                            + (bytes[nameBegin + 7] &amp; 0xFFL);
+<span class="fc" id="L1250">                    break;</span>
+                case 16:
+<span class="fc" id="L1252">                    nameValue0</span>
+                            = (((long) bytes[nameBegin + 7]) &lt;&lt; 56)
+                            + ((bytes[nameBegin + 6] &amp; 0xFFL) &lt;&lt; 48)
+                            + ((bytes[nameBegin + 5] &amp; 0xFFL) &lt;&lt; 40)
+                            + ((bytes[nameBegin + 4] &amp; 0xFFL) &lt;&lt; 32)
+                            + ((bytes[nameBegin + 3] &amp; 0xFFL) &lt;&lt; 24)
+                            + ((bytes[nameBegin + 2] &amp; 0xFFL) &lt;&lt; 16)
+                            + ((bytes[nameBegin + 1] &amp; 0xFFL) &lt;&lt; 8)
+                            + (bytes[nameBegin] &amp; 0xFFL);
+<span class="fc" id="L1261">                    nameValue1</span>
+                            = (((long) bytes[nameBegin + 15]) &lt;&lt; 56)
+                            + ((bytes[nameBegin + 14] &amp; 0xFFL) &lt;&lt; 48)
+                            + ((bytes[nameBegin + 13] &amp; 0xFFL) &lt;&lt; 40)
+                            + ((bytes[nameBegin + 12] &amp; 0xFFL) &lt;&lt; 32)
+                            + ((bytes[nameBegin + 11] &amp; 0xFFL) &lt;&lt; 24)
+                            + ((bytes[nameBegin + 10] &amp; 0xFFL) &lt;&lt; 16)
+                            + ((bytes[nameBegin + 9] &amp; 0xFFL) &lt;&lt; 8)
+                            + (bytes[nameBegin + 8] &amp; 0xFFL);
+<span class="fc" id="L1270">                    break;</span>
+                default:
+                    break;
+            }
+
+<span class="fc bfc" id="L1275" title="All 2 branches covered.">            if (nameValue0 != -1) {</span>
+<span class="fc bfc" id="L1276" title="All 2 branches covered.">                if (nameValue1 != -1) {</span>
+<span class="fc" id="L1277">                    long nameValue01 = nameValue0 ^ nameValue1;</span>
+<span class="fc" id="L1278">                    int indexMask = ((int) (nameValue01 ^ (nameValue01 &gt;&gt;&gt; 32))) &amp; (NAME_CACHE2.length - 1);</span>
+<span class="fc" id="L1279">                    JSONFactory.NameCacheEntry2 entry = NAME_CACHE2[indexMask];</span>
+<span class="pc bpc" id="L1280" title="1 of 2 branches missed.">                    if (entry == null) {</span>
+<span class="nc" id="L1281">                        char[] chars = new char[length];</span>
+<span class="nc bnc" id="L1282" title="All 2 branches missed.">                        for (int i = 0; i &lt; length; ++i) {</span>
+<span class="nc" id="L1283">                            chars[i] = (char) (bytes[nameBegin + i] &amp; 0xFF);</span>
+                        }
+
+                        String name;
+<span class="nc bnc" id="L1287" title="All 2 branches missed.">                        if (STRING_CREATOR_JDK8 != null) {</span>
+<span class="nc" id="L1288">                            name = STRING_CREATOR_JDK8.apply(chars, Boolean.TRUE);</span>
+                        } else {
+<span class="nc" id="L1290">                            name = new String(chars);</span>
+                        }
+
+<span class="nc" id="L1293">                        NAME_CACHE2[indexMask] = new JSONFactory.NameCacheEntry2(name, nameValue0, nameValue1);</span>
+<span class="nc" id="L1294">                        return name;</span>
+<span class="fc bfc" id="L1295" title="All 4 branches covered.">                    } else if (entry.value0 == nameValue0 &amp;&amp; entry.value1 == nameValue1) {</span>
+<span class="fc" id="L1296">                        return entry.name;</span>
+                    }
+<span class="fc" id="L1298">                } else {</span>
+<span class="fc" id="L1299">                    int indexMask = ((int) (nameValue0 ^ (nameValue0 &gt;&gt;&gt; 32))) &amp; (NAME_CACHE.length - 1);</span>
+<span class="fc" id="L1300">                    JSONFactory.NameCacheEntry entry = NAME_CACHE[indexMask];</span>
+<span class="pc bpc" id="L1301" title="1 of 2 branches missed.">                    if (entry == null) {</span>
+<span class="nc" id="L1302">                        char[] chars = new char[length];</span>
+<span class="nc bnc" id="L1303" title="All 2 branches missed.">                        for (int i = 0; i &lt; length; ++i) {</span>
+<span class="nc" id="L1304">                            chars[i] = (char) (bytes[nameBegin + i] &amp; 0xFF);</span>
+                        }
+
+                        String name;
+<span class="nc bnc" id="L1308" title="All 2 branches missed.">                        if (STRING_CREATOR_JDK8 != null) {</span>
+<span class="nc" id="L1309">                            name = STRING_CREATOR_JDK8.apply(chars, Boolean.TRUE);</span>
+                        } else {
+<span class="nc" id="L1311">                            name = new String(chars);</span>
+                        }
+
+<span class="nc" id="L1314">                        NAME_CACHE[indexMask] = new JSONFactory.NameCacheEntry(name, nameValue0);</span>
+<span class="nc" id="L1315">                        return name;</span>
+<span class="pc bpc" id="L1316" title="1 of 2 branches missed.">                    } else if (entry.value == nameValue0) {</span>
+<span class="nc" id="L1317">                        return entry.name;</span>
+                    }
+                }
+            }
+        }
+
+<span class="fc" id="L1323">        return getFieldName();</span>
+    }
+
+    @Override
+    protected final void readString0() {
+<span class="fc" id="L1328">        final byte[] bytes = this.bytes;</span>
+<span class="fc" id="L1329">        char quote = this.ch;</span>
+<span class="fc" id="L1330">        final int start = offset;</span>
+<span class="fc" id="L1331">        int offset = this.offset;</span>
+        int valueLength;
+<span class="fc" id="L1333">        valueEscape = false;</span>
+
+<span class="fc" id="L1335">        for (int i = 0; ; ++i) {</span>
+<span class="fc" id="L1336">            int c = bytes[offset];</span>
+<span class="fc bfc" id="L1337" title="All 2 branches covered.">            if (c == '\\') {</span>
+<span class="fc" id="L1338">                valueEscape = true;</span>
+<span class="fc" id="L1339">                c = bytes[offset + 1];</span>
+<span class="pc bpc" id="L1340" title="1 of 4 branches missed.">                offset += (c == 'u' ? 6 : (c == 'x' ? 4 : 2));</span>
+<span class="fc" id="L1341">                continue;</span>
+            }
+
+<span class="fc bfc" id="L1344" title="All 2 branches covered.">            if (c == quote) {</span>
+<span class="fc" id="L1345">                valueLength = i;</span>
+<span class="fc" id="L1346">                break;</span>
+            }
+<span class="fc" id="L1348">            offset++;</span>
+        }
+
+        String str;
+<span class="fc bfc" id="L1352" title="All 2 branches covered.">        if (valueEscape) {</span>
+<span class="fc" id="L1353">            char[] chars = new char[valueLength];</span>
+<span class="fc" id="L1354">            offset = start;</span>
+<span class="fc" id="L1355">            for (int i = 0; ; ++i) {</span>
+<span class="fc" id="L1356">                char c = (char) (bytes[offset] &amp; 0xff);</span>
+<span class="fc bfc" id="L1357" title="All 2 branches covered.">                if (c == '\\') {</span>
+<span class="fc" id="L1358">                    c = (char) (bytes[++offset]);</span>
+<span class="pc bpc" id="L1359" title="2 of 4 branches missed.">                    switch (c) {</span>
+                        case 'u': {
+<span class="fc" id="L1361">                            c = char4(bytes[offset + 1], bytes[offset + 2], bytes[offset + 3], bytes[offset + 4]);</span>
+<span class="fc" id="L1362">                            offset += 4;</span>
+<span class="fc" id="L1363">                            break;</span>
+                        }
+                        case 'x': {
+<span class="fc" id="L1366">                            c = char2(bytes[offset + 1], bytes[offset + 2]);</span>
+<span class="fc" id="L1367">                            offset += 2;</span>
+<span class="fc" id="L1368">                            break;</span>
+                        }
+                        case '\\':
+                        case '&quot;':
+<span class="nc" id="L1372">                            break;</span>
+                        default:
+<span class="nc" id="L1374">                            c = char1(c);</span>
+<span class="nc" id="L1375">                            break;</span>
+                    }
+<span class="fc bfc" id="L1377" title="All 2 branches covered.">                } else if (c == '&quot;') {</span>
+<span class="fc" id="L1378">                    break;</span>
+                }
+<span class="fc" id="L1380">                chars[i] = c;</span>
+<span class="fc" id="L1381">                offset++;</span>
+            }
+
+<span class="fc" id="L1384">            str = new String(chars);</span>
+<span class="fc" id="L1385">        } else {</span>
+<span class="pc bpc" id="L1386" title="1 of 2 branches missed.">            if (STRING_CREATOR_JDK11 != null) {</span>
+<span class="nc" id="L1387">                byte[] buf = Arrays.copyOfRange(bytes, start, offset);</span>
+<span class="nc" id="L1388">                str = STRING_CREATOR_JDK11.apply(buf, LATIN1);</span>
+<span class="nc" id="L1389">            } else {</span>
+<span class="fc" id="L1390">                str = new String(bytes, start, offset - start, StandardCharsets.ISO_8859_1);</span>
+            }
+        }
+
+<span class="fc" id="L1394">        int ch = bytes[++offset];</span>
+<span class="pc bpc" id="L1395" title="4 of 6 branches missed.">        while (ch &gt; 0 &amp;&amp; ch &lt;= ' ' &amp;&amp; ((1L &lt;&lt; ch) &amp; SPACE) != 0) {</span>
+<span class="nc" id="L1396">            ch = bytes[++offset];</span>
+        }
+
+<span class="fc" id="L1399">        this.offset = offset + 1;</span>
+<span class="pc bpc" id="L1400" title="2 of 4 branches missed.">        if (comma = (ch == ',')) {</span>
+<span class="fc" id="L1401">            next();</span>
+        } else {
+<span class="nc" id="L1403">            this.ch = (char) ch;</span>
+        }
+
+<span class="fc" id="L1406">        stringValue = str;</span>
+<span class="fc" id="L1407">    }</span>
+
+    @Override
+    public String readString() {
+<span class="fc bfc" id="L1411" title="All 4 branches covered.">        if (ch == '&quot;' || ch == '\'') {</span>
+<span class="fc" id="L1412">            final byte[] bytes = this.bytes;</span>
+<span class="fc" id="L1413">            final byte quote = (byte) ch;</span>
+<span class="fc" id="L1414">            final byte slash = (byte) '\\';</span>
+
+<span class="fc" id="L1416">            int offset = this.offset;</span>
+<span class="fc" id="L1417">            final int start = offset, end = this.end;</span>
+            int valueLength;
+<span class="fc" id="L1419">            boolean valueEscape = false;</span>
+
+            _for:
+            {
+<span class="fc" id="L1423">                int i = 0;</span>
+<span class="fc" id="L1424">                byte c0 = 0, c1 = 0, c2 = 0, c3;</span>
+
+                // vector optimize
+<span class="fc" id="L1427">                boolean quoted = false;</span>
+<span class="fc" id="L1428">                int upperBound = offset + ((end - offset) &amp; ~3);</span>
+<span class="fc bfc" id="L1429" title="All 2 branches covered.">                while (offset &lt; upperBound) {</span>
+<span class="fc" id="L1430">                    c0 = bytes[offset];</span>
+<span class="fc" id="L1431">                    c1 = bytes[offset + 1];</span>
+<span class="fc" id="L1432">                    c2 = bytes[offset + 2];</span>
+<span class="fc" id="L1433">                    c3 = bytes[offset + 3];</span>
+<span class="pc bpc" id="L1434" title="1 of 8 branches missed.">                    if (c0 == slash || c1 == slash || c2 == slash || c3 == slash) {</span>
+<span class="nc" id="L1435">                        break;</span>
+                    }
+<span class="fc bfc" id="L1437" title="All 8 branches covered.">                    if (c0 == quote || c1 == quote || c2 == quote || c3 == quote) {</span>
+<span class="fc" id="L1438">                        quoted = true;</span>
+<span class="fc" id="L1439">                        break;</span>
+                    }
+<span class="fc" id="L1441">                    offset += 4;</span>
+<span class="fc" id="L1442">                    i += 4;</span>
+                }
+
+<span class="fc bfc" id="L1445" title="All 2 branches covered.">                if (quoted) {</span>
+<span class="fc bfc" id="L1446" title="All 2 branches covered.">                    if (c0 == quote) {</span>
+                        // skip
+<span class="fc bfc" id="L1448" title="All 2 branches covered.">                    } else if (c1 == quote) {</span>
+<span class="fc" id="L1449">                        offset++;</span>
+<span class="fc" id="L1450">                        i++;</span>
+<span class="fc bfc" id="L1451" title="All 2 branches covered.">                    } else if (c2 == quote) {</span>
+<span class="fc" id="L1452">                        offset += 2;</span>
+<span class="fc" id="L1453">                        i += 2;</span>
+                    } else {
+<span class="fc" id="L1455">                        offset += 3;</span>
+<span class="fc" id="L1456">                        i += 3;</span>
+                    }
+<span class="fc" id="L1458">                    valueLength = i;</span>
+                } else {
+<span class="fc" id="L1460">                    for (; ; ++i) {</span>
+<span class="pc bpc" id="L1461" title="1 of 2 branches missed.">                        if (offset &gt;= end) {</span>
+<span class="nc" id="L1462">                            throw new JSONException(&quot;invalid escape character EOI&quot;);</span>
+                        }
+
+<span class="fc" id="L1465">                        byte c = bytes[offset];</span>
+<span class="fc bfc" id="L1466" title="All 2 branches covered.">                        if (c == slash) {</span>
+<span class="fc" id="L1467">                            valueEscape = true;</span>
+<span class="fc" id="L1468">                            c = bytes[offset + 1];</span>
+<span class="fc bfc" id="L1469" title="All 4 branches covered.">                            offset += (c == 'u' ? 6 : (c == 'x' ? 4 : 2));</span>
+<span class="fc" id="L1470">                            continue;</span>
+                        }
+
+<span class="fc bfc" id="L1473" title="All 2 branches covered.">                        if (c == quote) {</span>
+<span class="fc" id="L1474">                            valueLength = i;</span>
+<span class="fc" id="L1475">                            break _for;</span>
+                        }
+<span class="fc" id="L1477">                        offset++;</span>
+                    }
+                }
+            }
+
+            String str;
+<span class="fc bfc" id="L1483" title="All 2 branches covered.">            if (valueEscape) {</span>
+<span class="fc" id="L1484">                char[] buf = new char[valueLength];</span>
+<span class="fc" id="L1485">                offset = start;</span>
+<span class="fc" id="L1486">                for (int i = 0; ; ++i) {</span>
+<span class="fc" id="L1487">                    char c = (char) (bytes[offset] &amp; 0xff);</span>
+<span class="fc bfc" id="L1488" title="All 2 branches covered.">                    if (c == '\\') {</span>
+<span class="fc" id="L1489">                        c = (char) bytes[++offset];</span>
+<span class="pc bpc" id="L1490" title="1 of 9 branches missed.">                        switch (c) {</span>
+                            case 'u': {
+<span class="fc" id="L1492">                                c = char4(bytes[offset + 1], bytes[offset + 2], bytes[offset + 3], bytes[offset + 4]);</span>
+<span class="fc" id="L1493">                                offset += 4;</span>
+<span class="fc" id="L1494">                                break;</span>
+                            }
+                            case 'x': {
+<span class="fc" id="L1497">                                c = char2(bytes[offset + 1], bytes[offset + 2]);</span>
+<span class="fc" id="L1498">                                offset += 2;</span>
+<span class="fc" id="L1499">                                break;</span>
+                            }
+                            case '\\':
+                            case '&quot;':
+<span class="fc" id="L1503">                                break;</span>
+                            case 'b':
+<span class="fc" id="L1505">                                c = '\b';</span>
+<span class="fc" id="L1506">                                break;</span>
+                            case 't':
+<span class="fc" id="L1508">                                c = '\t';</span>
+<span class="fc" id="L1509">                                break;</span>
+                            case 'n':
+<span class="fc" id="L1511">                                c = '\n';</span>
+<span class="fc" id="L1512">                                break;</span>
+                            case 'f':
+<span class="fc" id="L1514">                                c = '\f';</span>
+<span class="fc" id="L1515">                                break;</span>
+                            case 'r':
+<span class="fc" id="L1517">                                c = '\r';</span>
+<span class="fc" id="L1518">                                break;</span>
+                            default:
+<span class="nc" id="L1520">                                c = char1(c);</span>
+<span class="nc" id="L1521">                                break;</span>
+                        }
+<span class="fc bfc" id="L1523" title="All 2 branches covered.">                    } else if (c == quote) {</span>
+<span class="fc" id="L1524">                        break;</span>
+                    }
+<span class="fc" id="L1526">                    buf[i] = c;</span>
+<span class="fc" id="L1527">                    offset++;</span>
+                }
+
+<span class="fc" id="L1530">                str = new String(buf);</span>
+<span class="fc" id="L1531">            } else {</span>
+<span class="fc bfc" id="L1532" title="All 2 branches covered.">                if (this.str != null) {</span>
+<span class="fc" id="L1533">                    str = this.str.substring(start, offset);</span>
+<span class="pc bpc" id="L1534" title="1 of 2 branches missed.">                } else if (STRING_CREATOR_JDK11 != null) {</span>
+<span class="nc" id="L1535">                    str = STRING_CREATOR_JDK11.apply(Arrays.copyOfRange(bytes, start, offset), LATIN1);</span>
+<span class="pc bpc" id="L1536" title="1 of 2 branches missed.">                } else if (ANDROID) {</span>
+<span class="nc" id="L1537">                    str = getLatin1String(start, offset - start);</span>
+                } else {
+<span class="fc" id="L1539">                    str = new String(bytes, start, offset - start, StandardCharsets.ISO_8859_1);</span>
+                }
+            }
+
+<span class="fc bfc" id="L1543" title="All 2 branches covered.">            if ((context.features &amp; Feature.TrimString.mask) != 0) {</span>
+<span class="fc" id="L1544">                str = str.trim();</span>
+            }
+            // empty string to null
+<span class="pc bpc" id="L1547" title="1 of 4 branches missed.">            if (str.isEmpty() &amp;&amp; (context.features &amp; Feature.EmptyStringAsNull.mask) != 0) {</span>
+<span class="nc" id="L1548">                str = null;</span>
+            }
+
+<span class="fc bfc" id="L1551" title="All 2 branches covered.">            int ch = ++offset == end ? EOI : bytes[offset++];</span>
+<span class="fc bfc" id="L1552" title="All 4 branches covered.">            while (ch &lt;= ' ' &amp;&amp; (1L &lt;&lt; ch &amp; SPACE) != 0) {</span>
+<span class="pc bpc" id="L1553" title="1 of 2 branches missed.">                ch = offset == end ? EOI : bytes[offset++];</span>
+            }
+
+<span class="fc bfc" id="L1556" title="All 4 branches covered.">            if (comma = ch == ',') {</span>
+<span class="fc bfc" id="L1557" title="All 2 branches covered.">                ch = offset == end ? EOI : bytes[offset++];</span>
+<span class="fc bfc" id="L1558" title="All 4 branches covered.">                while (ch &lt;= ' ' &amp;&amp; (1L &lt;&lt; ch &amp; SPACE) != 0) {</span>
+<span class="pc bpc" id="L1559" title="1 of 2 branches missed.">                    ch = offset == end ? EOI : bytes[offset++];</span>
+                }
+            }
+
+<span class="fc" id="L1563">            this.ch = (char) (ch &amp; 0xFF);</span>
+<span class="fc" id="L1564">            this.offset = offset;</span>
+<span class="fc" id="L1565">            return str;</span>
+        }
+
+<span class="fc" id="L1568">        return readStringNotMatch();</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.8.202204050719</span></div></body></html>

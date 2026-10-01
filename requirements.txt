@@ -1,0 +1,19 @@
+# LLM4pr 直接依赖（版本与 conda 环境 swe / Python 3.10.12 中验证一致）
+# LLM 调用（OpenAI 兼容接口）
+openai==2.15.0
+# Java 代码解析（tree-sitter 语法树与符号表）
+tree-sitter==0.24.0
+tree-sitter-java==0.23.5
+# Docker 镜像构建与容器内编译/执行
+docker==7.1.0
+# multi-swe-bench harness 依赖
+dataclasses-json==0.6.7
+GitPython==3.1.46
+unidiff==0.7.5
+tqdm==4.67.1
+toml==0.10.2
+PyYAML==6.0.3
+# 覆盖率报告解析（analyzer/auto_coverage_tool.py）
+beautifulsoup4==4.14.3
+# 日志
+loguru==0.7.3

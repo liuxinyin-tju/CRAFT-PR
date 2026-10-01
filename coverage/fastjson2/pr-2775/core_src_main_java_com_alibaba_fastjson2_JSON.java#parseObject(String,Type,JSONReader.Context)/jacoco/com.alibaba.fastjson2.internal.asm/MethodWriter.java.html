@@ -1,0 +1,929 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>MethodWriter.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">fastjson2</a> &gt; <a href="index.source.html" class="el_package">com.alibaba.fastjson2.internal.asm</a> &gt; <span class="el_source">MethodWriter.java</span></div><h1>MethodWriter.java</h1><pre class="source lang-java linenums">// ASM: a very small and fast Java bytecode manipulation framework
+// Copyright (c) 2000-2011 INRIA, France Telecom
+// All rights reserved.
+//
+// Redistribution and use in source and binary forms, with or without
+// modification, are permitted provided that the following conditions
+// are met:
+// 1. Redistributions of source code must retain the above copyright
+//    notice, this list of conditions and the following disclaimer.
+// 2. Redistributions in binary form must reproduce the above copyright
+//    notice, this list of conditions and the following disclaimer in the
+//    documentation and/or other materials provided with the distribution.
+// 3. Neither the name of the copyright holders nor the names of its
+//    contributors may be used to endorse or promote products derived from
+//    this software without specific prior written permission.
+//
+// THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS &quot;AS IS&quot;
+// AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+// IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+// ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE
+// LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+// CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+// SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+// INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+// CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+// ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF
+// THE POSSIBILITY OF SUCH DAMAGE.
+package com.alibaba.fastjson2.internal.asm;
+
+import com.alibaba.fastjson2.JSONException;
+
+/**
+ * @author Eric Bruneton
+ * @author Eugene Kuleshov
+ */
+public final class MethodWriter {
+    MethodWriter mv;
+
+    /**
+     * Where the constants used in this MethodWriter must be stored.
+     */
+    private final SymbolTable symbolTable;
+
+    private final int accessFlags;
+
+    /**
+     * The name_index field of the method_info JVMS structure.
+     */
+    private final int nameIndex;
+
+    /**
+     * The name of this method.
+     */
+    private final String name;
+
+    /**
+     * The descriptor_index field of the method_info JVMS structure.
+     */
+    private final int descriptorIndex;
+
+    /**
+     * The descriptor of this method.
+     */
+    private final String descriptor;
+
+    // Code attribute fields and sub attributes:
+
+    /**
+     * The max_stack field of the Code attribute.
+     */
+    private int maxStack;
+
+    /**
+     * The max_locals field of the Code attribute.
+     */
+    private int maxLocals;
+
+    /**
+     * The 'code' field of the Code attribute.
+     */
+    private final ByteVector code;
+
+    /**
+     * The number_of_entries field of the StackMapTable code attribute.
+     */
+    int stackMapTableNumberOfEntries;
+
+    /**
+     * The 'entries' array of the StackMapTable code attribute.
+     */
+    private ByteVector stackMapTableEntries;
+    /**
+     * The first basic block of the method. The next ones (in bytecode offset order) can be accessed
+     * with the {@link Label#nextBasicBlock} field.
+     */
+    private final Label firstBasicBlock;
+
+    /**
+     * The last basic block of the method (in bytecode offset order). This field is updated each time
+     * a basic block is encountered, and is used to append it at the end of the basic block list.
+     */
+    private Label lastBasicBlock;
+
+    private Label currentBasicBlock;
+
+    /**
+     * The last frame that was written in {@link #stackMapTableEntries}. This field has the same
+     * format as {@link #currentFrame}.
+     */
+    private int[] previousFrame;
+    private int[] currentFrame;
+
+    boolean hasAsmInstructions;
+
+    /**
+     * The start offset of the last visited instruction. Used to set the offset field of type
+     * annotations of type 'offset_target' (see &lt;a
+     * href=&quot;https://docs.oracle.com/javase/specs/jvms/se9/html/jvms-4.html#jvms-4.7.20.1&quot;&gt;JVMS
+     * 4.7.20.1&lt;/a&gt;).
+     */
+    private int lastBytecodeOffset;
+
+    // -----------------------------------------------------------------------------------------------
+    // Constructor and accessors
+    // -----------------------------------------------------------------------------------------------
+
+    /**
+     * Constructs a new {@link MethodWriter}.
+     *
+     * @param symbolTable where the constants used in this AnnotationWriter must be stored.
+     * @param access      the method's access flags (see {@link Opcodes}).
+     * @param name        the method's name.
+     * @param descriptor  the method's descriptor (see {@link Type}).
+     */
+    MethodWriter(
+            SymbolTable symbolTable,
+            int access,
+            String name,
+            String descriptor,
+            int codeInitCapacity
+<span class="fc" id="L141">    ) {</span>
+<span class="fc" id="L142">        this.symbolTable = symbolTable;</span>
+<span class="fc bfc" id="L143" title="All 2 branches covered.">        this.accessFlags = &quot;&lt;init&gt;&quot;.equals(name) ? access | Constants.ACC_CONSTRUCTOR : access;</span>
+<span class="fc" id="L144">        this.nameIndex = symbolTable.addConstantUtf8(name);</span>
+<span class="fc" id="L145">        this.name = name;</span>
+<span class="fc" id="L146">        this.descriptorIndex = symbolTable.addConstantUtf8(descriptor);</span>
+<span class="fc" id="L147">        this.descriptor = descriptor;</span>
+<span class="fc" id="L148">        this.code = new ByteVector(codeInitCapacity);</span>
+
+        // Update maxLocals and currentLocals.
+<span class="fc" id="L151">        int argumentsSize = Type.getArgumentsAndReturnSizes(descriptor) &gt;&gt; 2;</span>
+<span class="pc bpc" id="L152" title="1 of 2 branches missed.">        if ((access &amp; Opcodes.ACC_STATIC) != 0) {</span>
+<span class="nc" id="L153">            --argumentsSize;</span>
+        }
+<span class="fc" id="L155">        maxLocals = argumentsSize;</span>
+        // Create and visit the label for the first basic block.
+<span class="fc" id="L157">        firstBasicBlock = new Label();</span>
+<span class="fc" id="L158">        visitLabel(firstBasicBlock);</span>
+<span class="fc" id="L159">    }</span>
+
+    // -----------------------------------------------------------------------------------------------
+    // Implementation of the MethodVisitor abstract class
+    // -----------------------------------------------------------------------------------------------
+
+    public void visitInsn(final int opcode) {
+<span class="fc" id="L166">        lastBytecodeOffset = code.length;</span>
+        // Add the instruction to the bytecode of the method.
+<span class="fc" id="L168">        code.putByte(opcode);</span>
+        // If needed, update the maximum stack size and number of locals, and stack map frames.
+<span class="fc bfc" id="L170" title="All 2 branches covered.">        if (currentBasicBlock != null) {</span>
+<span class="fc" id="L171">            currentBasicBlock.frame.execute(opcode, 0, null, null);</span>
+<span class="pc bpc" id="L172" title="1 of 6 branches missed.">            if ((opcode &gt;= Opcodes.IRETURN &amp;&amp; opcode &lt;= Opcodes.RETURN) || opcode == Opcodes.ATHROW) {</span>
+<span class="fc" id="L173">                endCurrentBasicBlockWithNoSuccessor();</span>
+            }
+        }
+<span class="fc" id="L176">    }</span>
+
+    public void visitIntInsn(final int opcode, final int operand) {
+<span class="fc" id="L179">        lastBytecodeOffset = code.length;</span>
+        // Add the instruction to the bytecode of the method.
+<span class="pc bpc" id="L181" title="1 of 2 branches missed.">        if (opcode == Opcodes.SIPUSH) {</span>
+<span class="nc" id="L182">            code.put12(opcode, operand);</span>
+        } else { // BIPUSH or NEWARRAY
+<span class="fc" id="L184">            code.put11(opcode, operand);</span>
+        }
+        // If needed, update the maximum stack size and number of locals, and stack map frames.
+<span class="pc bpc" id="L187" title="1 of 2 branches missed.">        if (currentBasicBlock != null) {</span>
+<span class="fc" id="L188">            currentBasicBlock.frame.execute(opcode, operand, null, null);</span>
+        }
+<span class="fc" id="L190">    }</span>
+
+    public void visitVarInsn(final int opcode, final int var) {
+<span class="fc" id="L193">        lastBytecodeOffset = code.length;</span>
+        // Add the instruction to the bytecode of the method.
+<span class="pc bpc" id="L195" title="1 of 4 branches missed.">        if (var &lt; 4 &amp;&amp; opcode != Opcodes.RET) {</span>
+            int optimizedOpcode;
+<span class="fc bfc" id="L197" title="All 2 branches covered.">            if (opcode &lt; Opcodes.ISTORE) {</span>
+<span class="fc" id="L198">                optimizedOpcode = Constants.ILOAD_0 + ((opcode - Opcodes.ILOAD) &lt;&lt; 2) + var;</span>
+            } else {
+<span class="fc" id="L200">                optimizedOpcode = Constants.ISTORE_0 + ((opcode - Opcodes.ISTORE) &lt;&lt; 2) + var;</span>
+            }
+<span class="fc" id="L202">            code.putByte(optimizedOpcode);</span>
+<span class="pc bpc" id="L203" title="1 of 2 branches missed.">        } else if (var &gt;= 256) {</span>
+<span class="nc" id="L204">            code.putByte(Constants.WIDE).put12(opcode, var);</span>
+        } else {
+<span class="fc" id="L206">            code.put11(opcode, var);</span>
+        }
+        // If needed, update the maximum stack size and number of locals, and stack map frames.
+<span class="fc bfc" id="L209" title="All 2 branches covered.">        if (currentBasicBlock != null) {</span>
+<span class="fc" id="L210">            currentBasicBlock.frame.execute(opcode, var, null, null);</span>
+        }
+
+        int currentMaxLocals;
+<span class="fc bfc" id="L214" title="All 8 branches covered.">        if (opcode == Opcodes.LLOAD</span>
+                || opcode == Opcodes.DLOAD
+                || opcode == Opcodes.LSTORE
+                || opcode == Opcodes.DSTORE) {
+<span class="fc" id="L218">            currentMaxLocals = var + 2;</span>
+        } else {
+<span class="fc" id="L220">            currentMaxLocals = var + 1;</span>
+        }
+<span class="fc bfc" id="L222" title="All 2 branches covered.">        if (currentMaxLocals &gt; maxLocals) {</span>
+<span class="fc" id="L223">            maxLocals = currentMaxLocals;</span>
+        }
+<span class="fc" id="L225">    }</span>
+
+    public void visitTypeInsn(final int opcode, final String type) {
+<span class="fc" id="L228">        lastBytecodeOffset = code.length;</span>
+        // Add the instruction to the bytecode of the method.
+<span class="fc" id="L230">        Symbol typeSymbol = symbolTable.addConstantUtf8Reference(/*CONSTANT_CLASS_TAG*/ 7, type);</span>
+<span class="fc" id="L231">        code.put12(opcode, typeSymbol.index);</span>
+        // If needed, update the maximum stack size and number of locals, and stack map frames.
+<span class="fc bfc" id="L233" title="All 2 branches covered.">        if (currentBasicBlock != null) {</span>
+<span class="fc" id="L234">            currentBasicBlock.frame.execute(opcode, lastBytecodeOffset, typeSymbol, symbolTable);</span>
+        }
+<span class="fc" id="L236">    }</span>
+
+    public void visitFieldInsn(
+            final int opcode, final String owner, final String name, final String descriptor) {
+<span class="fc" id="L240">        lastBytecodeOffset = code.length;</span>
+        // Add the instruction to the bytecode of the method.
+<span class="fc" id="L242">        Symbol fieldrefSymbol = symbolTable.addConstantMemberReference(/*CONSTANT_FIELDREF_TAG*/ 9, owner, name, descriptor);</span>
+<span class="fc" id="L243">        code.put12(opcode, fieldrefSymbol.index);</span>
+        // If needed, update the maximum stack size and number of locals, and stack map frames.
+<span class="fc bfc" id="L245" title="All 2 branches covered.">        if (currentBasicBlock != null) {</span>
+<span class="fc" id="L246">            currentBasicBlock.frame.execute(opcode, 0, fieldrefSymbol, symbolTable);</span>
+        }
+<span class="fc" id="L248">    }</span>
+
+    public void visitMethodInsn(
+            final int opcode,
+            final String owner,
+            final String name,
+            final String descriptor,
+            final boolean isInterface) {
+<span class="fc" id="L256">        lastBytecodeOffset = code.length;</span>
+        // Add the instruction to the bytecode of the method.
+<span class="fc bfc" id="L258" title="All 2 branches covered.">        Symbol methodrefSymbol = symbolTable.addConstantMemberReference(</span>
+                isInterface ? /*CONSTANT_INTERFACE_METHODREF_TAG*/ 11 : /*CONSTANT_METHODREF_TAG*/ 10,
+                owner,
+                name,
+                descriptor
+        );
+<span class="fc bfc" id="L264" title="All 2 branches covered.">        if (opcode == Opcodes.INVOKEINTERFACE) {</span>
+<span class="fc" id="L265">            code.put12(Opcodes.INVOKEINTERFACE, methodrefSymbol.index)</span>
+<span class="fc" id="L266">                    .put11(methodrefSymbol.getArgumentsAndReturnSizes() &gt;&gt; 2, 0);</span>
+        } else {
+<span class="fc" id="L268">            code.put12(opcode, methodrefSymbol.index);</span>
+        }
+        // If needed, update the maximum stack size and number of locals, and stack map frames.
+<span class="fc bfc" id="L271" title="All 2 branches covered.">        if (currentBasicBlock != null) {</span>
+<span class="fc" id="L272">            currentBasicBlock.frame.execute(opcode, 0, methodrefSymbol, symbolTable);</span>
+        }
+<span class="fc" id="L274">    }</span>
+
+    public void visitJumpInsn(final int opcode, final Label label) {
+<span class="fc" id="L277">        lastBytecodeOffset = code.length;</span>
+        // Add the instruction to the bytecode of the method.
+        // Compute the 'base' opcode, i.e. GOTO or JSR if opcode is GOTO_W or JSR_W, otherwise opcode.
+<span class="pc bpc" id="L280" title="1 of 2 branches missed.">        int baseOpcode =</span>
+                opcode &gt;= Constants.GOTO_W ? opcode - Constants.WIDE_JUMP_OPCODE_DELTA : opcode;
+<span class="fc" id="L282">        boolean nextInsnIsJumpTarget = false;</span>
+<span class="pc bpc" id="L283" title="1 of 4 branches missed.">        if ((label.flags &amp; Label.FLAG_RESOLVED) != 0</span>
+                &amp;&amp; label.bytecodeOffset - code.length &lt; Short.MIN_VALUE) {
+<span class="nc" id="L285">            throw new JSONException(&quot;not supported&quot;);</span>
+<span class="pc bpc" id="L286" title="1 of 2 branches missed.">        } else if (baseOpcode != opcode) {</span>
+            // Case of a GOTO_W or JSR_W specified by the user (normally ClassReader when used to remove
+            // ASM specific instructions). In this case we keep the original instruction.
+<span class="nc" id="L289">            code.putByte(opcode);</span>
+<span class="nc" id="L290">            label.put(code, code.length - 1, true);</span>
+        } else {
+            // Case of a jump with an offset &gt;= -32768, or of a jump with an unknown offset. In these
+            // cases we store the offset in 2 bytes (which will be increased via a ClassReader -&gt;
+            // ClassWriter round trip if it turns out that 2 bytes are not sufficient).
+<span class="fc" id="L295">            code.putByte(baseOpcode);</span>
+<span class="fc" id="L296">            label.put(code, code.length - 1, false);</span>
+        }
+
+        // If needed, update the maximum stack size and number of locals, and stack map frames.
+<span class="fc bfc" id="L300" title="All 2 branches covered.">        if (currentBasicBlock != null) {</span>
+<span class="fc" id="L301">            Label nextBasicBlock = null;</span>
+<span class="fc" id="L302">            currentBasicBlock.frame.execute(baseOpcode, 0, null, null);</span>
+            // Record the fact that 'label' is the target of a jump instruction.
+<span class="fc" id="L304">            label.getCanonicalInstance().flags |= Label.FLAG_JUMP_TARGET;</span>
+            // Add 'label' as a successor of the current basic block.
+<span class="fc" id="L306">            addSuccessorToCurrentBasicBlock(label);</span>
+<span class="fc bfc" id="L307" title="All 2 branches covered.">            if (baseOpcode != Opcodes.GOTO) {</span>
+                // The next instruction starts a new basic block (except for GOTO: by default the code
+                // following a goto is unreachable - unless there is an explicit label for it - and we
+                // should not compute stack frame types for its instructions).
+<span class="fc" id="L311">                nextBasicBlock = new Label();</span>
+            }
+
+            // If the next instruction starts a new basic block, call visitLabel to add the label of this
+            // instruction as a successor of the current block, and to start a new basic block.
+<span class="fc bfc" id="L316" title="All 2 branches covered.">            if (nextBasicBlock != null) {</span>
+<span class="fc" id="L317">                visitLabel(nextBasicBlock);</span>
+            }
+<span class="fc bfc" id="L319" title="All 2 branches covered.">            if (baseOpcode == Opcodes.GOTO) {</span>
+<span class="fc" id="L320">                endCurrentBasicBlockWithNoSuccessor();</span>
+            }
+        }
+<span class="fc" id="L323">    }</span>
+
+    public void visitLabel(final Label label) {
+        // Resolve the forward references to this label, if any.
+<span class="fc" id="L327">        hasAsmInstructions |= label.resolve(code.data, code.length);</span>
+        // visitLabel starts a new basic block (except for debug only labels), so we need to update the
+        // previous and current block references and list of successors.
+<span class="pc bpc" id="L330" title="1 of 2 branches missed.">        if ((label.flags &amp; Label.FLAG_DEBUG_ONLY) != 0) {</span>
+<span class="nc" id="L331">            return;</span>
+        }
+
+<span class="fc bfc" id="L334" title="All 2 branches covered.">        if (currentBasicBlock != null) {</span>
+<span class="fc bfc" id="L335" title="All 2 branches covered.">            if (label.bytecodeOffset == currentBasicBlock.bytecodeOffset) {</span>
+                // We use {@link Label#getCanonicalInstance} to store the state of a basic block in only
+                // one place, but this does not work for labels which have not been visited yet.
+                // Therefore, when we detect here two labels having the same bytecode offset, we need to
+                // - consolidate the state scattered in these two instances into the canonical instance:
+<span class="fc" id="L340">                currentBasicBlock.flags |= (label.flags &amp; Label.FLAG_JUMP_TARGET);</span>
+                // - make sure the two instances share the same Frame instance (the implementation of
+                // {@link Label#getCanonicalInstance} relies on this property; here label.frame should be
+                // null):
+<span class="fc" id="L344">                label.frame = currentBasicBlock.frame;</span>
+                // - and make sure to NOT assign 'label' into 'currentBasicBlock' or 'lastBasicBlock', so
+                // that they still refer to the canonical instance for this bytecode offset.
+<span class="fc" id="L347">                return;</span>
+            }
+            // End the current basic block (with one new successor).
+<span class="fc" id="L350">            addSuccessorToCurrentBasicBlock(label);</span>
+        }
+        // Append 'label' at the end of the basic block list.
+<span class="fc bfc" id="L353" title="All 2 branches covered.">        if (lastBasicBlock != null) {</span>
+<span class="fc bfc" id="L354" title="All 2 branches covered.">            if (label.bytecodeOffset == lastBasicBlock.bytecodeOffset) {</span>
+                // Same comment as above.
+<span class="fc" id="L356">                lastBasicBlock.flags |= (label.flags &amp; Label.FLAG_JUMP_TARGET);</span>
+                // Here label.frame should be null.
+<span class="fc" id="L358">                label.frame = lastBasicBlock.frame;</span>
+<span class="fc" id="L359">                currentBasicBlock = lastBasicBlock;</span>
+<span class="fc" id="L360">                return;</span>
+            }
+<span class="fc" id="L362">            lastBasicBlock.nextBasicBlock = label;</span>
+        }
+<span class="fc" id="L364">        lastBasicBlock = label;</span>
+        // Make it the new current basic block.
+<span class="fc" id="L366">        currentBasicBlock = label;</span>
+        // Here label.frame should be null.
+<span class="fc" id="L368">        label.frame = new Frame(label);</span>
+<span class="fc" id="L369">    }</span>
+//
+//  public void visitLdcInsn(final Object value) {
+//    lastBytecodeOffset = code.length;
+//    // Add the instruction to the bytecode of the method.
+//    Symbol constantSymbol = symbolTable.addConstant(value);
+//    int constantIndex = constantSymbol.index;
+//    char firstDescriptorChar;
+//    boolean isLongOrDouble =
+//            constantSymbol.tag == Symbol.CONSTANT_LONG_TAG
+//                    || constantSymbol.tag == Symbol.CONSTANT_DOUBLE_TAG
+//                    || (constantSymbol.tag == Symbol.CONSTANT_DYNAMIC_TAG
+//                    &amp;&amp; ((firstDescriptorChar = constantSymbol.value.charAt(0)) == 'J'
+//                    || firstDescriptorChar == 'D'));
+//    if (isLongOrDouble) {
+//      code.put12(Constants.LDC2_W, constantIndex);
+//    } else if (constantIndex &gt;= 256) {
+//      code.put12(Constants.LDC_W, constantIndex);
+//    } else {
+//      code.put11(Opcodes.LDC, constantIndex);
+//    }
+//    // If needed, update the maximum stack size and number of locals, and stack map frames.
+//    if (currentBasicBlock != null) {
+//      currentBasicBlock.frame.execute(Opcodes.LDC, 0, constantSymbol, symbolTable);
+//    }
+//  }
+
+    public void visitLdcInsn(final String value) {
+<span class="fc" id="L397">        final int CONSTANT_STRING_TAG = 8;</span>
+
+<span class="fc" id="L399">        lastBytecodeOffset = code.length;</span>
+        // Add the instruction to the bytecode of the method.
+<span class="fc" id="L401">        Symbol constantSymbol = symbolTable.addConstantUtf8Reference(CONSTANT_STRING_TAG, value);</span>
+<span class="fc" id="L402">        int constantIndex = constantSymbol.index;</span>
+<span class="fc bfc" id="L403" title="All 2 branches covered.">        if (constantIndex &gt;= 256) {</span>
+<span class="fc" id="L404">            code.put12(Constants.LDC_W, constantIndex);</span>
+        } else {
+<span class="fc" id="L406">            code.put11(Opcodes.LDC, constantIndex);</span>
+        }
+        // If needed, update the maximum stack size and number of locals, and stack map frames.
+<span class="fc bfc" id="L409" title="All 2 branches covered.">        if (currentBasicBlock != null) {</span>
+<span class="fc" id="L410">            currentBasicBlock.frame.execute(Opcodes.LDC, 0, constantSymbol, symbolTable);</span>
+        }
+<span class="fc" id="L412">    }</span>
+
+    public void visitLdcInsn(Class value) {
+        // getTypeInternal(typeDescriptor, 0, typeDescriptor.length())
+<span class="fc" id="L416">        String desc = ASMUtils.desc(value);</span>
+<span class="fc" id="L417">        Type type = Type.getTypeInternal(desc, 0, desc.length());</span>
+<span class="fc" id="L418">        lastBytecodeOffset = code.length;</span>
+        // Add the instruction to the bytecode of the method.
+        Symbol constantSymbol;
+//        int typeSort = type.getSort();
+<span class="pc bpc" id="L422" title="1 of 2 branches missed.">        int typeSort = type.sort == Type.INTERNAL ? Type.OBJECT : type.sort;</span>
+<span class="fc bfc" id="L423" title="All 2 branches covered.">        if (typeSort == Type.OBJECT) {</span>
+            // type.valueBuffer.substring(type.valueBegin, type.valueEnd)
+<span class="fc" id="L425">            constantSymbol = symbolTable.addConstantUtf8Reference(/*CONSTANT_CLASS_TAG*/ 7, type.valueBuffer.substring(type.valueBegin, type.valueEnd));</span>
+        } else { // type is a primitive or array type.
+<span class="fc" id="L427">            constantSymbol = symbolTable.addConstantUtf8Reference(/*CONSTANT_CLASS_TAG*/ 7, type.getDescriptor());</span>
+        }
+<span class="fc" id="L429">        int constantIndex = constantSymbol.index;</span>
+<span class="fc bfc" id="L430" title="All 2 branches covered.">        if (constantIndex &gt;= 256) {</span>
+<span class="fc" id="L431">            code.put12(Constants.LDC_W, constantIndex);</span>
+        } else {
+<span class="fc" id="L433">            code.put11(Opcodes.LDC, constantIndex);</span>
+        }
+        // If needed, update the maximum stack size and number of locals, and stack map frames.
+<span class="fc bfc" id="L436" title="All 2 branches covered.">        if (currentBasicBlock != null) {</span>
+<span class="fc" id="L437">            currentBasicBlock.frame.execute(Opcodes.LDC, 0, constantSymbol, symbolTable);</span>
+        }
+<span class="fc" id="L439">    }</span>
+
+    public void visitLdcInsn(final Number value) {
+<span class="fc bfc" id="L442" title="All 2 branches covered.">        if (value instanceof Integer) {</span>
+<span class="fc" id="L443">            visitLdcInsn(value.intValue());</span>
+<span class="pc bpc" id="L444" title="1 of 2 branches missed.">        } else if (value instanceof Long) {</span>
+<span class="fc" id="L445">            visitLdcInsn(value.longValue());</span>
+        } else {
+<span class="nc" id="L447">            throw new UnsupportedOperationException(value.getClass().getName());</span>
+        }
+<span class="fc" id="L449">    }</span>
+
+    public void visitLdcInsn(final int value) {
+<span class="fc" id="L452">        lastBytecodeOffset = code.length;</span>
+        // Add the instruction to the bytecode of the method.
+<span class="fc" id="L454">        Symbol constantSymbol = symbolTable.addConstantIntegerOrFloat(value);</span>
+<span class="fc" id="L455">        int constantIndex = constantSymbol.index;</span>
+<span class="fc bfc" id="L456" title="All 2 branches covered.">        if (constantIndex &gt;= 256) {</span>
+<span class="fc" id="L457">            code.put12(Constants.LDC_W, constantIndex);</span>
+        } else {
+<span class="fc" id="L459">            code.put11(Opcodes.LDC, constantIndex);</span>
+        }
+        // If needed, update the maximum stack size and number of locals, and stack map frames.
+<span class="fc bfc" id="L462" title="All 2 branches covered.">        if (currentBasicBlock != null) {</span>
+<span class="fc" id="L463">            currentBasicBlock.frame.execute(Opcodes.LDC, 0, constantSymbol, symbolTable);</span>
+        }
+<span class="fc" id="L465">    }</span>
+
+    public void visitLdcInsn(final long value) {
+<span class="fc" id="L468">        lastBytecodeOffset = code.length;</span>
+        // Add the instruction to the bytecode of the method.
+<span class="fc" id="L470">        Symbol constantSymbol = symbolTable.addConstantLongOrDouble(value);</span>
+<span class="fc" id="L471">        int constantIndex = constantSymbol.index;</span>
+<span class="fc" id="L472">        code.put12(Constants.LDC2_W, constantIndex);</span>
+        // If needed, update the maximum stack size and number of locals, and stack map frames.
+<span class="fc bfc" id="L474" title="All 2 branches covered.">        if (currentBasicBlock != null) {</span>
+<span class="fc" id="L475">            currentBasicBlock.frame.execute(Opcodes.LDC, 0, constantSymbol, symbolTable);</span>
+        }
+<span class="fc" id="L477">    }</span>
+
+    public void visitIincInsn(final int var, final int increment) {
+<span class="fc" id="L480">        lastBytecodeOffset = code.length;</span>
+        // Add the instruction to the bytecode of the method.
+<span class="pc bpc" id="L482" title="3 of 6 branches missed.">        if ((var &gt; 255) || (increment &gt; 127) || (increment &lt; -128)) {</span>
+<span class="nc" id="L483">            code.putByte(Constants.WIDE).put12(Opcodes.IINC, var).putShort(increment);</span>
+        } else {
+<span class="fc" id="L485">            code.putByte(Opcodes.IINC).put11(var, increment);</span>
+        }
+        // If needed, update the maximum stack size and number of locals, and stack map frames.
+<span class="pc bpc" id="L488" title="1 of 2 branches missed.">        if (currentBasicBlock != null) {</span>
+<span class="fc" id="L489">            currentBasicBlock.frame.execute(Opcodes.IINC, var, null, null);</span>
+        }
+<span class="fc" id="L491">    }</span>
+
+    public void visitLookupSwitchInsn(final Label dflt, final int[] keys, final Label[] labels) {
+<span class="fc" id="L494">        lastBytecodeOffset = code.length;</span>
+        // Add the instruction to the bytecode of the method.
+<span class="fc" id="L496">        code.putByte(Opcodes.LOOKUPSWITCH).putByteArray(null, 0, (4 - code.length % 4) % 4);</span>
+<span class="fc" id="L497">        dflt.put(code, lastBytecodeOffset, true);</span>
+<span class="fc" id="L498">        code.putInt(labels.length);</span>
+<span class="fc bfc" id="L499" title="All 2 branches covered.">        for (int i = 0; i &lt; labels.length; ++i) {</span>
+<span class="fc" id="L500">            code.putInt(keys[i]);</span>
+<span class="fc" id="L501">            labels[i].put(code, lastBytecodeOffset, true);</span>
+        }
+        // If needed, update the maximum stack size and number of locals, and stack map frames.
+<span class="fc" id="L504">        visitSwitchInsn(dflt, labels);</span>
+<span class="fc" id="L505">    }</span>
+
+    private void visitSwitchInsn(final Label dflt, final Label[] labels) {
+<span class="pc bpc" id="L508" title="1 of 2 branches missed.">        if (currentBasicBlock != null) {</span>
+<span class="fc" id="L509">            currentBasicBlock.frame.execute(Opcodes.LOOKUPSWITCH, 0, null, null);</span>
+            // Add all the labels as successors of the current basic block.
+<span class="fc" id="L511">            addSuccessorToCurrentBasicBlock(dflt);</span>
+<span class="fc" id="L512">            dflt.getCanonicalInstance().flags |= Label.FLAG_JUMP_TARGET;</span>
+<span class="fc bfc" id="L513" title="All 2 branches covered.">            for (int i = 0; i &lt; labels.length; i++) {</span>
+<span class="fc" id="L514">                Label label = labels[i];</span>
+<span class="fc" id="L515">                addSuccessorToCurrentBasicBlock(label);</span>
+<span class="fc" id="L516">                label.getCanonicalInstance().flags |= Label.FLAG_JUMP_TARGET;</span>
+            }
+            // End the current basic block.
+<span class="fc" id="L519">            endCurrentBasicBlockWithNoSuccessor();</span>
+        }
+<span class="fc" id="L521">    }</span>
+
+    public void visitMaxs(final int maxStack, final int maxLocals) {
+        /**
+         * Computes all the stack map frames of the method, from scratch.
+         */
+        // computeAllFrames();
+        // Create and visit the first (implicit) frame.
+<span class="fc" id="L529">        Frame firstFrame = firstBasicBlock.frame;</span>
+<span class="fc" id="L530">        firstFrame.setInputFrameFromDescriptor(symbolTable, accessFlags, descriptor, this.maxLocals);</span>
+<span class="fc" id="L531">        firstFrame.accept(this);</span>
+
+        // Fix point algorithm: add the first basic block to a list of blocks to process (i.e. blocks
+        // whose stack map frame has changed) and, while there are blocks to process, remove one from
+        // the list and update the stack map frames of its successor blocks in the control flow graph
+        // (which might change them, in which case these blocks must be processed too, and are thus
+        // added to the list of blocks to process). Also compute the maximum stack size of the method,
+        // as a by-product.
+<span class="fc" id="L539">        Label listOfBlocksToProcess = firstBasicBlock;</span>
+<span class="fc" id="L540">        listOfBlocksToProcess.nextListElement = Label.EMPTY_LIST;</span>
+<span class="fc" id="L541">        int maxStackSize = 0;</span>
+<span class="fc bfc" id="L542" title="All 2 branches covered.">        while (listOfBlocksToProcess != Label.EMPTY_LIST) {</span>
+            // Remove a basic block from the list of blocks to process.
+<span class="fc" id="L544">            Label basicBlock = listOfBlocksToProcess;</span>
+<span class="fc" id="L545">            listOfBlocksToProcess = listOfBlocksToProcess.nextListElement;</span>
+<span class="fc" id="L546">            basicBlock.nextListElement = null;</span>
+            // By definition, basicBlock is reachable.
+<span class="fc" id="L548">            basicBlock.flags |= Label.FLAG_REACHABLE;</span>
+            // Update the (absolute) maximum stack size.
+<span class="fc" id="L550">            int maxBlockStackSize = basicBlock.frame.inputStack.length + basicBlock.outputStackMax;</span>
+<span class="fc bfc" id="L551" title="All 2 branches covered.">            if (maxBlockStackSize &gt; maxStackSize) {</span>
+<span class="fc" id="L552">                maxStackSize = maxBlockStackSize;</span>
+            }
+            // Update the successor blocks of basicBlock in the control flow graph.
+<span class="fc" id="L555">            Edge outgoingEdge = basicBlock.outgoingEdges;</span>
+<span class="fc bfc" id="L556" title="All 2 branches covered.">            while (outgoingEdge != null) {</span>
+<span class="fc" id="L557">                Label successorBlock = outgoingEdge.successor.getCanonicalInstance();</span>
+<span class="fc" id="L558">                boolean successorBlockChanged =</span>
+<span class="fc" id="L559">                        basicBlock.frame.merge(symbolTable, successorBlock.frame);</span>
+<span class="fc bfc" id="L560" title="All 4 branches covered.">                if (successorBlockChanged &amp;&amp; successorBlock.nextListElement == null) {</span>
+                    // If successorBlock has changed it must be processed. Thus, if it is not already in the
+                    // list of blocks to process, add it to this list.
+<span class="fc" id="L563">                    successorBlock.nextListElement = listOfBlocksToProcess;</span>
+<span class="fc" id="L564">                    listOfBlocksToProcess = successorBlock;</span>
+                }
+<span class="fc" id="L566">                outgoingEdge = outgoingEdge.nextEdge;</span>
+<span class="fc" id="L567">            }</span>
+<span class="fc" id="L568">        }</span>
+
+        // Loop over all the basic blocks and visit the stack map frames that must be stored in the
+        // StackMapTable attribute. Also replace unreachable code with NOP* ATHROW, and remove it from
+        // exception handler ranges.
+<span class="fc" id="L573">        Label basicBlock = firstBasicBlock;</span>
+<span class="fc bfc" id="L574" title="All 2 branches covered.">        while (basicBlock != null) {</span>
+<span class="fc bfc" id="L575" title="All 2 branches covered.">            if ((basicBlock.flags &amp; (Label.FLAG_JUMP_TARGET | Label.FLAG_REACHABLE))</span>
+                    == (Label.FLAG_JUMP_TARGET | Label.FLAG_REACHABLE)) {
+<span class="fc" id="L577">                basicBlock.frame.accept(this);</span>
+            }
+<span class="fc bfc" id="L579" title="All 2 branches covered.">            if ((basicBlock.flags &amp; Label.FLAG_REACHABLE) == 0) {</span>
+                // Find the start and end bytecode offsets of this unreachable block.
+<span class="fc" id="L581">                Label nextBasicBlock = basicBlock.nextBasicBlock;</span>
+<span class="fc" id="L582">                int startOffset = basicBlock.bytecodeOffset;</span>
+<span class="fc bfc" id="L583" title="All 2 branches covered.">                int endOffset = (nextBasicBlock == null ? code.length : nextBasicBlock.bytecodeOffset) - 1;</span>
+<span class="fc bfc" id="L584" title="All 2 branches covered.">                if (endOffset &gt;= startOffset) {</span>
+                    // Replace its instructions with NOP ... NOP ATHROW.
+<span class="fc bfc" id="L586" title="All 2 branches covered.">                    for (int i = startOffset; i &lt; endOffset; ++i) {</span>
+<span class="fc" id="L587">                        code.data[i] = Opcodes.NOP;</span>
+                    }
+<span class="fc" id="L589">                    code.data[endOffset] = (byte) Opcodes.ATHROW;</span>
+                    // Emit a frame for this unreachable block, with no local and a Throwable on the stack
+                    // (so that the ATHROW could consume this Throwable if it were reachable).
+<span class="fc" id="L592">                    int frameIndex = visitFrameStart(startOffset, /* numLocal = */ 0, /* numStack = */ 1);</span>
+<span class="fc" id="L593">                    currentFrame[frameIndex] = Frame.REFERENCE_KIND | symbolTable.addType(&quot;java/lang/Throwable&quot;);</span>
+<span class="fc" id="L594">                    visitFrameEnd();</span>
+                    // The maximum stack size is now at least one, because of the Throwable declared above.
+<span class="fc" id="L596">                    maxStackSize = Math.max(maxStackSize, 1);</span>
+                }
+            }
+<span class="fc" id="L599">            basicBlock = basicBlock.nextBasicBlock;</span>
+        }
+
+<span class="fc" id="L602">        this.maxStack = maxStackSize;</span>
+<span class="fc" id="L603">    }</span>
+
+    // -----------------------------------------------------------------------------------------------
+    // Utility methods: control flow analysis algorithm
+    // -----------------------------------------------------------------------------------------------
+
+    /**
+     * Adds a successor to {@link #currentBasicBlock} in the control flow graph.
+     *
+     * @param successor the successor block to be added to the current basic block.
+     */
+    private void addSuccessorToCurrentBasicBlock(final Label successor) {
+<span class="fc" id="L615">        currentBasicBlock.outgoingEdges = new Edge(successor, currentBasicBlock.outgoingEdges);</span>
+<span class="fc" id="L616">    }</span>
+
+    /**
+     * Ends the current basic block. This method must be used in the case where the current basic
+     * block does not have any successor.
+     *
+     * &lt;p&gt;WARNING: this method must be called after the currently visited instruction has been put in
+     * {@link #code} (if frames are computed, this method inserts a new Label to start a new basic
+     * block after the current instruction).
+     */
+    private void endCurrentBasicBlockWithNoSuccessor() {
+<span class="fc" id="L627">        Label nextBasicBlock = new Label();</span>
+<span class="fc" id="L628">        nextBasicBlock.frame = new Frame(nextBasicBlock);</span>
+<span class="fc" id="L629">        nextBasicBlock.resolve(code.data, code.length);</span>
+<span class="fc" id="L630">        lastBasicBlock.nextBasicBlock = nextBasicBlock;</span>
+<span class="fc" id="L631">        lastBasicBlock = nextBasicBlock;</span>
+<span class="fc" id="L632">        currentBasicBlock = null;</span>
+<span class="fc" id="L633">    }</span>
+
+    // -----------------------------------------------------------------------------------------------
+    // Utility methods: stack map frames
+    // -----------------------------------------------------------------------------------------------
+
+    /**
+     * Starts the visit of a new stack map frame, stored in {@link #currentFrame}.
+     *
+     * @param offset   the bytecode offset of the instruction to which the frame corresponds.
+     * @param numLocal the number of local variables in the frame.
+     * @param numStack the number of stack elements in the frame.
+     * @return the index of the next element to be written in this frame.
+     */
+    int visitFrameStart(final int offset, final int numLocal, final int numStack) {
+<span class="fc" id="L648">        int frameLength = 3 + numLocal + numStack;</span>
+<span class="pc bpc" id="L649" title="3 of 4 branches missed.">        if (currentFrame == null || currentFrame.length &lt; frameLength) {</span>
+<span class="fc" id="L650">            currentFrame = new int[frameLength];</span>
+        }
+<span class="fc" id="L652">        currentFrame[0] = offset;</span>
+<span class="fc" id="L653">        currentFrame[1] = numLocal;</span>
+<span class="fc" id="L654">        currentFrame[2] = numStack;</span>
+<span class="fc" id="L655">        return 3;</span>
+    }
+
+    /**
+     * Sets an abstract type in {@link #currentFrame}.
+     *
+     * @param frameIndex   the index of the element to be set in {@link #currentFrame}.
+     * @param abstractType an abstract type.
+     */
+    void visitAbstractType(final int frameIndex, final int abstractType) {
+<span class="fc" id="L665">        currentFrame[frameIndex] = abstractType;</span>
+<span class="fc" id="L666">    }</span>
+
+    /**
+     * Ends the visit of {@link #currentFrame} by writing it in the StackMapTable entries and by
+     * updating the StackMapTable number_of_entries (except if the current frame is the first one,
+     * which is implicit in StackMapTable). Then resets {@link #currentFrame} to {@literal null}.
+     */
+    void visitFrameEnd() {
+<span class="fc bfc" id="L674" title="All 2 branches covered.">        if (previousFrame != null) {</span>
+<span class="fc bfc" id="L675" title="All 2 branches covered.">            if (stackMapTableEntries == null) {</span>
+<span class="fc" id="L676">                stackMapTableEntries = new ByteVector(2048);</span>
+            }
+<span class="fc" id="L678">            putFrame();</span>
+<span class="fc" id="L679">            ++stackMapTableNumberOfEntries;</span>
+        }
+<span class="fc" id="L681">        previousFrame = currentFrame;</span>
+<span class="fc" id="L682">        currentFrame = null;</span>
+<span class="fc" id="L683">    }</span>
+
+    /**
+     * Compresses and writes {@link #currentFrame} in a new StackMapTable entry.
+     */
+    private void putFrame() {
+<span class="fc" id="L689">        final int numLocal = currentFrame[1];</span>
+<span class="fc" id="L690">        final int numStack = currentFrame[2];</span>
+<span class="fc bfc" id="L691" title="All 2 branches covered.">        final int offsetDelta =</span>
+                stackMapTableNumberOfEntries == 0
+                        ? currentFrame[0]
+                        : currentFrame[0] - previousFrame[0] - 1;
+<span class="fc" id="L695">        final int previousNumlocal = previousFrame[1];</span>
+<span class="fc" id="L696">        final int numLocalDelta = numLocal - previousNumlocal;</span>
+<span class="fc" id="L697">        int type = Frame.FULL_FRAME;</span>
+<span class="fc bfc" id="L698" title="All 2 branches covered.">        if (numStack == 0) {</span>
+<span class="fc bfc" id="L699" title="All 4 branches covered.">            switch (numLocalDelta) {</span>
+                case -3:
+                case -2:
+                case -1:
+<span class="fc" id="L703">                    type = Frame.CHOP_FRAME;</span>
+<span class="fc" id="L704">                    break;</span>
+                case 0:
+<span class="fc bfc" id="L706" title="All 2 branches covered.">                    type = offsetDelta &lt; 64 ? Frame.SAME_FRAME : Frame.SAME_FRAME_EXTENDED;</span>
+<span class="fc" id="L707">                    break;</span>
+                case 1:
+                case 2:
+                case 3:
+<span class="fc" id="L711">                    type = Frame.APPEND_FRAME;</span>
+<span class="fc" id="L712">                    break;</span>
+                default:
+                    // Keep the FULL_FRAME type.
+<span class="fc" id="L715">                    break;</span>
+            }
+<span class="fc bfc" id="L717" title="All 4 branches covered.">        } else if (numLocalDelta == 0 &amp;&amp; numStack == 1) {</span>
+<span class="fc bfc" id="L718" title="All 2 branches covered.">            type =</span>
+                    offsetDelta &lt; 63
+                            ? Frame.SAME_LOCALS_1_STACK_ITEM_FRAME
+                            : Frame.SAME_LOCALS_1_STACK_ITEM_FRAME_EXTENDED;
+        }
+<span class="fc bfc" id="L723" title="All 2 branches covered.">        if (type != Frame.FULL_FRAME) {</span>
+            // Verify if locals are the same as in the previous frame.
+<span class="fc" id="L725">            int frameIndex = 3;</span>
+<span class="fc bfc" id="L726" title="All 4 branches covered.">            for (int i = 0; i &lt; previousNumlocal &amp;&amp; i &lt; numLocal; i++) {</span>
+<span class="fc bfc" id="L727" title="All 2 branches covered.">                if (currentFrame[frameIndex] != previousFrame[frameIndex]) {</span>
+<span class="fc" id="L728">                    type = Frame.FULL_FRAME;</span>
+<span class="fc" id="L729">                    break;</span>
+                }
+<span class="fc" id="L731">                frameIndex++;</span>
+            }
+        }
+<span class="fc bfc" id="L734" title="All 7 branches covered.">        switch (type) {</span>
+            case Frame.SAME_FRAME:
+<span class="fc" id="L736">                stackMapTableEntries.putByte(offsetDelta);</span>
+<span class="fc" id="L737">                break;</span>
+            case Frame.SAME_LOCALS_1_STACK_ITEM_FRAME:
+<span class="fc" id="L739">                stackMapTableEntries.putByte(Frame.SAME_LOCALS_1_STACK_ITEM_FRAME + offsetDelta);</span>
+<span class="fc" id="L740">                putAbstractTypes(3 + numLocal, 4 + numLocal);</span>
+<span class="fc" id="L741">                break;</span>
+            case Frame.SAME_LOCALS_1_STACK_ITEM_FRAME_EXTENDED:
+<span class="fc" id="L743">                stackMapTableEntries</span>
+<span class="fc" id="L744">                        .putByte(Frame.SAME_LOCALS_1_STACK_ITEM_FRAME_EXTENDED)</span>
+<span class="fc" id="L745">                        .putShort(offsetDelta);</span>
+<span class="fc" id="L746">                putAbstractTypes(3 + numLocal, 4 + numLocal);</span>
+<span class="fc" id="L747">                break;</span>
+            case Frame.SAME_FRAME_EXTENDED:
+<span class="fc" id="L749">                stackMapTableEntries.putByte(Frame.SAME_FRAME_EXTENDED).putShort(offsetDelta);</span>
+<span class="fc" id="L750">                break;</span>
+            case Frame.CHOP_FRAME:
+<span class="fc" id="L752">                stackMapTableEntries</span>
+<span class="fc" id="L753">                        .putByte(Frame.SAME_FRAME_EXTENDED + numLocalDelta)</span>
+<span class="fc" id="L754">                        .putShort(offsetDelta);</span>
+<span class="fc" id="L755">                break;</span>
+            case Frame.APPEND_FRAME:
+<span class="fc" id="L757">                stackMapTableEntries</span>
+<span class="fc" id="L758">                        .putByte(Frame.SAME_FRAME_EXTENDED + numLocalDelta)</span>
+<span class="fc" id="L759">                        .putShort(offsetDelta);</span>
+<span class="fc" id="L760">                putAbstractTypes(3 + previousNumlocal, 3 + numLocal);</span>
+<span class="fc" id="L761">                break;</span>
+            case Frame.FULL_FRAME:
+            default:
+<span class="fc" id="L764">                stackMapTableEntries.putByte(Frame.FULL_FRAME).putShort(offsetDelta).putShort(numLocal);</span>
+<span class="fc" id="L765">                putAbstractTypes(3, 3 + numLocal);</span>
+<span class="fc" id="L766">                stackMapTableEntries.putShort(numStack);</span>
+<span class="fc" id="L767">                putAbstractTypes(3 + numLocal, 3 + numLocal + numStack);</span>
+                break;
+        }
+<span class="fc" id="L770">    }</span>
+
+    /**
+     * Puts some abstract types of {@link #currentFrame} in {@link #stackMapTableEntries} , using the
+     * JVMS verification_type_info format used in StackMapTable attributes.
+     *
+     * @param start index of the first type in {@link #currentFrame} to write.
+     * @param end   index of last type in {@link #currentFrame} to write (exclusive).
+     */
+    private void putAbstractTypes(final int start, final int end) {
+<span class="fc bfc" id="L780" title="All 2 branches covered.">        for (int i = start; i &lt; end; ++i) {</span>
+<span class="fc" id="L781">            final int abstractType = currentFrame[i];</span>
+<span class="fc" id="L782">            final ByteVector output = stackMapTableEntries;</span>
+
+<span class="fc" id="L784">            int arrayDimensions = (abstractType &amp; Frame.DIM_MASK) &gt;&gt; Frame.DIM_SHIFT;</span>
+<span class="fc bfc" id="L785" title="All 2 branches covered.">            if (arrayDimensions == 0) {</span>
+<span class="fc" id="L786">                int typeValue = abstractType &amp; Frame.VALUE_MASK;</span>
+<span class="pc bpc" id="L787" title="2 of 4 branches missed.">                switch (abstractType &amp; Frame.KIND_MASK) {</span>
+                    case Frame.CONSTANT_KIND:
+<span class="fc" id="L789">                        output.putByte(typeValue);</span>
+<span class="fc" id="L790">                        break;</span>
+                    case Frame.REFERENCE_KIND:
+<span class="fc" id="L792">                        output</span>
+<span class="fc" id="L793">                                .putByte(Frame.ITEM_OBJECT)</span>
+<span class="fc" id="L794">                                .putShort(symbolTable.addConstantUtf8Reference(/*CONSTANT_CLASS_TAG*/ 7, symbolTable.typeTable[typeValue].value).index);</span>
+<span class="fc" id="L795">                        break;</span>
+                    case Frame.UNINITIALIZED_KIND:
+<span class="nc" id="L797">                        output.putByte(Frame.ITEM_UNINITIALIZED).putShort((int) symbolTable.typeTable[typeValue].data);</span>
+<span class="nc" id="L798">                        break;</span>
+                    default:
+<span class="nc" id="L800">                        throw new AssertionError();</span>
+                }
+<span class="fc" id="L802">            } else {</span>
+                // Case of an array type, we need to build its descriptor first.
+<span class="fc" id="L804">                StringBuilder typeDescriptor = new StringBuilder();</span>
+<span class="fc bfc" id="L805" title="All 2 branches covered.">                while (arrayDimensions-- &gt; 0) {</span>
+<span class="fc" id="L806">                    typeDescriptor.append('[');</span>
+                }
+<span class="fc bfc" id="L808" title="All 2 branches covered.">                if ((abstractType &amp; Frame.KIND_MASK) == Frame.REFERENCE_KIND) {</span>
+<span class="fc" id="L809">                    typeDescriptor</span>
+<span class="fc" id="L810">                            .append('L')</span>
+<span class="fc" id="L811">                            .append(symbolTable.typeTable[abstractType &amp; Frame.VALUE_MASK].value)</span>
+<span class="fc" id="L812">                            .append(';');</span>
+                } else {
+<span class="pc bpc" id="L814" title="1 of 9 branches missed.">                    switch (abstractType &amp; Frame.VALUE_MASK) {</span>
+                        case Frame.ITEM_ASM_BOOLEAN:
+<span class="fc" id="L816">                            typeDescriptor.append('Z');</span>
+<span class="fc" id="L817">                            break;</span>
+                        case Frame.ITEM_ASM_BYTE:
+<span class="fc" id="L819">                            typeDescriptor.append('B');</span>
+<span class="fc" id="L820">                            break;</span>
+                        case Frame.ITEM_ASM_CHAR:
+<span class="fc" id="L822">                            typeDescriptor.append('C');</span>
+<span class="fc" id="L823">                            break;</span>
+                        case Frame.ITEM_ASM_SHORT:
+<span class="fc" id="L825">                            typeDescriptor.append('S');</span>
+<span class="fc" id="L826">                            break;</span>
+                        case Frame.ITEM_INTEGER:
+<span class="fc" id="L828">                            typeDescriptor.append('I');</span>
+<span class="fc" id="L829">                            break;</span>
+                        case Frame.ITEM_FLOAT:
+<span class="fc" id="L831">                            typeDescriptor.append('F');</span>
+<span class="fc" id="L832">                            break;</span>
+                        case Frame.ITEM_LONG:
+<span class="fc" id="L834">                            typeDescriptor.append('J');</span>
+<span class="fc" id="L835">                            break;</span>
+                        case Frame.ITEM_DOUBLE:
+<span class="fc" id="L837">                            typeDescriptor.append('D');</span>
+<span class="fc" id="L838">                            break;</span>
+                        default:
+<span class="nc" id="L840">                            throw new AssertionError();</span>
+                    }
+                }
+<span class="fc" id="L843">                output</span>
+<span class="fc" id="L844">                        .putByte(Frame.ITEM_OBJECT)</span>
+<span class="fc" id="L845">                        .putShort(symbolTable.addConstantUtf8Reference(/*CONSTANT_CLASS_TAG*/ 7, typeDescriptor.toString()).index);</span>
+            }
+        }
+<span class="fc" id="L848">    }</span>
+
+    // -----------------------------------------------------------------------------------------------
+    // Utility methods
+    // -----------------------------------------------------------------------------------------------
+
+    /**
+     * Returns the size of the method_info JVMS structure generated by this MethodWriter. Also add the
+     * names of the attributes of this method in the constant pool.
+     *
+     * @return the size in bytes of the method_info JVMS structure.
+     */
+    int computeMethodInfoSize() {
+        // 2 bytes each for access_flags, name_index, descriptor_index and attributes_count.
+<span class="fc" id="L862">        int size = 8;</span>
+        // For ease of reference, we use here the same attribute order as in Section 4.7 of the JVMS.
+<span class="pc bpc" id="L864" title="1 of 2 branches missed.">        if (code.length &gt; 0) {</span>
+<span class="pc bpc" id="L865" title="1 of 2 branches missed.">            if (code.length &gt; 65535) {</span>
+<span class="nc" id="L866">                throw new JSONException(&quot;Method too large: &quot; + symbolTable.className + &quot;.&quot; + name + &quot; &quot; + descriptor + &quot;, length &quot; + code.length);</span>
+            }
+<span class="fc" id="L868">            symbolTable.addConstantUtf8(Constants.CODE);</span>
+            // The Code attribute has 6 header bytes, plus 2, 2, 4 and 2 bytes respectively for max_stack,
+            // max_locals, code_length and attributes_count, plus the bytecode and the exception table.
+<span class="fc" id="L871">            size += 16 + code.length + 2;</span>
+<span class="fc bfc" id="L872" title="All 2 branches covered.">            if (stackMapTableEntries != null) {</span>
+<span class="fc" id="L873">                symbolTable.addConstantUtf8(Constants.STACK_MAP_TABLE);</span>
+                // 6 header bytes and 2 bytes for number_of_entries.
+<span class="fc" id="L875">                size += 8 + stackMapTableEntries.length;</span>
+            }
+        }
+<span class="fc" id="L878">        return size;</span>
+    }
+
+    /**
+     * Puts the content of the method_info JVMS structure generated by this MethodWriter into the
+     * given ByteVector.
+     *
+     * @param output where the method_info structure must be put.
+     */
+    void putMethodInfo(final ByteVector output) {
+<span class="fc" id="L888">        int mask = 0;</span>
+<span class="fc" id="L889">        output.putShort(accessFlags &amp; ~mask).putShort(nameIndex).putShort(descriptorIndex);</span>
+        // For ease of reference, we use here the same attribute order as in Section 4.7 of the JVMS.
+<span class="fc" id="L891">        int attributeCount = 0;</span>
+<span class="pc bpc" id="L892" title="1 of 2 branches missed.">        if (code.length &gt; 0) {</span>
+<span class="fc" id="L893">            ++attributeCount;</span>
+        }
+        // For ease of reference, we use here the same attribute order as in Section 4.7 of the JVMS.
+<span class="fc" id="L896">        output.putShort(attributeCount);</span>
+<span class="pc bpc" id="L897" title="1 of 2 branches missed.">        if (code.length &gt; 0) {</span>
+            // 2, 2, 4 and 2 bytes respectively for max_stack, max_locals, code_length and
+            // attributes_count, plus the bytecode and the exception table.
+<span class="fc" id="L900">            int size = 10 + code.length + 2;</span>
+<span class="fc" id="L901">            int codeAttributeCount = 0;</span>
+<span class="fc bfc" id="L902" title="All 2 branches covered.">            if (stackMapTableEntries != null) {</span>
+                // 6 header bytes and 2 bytes for number_of_entries.
+<span class="fc" id="L904">                size += 8 + stackMapTableEntries.length;</span>
+<span class="fc" id="L905">                ++codeAttributeCount;</span>
+            }
+<span class="fc" id="L907">            output</span>
+<span class="fc" id="L908">                    .putShort(symbolTable.addConstantUtf8(Constants.CODE))</span>
+<span class="fc" id="L909">                    .putInt(size)</span>
+<span class="fc" id="L910">                    .putShort(maxStack)</span>
+<span class="fc" id="L911">                    .putShort(maxLocals)</span>
+<span class="fc" id="L912">                    .putInt(code.length)</span>
+<span class="fc" id="L913">                    .putByteArray(code.data, 0, code.length);</span>
+<span class="fc" id="L914">            output.putShort(0); // putExceptionTable</span>
+<span class="fc" id="L915">            output.putShort(codeAttributeCount);</span>
+<span class="fc bfc" id="L916" title="All 2 branches covered.">            if (stackMapTableEntries != null) {</span>
+<span class="fc" id="L917">                boolean useStackMapTable = true;</span>
+<span class="fc" id="L918">                output</span>
+<span class="fc" id="L919">                        .putShort(</span>
+<span class="fc" id="L920">                                symbolTable.addConstantUtf8(</span>
+                                        Constants.STACK_MAP_TABLE))
+<span class="fc" id="L922">                        .putInt(2 + stackMapTableEntries.length)</span>
+<span class="fc" id="L923">                        .putShort(stackMapTableNumberOfEntries)</span>
+<span class="fc" id="L924">                        .putByteArray(stackMapTableEntries.data, 0, stackMapTableEntries.length);</span>
+            }
+        }
+<span class="fc" id="L927">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.8.202204050719</span></div></body></html>

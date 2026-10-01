@@ -1,0 +1,112 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ObjectReaderImplCalendar.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">fastjson2</a> &gt; <a href="index.source.html" class="el_package">com.alibaba.fastjson2.reader</a> &gt; <span class="el_source">ObjectReaderImplCalendar.java</span></div><h1>ObjectReaderImplCalendar.java</h1><pre class="source lang-java linenums">package com.alibaba.fastjson2.reader;
+
+import com.alibaba.fastjson2.JSONReader;
+import com.alibaba.fastjson2.codec.DateTimeCodec;
+
+import java.lang.reflect.Type;
+import java.time.LocalDateTime;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.Calendar;
+import java.util.Locale;
+
+final class ObjectReaderImplCalendar
+        extends DateTimeCodec
+        implements ObjectReader {
+<span class="fc" id="L16">    static final ObjectReaderImplCalendar INSTANCE = new ObjectReaderImplCalendar(null, null);</span>
+
+    public static ObjectReaderImplCalendar of(String format, Locale locale) {
+<span class="pc bpc" id="L19" title="1 of 2 branches missed.">        if (format == null) {</span>
+<span class="nc" id="L20">            return INSTANCE;</span>
+        }
+
+<span class="fc" id="L23">        return new ObjectReaderImplCalendar(format, locale);</span>
+    }
+
+    public ObjectReaderImplCalendar(String format, Locale locale) {
+<span class="fc" id="L27">        super(format, locale);</span>
+<span class="fc" id="L28">    }</span>
+
+    @Override
+    public Class getObjectClass() {
+<span class="fc" id="L32">        return Calendar.class;</span>
+    }
+
+    @Override
+    public Object readJSONBObject(JSONReader jsonReader, Type fieldType, Object fieldName, long features) {
+<span class="fc bfc" id="L37" title="All 2 branches covered.">        if (jsonReader.isInt()) {</span>
+<span class="fc" id="L38">            long millis = jsonReader.readInt64Value();</span>
+
+<span class="pc bpc" id="L40" title="1 of 2 branches missed.">            if (formatUnixTime) {</span>
+<span class="nc" id="L41">                millis *= 1000;</span>
+            }
+
+<span class="fc" id="L44">            Calendar calendar = Calendar.getInstance();</span>
+<span class="fc" id="L45">            calendar.setTimeInMillis(millis);</span>
+<span class="fc" id="L46">            return calendar;</span>
+        }
+
+<span class="fc bfc" id="L49" title="All 2 branches covered.">        if (jsonReader.readIfNull()) {</span>
+<span class="fc" id="L50">            return null;</span>
+        }
+
+<span class="fc" id="L53">        long millis = jsonReader.readMillisFromString();</span>
+<span class="pc bpc" id="L54" title="1 of 2 branches missed.">        if (formatUnixTime) {</span>
+<span class="nc" id="L55">            millis *= 1000;</span>
+        }
+
+<span class="fc" id="L58">        Calendar calendar = Calendar.getInstance();</span>
+<span class="fc" id="L59">        calendar.setTimeInMillis(millis);</span>
+<span class="fc" id="L60">        return calendar;</span>
+    }
+
+    @Override
+    public Object readObject(JSONReader jsonReader, Type fieldType, Object fieldName, long features) {
+<span class="fc bfc" id="L65" title="All 2 branches covered.">        if (jsonReader.isString()) {</span>
+<span class="fc bfc" id="L66" title="All 2 branches covered.">            if (format != null) {</span>
+<span class="fc" id="L67">                DateTimeFormatter formatter = getDateFormatter();</span>
+<span class="pc bpc" id="L68" title="1 of 2 branches missed.">                if (formatter != null) {</span>
+<span class="fc" id="L69">                    String str = jsonReader.readString();</span>
+<span class="fc bfc" id="L70" title="All 2 branches covered.">                    if (str.isEmpty()) {</span>
+<span class="fc" id="L71">                        return null;</span>
+                    }
+
+<span class="fc" id="L74">                    LocalDateTime ldt = LocalDateTime.parse(str, formatter);</span>
+<span class="fc" id="L75">                    ZonedDateTime zdt = ZonedDateTime.of(ldt, jsonReader.getContext().getZoneId());</span>
+
+<span class="fc" id="L77">                    long millis = zdt.toInstant().toEpochMilli();</span>
+<span class="fc" id="L78">                    Calendar calendar = Calendar.getInstance();</span>
+<span class="fc" id="L79">                    calendar.setTimeInMillis(millis);</span>
+<span class="fc" id="L80">                    return calendar;</span>
+                }
+            }
+
+<span class="fc" id="L84">            long millis = jsonReader.readMillisFromString();</span>
+<span class="fc bfc" id="L85" title="All 4 branches covered.">            if (millis == 0 &amp;&amp; jsonReader.wasNull()) {</span>
+<span class="fc" id="L86">                return null;</span>
+            }
+
+<span class="pc bpc" id="L89" title="1 of 2 branches missed.">            if (formatUnixTime) {</span>
+<span class="nc" id="L90">                millis *= 1000;</span>
+            }
+
+<span class="fc" id="L93">            Calendar calendar = Calendar.getInstance();</span>
+<span class="fc" id="L94">            calendar.setTimeInMillis(millis);</span>
+<span class="fc" id="L95">            return calendar;</span>
+        }
+
+<span class="fc bfc" id="L98" title="All 2 branches covered.">        if (jsonReader.readIfNull()) {</span>
+<span class="fc" id="L99">            return null;</span>
+        }
+
+<span class="fc" id="L102">        long millis = jsonReader.readInt64Value();</span>
+<span class="pc bpc" id="L103" title="1 of 4 branches missed.">        if (formatUnixTime || jsonReader.getContext().isFormatUnixTime()) {</span>
+<span class="fc" id="L104">            millis *= 1000;</span>
+        }
+
+<span class="fc" id="L107">        Calendar calendar = Calendar.getInstance();</span>
+<span class="fc" id="L108">        calendar.setTimeInMillis(millis);</span>
+<span class="fc" id="L109">        return calendar;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.8.202204050719</span></div></body></html>

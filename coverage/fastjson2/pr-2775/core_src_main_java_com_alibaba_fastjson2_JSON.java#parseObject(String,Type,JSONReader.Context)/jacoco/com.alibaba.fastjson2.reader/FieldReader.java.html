@@ -1,0 +1,622 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>FieldReader.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">fastjson2</a> &gt; <a href="index.source.html" class="el_package">com.alibaba.fastjson2.reader</a> &gt; <span class="el_source">FieldReader.java</span></div><h1>FieldReader.java</h1><pre class="source lang-java linenums">package com.alibaba.fastjson2.reader;
+
+import com.alibaba.fastjson2.JSON;
+import com.alibaba.fastjson2.JSONArray;
+import com.alibaba.fastjson2.JSONFactory;
+import com.alibaba.fastjson2.JSONObject;
+import com.alibaba.fastjson2.JSONPath;
+import com.alibaba.fastjson2.JSONReader;
+import com.alibaba.fastjson2.PropertyNamingStrategy;
+import com.alibaba.fastjson2.annotation.JSONField;
+import com.alibaba.fastjson2.codec.FieldInfo;
+import com.alibaba.fastjson2.schema.JSONSchema;
+import com.alibaba.fastjson2.util.BeanUtils;
+import com.alibaba.fastjson2.util.Fnv;
+import com.alibaba.fastjson2.util.JDKUtils;
+import com.alibaba.fastjson2.util.JdbcSupport;
+import com.alibaba.fastjson2.util.TypeUtils;
+
+import java.io.Serializable;
+import java.lang.reflect.*;
+import java.time.*;
+import java.util.*;
+import java.util.function.BiConsumer;
+import java.util.function.Function;
+
+import static com.alibaba.fastjson2.util.JDKUtils.*;
+
+public abstract class FieldReader&lt;T&gt;
+        implements Comparable&lt;FieldReader&gt; {
+    public final int ordinal;
+    public final String fieldName;
+    public final Class fieldClass;
+    public final Type fieldType;
+    public final long features;
+    public final String format;
+    public final Method method;
+    public final Field field;
+    protected final long fieldOffset;
+    public final Object defaultValue;
+    public final Locale locale;
+    public final JSONSchema schema;
+
+    final boolean fieldClassSerializable;
+    final long fieldNameHash;
+    final long fieldNameHashLCase;
+
+    volatile ObjectReader reader;
+
+    volatile JSONPath referenceCache;
+    final boolean noneStaticMemberClass;
+    final boolean readOnly;
+
+    Type itemType;
+    Class itemClass;
+    volatile ObjectReader itemReader;
+
+    public FieldReader(
+            String fieldName,
+            Type fieldType,
+            Class fieldClass,
+            int ordinal,
+            long features,
+            String format,
+            Locale locale,
+            Object defaultValue,
+            JSONSchema schema,
+            Method method,
+            Field field
+<span class="fc" id="L69">    ) {</span>
+<span class="fc" id="L70">        this.fieldName = fieldName;</span>
+<span class="fc" id="L71">        this.fieldType = fieldType;</span>
+<span class="fc" id="L72">        this.fieldClass = fieldClass;</span>
+<span class="fc bfc" id="L73" title="All 4 branches covered.">        this.fieldClassSerializable = fieldClass != null &amp;&amp; (Serializable.class.isAssignableFrom(fieldClass)</span>
+<span class="fc bfc" id="L74" title="All 2 branches covered.">                || Modifier.isInterface(fieldClass.getModifiers()));</span>
+<span class="fc" id="L75">        this.features = features;</span>
+<span class="fc" id="L76">        this.fieldNameHash = Fnv.hashCode64(fieldName);</span>
+<span class="fc" id="L77">        this.fieldNameHashLCase = Fnv.hashCode64LCase(fieldName);</span>
+<span class="fc" id="L78">        this.ordinal = ordinal;</span>
+<span class="fc" id="L79">        this.format = format;</span>
+<span class="fc" id="L80">        this.locale = locale;</span>
+<span class="fc" id="L81">        this.defaultValue = defaultValue;</span>
+<span class="fc" id="L82">        this.schema = schema;</span>
+<span class="fc" id="L83">        this.method = method;</span>
+<span class="fc" id="L84">        this.field = field;</span>
+
+<span class="fc" id="L86">        boolean readOnly = false;</span>
+<span class="fc bfc" id="L87" title="All 4 branches covered.">        if (method != null &amp;&amp; method.getParameterCount() == 0) {</span>
+<span class="fc" id="L88">            readOnly = true;</span>
+<span class="fc bfc" id="L89" title="All 4 branches covered.">        } else if (field != null &amp;&amp; Modifier.isFinal(field.getModifiers())) {</span>
+<span class="fc" id="L90">            readOnly = true;</span>
+        }
+<span class="fc" id="L92">        this.readOnly = readOnly;</span>
+
+<span class="fc" id="L94">        long fieldOffset = -1L;</span>
+<span class="fc bfc" id="L95" title="All 4 branches covered.">        if (field != null &amp;&amp; (features &amp; FieldInfo.DISABLE_UNSAFE) == 0) {</span>
+<span class="fc" id="L96">            fieldOffset = UNSAFE.objectFieldOffset(field);</span>
+        }
+<span class="fc" id="L98">        this.fieldOffset = fieldOffset;</span>
+
+<span class="pc bpc" id="L100" title="1 of 6 branches missed.">        if (fieldOffset == -1 &amp;&amp; field != null &amp;&amp; method == null) {</span>
+            try {
+<span class="fc" id="L102">                field.setAccessible(true);</span>
+<span class="nc" id="L103">            } catch (Throwable e) {</span>
+<span class="nc" id="L104">                JDKUtils.setReflectErrorLast(e);</span>
+<span class="fc" id="L105">            }</span>
+        }
+
+<span class="fc" id="L108">        Class declaringClass = null;</span>
+<span class="fc bfc" id="L109" title="All 2 branches covered.">        if (method != null) {</span>
+<span class="fc" id="L110">            declaringClass = method.getDeclaringClass();</span>
+<span class="fc bfc" id="L111" title="All 2 branches covered.">        } else if (field != null) {</span>
+<span class="fc" id="L112">            declaringClass = field.getDeclaringClass();</span>
+        }
+
+<span class="fc" id="L115">        this.noneStaticMemberClass = BeanUtils.isNoneStaticMemberClass(declaringClass, fieldClass);</span>
+<span class="fc" id="L116">    }</span>
+
+    public void acceptDefaultValue(T object) {
+<span class="pc bpc" id="L119" title="1 of 2 branches missed.">        if (defaultValue != null) {</span>
+<span class="fc" id="L120">            accept(object, defaultValue);</span>
+        }
+<span class="fc" id="L122">    }</span>
+
+    public ObjectReader getObjectReader(JSONReader jsonReader) {
+<span class="fc bfc" id="L125" title="All 2 branches covered.">        if (reader != null) {</span>
+<span class="fc" id="L126">            return reader;</span>
+        }
+<span class="fc" id="L128">        return reader = jsonReader.getObjectReader(fieldType);</span>
+    }
+
+    public ObjectReader getObjectReader(JSONReader.Context context) {
+<span class="fc bfc" id="L132" title="All 2 branches covered.">        if (reader != null) {</span>
+<span class="fc" id="L133">            return reader;</span>
+        }
+<span class="fc" id="L135">        return reader = context.getObjectReader(fieldType);</span>
+    }
+
+    public ObjectReader getObjectReader(ObjectReaderProvider provider) {
+<span class="fc bfc" id="L139" title="All 2 branches covered.">        if (reader != null) {</span>
+<span class="fc" id="L140">            return reader;</span>
+        }
+
+<span class="pc bpc" id="L143" title="1 of 2 branches missed.">        boolean fieldBased = (this.features &amp; JSONReader.Feature.FieldBased.mask) != 0;</span>
+<span class="fc" id="L144">        return reader = provider.getObjectReader(fieldType, fieldBased);</span>
+    }
+
+    public Type getItemType() {
+<span class="fc" id="L148">        return itemType;</span>
+    }
+
+    public Class getItemClass() {
+<span class="fc bfc" id="L152" title="All 2 branches covered.">        if (itemType == null) {</span>
+<span class="fc" id="L153">            return null;</span>
+        }
+
+<span class="pc bpc" id="L156" title="1 of 2 branches missed.">        if (itemClass == null) {</span>
+<span class="nc" id="L157">            itemClass = TypeUtils.getClass(itemType);</span>
+        }
+
+<span class="fc" id="L160">        return itemClass;</span>
+    }
+
+    public long getItemClassHash() {
+<span class="fc" id="L164">        Class itemClass = getItemClass();</span>
+<span class="pc bpc" id="L165" title="1 of 2 branches missed.">        if (itemClass == null) {</span>
+<span class="fc" id="L166">            return 0;</span>
+        }
+<span class="nc" id="L168">        return Fnv.hashCode64(itemClass.getName());</span>
+    }
+
+    @Override
+    public String toString() {
+<span class="fc bfc" id="L173" title="All 2 branches covered.">        Member member = this.method != null ? this.method : this.field;</span>
+<span class="pc bpc" id="L174" title="1 of 2 branches missed.">        if (member != null) {</span>
+<span class="fc" id="L175">            return member.getName();</span>
+        }
+<span class="nc" id="L177">        return fieldName;</span>
+    }
+
+    public void addResolveTask(JSONReader jsonReader, Object object, String reference) {
+        JSONPath path;
+<span class="fc bfc" id="L182" title="All 4 branches covered.">        if (referenceCache != null &amp;&amp; referenceCache.toString().equals(reference)) {</span>
+<span class="fc" id="L183">            path = referenceCache;</span>
+        } else {
+<span class="fc" id="L185">            path = referenceCache = JSONPath.of(reference);</span>
+        }
+<span class="fc" id="L187">        jsonReader.addResolveTask(this, object, path);</span>
+<span class="fc" id="L188">    }</span>
+
+    @Override
+    public int compareTo(FieldReader o) {
+<span class="fc" id="L192">        int nameCompare = this.fieldName.compareTo(o.fieldName);</span>
+<span class="fc bfc" id="L193" title="All 2 branches covered.">        if (nameCompare != 0) {</span>
+<span class="fc bfc" id="L194" title="All 2 branches covered.">            if (this.ordinal &lt; o.ordinal) {</span>
+<span class="fc" id="L195">                return -1;</span>
+            }
+<span class="fc bfc" id="L197" title="All 2 branches covered.">            if (this.ordinal &gt; o.ordinal) {</span>
+<span class="fc" id="L198">                return 1;</span>
+            }
+
+<span class="fc" id="L201">            return nameCompare;</span>
+        }
+
+<span class="pc bpc" id="L204" title="1 of 4 branches missed.">        int cmp = (isReadOnly() == o.isReadOnly()) ? 0 : (isReadOnly() ? 1 : -1);</span>
+<span class="fc bfc" id="L205" title="All 2 branches covered.">        if (cmp != 0) {</span>
+<span class="fc" id="L206">            return cmp;</span>
+        }
+
+<span class="fc bfc" id="L209" title="All 2 branches covered.">        Member thisMember = this.field != null ? this.field : this.method;</span>
+<span class="fc bfc" id="L210" title="All 2 branches covered.">        Member otherMember = o.field != null ? o.field : o.method;</span>
+<span class="pc bpc" id="L211" title="2 of 6 branches missed.">        if (thisMember != null &amp;&amp; otherMember != null &amp;&amp; thisMember.getClass() != otherMember.getClass()) {</span>
+<span class="fc" id="L212">            Class otherDeclaringClass = otherMember.getDeclaringClass();</span>
+<span class="fc" id="L213">            Class thisDeclaringClass = thisMember.getDeclaringClass();</span>
+<span class="fc bfc" id="L214" title="All 2 branches covered.">            if (thisDeclaringClass != otherDeclaringClass</span>
+            ) {
+<span class="pc bpc" id="L216" title="1 of 2 branches missed.">                if (thisDeclaringClass.isAssignableFrom(otherDeclaringClass)) {</span>
+<span class="fc" id="L217">                    return 1;</span>
+<span class="nc bnc" id="L218" title="All 2 branches missed.">                } else if (otherDeclaringClass.isAssignableFrom(thisDeclaringClass)) {</span>
+<span class="nc" id="L219">                    return -1;</span>
+                }
+            }
+        }
+
+<span class="fc bfc" id="L224" title="All 4 branches covered.">        if (this.field != null &amp;&amp; o.field != null) {</span>
+<span class="fc" id="L225">            Class&lt;?&gt; thisDeclaringClass = this.field.getDeclaringClass();</span>
+<span class="fc" id="L226">            Class&lt;?&gt; otherDeclaringClass = o.field.getDeclaringClass();</span>
+
+<span class="pc bpc" id="L228" title="2 of 4 branches missed.">            for (Class s = thisDeclaringClass.getSuperclass(); s != null &amp;&amp; s != Object.class; s = s.getSuperclass()) {</span>
+<span class="nc bnc" id="L229" title="All 2 branches missed.">                if (s == otherDeclaringClass) {</span>
+<span class="nc" id="L230">                    return 1;</span>
+                }
+            }
+
+<span class="pc bpc" id="L234" title="2 of 4 branches missed.">            for (Class s = otherDeclaringClass.getSuperclass(); s != null &amp;&amp; s != Object.class; s = s.getSuperclass()) {</span>
+<span class="fc bfc" id="L235" title="All 2 branches covered.">                if (s == thisDeclaringClass) {</span>
+<span class="fc" id="L236">                    return -1;</span>
+                }
+            }
+        }
+
+<span class="fc bfc" id="L241" title="All 4 branches covered.">        if (this.method != null &amp;&amp; o.method != null) {</span>
+<span class="fc" id="L242">            Class&lt;?&gt; thisDeclaringClass = this.method.getDeclaringClass();</span>
+<span class="fc" id="L243">            Class&lt;?&gt; otherDeclaringClass = o.method.getDeclaringClass();</span>
+            //declaring class compare
+<span class="fc bfc" id="L245" title="All 2 branches covered.">            if (thisDeclaringClass != otherDeclaringClass) {</span>
+<span class="pc bpc" id="L246" title="2 of 4 branches missed.">                for (Class s = thisDeclaringClass.getSuperclass(); s != null &amp;&amp; s != Object.class; s = s.getSuperclass()) {</span>
+<span class="pc bpc" id="L247" title="1 of 2 branches missed.">                    if (s == otherDeclaringClass) {</span>
+<span class="fc" id="L248">                        return -1;</span>
+                    }
+                }
+<span class="nc bnc" id="L251" title="All 4 branches missed.">                for (Class s = otherDeclaringClass.getSuperclass(); s != null &amp;&amp; s != Object.class; s = s.getSuperclass()) {</span>
+<span class="nc bnc" id="L252" title="All 2 branches missed.">                    if (s == thisDeclaringClass) {</span>
+<span class="nc" id="L253">                        return 1;</span>
+                    }
+                }
+            }
+
+<span class="pc bpc" id="L258" title="2 of 4 branches missed.">            if (this.method.getParameterCount() == 1 &amp;&amp; o.method.getParameterCount() == 1) {</span>
+<span class="fc" id="L259">                Class&lt;?&gt; thisParamType = this.method.getParameterTypes()[0];</span>
+<span class="fc" id="L260">                Class&lt;?&gt; otherParamType = o.method.getParameterTypes()[0];</span>
+
+<span class="fc bfc" id="L262" title="All 2 branches covered.">                if (thisParamType != otherParamType) {</span>
+<span class="fc bfc" id="L263" title="All 2 branches covered.">                    if (thisParamType.isAssignableFrom(otherParamType)) {</span>
+<span class="fc" id="L264">                        return 1;</span>
+                    }
+
+<span class="fc bfc" id="L267" title="All 2 branches covered.">                    if (otherParamType.isAssignableFrom(thisParamType)) {</span>
+<span class="fc" id="L268">                        return -1;</span>
+                    }
+
+<span class="fc bfc" id="L271" title="All 4 branches covered.">                    if (needCompareToActualFieldClass(thisParamType) || needCompareToActualFieldClass(otherParamType)) {</span>
+<span class="fc" id="L272">                        Class actualFieldClass = null;</span>
+                        try {
+<span class="fc" id="L274">                            actualFieldClass = thisDeclaringClass.getDeclaredField(this.fieldName).getType();</span>
+<span class="pc bpc" id="L275" title="1 of 2 branches missed.">                            if (actualFieldClass == null) {</span>
+<span class="nc" id="L276">                                actualFieldClass = otherDeclaringClass.getDeclaredField(this.fieldName).getType();</span>
+                            }
+<span class="fc" id="L278">                        } catch (NoSuchFieldException ignored) {</span>
+                            // ignored
+<span class="fc" id="L280">                        }</span>
+<span class="fc bfc" id="L281" title="All 2 branches covered.">                        if (actualFieldClass != null) {</span>
+<span class="fc bfc" id="L282" title="All 4 branches covered.">                            for (Class s = thisParamType; s != null &amp;&amp; s != Object.class; s = s.getSuperclass()) {</span>
+<span class="fc bfc" id="L283" title="All 2 branches covered.">                                if (s == actualFieldClass) {</span>
+<span class="fc" id="L284">                                    return -1;</span>
+                                }
+                            }
+<span class="pc bpc" id="L287" title="2 of 4 branches missed.">                            for (Class s = otherParamType; s != null &amp;&amp; s != Object.class; s = s.getSuperclass()) {</span>
+<span class="pc bpc" id="L288" title="1 of 2 branches missed.">                                if (s == actualFieldClass) {</span>
+<span class="fc" id="L289">                                    return 1;</span>
+                                }
+                            }
+                        }
+                    }
+                    //JSONField annotation priority over non JSONField annotation
+<span class="fc" id="L295">                    JSONField thisAnnotation = BeanUtils.findAnnotation(this.method, JSONField.class);</span>
+<span class="fc" id="L296">                    JSONField otherAnnotation = BeanUtils.findAnnotation(o.method, JSONField.class);</span>
+<span class="pc bpc" id="L297" title="1 of 2 branches missed.">                    boolean thisAnnotatedWithJsonFiled = thisAnnotation != null;</span>
+<span class="fc bfc" id="L298" title="All 4 branches covered.">                    if (thisAnnotatedWithJsonFiled == (otherAnnotation == null)) {</span>
+<span class="pc bpc" id="L299" title="1 of 2 branches missed.">                        return thisAnnotatedWithJsonFiled ? -1 : 1;</span>
+                    }
+                }
+            }
+
+<span class="fc" id="L304">            String thisMethodName = this.method.getName();</span>
+<span class="fc" id="L305">            String otherMethodName = o.method.getName();</span>
+<span class="fc bfc" id="L306" title="All 2 branches covered.">            if (!thisMethodName.equals(otherMethodName)) {</span>
+                //setter priority over non setter
+<span class="fc" id="L308">                boolean thisMethodNameSetStart = thisMethodName.startsWith(&quot;set&quot;);</span>
+<span class="fc bfc" id="L309" title="All 2 branches covered.">                if (thisMethodNameSetStart != otherMethodName.startsWith(&quot;set&quot;)) {</span>
+<span class="fc bfc" id="L310" title="All 2 branches covered.">                    return thisMethodNameSetStart ? -1 : 1;</span>
+                }
+                //different field name priority over same field name
+<span class="fc" id="L313">                String thisName = BeanUtils.setterName(thisMethodName, null);</span>
+<span class="fc" id="L314">                String otherName = BeanUtils.setterName(otherMethodName, null);</span>
+<span class="fc" id="L315">                boolean thisFieldNameEquals = this.fieldName.equals(thisName);</span>
+<span class="fc bfc" id="L316" title="All 2 branches covered.">                if (thisFieldNameEquals != o.fieldName.equals(otherName)) {</span>
+<span class="pc bpc" id="L317" title="1 of 2 branches missed.">                    return thisFieldNameEquals ? 1 : -1;</span>
+                }
+            }
+        }
+
+<span class="fc" id="L322">        ObjectReader thisInitReader = this.getInitReader();</span>
+<span class="fc" id="L323">        ObjectReader otherInitReader = o.getInitReader();</span>
+<span class="pc bpc" id="L324" title="3 of 4 branches missed.">        if (thisInitReader != null &amp;&amp; otherInitReader == null) {</span>
+<span class="nc" id="L325">            return -1;</span>
+        }
+
+<span class="pc bpc" id="L328" title="1 of 4 branches missed.">        if (thisInitReader == null &amp;&amp; otherInitReader != null) {</span>
+<span class="fc" id="L329">            return 1;</span>
+        }
+
+<span class="fc" id="L332">        Class thisFieldClass = this.fieldClass;</span>
+<span class="fc" id="L333">        Class otherClass = o.fieldClass;</span>
+
+<span class="fc" id="L335">        boolean thisClassPrimitive = thisFieldClass.isPrimitive();</span>
+<span class="fc" id="L336">        boolean otherClassPrimitive = otherClass.isPrimitive();</span>
+<span class="fc bfc" id="L337" title="All 4 branches covered.">        if (thisClassPrimitive &amp;&amp; !otherClassPrimitive) {</span>
+<span class="fc" id="L338">            return -1;</span>
+        }
+
+<span class="fc bfc" id="L341" title="All 4 branches covered.">        if (!thisClassPrimitive &amp;&amp; otherClassPrimitive) {</span>
+<span class="fc" id="L342">            return 1;</span>
+        }
+
+<span class="fc" id="L345">        boolean thisClassStartsWithJava = thisFieldClass.getName().startsWith(&quot;java.&quot;);</span>
+<span class="fc" id="L346">        boolean otherClassStartsWithJava = otherClass.getName().startsWith(&quot;java.&quot;);</span>
+<span class="pc bpc" id="L347" title="1 of 4 branches missed.">        if (thisClassStartsWithJava &amp;&amp; !otherClassStartsWithJava) {</span>
+<span class="nc" id="L348">            return -1;</span>
+        }
+
+<span class="fc bfc" id="L351" title="All 4 branches covered.">        if (!thisClassStartsWithJava &amp;&amp; otherClassStartsWithJava) {</span>
+<span class="fc" id="L352">            return 1;</span>
+        }
+
+<span class="fc" id="L355">        return cmp;</span>
+    }
+
+    public boolean isUnwrapped() {
+<span class="fc bfc" id="L359" title="All 2 branches covered.">        return (features &amp; FieldInfo.UNWRAPPED_MASK) != 0;</span>
+    }
+
+    public void addResolveTask(JSONReader jsonReader, List object, int i, String reference) {
+<span class="nc" id="L363">        jsonReader.addResolveTask(object, i, JSONPath.of(reference));</span>
+<span class="nc" id="L364">    }</span>
+
+    public void readFieldValueJSONB(JSONReader jsonReader, T object) {
+<span class="fc" id="L367">        readFieldValue(jsonReader, object);</span>
+<span class="fc" id="L368">    }</span>
+
+    public abstract Object readFieldValue(JSONReader jsonReader);
+
+    public void accept(T object, boolean value) {
+<span class="fc" id="L373">        accept(object, Boolean.valueOf(value));</span>
+<span class="fc" id="L374">    }</span>
+
+    public boolean supportAcceptType(Class valueClass) {
+<span class="fc bfc" id="L377" title="All 2 branches covered.">        return fieldClass == valueClass;</span>
+    }
+
+    public void accept(T object, byte value) {
+<span class="fc" id="L381">        accept(object, Byte.valueOf(value));</span>
+<span class="fc" id="L382">    }</span>
+
+    public void accept(T object, short value) {
+<span class="fc" id="L385">        accept(object, Short.valueOf(value));</span>
+<span class="fc" id="L386">    }</span>
+
+    public void accept(T object, int value) {
+<span class="fc" id="L389">        accept(object, Integer.valueOf(value));</span>
+<span class="fc" id="L390">    }</span>
+
+    public void accept(T object, long value) {
+<span class="fc" id="L393">        accept(object, Long.valueOf(value));</span>
+<span class="fc" id="L394">    }</span>
+
+    public void accept(T object, char value) {
+<span class="nc" id="L397">        accept(object, Character.valueOf(value));</span>
+<span class="nc" id="L398">    }</span>
+
+    public void accept(T object, float value) {
+<span class="fc" id="L401">        accept(object, Float.valueOf(value));</span>
+<span class="fc" id="L402">    }</span>
+
+    public void accept(T object, double value) {
+<span class="nc" id="L405">        accept(object, Double.valueOf(value));</span>
+<span class="nc" id="L406">    }</span>
+
+    public abstract void accept(T object, Object value);
+
+    protected void acceptAny(T object, Object fieldValue, long features) {
+<span class="fc" id="L411">        ObjectReaderProvider provider = JSONFactory.getDefaultObjectReaderProvider();</span>
+<span class="fc" id="L412">        boolean autoCast = true;</span>
+
+<span class="pc bpc" id="L414" title="1 of 2 branches missed.">        if (fieldValue != null) {</span>
+<span class="fc" id="L415">            Class&lt;?&gt; valueClass = fieldValue.getClass();</span>
+<span class="fc bfc" id="L416" title="All 2 branches covered.">            if (!supportAcceptType(valueClass)) {</span>
+<span class="fc bfc" id="L417" title="All 2 branches covered.">                if (valueClass == String.class) {</span>
+<span class="pc bpc" id="L418" title="1 of 2 branches missed.">                    if (fieldClass == Date.class) {</span>
+<span class="nc" id="L419">                        autoCast = false;</span>
+                    }
+<span class="pc bpc" id="L421" title="1 of 8 branches missed.">                } else if (valueClass == Integer.class</span>
+                        &amp;&amp; (fieldClass == boolean.class || fieldClass == Boolean.class)
+                        &amp;&amp; (features &amp; JSONReader.Feature.NonZeroNumberCastToBooleanAsTrue.mask) != 0
+                ) {
+<span class="fc" id="L425">                    int intValue = ((Integer) fieldValue);</span>
+<span class="fc bfc" id="L426" title="All 2 branches covered.">                    fieldValue = intValue != 0;</span>
+                }
+
+<span class="pc bpc" id="L429" title="2 of 4 branches missed.">                if (valueClass != fieldClass &amp;&amp; autoCast) {</span>
+<span class="fc" id="L430">                    Function typeConvert = provider.getTypeConvert(valueClass, fieldClass);</span>
+
+<span class="fc bfc" id="L432" title="All 2 branches covered.">                    if (typeConvert != null) {</span>
+<span class="fc" id="L433">                        fieldValue = typeConvert.apply(fieldValue);</span>
+                    }
+                }
+            }
+        }
+
+        Object typedFieldValue;
+<span class="pc bpc" id="L440" title="1 of 6 branches missed.">        if (fieldValue == null || fieldType == fieldValue.getClass() || fieldType == Object.class) {</span>
+<span class="fc" id="L441">            typedFieldValue = fieldValue;</span>
+        } else {
+<span class="fc bfc" id="L443" title="All 2 branches covered.">            if (fieldValue instanceof JSONObject) {</span>
+<span class="pc bpc" id="L444" title="1 of 2 branches missed.">                JSONReader.Feature[] toFeatures = (features &amp; JSONReader.Feature.SupportSmartMatch.mask) != 0</span>
+                        ? new JSONReader.Feature[] {JSONReader.Feature.SupportSmartMatch}
+                        : new JSONReader.Feature[0];
+<span class="fc" id="L447">                typedFieldValue = ((JSONObject) fieldValue).to(fieldType, toFeatures);</span>
+<span class="fc bfc" id="L448" title="All 2 branches covered.">            } else if (fieldValue instanceof JSONArray) {</span>
+<span class="fc" id="L449">                typedFieldValue = ((JSONArray) fieldValue).to(fieldType, features);</span>
+<span class="fc bfc" id="L450" title="All 4 branches covered.">            } else if ((features == 0 || features == JSONReader.Feature.SupportSmartMatch.mask) // default or fastjson 1.x default</span>
+<span class="fc bfc" id="L451" title="All 4 branches covered.">                    &amp;&amp; !fieldClass.isInstance(fieldValue) &amp;&amp; format == null</span>
+            ) {
+<span class="fc" id="L453">                ObjectReader initReader = getInitReader();</span>
+<span class="fc bfc" id="L454" title="All 2 branches covered.">                if (initReader != null) {</span>
+<span class="fc" id="L455">                    String fieldValueJson = JSON.toJSONString(fieldValue);</span>
+<span class="fc" id="L456">                    typedFieldValue = initReader.readObject(JSONReader.of(fieldValueJson), fieldType, fieldName, features);</span>
+<span class="fc" id="L457">                } else {</span>
+<span class="fc" id="L458">                    typedFieldValue = TypeUtils.cast(fieldValue, fieldType, provider);</span>
+                }
+<span class="fc" id="L460">            } else {</span>
+<span class="pc bpc" id="L461" title="1 of 2 branches missed.">                if (autoCast) {</span>
+<span class="fc" id="L462">                    String fieldValueJSONString = JSON.toJSONString(fieldValue);</span>
+<span class="fc" id="L463">                    JSONReader.Context readContext = JSONFactory.createReadContext(features);</span>
+<span class="fc" id="L464">                    try (JSONReader jsonReader = JSONReader.of(fieldValueJSONString, readContext)) {</span>
+<span class="fc" id="L465">                        ObjectReader fieldObjectReader = getObjectReader(jsonReader);</span>
+<span class="fc" id="L466">                        typedFieldValue = fieldObjectReader.readObject(jsonReader, null, fieldName, features);</span>
+                    }
+<span class="fc" id="L468">                } else {</span>
+<span class="nc" id="L469">                    typedFieldValue = fieldValue;</span>
+                }
+            }
+        }
+<span class="fc" id="L473">        accept(object, typedFieldValue);</span>
+<span class="fc" id="L474">    }</span>
+
+    public abstract void readFieldValue(JSONReader jsonReader, T object);
+
+    public ObjectReader checkObjectAutoType(JSONReader jsonReader) {
+<span class="fc" id="L479">        return null;</span>
+    }
+
+    public boolean isReadOnly() {
+<span class="fc" id="L483">        return readOnly;</span>
+    }
+
+    public ObjectReader getInitReader() {
+<span class="fc" id="L487">        return null;</span>
+    }
+
+    public void processExtra(JSONReader jsonReader, Object object) {
+<span class="fc" id="L491">        jsonReader.skipValue();</span>
+<span class="fc" id="L492">    }</span>
+
+    public void acceptExtra(Object object, String name, Object value) {
+<span class="fc" id="L495">    }</span>
+
+    public ObjectReader getItemObjectReader(JSONReader.Context ctx) {
+<span class="fc bfc" id="L498" title="All 2 branches covered.">        if (itemReader != null) {</span>
+<span class="fc" id="L499">            return itemReader;</span>
+        }
+<span class="fc" id="L501">        return itemReader = ctx.getObjectReader(itemType);</span>
+    }
+
+    public ObjectReader getItemObjectReader(JSONReader jsonReader) {
+<span class="fc" id="L505">        return getItemObjectReader(jsonReader.getContext());</span>
+    }
+
+    static ObjectReader createFormattedObjectReader(Type fieldType, Class fieldClass, String format, Locale locale) {
+<span class="pc bpc" id="L509" title="1 of 4 branches missed.">        if (format != null &amp;&amp; !format.isEmpty()) {</span>
+<span class="fc" id="L510">            String typeName = fieldType.getTypeName();</span>
+<span class="fc bfc" id="L511" title="All 5 branches covered.">            switch (typeName) {</span>
+                case &quot;java.sql.Time&quot;:
+<span class="fc" id="L513">                    return JdbcSupport.createTimeReader((Class) fieldType, format, locale);</span>
+                case &quot;java.sql.Timestamp&quot;:
+<span class="fc" id="L515">                    return JdbcSupport.createTimestampReader((Class) fieldType, format, locale);</span>
+                case &quot;java.sql.Date&quot;:
+<span class="fc" id="L517">                    return JdbcSupport.createDateReader((Class) fieldType, format, locale);</span>
+                case &quot;byte[]&quot;:
+                case &quot;[B&quot;:
+<span class="fc" id="L520">                    return new ObjectReaderImplInt8Array(format);</span>
+                default:
+<span class="fc bfc" id="L522" title="All 2 branches covered.">                    if (Calendar.class.isAssignableFrom(fieldClass)) {</span>
+<span class="fc" id="L523">                        return ObjectReaderImplCalendar.of(format, locale);</span>
+                    }
+
+<span class="fc bfc" id="L526" title="All 2 branches covered.">                    if (fieldClass == ZonedDateTime.class) {</span>
+<span class="fc" id="L527">                        return ObjectReaderImplZonedDateTime.of(format, locale);</span>
+                    }
+
+<span class="fc bfc" id="L530" title="All 2 branches covered.">                    if (fieldClass == LocalDateTime.class) {</span>
+<span class="fc" id="L531">                        return new ObjectReaderImplLocalDateTime(format, locale);</span>
+                    }
+
+<span class="fc bfc" id="L534" title="All 2 branches covered.">                    if (fieldClass == LocalDate.class) {</span>
+<span class="fc" id="L535">                        return ObjectReaderImplLocalDate.of(format, locale);</span>
+                    }
+
+<span class="fc bfc" id="L538" title="All 2 branches covered.">                    if (fieldClass == LocalTime.class) {</span>
+<span class="fc" id="L539">                        return new ObjectReaderImplLocalTime(format, locale);</span>
+                    }
+
+<span class="fc bfc" id="L542" title="All 2 branches covered.">                    if (fieldClass == Instant.class) {</span>
+<span class="fc" id="L543">                        return ObjectReaderImplInstant.of(format, locale);</span>
+                    }
+
+<span class="fc bfc" id="L546" title="All 2 branches covered.">                    if (fieldClass == OffsetTime.class) {</span>
+<span class="fc" id="L547">                        return ObjectReaderImplOffsetTime.of(format, locale);</span>
+                    }
+
+<span class="fc bfc" id="L550" title="All 2 branches covered.">                    if (fieldClass == OffsetDateTime.class) {</span>
+<span class="fc" id="L551">                        return ObjectReaderImplOffsetDateTime.of(format, locale);</span>
+                    }
+
+<span class="fc bfc" id="L554" title="All 2 branches covered.">                    if (fieldClass == Optional.class) {</span>
+<span class="fc" id="L555">                        return ObjectReaderImplOptional.of(fieldType, format, locale);</span>
+                    }
+
+<span class="fc bfc" id="L558" title="All 2 branches covered.">                    if (fieldClass == Date.class) {</span>
+<span class="fc" id="L559">                        return ObjectReaderImplDate.of(format, locale);</span>
+                    }
+
+                    break;
+            }
+        }
+<span class="fc" id="L565">        return null;</span>
+    }
+
+    public BiConsumer getFunction() {
+<span class="fc" id="L569">        return null;</span>
+    }
+
+    public boolean sameTo(FieldReader other) {
+<span class="fc bfc" id="L573" title="All 2 branches covered.">        if (this.field != null) {</span>
+<span class="fc" id="L574">            String thisName = this.field.getName();</span>
+<span class="fc bfc" id="L575" title="All 2 branches covered.">            if (other.field != null) {</span>
+<span class="fc" id="L576">                String otherName = other.field.getName();</span>
+<span class="pc bpc" id="L577" title="1 of 2 branches missed.">                if (thisName.equals(otherName)) {</span>
+<span class="fc" id="L578">                    return true;</span>
+                }
+            }
+<span class="pc bpc" id="L581" title="1 of 2 branches missed.">            if (other.method != null) {</span>
+<span class="fc" id="L582">                String otherName = getActualFieldName(other);</span>
+<span class="fc bfc" id="L583" title="All 2 branches covered.">                if (thisName.equals(otherName)) {</span>
+<span class="fc" id="L584">                    return true;</span>
+                }
+            }
+        }
+
+<span class="fc bfc" id="L589" title="All 2 branches covered.">        if (this.method != null) {</span>
+<span class="fc" id="L590">            String thisName = getActualFieldName(this);</span>
+<span class="pc bpc" id="L591" title="1 of 2 branches missed.">            if (other.method != null) {</span>
+<span class="fc" id="L592">                String otherName = getActualFieldName(other);</span>
+<span class="pc bpc" id="L593" title="1 of 4 branches missed.">                if (thisName != null &amp;&amp; thisName.equals(otherName)) {</span>
+<span class="fc" id="L594">                    return true;</span>
+                }
+            }
+<span class="pc bpc" id="L597" title="1 of 2 branches missed.">            if (other.field != null) {</span>
+<span class="nc bnc" id="L598" title="All 4 branches missed.">                return thisName != null &amp;&amp; thisName.equals(other.field.getName());</span>
+            }
+        }
+
+<span class="fc" id="L602">        return false;</span>
+    }
+
+    public boolean belongTo(Class clazz) {
+<span class="fc bfc" id="L606" title="All 6 branches covered.">        return (this.field != null &amp;&amp; this.field.getDeclaringClass() == clazz)</span>
+<span class="pc bpc" id="L607" title="1 of 2 branches missed.">                || (this.method != null &amp;&amp; this.method.getDeclaringClass().isAssignableFrom(clazz));</span>
+    }
+
+    private String getActualFieldName(FieldReader fieldReader) {
+<span class="fc" id="L611">        String name = fieldReader.method.getName();</span>
+<span class="fc bfc" id="L612" title="All 2 branches covered.">        return fieldReader.isReadOnly() ? BeanUtils.getterName(name, PropertyNamingStrategy.CamelCase.name()) : BeanUtils.setterName(name, PropertyNamingStrategy.CamelCase.name());</span>
+    }
+
+    private boolean needCompareToActualFieldClass(Class clazz) {
+<span class="fc bfc" id="L616" title="All 4 branches covered.">        if (clazz.isEnum() || clazz.isInterface()) {</span>
+<span class="fc" id="L617">            return true;</span>
+        }
+<span class="fc" id="L619">        return false;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.8.202204050719</span></div></body></html>

@@ -1,0 +1,274 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ObjectReaders.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">fastjson2</a> &gt; <a href="index.source.html" class="el_package">com.alibaba.fastjson2.reader</a> &gt; <span class="el_source">ObjectReaders.java</span></div><h1>ObjectReaders.java</h1><pre class="source lang-java linenums">package com.alibaba.fastjson2.reader;
+
+import com.alibaba.fastjson2.TypeReference;
+import com.alibaba.fastjson2.function.*;
+import com.alibaba.fastjson2.util.BeanUtils;
+import com.alibaba.fastjson2.util.TypeUtils;
+
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
+import java.lang.reflect.Type;
+import java.math.BigDecimal;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.function.*;
+
+<span class="nc" id="L17">public class ObjectReaders {</span>
+    public static &lt;T&gt; ObjectReader&lt;T&gt; of(
+            Supplier&lt;T&gt; defaultCreator,
+            FieldReader... fieldReaders
+    ) {
+<span class="fc" id="L22">        return ObjectReaderCreator.INSTANCE.createObjectReader(null, defaultCreator, fieldReaders);</span>
+    }
+
+    public static &lt;T&gt; ObjectReader&lt;T&gt; of(
+            Class&lt;T&gt; objectClass,
+            Supplier&lt;T&gt; defaultCreator,
+            FieldReader... fieldReaders
+    ) {
+<span class="fc" id="L30">        return ObjectReaderCreator.INSTANCE.createObjectReader(objectClass, defaultCreator, fieldReaders);</span>
+    }
+
+    public static &lt;T&gt; ObjectReader&lt;T&gt; ofString(Function&lt;String, T&gt; function) {
+<span class="fc" id="L34">        return new ObjectReaderImplFromString&lt;&gt;(null, function);</span>
+    }
+
+    public static &lt;T&gt; ObjectReader&lt;T&gt; ofInt(IntFunction&lt;T&gt; function) {
+<span class="fc" id="L38">        return new ObjectReaderImplFromInt&lt;&gt;(null, function);</span>
+    }
+
+    public static &lt;T&gt; ObjectReader&lt;T&gt; ofLong(LongFunction&lt;T&gt; function) {
+<span class="fc" id="L42">        return new ObjectReaderImplFromLong&lt;&gt;(null, function);</span>
+    }
+
+    public static &lt;T&gt; ObjectReader&lt;T&gt; fromCharArray(Function&lt;char[], Object&gt; function) {
+<span class="fc" id="L46">        return (ObjectReader&lt;T&gt;) new ObjectReaderImplCharValueArray(function);</span>
+    }
+
+    public static &lt;T&gt; ObjectReader&lt;T&gt; fromByteArray(Function&lt;byte[], Object&gt; function) {
+<span class="fc" id="L50">        return (ObjectReader&lt;T&gt;) new ObjectReaderImplInt8ValueArray(function, &quot;base64&quot;);</span>
+    }
+
+    public static &lt;T&gt; ObjectReader&lt;T&gt; fromShortArray(Function&lt;short[], Object&gt; function) {
+<span class="fc" id="L54">        return (ObjectReader&lt;T&gt;) new ObjectReaderImplInt16ValueArray(function);</span>
+    }
+
+    public static &lt;T&gt; ObjectReader&lt;T&gt; fromIntArray(Function&lt;int[], Object&gt; function) {
+<span class="fc" id="L58">        return (ObjectReader&lt;T&gt;) new ObjectReaderImplInt32ValueArray(null, function);</span>
+    }
+
+    public static &lt;T&gt; ObjectReader&lt;T&gt; fromLongArray(Function&lt;long[], Object&gt; function) {
+<span class="fc" id="L62">        return (ObjectReader&lt;T&gt;) new ObjectReaderImplInt64ValueArray(null, function);</span>
+    }
+
+    public static &lt;T&gt; ObjectReader&lt;T&gt; fromFloatArray(Function&lt;float[], Object&gt; function) {
+<span class="fc" id="L66">        return (ObjectReader&lt;T&gt;) new ObjectReaderImplFloatValueArray(function);</span>
+    }
+
+    public static &lt;T&gt; ObjectReader&lt;T&gt; fromDoubleArray(Function&lt;double[], Object&gt; function) {
+<span class="fc" id="L70">        return (ObjectReader&lt;T&gt;) new ObjectReaderImplDoubleValueArray(function);</span>
+    }
+
+    public static &lt;T&gt; ObjectReader&lt;T&gt; fromBigDecimal(Function&lt;BigDecimal, Object&gt; function) {
+<span class="fc" id="L74">        return (ObjectReader&lt;T&gt;) new ObjectReaderImplBigDecimal(function);</span>
+    }
+
+    public static &lt;T&gt; ObjectReader&lt;T&gt; objectReader(
+            Class&lt;T&gt; objectClass,
+            Supplier&lt;T&gt; defaultCreator,
+            FieldReader... fieldReaders
+    ) {
+<span class="fc" id="L82">        return ObjectReaderCreator.INSTANCE.createObjectReader(objectClass, defaultCreator, fieldReaders);</span>
+    }
+
+    public static &lt;T&gt; ObjectReader&lt;T&gt; ofReflect(Class&lt;T&gt; objectType) {
+<span class="fc" id="L86">        return ObjectReaderCreator.INSTANCE.createObjectReader(objectType);</span>
+    }
+
+    public static &lt;T&gt; ObjectReader&lt;T&gt; of(Class&lt;T&gt; objectType) {
+<span class="fc" id="L90">        return ObjectReaderCreator.INSTANCE.createObjectReader(objectType);</span>
+    }
+
+    public static &lt;T&gt; ObjectReader&lt;T&gt; objectReader(
+            Function&lt;Map&lt;Long, Object&gt;, T&gt; creator,
+            FieldReader... fieldReaders) {
+<span class="fc" id="L96">        return ObjectReaderCreator.INSTANCE.createObjectReaderNoneDefaultConstructor(</span>
+                null,
+                creator,
+                fieldReaders
+        );
+    }
+
+    public static FieldReader fieldReader(String fieldName, Class fieldClass) {
+<span class="fc" id="L104">        return ObjectReaderCreator.INSTANCE.createFieldReader(null, fieldName, fieldClass, fieldClass, null);</span>
+    }
+
+    public static FieldReader fieldReader(String fieldName, Type fieldType, Class fieldClass) {
+<span class="fc" id="L108">        return ObjectReaderCreator.INSTANCE.createFieldReader(null, fieldName, fieldType, fieldClass, null);</span>
+    }
+
+    public static &lt;T&gt; FieldReader fieldReaderBool(String fieldName, ObjBoolConsumer&lt;T&gt; function) {
+<span class="fc" id="L112">        return new FieldReaderBoolValFunc&lt;&gt;(fieldName, 0, null, null, function);</span>
+    }
+
+    public static &lt;T&gt; FieldReader fieldReaderByte(String fieldName, ObjByteConsumer&lt;T&gt; function) {
+<span class="fc" id="L116">        return new FieldReaderInt8ValueFunc&lt;&gt;(fieldName, 0, null, null, function);</span>
+    }
+
+    public static &lt;T&gt; FieldReader fieldReaderShort(String fieldName, ObjShortConsumer&lt;T&gt; function) {
+<span class="fc" id="L120">        return new FieldReaderInt16ValueFunc&lt;&gt;(fieldName, 0, 0L, null, null, null, null, null, function);</span>
+    }
+
+    public static &lt;T&gt; FieldReader fieldReaderInt(String fieldName, ObjIntConsumer&lt;T&gt; function) {
+<span class="fc" id="L124">        return new FieldReaderInt32ValueFunc&lt;&gt;(fieldName, 0, null, null, null, function);</span>
+    }
+
+    public static &lt;T&gt; FieldReader fieldReaderLong(String fieldName, ObjLongConsumer&lt;T&gt; function) {
+<span class="fc" id="L128">        return new FieldReaderInt64ValueFunc&lt;&gt;(fieldName, 0, null, null, null, function);</span>
+    }
+
+    public static &lt;T&gt; FieldReader fieldReaderChar(String fieldName, ObjCharConsumer&lt;T&gt; function) {
+<span class="fc" id="L132">        return new FieldReaderCharValueFunc&lt;&gt;(fieldName, 0, null, null, null, null, function);</span>
+    }
+
+    public static &lt;T&gt; FieldReader fieldReaderFloat(String fieldName, ObjFloatConsumer&lt;T&gt; function) {
+<span class="fc" id="L136">        return new FieldReaderFloatValueFunc&lt;&gt;(fieldName, 0, null, null, null, function);</span>
+    }
+
+    public static &lt;T&gt; FieldReader fieldReaderDouble(String fieldName, ObjDoubleConsumer&lt;T&gt; function) {
+<span class="fc" id="L140">        return new FieldReaderDoubleValueFunc&lt;&gt;(fieldName, 0, null, null, null, function);</span>
+    }
+
+    public static &lt;T&gt; FieldReader fieldReaderString(
+            String fieldName,
+            BiConsumer&lt;T, String&gt; function
+    ) {
+<span class="fc" id="L147">        return ObjectReaderCreator.INSTANCE.createFieldReader(fieldName, String.class, String.class, null, function);</span>
+    }
+
+    public static &lt;T, V&gt; FieldReader fieldReader(
+            String fieldName,
+            Class&lt;V&gt; fieldClass,
+            BiConsumer&lt;T, V&gt; function
+    ) {
+<span class="fc" id="L155">        return ObjectReaderCreator.INSTANCE.createFieldReader(fieldName, fieldClass, fieldClass, null, function);</span>
+    }
+
+    public static &lt;T, V&gt; FieldReader fieldReader(
+            String fieldName,
+            Type fieldType,
+            Class&lt;V&gt; fieldClass,
+            BiConsumer&lt;T, V&gt; function
+    ) {
+<span class="fc" id="L164">        return ObjectReaderCreator.INSTANCE.createFieldReader(fieldName, fieldType, fieldClass, null, function);</span>
+    }
+
+    public static &lt;T, V&gt; FieldReader fieldReader(
+            String fieldName,
+            Type fieldType,
+            BiConsumer&lt;T, V&gt; consumer,
+            ObjectReader&lt;V&gt; fieldObjectReader
+    ) {
+//        return new FieldReaderObjectFunc2&lt;&gt;(fieldObjectReader, consumer, fieldType, fieldName);
+<span class="fc" id="L174">        return new FieldReaderObjectFunc&lt;&gt;(</span>
+                fieldName,
+                fieldType,
+<span class="fc" id="L177">                (Class&lt;V&gt;) TypeUtils.getClass(fieldType),</span>
+                0,
+                0,
+                null,
+                null,
+                null,
+                null,
+                null,
+                consumer,
+                fieldObjectReader
+        );
+    }
+
+    public static &lt;T, V&gt; FieldReader fieldReaderList(
+            String fieldName,
+            Type itemType,
+            Supplier&lt;List&lt;V&gt;&gt; listCreator,
+            BiConsumer&lt;T, List&lt;V&gt;&gt; function,
+            ObjectReader&lt;V&gt; itemObjectReader
+    ) {
+<span class="fc" id="L197">        return new FieldReaderListFuncImpl&lt;&gt;(listCreator, itemObjectReader, function, itemType, fieldName);</span>
+    }
+
+    public static &lt;T, V&gt; FieldReader fieldReaderList(
+            String fieldName,
+            Type itemType,
+            Supplier&lt;List&lt;V&gt;&gt; listCreator,
+            BiConsumer&lt;T, List&lt;V&gt;&gt; function
+    ) {
+<span class="fc" id="L206">        return new FieldReaderListFuncImpl&lt;&gt;(listCreator, null, function, itemType, fieldName);</span>
+    }
+
+    public static &lt;T&gt; FieldReader fieldReaderListStr(
+            String fieldName,
+            BiConsumer&lt;T, List&lt;String&gt;&gt; function
+    ) {
+<span class="fc" id="L213">        return new FieldReaderListFuncImpl&lt;&gt;(ArrayList::new, null, function, String.class, fieldName);</span>
+    }
+
+    public static &lt;T, V&gt; FieldReader fieldReaderList(
+            String fieldName,
+            Type itemType,
+            BiConsumer&lt;T, List&lt;V&gt;&gt; function
+    ) {
+<span class="fc" id="L221">        return fieldReaderList(fieldName, itemType, ArrayList::new, function);</span>
+    }
+
+    /**
+     * @since 2.0.34
+     */
+    public static &lt;T, M extends Map&gt; FieldReader fieldReaderMap(
+            String fieldName,
+            Class&lt;M&gt; mapClass,
+            Type keyType,
+            Type valueType,
+            BiConsumer&lt;T, M&gt; function
+    ) {
+<span class="fc" id="L234">        return new FieldReaderObject(</span>
+                fieldName,
+<span class="fc" id="L236">                TypeReference.parametricType(mapClass, keyType, valueType),</span>
+                mapClass,
+                0,
+                0,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                function
+        );
+    }
+
+    public static FieldReader fieldReaderWithField(String fieldName, Class objectClass) {
+<span class="nc" id="L251">        Field field = BeanUtils.getDeclaredField(objectClass, fieldName);</span>
+<span class="nc" id="L252">        return ObjectReaderCreator.INSTANCE.createFieldReader(</span>
+                fieldName,
+                field
+        );
+    }
+
+    public static FieldReader fieldReaderWithField(String name, Class objectClass, String fieldName) {
+<span class="nc" id="L259">        Field field = BeanUtils.getDeclaredField(objectClass, fieldName);</span>
+<span class="nc" id="L260">        return ObjectReaderCreator.INSTANCE.createFieldReader(</span>
+                name,
+                field
+        );
+    }
+
+    public static FieldReader fieldReaderWithMethod(String name, Class objectClass, String methodName) {
+<span class="nc" id="L267">        Method method = BeanUtils.getSetter(objectClass, methodName);</span>
+<span class="nc" id="L268">        return ObjectReaderCreator.INSTANCE.createFieldReader(</span>
+                name,
+                method
+        );
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.8.202204050719</span></div></body></html>

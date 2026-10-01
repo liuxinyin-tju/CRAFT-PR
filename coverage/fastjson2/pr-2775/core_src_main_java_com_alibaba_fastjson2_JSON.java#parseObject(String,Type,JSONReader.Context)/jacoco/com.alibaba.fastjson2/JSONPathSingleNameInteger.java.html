@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>JSONPathSingleNameInteger.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">fastjson2</a> &gt; <a href="index.source.html" class="el_package">com.alibaba.fastjson2</a> &gt; <span class="el_source">JSONPathSingleNameInteger.java</span></div><h1>JSONPathSingleNameInteger.java</h1><pre class="source lang-java linenums">package com.alibaba.fastjson2;
+
+final class JSONPathSingleNameInteger
+        extends JSONPathTyped {
+    final long nameHashCode;
+    final String name;
+
+    public JSONPathSingleNameInteger(JSONPathSingleName jsonPath) {
+<span class="fc" id="L9">        super(jsonPath, Integer.class);</span>
+<span class="fc" id="L10">        this.nameHashCode = jsonPath.nameHashCode;</span>
+<span class="fc" id="L11">        this.name = jsonPath.name;</span>
+<span class="fc" id="L12">    }</span>
+
+    @Override
+    public Object extract(JSONReader jsonReader) {
+<span class="fc bfc" id="L16" title="All 2 branches covered.">        if (jsonReader.jsonb) {</span>
+<span class="pc bpc" id="L17" title="1 of 2 branches missed.">            if (jsonReader.isObject()) {</span>
+<span class="fc" id="L18">                jsonReader.nextIfObjectStart();</span>
+<span class="pc bpc" id="L19" title="1 of 2 branches missed.">                while (!jsonReader.nextIfObjectEnd()) {</span>
+<span class="fc" id="L20">                    long nameHashCode = jsonReader.readFieldNameHashCode();</span>
+<span class="pc bpc" id="L21" title="1 of 2 branches missed.">                    if (nameHashCode == 0) {</span>
+<span class="nc" id="L22">                        continue;</span>
+                    }
+
+<span class="fc bfc" id="L25" title="All 2 branches covered.">                    boolean match = nameHashCode == this.nameHashCode;</span>
+<span class="pc bpc" id="L26" title="2 of 6 branches missed.">                    if (!match &amp;&amp; (!jsonReader.isObject()) &amp;&amp; !jsonReader.isArray()) {</span>
+<span class="fc" id="L27">                        jsonReader.skipValue();</span>
+<span class="fc" id="L28">                        continue;</span>
+                    }
+
+<span class="fc" id="L31">                    return jsonReader.readInt32();</span>
+                }
+            }
+<span class="pc bpc" id="L34" title="1 of 2 branches missed.">        } else if (jsonReader.nextIfObjectStart()) {</span>
+<span class="fc bfc" id="L35" title="All 2 branches covered.">            while (!jsonReader.nextIfObjectEnd()) {</span>
+<span class="fc" id="L36">                long nameHashCode = jsonReader.readFieldNameHashCode();</span>
+<span class="fc bfc" id="L37" title="All 2 branches covered.">                boolean match = nameHashCode == this.nameHashCode;</span>
+
+<span class="fc bfc" id="L39" title="All 2 branches covered.">                if (!match) {</span>
+<span class="fc" id="L40">                    jsonReader.skipValue();</span>
+<span class="fc" id="L41">                    continue;</span>
+                }
+
+<span class="fc" id="L44">                return jsonReader.readInt32();</span>
+            }
+        }
+
+<span class="fc" id="L48">        return null;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.8.202204050719</span></div></body></html>

@@ -1,0 +1,107 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ObjectReaderImplField.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">fastjson2</a> &gt; <a href="index.source.html" class="el_package">com.alibaba.fastjson2.reader</a> &gt; <span class="el_source">ObjectReaderImplField.java</span></div><h1>ObjectReaderImplField.java</h1><pre class="source lang-java linenums">package com.alibaba.fastjson2.reader;
+
+import com.alibaba.fastjson2.JSONException;
+import com.alibaba.fastjson2.JSONReader;
+import com.alibaba.fastjson2.util.Fnv;
+import com.alibaba.fastjson2.util.TypeUtils;
+
+import java.lang.reflect.Field;
+import java.lang.reflect.Type;
+
+<span class="fc" id="L11">public class ObjectReaderImplField</span>
+        implements ObjectReader {
+<span class="fc" id="L13">    static final long HASH_DECLARING_CLASS = Fnv.hashCode64(&quot;declaringClass&quot;);</span>
+<span class="fc" id="L14">    static final long HASH_NAME = Fnv.hashCode64(&quot;name&quot;);</span>
+
+    @Override
+    public Object readJSONBObject(JSONReader jsonReader, Type fieldType, Object fieldName, long features) {
+<span class="fc" id="L18">        return readObject(jsonReader, fieldType, fieldName, features);</span>
+    }
+
+    @Override
+    public Object readArrayMappingJSONBObject(JSONReader jsonReader, Type fieldType, Object fieldName, long features) {
+<span class="fc" id="L23">        int entryCount = jsonReader.startArray();</span>
+<span class="pc bpc" id="L24" title="1 of 2 branches missed.">        if (entryCount != 2) {</span>
+<span class="nc" id="L25">            throw new JSONException(&quot;not support input &quot; + jsonReader.info());</span>
+        }
+
+<span class="fc" id="L28">        String declaringClassName = jsonReader.readString();</span>
+<span class="fc" id="L29">        String methodName = jsonReader.readString();</span>
+
+<span class="fc" id="L31">        return getField(jsonReader.getContext().getFeatures() | features, methodName, declaringClassName);</span>
+    }
+
+    @Override
+    public Object readArrayMappingObject(JSONReader jsonReader, Type fieldType, Object fieldName, long features) {
+<span class="fc" id="L36">        boolean arrayStart = jsonReader.nextIfArrayStart();</span>
+<span class="pc bpc" id="L37" title="1 of 2 branches missed.">        if (!arrayStart) {</span>
+<span class="nc" id="L38">            throw new JSONException(&quot;not support input &quot; + jsonReader.info());</span>
+        }
+
+<span class="fc" id="L41">        String declaringClassName = jsonReader.readString();</span>
+<span class="fc" id="L42">        String methodName = jsonReader.readString();</span>
+
+<span class="fc" id="L44">        boolean arrayEnd = jsonReader.nextIfArrayEnd();</span>
+<span class="pc bpc" id="L45" title="1 of 2 branches missed.">        if (!arrayEnd) {</span>
+<span class="nc" id="L46">            throw new JSONException(&quot;not support input &quot; + jsonReader.info());</span>
+        }
+
+<span class="fc" id="L49">        jsonReader.nextIfComma();</span>
+
+<span class="fc" id="L51">        return getField(jsonReader.getContext().getFeatures() | features, methodName, declaringClassName);</span>
+    }
+
+    @Override
+    public Object readObject(JSONReader jsonReader, Type fieldType, Object fieldName, long features) {
+<span class="fc" id="L56">        boolean objectStart = jsonReader.nextIfObjectStart();</span>
+<span class="fc bfc" id="L57" title="All 2 branches covered.">        if (!objectStart) {</span>
+<span class="pc bpc" id="L58" title="1 of 2 branches missed.">            if (jsonReader.isSupportBeanArray(features)) {</span>
+<span class="fc bfc" id="L59" title="All 2 branches covered.">                if (jsonReader.jsonb) {</span>
+<span class="fc" id="L60">                    return readArrayMappingJSONBObject(jsonReader, fieldType, fieldName, features);</span>
+                } else {
+<span class="fc" id="L62">                    return readArrayMappingObject(jsonReader, fieldType, fieldName, features);</span>
+                }
+            }
+<span class="nc" id="L65">            throw new JSONException(&quot;not support input &quot; + jsonReader.info());</span>
+        }
+
+<span class="fc" id="L68">        String methodName = null, declaringClassName = null;</span>
+
+<span class="fc bfc" id="L70" title="All 2 branches covered.">        while (!jsonReader.nextIfObjectEnd()) {</span>
+<span class="fc" id="L71">            long nameHashCode = jsonReader.readFieldNameHashCode();</span>
+<span class="fc bfc" id="L72" title="All 2 branches covered.">            if (nameHashCode == HASH_DECLARING_CLASS) {</span>
+<span class="fc" id="L73">                declaringClassName = jsonReader.readString();</span>
+<span class="pc bpc" id="L74" title="1 of 2 branches missed.">            } else if (nameHashCode == HASH_NAME) {</span>
+<span class="fc" id="L75">                methodName = jsonReader.readString();</span>
+            } else {
+<span class="nc" id="L77">                jsonReader.skipValue();</span>
+            }
+<span class="fc" id="L79">        }</span>
+
+<span class="fc bfc" id="L81" title="All 2 branches covered.">        if (!jsonReader.jsonb) {</span>
+<span class="fc" id="L82">            jsonReader.nextIfComma();</span>
+        }
+
+<span class="fc" id="L85">        return getField(jsonReader.getContext().getFeatures() | features, methodName, declaringClassName);</span>
+    }
+
+    private Field getField(long features,
+                           String methodName,
+                           String declaringClassName) {
+        Class declaringClass;
+
+<span class="fc bfc" id="L93" title="All 2 branches covered.">        boolean supportClassForName = (features &amp; JSONReader.Feature.SupportClassForName.mask) != 0;</span>
+<span class="fc bfc" id="L94" title="All 2 branches covered.">        if (supportClassForName) {</span>
+<span class="fc" id="L95">            declaringClass = TypeUtils.loadClass(declaringClassName);</span>
+        } else {
+<span class="fc" id="L97">            throw new JSONException(&quot;ClassForName not support&quot;);</span>
+        }
+
+        try {
+<span class="fc" id="L101">            return declaringClass.getDeclaredField(methodName);</span>
+<span class="nc" id="L102">        } catch (NoSuchFieldException e) {</span>
+<span class="nc" id="L103">            throw new JSONException(&quot;method not found&quot;, e);</span>
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.8.202204050719</span></div></body></html>

@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>FieldReaderBigDecimalMethod.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">fastjson2</a> &gt; <a href="index.source.html" class="el_package">com.alibaba.fastjson2.reader</a> &gt; <span class="el_source">FieldReaderBigDecimalMethod.java</span></div><h1>FieldReaderBigDecimalMethod.java</h1><pre class="source lang-java linenums">package com.alibaba.fastjson2.reader;
+
+import com.alibaba.fastjson2.JSONException;
+import com.alibaba.fastjson2.JSONReader;
+import com.alibaba.fastjson2.schema.JSONSchema;
+import com.alibaba.fastjson2.util.TypeUtils;
+
+import java.lang.reflect.Method;
+import java.lang.reflect.Type;
+import java.math.BigDecimal;
+import java.util.Locale;
+
+final class FieldReaderBigDecimalMethod&lt;T&gt;
+        extends FieldReaderObject&lt;T&gt; {
+    FieldReaderBigDecimalMethod(
+            String fieldName,
+            Type fieldType,
+            Class fieldClass,
+            int ordinal,
+            long features,
+            String format,
+            Locale locale,
+            BigDecimal defaultValue,
+            JSONSchema schema,
+            Method method
+    ) {
+<span class="fc" id="L27">        super(fieldName, fieldType, fieldClass, ordinal, features, format, locale, defaultValue, schema, method, null, null);</span>
+<span class="fc" id="L28">    }</span>
+
+    @Override
+    public void readFieldValue(JSONReader jsonReader, T object) {
+<span class="fc" id="L32">        BigDecimal fieldValue = jsonReader.readBigDecimal();</span>
+
+<span class="pc bpc" id="L34" title="1 of 2 branches missed.">        if (schema != null) {</span>
+<span class="fc" id="L35">            schema.assertValidate(fieldValue);</span>
+        }
+
+        try {
+<span class="fc" id="L39">            method.invoke(object, fieldValue);</span>
+<span class="nc" id="L40">        } catch (Exception e) {</span>
+<span class="nc" id="L41">            throw new JSONException(jsonReader.info(&quot;set &quot; + fieldName + &quot; error&quot;), e);</span>
+<span class="fc" id="L42">        }</span>
+<span class="fc" id="L43">    }</span>
+
+    @Override
+    public void accept(T object, Object value) {
+<span class="fc" id="L47">        BigDecimal decimalValue = TypeUtils.toBigDecimal(value);</span>
+
+<span class="fc bfc" id="L49" title="All 2 branches covered.">        if (schema != null) {</span>
+<span class="nc" id="L50">            schema.assertValidate(decimalValue);</span>
+        }
+
+        try {
+<span class="fc" id="L54">            method.invoke(object, decimalValue);</span>
+<span class="nc" id="L55">        } catch (Exception e) {</span>
+<span class="nc" id="L56">            throw new JSONException(&quot;set &quot; + fieldName + &quot; error&quot;, e);</span>
+<span class="fc" id="L57">        }</span>
+<span class="fc" id="L58">    }</span>
+
+    @Override
+    public void accept(T object, int value) {
+<span class="fc bfc" id="L62" title="All 2 branches covered.">        if (schema != null) {</span>
+<span class="nc" id="L63">            schema.assertValidate(value);</span>
+        }
+
+        try {
+<span class="fc" id="L67">            method.invoke(object, BigDecimal.valueOf(value));</span>
+<span class="nc" id="L68">        } catch (Exception e) {</span>
+<span class="nc" id="L69">            throw new JSONException(&quot;set &quot; + fieldName + &quot; error&quot;, e);</span>
+<span class="fc" id="L70">        }</span>
+<span class="fc" id="L71">    }</span>
+
+    @Override
+    public void accept(T object, long value) {
+<span class="fc bfc" id="L75" title="All 2 branches covered.">        if (schema != null) {</span>
+<span class="nc" id="L76">            schema.assertValidate(value);</span>
+        }
+
+        try {
+<span class="fc" id="L80">            method.invoke(object, BigDecimal.valueOf(value));</span>
+<span class="nc" id="L81">        } catch (Exception e) {</span>
+<span class="nc" id="L82">            throw new JSONException(&quot;set &quot; + fieldName + &quot; error&quot;, e);</span>
+<span class="fc" id="L83">        }</span>
+<span class="fc" id="L84">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.8.202204050719</span></div></body></html>

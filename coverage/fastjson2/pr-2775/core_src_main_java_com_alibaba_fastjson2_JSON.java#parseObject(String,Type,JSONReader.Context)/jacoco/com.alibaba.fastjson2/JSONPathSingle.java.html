@@ -1,0 +1,115 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>JSONPathSingle.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">fastjson2</a> &gt; <a href="index.source.html" class="el_package">com.alibaba.fastjson2</a> &gt; <span class="el_source">JSONPathSingle.java</span></div><h1>JSONPathSingle.java</h1><pre class="source lang-java linenums">package com.alibaba.fastjson2;
+
+import java.util.function.BiFunction;
+
+class JSONPathSingle
+        extends JSONPath {
+    final JSONPathSegment segment;
+    final boolean ref;
+    final boolean extractSupport;
+
+    JSONPathSingle(JSONPathSegment segment, String path, Feature... features) {
+<span class="fc" id="L12">        super(path, features);</span>
+<span class="fc" id="L13">        this.segment = segment;</span>
+<span class="fc bfc" id="L14" title="All 6 branches covered.">        this.ref = segment instanceof JSONPathSegmentIndex</span>
+                || segment instanceof JSONPathSegmentName
+                || segment instanceof JSONPathSegment.SelfSegment;
+
+<span class="fc" id="L18">        boolean extractSupport = true;</span>
+<span class="fc bfc" id="L19" title="All 2 branches covered.">        if (segment instanceof JSONPathSegment.EvalSegment) {</span>
+<span class="fc" id="L20">            extractSupport = false;</span>
+<span class="fc bfc" id="L21" title="All 4 branches covered.">        } else if (segment instanceof JSONPathSegmentIndex &amp;&amp; ((JSONPathSegmentIndex) segment).index &lt; 0) {</span>
+<span class="fc" id="L22">            extractSupport = false;</span>
+<span class="fc bfc" id="L23" title="All 4 branches covered.">        } else if (segment instanceof JSONPathSegment.CycleNameSegment &amp;&amp; ((JSONPathSegment.CycleNameSegment) segment).shouldRecursive()) {</span>
+<span class="fc" id="L24">            extractSupport = false;</span>
+        }
+<span class="fc" id="L26">        this.extractSupport = extractSupport;</span>
+<span class="fc" id="L27">    }</span>
+
+    @Override
+    public boolean remove(Object root) {
+<span class="fc" id="L31">        Context context = new Context(this, null, segment, null, 0);</span>
+<span class="fc" id="L32">        context.root = root;</span>
+<span class="fc" id="L33">        return segment.remove(context);</span>
+    }
+
+    @Override
+    public boolean contains(Object root) {
+<span class="fc" id="L38">        Context context = new Context(this, null, segment, null, 0);</span>
+<span class="fc" id="L39">        context.root = root;</span>
+<span class="fc" id="L40">        return segment.contains(context);</span>
+    }
+
+    @Override
+    public boolean isRef() {
+<span class="fc" id="L45">        return ref;</span>
+    }
+
+    @Override
+    public Object eval(Object root) {
+<span class="fc" id="L50">        Context context = new Context(this, null, segment, null, 0);</span>
+<span class="fc" id="L51">        context.root = root;</span>
+<span class="fc" id="L52">        segment.eval(context);</span>
+<span class="fc" id="L53">        return context.value;</span>
+    }
+
+    @Override
+    public void set(Object root, Object value) {
+<span class="fc" id="L58">        Context context = new Context(this, null, segment, null, 0);</span>
+<span class="fc" id="L59">        context.root = root;</span>
+<span class="fc" id="L60">        segment.set(context, value);</span>
+<span class="fc" id="L61">    }</span>
+
+    @Override
+    public void set(Object root, Object value, JSONReader.Feature... readerFeatures) {
+<span class="fc" id="L65">        Context context = new Context(this, null, segment, null, 0);</span>
+<span class="fc" id="L66">        context.root = root;</span>
+<span class="fc" id="L67">        segment.set(context, value);</span>
+<span class="fc" id="L68">    }</span>
+
+    @Override
+    public void setCallback(Object root, BiFunction callback) {
+<span class="fc" id="L72">        Context context = new Context(this, null, segment, null, 0);</span>
+<span class="fc" id="L73">        context.root = root;</span>
+<span class="fc" id="L74">        segment.setCallback(context, callback);</span>
+<span class="fc" id="L75">    }</span>
+
+    @Override
+    public void setInt(Object root, int value) {
+<span class="fc" id="L79">        Context context = new Context(this, null, segment, null, 0);</span>
+<span class="fc" id="L80">        context.root = root;</span>
+<span class="fc" id="L81">        segment.setInt(context, value);</span>
+<span class="fc" id="L82">    }</span>
+
+    @Override
+    public void setLong(Object root, long value) {
+<span class="fc" id="L86">        Context context = new Context(this, null, segment, null, 0);</span>
+<span class="fc" id="L87">        context.root = root;</span>
+<span class="fc" id="L88">        segment.setLong(context, value);</span>
+<span class="fc" id="L89">    }</span>
+
+    @Override
+    public Object extract(JSONReader jsonReader) {
+<span class="fc" id="L93">        Context context = new Context(this, null, segment, null, 0);</span>
+<span class="fc bfc" id="L94" title="All 2 branches covered.">        if (!extractSupport) {</span>
+<span class="fc" id="L95">            context.root = jsonReader.readAny();</span>
+<span class="fc" id="L96">            segment.eval(context);</span>
+        } else {
+<span class="fc" id="L98">            segment.accept(jsonReader, context);</span>
+        }
+<span class="fc" id="L100">        return context.value;</span>
+    }
+
+    @Override
+    public String extractScalar(JSONReader jsonReader) {
+<span class="fc" id="L105">        Context context = new Context(this, null, segment, null, 0);</span>
+<span class="fc" id="L106">        segment.accept(jsonReader, context);</span>
+<span class="fc" id="L107">        return JSON.toJSONString(context.value);</span>
+    }
+
+    @Override
+    public final JSONPath getParent() {
+<span class="fc" id="L112">        return RootPath.INSTANCE;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.8.202204050719</span></div></body></html>

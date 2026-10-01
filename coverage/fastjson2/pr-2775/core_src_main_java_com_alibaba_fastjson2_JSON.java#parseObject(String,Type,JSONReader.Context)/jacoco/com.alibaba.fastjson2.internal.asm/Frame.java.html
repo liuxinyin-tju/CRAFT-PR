@@ -1,0 +1,1362 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>Frame.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">fastjson2</a> &gt; <a href="index.source.html" class="el_package">com.alibaba.fastjson2.internal.asm</a> &gt; <span class="el_source">Frame.java</span></div><h1>Frame.java</h1><pre class="source lang-java linenums">// ASM: a very small and fast Java bytecode manipulation framework
+// Copyright (c) 2000-2011 INRIA, France Telecom
+// All rights reserved.
+//
+// Redistribution and use in source and binary forms, with or without
+// modification, are permitted provided that the following conditions
+// are met:
+// 1. Redistributions of source code must retain the above copyright
+//    notice, this list of conditions and the following disclaimer.
+// 2. Redistributions in binary form must reproduce the above copyright
+//    notice, this list of conditions and the following disclaimer in the
+//    documentation and/or other materials provided with the distribution.
+// 3. Neither the name of the copyright holders nor the names of its
+//    contributors may be used to endorse or promote products derived from
+//    this software without specific prior written permission.
+//
+// THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS &quot;AS IS&quot;
+// AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+// IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+// ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE
+// LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+// CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+// SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+// INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+// CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+// ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF
+// THE POSSIBILITY OF SUCH DAMAGE.
+package com.alibaba.fastjson2.internal.asm;
+
+/**
+ * @author Eric Bruneton
+ */
+class Frame {
+    // Constants used in the StackMapTable attribute.
+    // See https://docs.oracle.com/javase/specs/jvms/se9/html/jvms-4.html#jvms-4.7.4.
+
+    static final int SAME_FRAME = 0;
+    static final int SAME_LOCALS_1_STACK_ITEM_FRAME = 64;
+//    static final int RESERVED = 128;
+    static final int SAME_LOCALS_1_STACK_ITEM_FRAME_EXTENDED = 247;
+    static final int CHOP_FRAME = 248;
+    static final int SAME_FRAME_EXTENDED = 251;
+    static final int APPEND_FRAME = 252;
+    static final int FULL_FRAME = 255;
+
+    static final int ITEM_TOP = 0;
+    static final int ITEM_INTEGER = 1;
+    static final int ITEM_FLOAT = 2;
+    static final int ITEM_DOUBLE = 3;
+    static final int ITEM_LONG = 4;
+    static final int ITEM_NULL = 5;
+    static final int ITEM_UNINITIALIZED_THIS = 6;
+    static final int ITEM_OBJECT = 7;
+    static final int ITEM_UNINITIALIZED = 8;
+    // Additional, ASM specific constants used in abstract types below.
+    static final int ITEM_ASM_BOOLEAN = 9;
+    static final int ITEM_ASM_BYTE = 10;
+    static final int ITEM_ASM_CHAR = 11;
+    static final int ITEM_ASM_SHORT = 12;
+
+    // The size and offset in bits of each field of an abstract type.
+
+    static final int DIM_SIZE = 6;
+    static final int KIND_SIZE = 4;
+    static final int FLAGS_SIZE = 2;
+    static final int VALUE_SIZE = 32 - DIM_SIZE - KIND_SIZE - FLAGS_SIZE;
+
+    static final int DIM_SHIFT = KIND_SIZE + FLAGS_SIZE + VALUE_SIZE;
+    static final int KIND_SHIFT = FLAGS_SIZE + VALUE_SIZE;
+    static final int FLAGS_SHIFT = VALUE_SIZE;
+
+    // Bitmasks to get each field of an abstract type.
+
+    static final int DIM_MASK = ((1 &lt;&lt; DIM_SIZE) - 1) &lt;&lt; DIM_SHIFT;
+    static final int KIND_MASK = ((1 &lt;&lt; KIND_SIZE) - 1) &lt;&lt; KIND_SHIFT;
+    static final int VALUE_MASK = (1 &lt;&lt; VALUE_SIZE) - 1;
+
+    // Constants to manipulate the DIM field of an abstract type.
+
+    /**
+     * The constant to be added to an abstract type to get one with one less array dimension.
+     */
+    static final int ELEMENT_OF = -1 &lt;&lt; DIM_SHIFT;
+
+    // Possible values for the KIND field of an abstract type.
+
+    static final int CONSTANT_KIND = 1 &lt;&lt; KIND_SHIFT;
+    static final int REFERENCE_KIND = 2 &lt;&lt; KIND_SHIFT;
+    static final int UNINITIALIZED_KIND = 3 &lt;&lt; KIND_SHIFT;
+    static final int LOCAL_KIND = 4 &lt;&lt; KIND_SHIFT;
+    static final int STACK_KIND = 5 &lt;&lt; KIND_SHIFT;
+
+    // Possible flags for the FLAGS field of an abstract type.
+
+    /**
+     * A flag used for LOCAL_KIND and STACK_KIND abstract types, indicating that if the resolved,
+     * concrete type is LONG or DOUBLE, TOP should be used instead (because the value has been
+     * partially overridden with an xSTORE instruction).
+     */
+    private static final int TOP_IF_LONG_OR_DOUBLE_FLAG = 1 &lt;&lt; FLAGS_SHIFT;
+
+    // Useful predefined abstract types (all the possible CONSTANT_KIND types).
+
+    private static final int TOP = CONSTANT_KIND | ITEM_TOP;
+    private static final int BOOLEAN = CONSTANT_KIND | ITEM_ASM_BOOLEAN;
+    private static final int BYTE = CONSTANT_KIND | ITEM_ASM_BYTE;
+    private static final int CHAR = CONSTANT_KIND | ITEM_ASM_CHAR;
+    private static final int SHORT = CONSTANT_KIND | ITEM_ASM_SHORT;
+    private static final int INTEGER = CONSTANT_KIND | ITEM_INTEGER;
+    private static final int FLOAT = CONSTANT_KIND | ITEM_FLOAT;
+    private static final int LONG = CONSTANT_KIND | ITEM_LONG;
+    private static final int DOUBLE = CONSTANT_KIND | ITEM_DOUBLE;
+    private static final int NULL = CONSTANT_KIND | ITEM_NULL;
+    private static final int UNINITIALIZED_THIS = CONSTANT_KIND | ITEM_UNINITIALIZED_THIS;
+
+    // -----------------------------------------------------------------------------------------------
+    // Instance fields
+    // -----------------------------------------------------------------------------------------------
+
+    /**
+     * The basic block to which these input and output stack map frames correspond.
+     */
+    final Label owner;
+
+    /**
+     * The input stack map frame locals. This is an array of abstract types.
+     */
+    private int[] inputLocals;
+
+    /**
+     * The input stack map frame stack. This is an array of abstract types.
+     */
+    int[] inputStack;
+
+    /**
+     * The output stack map frame locals. This is an array of abstract types.
+     */
+    private int[] outputLocals;
+
+    /**
+     * The output stack map frame stack. This is an array of abstract types.
+     */
+    private int[] outputStack;
+
+    /**
+     * The start of the output stack, relatively to the input stack. This offset is always negative or
+     * null. A null offset means that the output stack must be appended to the input stack. A -n
+     * offset means that the first n output stack elements must replace the top n input stack
+     * elements, and that the other elements must be appended to the input stack.
+     */
+    private short outputStackStart;
+
+    /**
+     * The index of the top stack element in {@link #outputStack}.
+     */
+    private short outputStackTop;
+
+    /**
+     * The number of types that are initialized in the basic block. See {@link #initializations}.
+     */
+    private int initializationCount;
+
+    /**
+     * The abstract types that are initialized in the basic block. A constructor invocation on an
+     * UNINITIALIZED or UNINITIALIZED_THIS abstract type must replace &lt;i&gt;every occurrence&lt;/i&gt; of this
+     * type in the local variables and in the operand stack. This cannot be done during the first step
+     * of the algorithm since, during this step, the local variables and the operand stack types are
+     * still abstract. It is therefore necessary to store the abstract types of the constructors which
+     * are invoked in the basic block, in order to do this replacement during the second step of the
+     * algorithm, where the frames are fully computed. Note that this array can contain abstract types
+     * that are relative to the input locals or to the input stack.
+     */
+    private int[] initializations;
+
+    // -----------------------------------------------------------------------------------------------
+    // Constructor
+    // -----------------------------------------------------------------------------------------------
+
+    /**
+     * Constructs a new Frame.
+     *
+     * @param owner the basic block to which these input and output stack map frames correspond.
+     */
+<span class="fc" id="L184">    Frame(final Label owner) {</span>
+<span class="fc" id="L185">        this.owner = owner;</span>
+<span class="fc" id="L186">    }</span>
+//
+//    /**
+//     * Returns the abstract type corresponding to the internal name of a class.
+//     *
+//     * @param symbolTable  the type table to use to lookup and store type {@link Symbol}.
+//     * @param internalName the internal name of a class. This must &lt;i&gt;not&lt;/i&gt; be an array type
+//     *                     descriptor.
+//     * @return the abstract type value corresponding to the given internal name.
+//     */
+//    static int getAbstractTypeFromInternalName(
+//            final SymbolTable symbolTable, final String internalName) {
+//        return REFERENCE_KIND | symbolTable.addType(internalName);
+//    }
+
+    /**
+     * Returns the abstract type corresponding to the given type descriptor.
+     *
+     * @param symbolTable the type table to use to lookup and store type {@link Symbol}.
+     * @param buffer      a string ending with a type descriptor.
+     * @param offset      the start offset of the type descriptor in buffer.
+     * @return the abstract type corresponding to the given type descriptor.
+     */
+    private static int getAbstractTypeFromDescriptor(
+            final SymbolTable symbolTable, final String buffer, final int offset) {
+<span class="fc" id="L211">        String internalName = null;</span>
+<span class="pc bpc" id="L212" title="1 of 8 branches missed.">        switch (buffer.charAt(offset)) {</span>
+            case 'V':
+<span class="fc" id="L214">                return 0;</span>
+            case 'Z':
+            case 'C':
+            case 'B':
+            case 'S':
+            case 'I':
+<span class="fc" id="L220">                return INTEGER;</span>
+            case 'F':
+<span class="fc" id="L222">                return FLOAT;</span>
+            case 'J':
+<span class="fc" id="L224">                return LONG;</span>
+            case 'D':
+<span class="fc" id="L226">                return DOUBLE;</span>
+            case 'L':
+<span class="fc bfc" id="L228" title="All 2 branches covered.">                if (offset == 0) {</span>
+<span class="fc bfc" id="L229" title="All 13 branches covered.">                    switch (buffer) {</span>
+                        case &quot;Ljava/lang/Object;&quot;:
+<span class="fc" id="L231">                            internalName = &quot;java/lang/Object&quot;;</span>
+<span class="fc" id="L232">                            break;</span>
+                        case &quot;Ljava/lang/Class;&quot;:
+<span class="fc" id="L234">                            internalName = &quot;java/lang/Class&quot;;</span>
+<span class="fc" id="L235">                            break;</span>
+                        case &quot;Ljava/lang/String;&quot;:
+<span class="fc" id="L237">                            internalName = &quot;java/lang/String&quot;;</span>
+<span class="fc" id="L238">                            break;</span>
+                        case &quot;Ljava/util/List;&quot;:
+<span class="fc" id="L240">                            internalName = &quot;java/util/List&quot;;</span>
+<span class="fc" id="L241">                            break;</span>
+                        case &quot;Ljava/lang/reflect/Type;&quot;:
+<span class="fc" id="L243">                            internalName = &quot;java/lang/reflect/Type&quot;;</span>
+<span class="fc" id="L244">                            break;</span>
+                        case &quot;Ljava/util/function/Supplier;&quot;:
+<span class="fc" id="L246">                            internalName = &quot;java/util/function/Supplier&quot;;</span>
+<span class="fc" id="L247">                            break;</span>
+                        case &quot;Lsun/misc/Unsafe;&quot;:
+<span class="fc" id="L249">                            internalName = &quot;sun/misc/Unsafe&quot;;</span>
+<span class="fc" id="L250">                            break;</span>
+                        case &quot;Lcom/alibaba/fastjson2/JSONReader;&quot;:
+<span class="fc" id="L252">                            internalName = &quot;com/alibaba/fastjson2/JSONReader&quot;;</span>
+<span class="fc" id="L253">                            break;</span>
+                        case &quot;Lcom/alibaba/fastjson2/reader/FieldReader;&quot;:
+<span class="fc" id="L255">                            internalName = &quot;com/alibaba/fastjson2/reader/FieldReader&quot;;</span>
+<span class="fc" id="L256">                            break;</span>
+                        case &quot;Lcom/alibaba/fastjson2/reader/ObjectReader;&quot;:
+<span class="fc" id="L258">                            internalName = &quot;com/alibaba/fastjson2/reader/ObjectReader&quot;;</span>
+<span class="fc" id="L259">                            break;</span>
+                        case &quot;Lcom/alibaba/fastjson2/JSONWriter;&quot;:
+<span class="fc" id="L261">                            internalName = &quot;com/alibaba/fastjson2/JSONWriter&quot;;</span>
+<span class="fc" id="L262">                            break;</span>
+                        case &quot;Lcom/alibaba/fastjson2/writer/FieldWriter;&quot;:
+<span class="fc" id="L264">                            internalName = &quot;com/alibaba/fastjson2/writer/FieldWriter&quot;;</span>
+<span class="fc" id="L265">                            break;</span>
+                        default:
+<span class="fc" id="L267">                            break;</span>
+                    }
+<span class="fc bfc" id="L269" title="All 2 branches covered.">                } else if (offset == 2) {</span>
+<span class="fc bfc" id="L270" title="All 3 branches covered.">                    switch (buffer) {</span>
+                        case &quot;()Ljava/lang/Class;&quot;:
+<span class="fc" id="L272">                            internalName = &quot;java/lang/Class&quot;;</span>
+<span class="fc" id="L273">                            break;</span>
+                        case &quot;()Ljava/lang/String;&quot;:
+<span class="fc" id="L275">                            internalName = &quot;java/lang/String&quot;;</span>
+<span class="fc" id="L276">                            break;</span>
+                        default:
+<span class="fc" id="L278">                            break;</span>
+                    }
+<span class="fc bfc" id="L280" title="All 2 branches covered.">                } else if (offset == 3) {</span>
+<span class="fc bfc" id="L281" title="All 4 branches covered.">                    switch (buffer) {</span>
+                        case &quot;(J)Lcom/alibaba/fastjson2/reader/FieldReader;&quot;:
+<span class="fc" id="L283">                            internalName = &quot;com/alibaba/fastjson2/reader/FieldReader&quot;;</span>
+<span class="fc" id="L284">                            break;</span>
+                        case &quot;(I)Ljava/lang/Object;&quot;:
+<span class="fc" id="L286">                            internalName = &quot;java/lang/Object&quot;;</span>
+<span class="fc" id="L287">                            break;</span>
+                        case &quot;(I)Ljava/lang/Integer;&quot;:
+<span class="fc" id="L289">                            internalName = &quot;java/lang/Integer&quot;;</span>
+<span class="fc" id="L290">                            break;</span>
+                        default:
+<span class="fc" id="L292">                            break;</span>
+                    }
+<span class="fc bfc" id="L294" title="All 2 branches covered.">                } else if (offset == 36) {</span>
+<span class="pc bpc" id="L295" title="1 of 3 branches missed.">                    switch (buffer) {</span>
+                        case &quot;(Lcom/alibaba/fastjson2/JSONReader;)Lcom/alibaba/fastjson2/reader/ObjectReader;&quot;:
+<span class="fc" id="L297">                            internalName = &quot;com/alibaba/fastjson2/reader/ObjectReader&quot;;</span>
+<span class="fc" id="L298">                            break;</span>
+                        case &quot;(Lcom/alibaba/fastjson2/JSONReader;)Ljava/lang/Object;&quot;:
+<span class="fc" id="L300">                            internalName = &quot;java/lang/Object&quot;;</span>
+<span class="fc" id="L301">                            break;</span>
+                        default:
+<span class="fc" id="L303">                            break;</span>
+                    }
+<span class="fc bfc" id="L305" title="All 2 branches covered.">                } else if (offset == 54) {</span>
+<span class="pc bpc" id="L306" title="2 of 3 branches missed.">                    switch (buffer) {</span>
+                        case &quot;(Lcom/alibaba/fastjson2/JSONReader;Ljava/lang/Class;J)Lcom/alibaba/fastjson2/reader/ObjectReader;&quot;:
+<span class="nc" id="L308">                            internalName = &quot;com/alibaba/fastjson2/reader/ObjectReader&quot;;</span>
+<span class="nc" id="L309">                            break;</span>
+                        case &quot;(Lcom/alibaba/fastjson2/JSONReader;Ljava/lang/Class;J)Ljava/lang/Object;&quot;:
+<span class="fc" id="L311">                            internalName = &quot;java/lang/Object&quot;;</span>
+<span class="fc" id="L312">                            break;</span>
+                        default:
+<span class="fc" id="L314">                            break;</span>
+                    }
+                } else {
+<span class="fc bfc" id="L317" title="All 5 branches covered.">                    switch (buffer) {</span>
+                        case &quot;(Lcom/alibaba/fastjson2/JSONWriter;Ljava/lang/Class;)Lcom/alibaba/fastjson2/writer/ObjectWriter;&quot;:
+<span class="pc bpc" id="L319" title="1 of 2 branches missed.">                            if (offset == 53) {</span>
+<span class="fc" id="L320">                                internalName = &quot;com/alibaba/fastjson2/writer/ObjectWriter&quot;;</span>
+                            }
+                            break;
+                        case &quot;(Lcom/alibaba/fastjson2/JSONWriter;Ljava/lang/reflect/Type;)Lcom/alibaba/fastjson2/writer/ObjectWriter;&quot;:
+<span class="pc bpc" id="L324" title="1 of 2 branches missed.">                            if (offset == 60) {</span>
+<span class="fc" id="L325">                                internalName = &quot;com/alibaba/fastjson2/writer/ObjectWriter&quot;;</span>
+                            }
+                            break;
+                        case &quot;(Lcom/alibaba/fastjson2/writer/FieldWriter;Ljava/lang/Object;)Ljava/lang/String;&quot;:
+<span class="pc bpc" id="L329" title="1 of 2 branches missed.">                            if (offset == 62) {</span>
+<span class="fc" id="L330">                                internalName = &quot;java/lang/String&quot;;</span>
+                            }
+                            break;
+                        case &quot;(Lcom/alibaba/fastjson2/JSONReader;Ljava/lang/reflect/Type;Ljava/lang/Object;J)Ljava/lang/Object;&quot;:
+<span class="pc bpc" id="L334" title="1 of 2 branches missed.">                            if (offset == 79) {</span>
+<span class="fc" id="L335">                                internalName = &quot;java/lang/Object&quot;;</span>
+                            }
+                            break;
+                        default:
+                            break;
+                    }
+                }
+
+<span class="fc bfc" id="L343" title="All 2 branches covered.">                if (internalName == null) {</span>
+<span class="fc" id="L344">                    internalName = buffer.substring(offset + 1, buffer.length() - 1);</span>
+                }
+<span class="fc" id="L346">                return REFERENCE_KIND | symbolTable.addType(internalName);</span>
+            case '[':
+<span class="fc" id="L348">                int elementDescriptorOffset = offset + 1;</span>
+<span class="fc bfc" id="L349" title="All 2 branches covered.">                while (buffer.charAt(elementDescriptorOffset) == '[') {</span>
+<span class="fc" id="L350">                    ++elementDescriptorOffset;</span>
+                }
+                int typeValue;
+<span class="pc bpc" id="L353" title="1 of 10 branches missed.">                switch (buffer.charAt(elementDescriptorOffset)) {</span>
+                    case 'Z':
+<span class="fc" id="L355">                        typeValue = BOOLEAN;</span>
+<span class="fc" id="L356">                        break;</span>
+                    case 'C':
+<span class="fc" id="L358">                        typeValue = CHAR;</span>
+<span class="fc" id="L359">                        break;</span>
+                    case 'B':
+<span class="fc" id="L361">                        typeValue = BYTE;</span>
+<span class="fc" id="L362">                        break;</span>
+                    case 'S':
+<span class="fc" id="L364">                        typeValue = SHORT;</span>
+<span class="fc" id="L365">                        break;</span>
+                    case 'I':
+<span class="fc" id="L367">                        typeValue = INTEGER;</span>
+<span class="fc" id="L368">                        break;</span>
+                    case 'F':
+<span class="fc" id="L370">                        typeValue = FLOAT;</span>
+<span class="fc" id="L371">                        break;</span>
+                    case 'J':
+<span class="fc" id="L373">                        typeValue = LONG;</span>
+<span class="fc" id="L374">                        break;</span>
+                    case 'D':
+<span class="fc" id="L376">                        typeValue = DOUBLE;</span>
+<span class="fc" id="L377">                        break;</span>
+                    case 'L':
+<span class="fc bfc" id="L379" title="All 2 branches covered.">                        if (offset == 0) {</span>
+<span class="pc bpc" id="L380" title="1 of 3 branches missed.">                            switch (buffer) {</span>
+                                case &quot;[Lcom/alibaba/fastjson2/writer/FieldWriter;&quot;:
+<span class="fc" id="L382">                                    internalName = &quot;com/alibaba/fastjson2/reader/FieldReader&quot;;</span>
+<span class="fc" id="L383">                                    break;</span>
+                                case &quot;[Lcom/alibaba/fastjson2/reader/FieldReader;&quot;:
+<span class="nc" id="L385">                                    internalName = &quot;Lcom/alibaba/fastjson2/reader/FieldReader&quot;;</span>
+<span class="nc" id="L386">                                    break;</span>
+                                default:
+                                    break;
+                            }
+                        }
+<span class="fc bfc" id="L391" title="All 2 branches covered.">                        if (internalName == null) {</span>
+<span class="fc" id="L392">                            internalName = buffer.substring(elementDescriptorOffset + 1, buffer.length() - 1);</span>
+                        }
+<span class="fc" id="L394">                        typeValue = REFERENCE_KIND | symbolTable.addType(internalName);</span>
+<span class="fc" id="L395">                        break;</span>
+                    default:
+<span class="nc" id="L397">                        throw new IllegalArgumentException();</span>
+                }
+<span class="fc" id="L399">                return ((elementDescriptorOffset - offset) &lt;&lt; DIM_SHIFT) | typeValue;</span>
+            default:
+<span class="nc" id="L401">                throw new IllegalArgumentException();</span>
+        }
+    }
+
+    // -----------------------------------------------------------------------------------------------
+    // Methods related to the input frame
+    // -----------------------------------------------------------------------------------------------
+
+    /**
+     * Sets the input frame from the given method description. This method is used to initialize the
+     * first frame of a method, which is implicit (i.e. not stored explicitly in the StackMapTable
+     * attribute).
+     *
+     * @param symbolTable the type table to use to lookup and store type {@link Symbol}.
+     * @param access      the method's access flags.
+     * @param descriptor  the method descriptor.
+     * @param maxLocals   the maximum number of local variables of the method.
+     */
+    final void setInputFrameFromDescriptor(
+            final SymbolTable symbolTable,
+            final int access,
+            final String descriptor,
+            final int maxLocals) {
+<span class="fc" id="L424">        inputLocals = new int[maxLocals];</span>
+<span class="fc" id="L425">        inputStack = new int[0];</span>
+<span class="fc" id="L426">        int inputLocalIndex = 0;</span>
+<span class="pc bpc" id="L427" title="1 of 2 branches missed.">        if ((access &amp; Opcodes.ACC_STATIC) == 0) {</span>
+<span class="fc bfc" id="L428" title="All 2 branches covered.">            if ((access &amp; Constants.ACC_CONSTRUCTOR) == 0) {</span>
+<span class="fc" id="L429">                inputLocals[inputLocalIndex++] =</span>
+<span class="fc" id="L430">                        REFERENCE_KIND | symbolTable.addType(symbolTable.className);</span>
+            } else {
+<span class="fc" id="L432">                inputLocals[inputLocalIndex++] = UNINITIALIZED_THIS;</span>
+            }
+        }
+<span class="fc bfc" id="L435" title="All 2 branches covered.">        for (Type argumentType : Type.getArgumentTypes(descriptor)) {</span>
+<span class="fc" id="L436">            int abstractType =</span>
+<span class="fc" id="L437">                    getAbstractTypeFromDescriptor(symbolTable, argumentType.getDescriptor(), 0);</span>
+<span class="fc" id="L438">            inputLocals[inputLocalIndex++] = abstractType;</span>
+<span class="pc bpc" id="L439" title="1 of 4 branches missed.">            if (abstractType == LONG || abstractType == DOUBLE) {</span>
+<span class="fc" id="L440">                inputLocals[inputLocalIndex++] = TOP;</span>
+            }
+        }
+<span class="fc bfc" id="L443" title="All 2 branches covered.">        while (inputLocalIndex &lt; maxLocals) {</span>
+<span class="fc" id="L444">            inputLocals[inputLocalIndex++] = TOP;</span>
+        }
+<span class="fc" id="L446">    }</span>
+
+    // -----------------------------------------------------------------------------------------------
+    // Methods related to the output frame
+    // -----------------------------------------------------------------------------------------------
+
+    /**
+     * Returns the abstract type stored at the given local variable index in the output frame.
+     *
+     * @param localIndex the index of the local variable whose value must be returned.
+     * @return the abstract type stored at the given local variable index in the output frame.
+     */
+    private int getLocal(final int localIndex) {
+<span class="pc bpc" id="L459" title="1 of 4 branches missed.">        if (outputLocals == null || localIndex &gt;= outputLocals.length) {</span>
+            // If this local has never been assigned in this basic block, it is still equal to its value
+            // in the input frame.
+<span class="fc" id="L462">            return LOCAL_KIND | localIndex;</span>
+        } else {
+<span class="fc" id="L464">            int abstractType = outputLocals[localIndex];</span>
+<span class="fc bfc" id="L465" title="All 2 branches covered.">            if (abstractType == 0) {</span>
+                // If this local has never been assigned in this basic block, so it is still equal to its
+                // value in the input frame.
+<span class="fc" id="L468">                abstractType = outputLocals[localIndex] = LOCAL_KIND | localIndex;</span>
+            }
+<span class="fc" id="L470">            return abstractType;</span>
+        }
+    }
+
+    /**
+     * Replaces the abstract type stored at the given local variable index in the output frame.
+     *
+     * @param localIndex   the index of the output frame local variable that must be set.
+     * @param abstractType the value that must be set.
+     */
+    private void setLocal(final int localIndex, final int abstractType) {
+        // Create and/or resize the output local variables array if necessary.
+<span class="fc bfc" id="L482" title="All 2 branches covered.">        if (outputLocals == null) {</span>
+<span class="fc" id="L483">            outputLocals = new int[10];</span>
+        }
+<span class="fc" id="L485">        int outputLocalsLength = outputLocals.length;</span>
+<span class="fc bfc" id="L486" title="All 2 branches covered.">        if (localIndex &gt;= outputLocalsLength) {</span>
+<span class="fc" id="L487">            int[] newOutputLocals = new int[Math.max(localIndex + 1, 2 * outputLocalsLength)];</span>
+<span class="fc" id="L488">            System.arraycopy(outputLocals, 0, newOutputLocals, 0, outputLocalsLength);</span>
+<span class="fc" id="L489">            outputLocals = newOutputLocals;</span>
+        }
+        // Set the local variable.
+<span class="fc" id="L492">        outputLocals[localIndex] = abstractType;</span>
+<span class="fc" id="L493">    }</span>
+
+    /**
+     * Pushes the given abstract type on the output frame stack.
+     *
+     * @param abstractType an abstract type.
+     */
+    private void push(final int abstractType) {
+        // Create and/or resize the output stack array if necessary.
+<span class="fc bfc" id="L502" title="All 2 branches covered.">        if (outputStack == null) {</span>
+<span class="fc" id="L503">            outputStack = new int[10];</span>
+        }
+<span class="fc" id="L505">        int outputStackLength = outputStack.length;</span>
+<span class="fc bfc" id="L506" title="All 2 branches covered.">        if (outputStackTop &gt;= outputStackLength) {</span>
+<span class="fc" id="L507">            int[] newOutputStack = new int[Math.max(outputStackTop + 1, 2 * outputStackLength)];</span>
+<span class="fc" id="L508">            System.arraycopy(outputStack, 0, newOutputStack, 0, outputStackLength);</span>
+<span class="fc" id="L509">            outputStack = newOutputStack;</span>
+        }
+        // Pushes the abstract type on the output stack.
+<span class="fc" id="L512">        outputStack[outputStackTop++] = abstractType;</span>
+        // Updates the maximum size reached by the output stack, if needed (note that this size is
+        // relative to the input stack size, which is not known yet).
+<span class="fc" id="L515">        short outputStackSize = (short) (outputStackStart + outputStackTop);</span>
+<span class="fc bfc" id="L516" title="All 2 branches covered.">        if (outputStackSize &gt; owner.outputStackMax) {</span>
+<span class="fc" id="L517">            owner.outputStackMax = outputStackSize;</span>
+        }
+<span class="fc" id="L519">    }</span>
+
+    /**
+     * Pushes the abstract type corresponding to the given descriptor on the output frame stack.
+     *
+     * @param symbolTable the type table to use to lookup and store type {@link Symbol}.
+     * @param descriptor  a type or method descriptor (in which case its return type is pushed).
+     */
+    private void push(final SymbolTable symbolTable, final String descriptor) {
+        final int typeDescriptorOffset;
+<span class="pc bpc" id="L529" title="1 of 14 branches missed.">        switch (descriptor) {</span>
+            case &quot;()J&quot;:
+            case &quot;()V&quot;:
+            case &quot;()Z&quot;:
+            case &quot;()I&quot;:
+            case &quot;()Ljava/lang/Class;&quot;:
+<span class="fc" id="L535">                typeDescriptorOffset = 2;</span>
+<span class="fc" id="L536">                break;</span>
+            case &quot;(I)V&quot;:
+            case &quot;(J)V&quot;:
+            case &quot;(J)Z&quot;:
+            case &quot;(I)Ljava/lang/Object;&quot;:
+            case &quot;(I)Ljava/lang/Integer;&quot;:
+<span class="fc" id="L542">                typeDescriptorOffset = 3;</span>
+<span class="fc" id="L543">                break;</span>
+            case &quot;(Ljava/lang/Enum;)V&quot;:
+<span class="fc" id="L545">                typeDescriptorOffset = 18;</span>
+<span class="fc" id="L546">                break;</span>
+            case &quot;(Ljava/lang/Object;)Z&quot;:
+            case &quot;(Ljava/lang/String;)V&quot;:
+            case &quot;(Ljava/lang/Object;)V&quot;:
+<span class="fc" id="L550">                typeDescriptorOffset = 20;</span>
+<span class="fc" id="L551">                break;</span>
+            case &quot;(Lcom/alibaba/fastjson2/JSONWriter;)V&quot;:
+            case &quot;(Lcom/alibaba/fastjson2/JSONWriter;)Z&quot;:
+<span class="fc" id="L554">                typeDescriptorOffset = 36;</span>
+<span class="fc" id="L555">                break;</span>
+            case &quot;(Lcom/alibaba/fastjson2/JSONWriter;I)V&quot;:
+            case &quot;(Lcom/alibaba/fastjson2/JSONWriter;J)V&quot;:
+<span class="fc" id="L558">                typeDescriptorOffset = 37;</span>
+<span class="fc" id="L559">                break;</span>
+            case &quot;(Ljava/lang/Object;Ljava/lang/reflect/Type;)Z&quot;:
+<span class="nc" id="L561">                typeDescriptorOffset = 44;</span>
+<span class="nc" id="L562">                break;</span>
+            case &quot;(Lcom/alibaba/fastjson2/JSONWriter;Ljava/lang/Enum;)V&quot;:
+<span class="fc" id="L564">                typeDescriptorOffset = 52;</span>
+<span class="fc" id="L565">                break;</span>
+            case &quot;(Lcom/alibaba/fastjson2/JSONWriter;Ljava/lang/Class;)Lcom/alibaba/fastjson2/writer/ObjectWriter;&quot;:
+            case &quot;(Lcom/alibaba/fastjson2/JSONWriter;ZLjava/util/List;)V&quot;:
+<span class="fc" id="L568">                typeDescriptorOffset = 53;</span>
+<span class="fc" id="L569">                break;</span>
+            case &quot;(Lcom/alibaba/fastjson2/JSONWriter;Ljava/lang/reflect/Type;)Lcom/alibaba/fastjson2/writer/ObjectWriter;&quot;:
+<span class="fc" id="L571">                typeDescriptorOffset = 60;</span>
+<span class="fc" id="L572">                break;</span>
+            case &quot;(Lcom/alibaba/fastjson2/writer/FieldWriter;Ljava/lang/Object;)Ljava/lang/String;&quot;:
+<span class="fc" id="L574">                typeDescriptorOffset = 62;</span>
+<span class="fc" id="L575">                break;</span>
+            case &quot;(Ljava/lang/Class;Ljava/lang/String;Ljava/lang/String;JLjava/util/List;)V&quot;:
+<span class="fc" id="L577">                typeDescriptorOffset = 72;</span>
+<span class="fc" id="L578">                break;</span>
+            case &quot;(Lcom/alibaba/fastjson2/JSONWriter;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/reflect/Type;J)V&quot;:
+<span class="fc" id="L580">                typeDescriptorOffset = 97;</span>
+<span class="fc" id="L581">                break;</span>
+            default:
+<span class="fc bfc" id="L583" title="All 2 branches covered.">                if (descriptor.charAt(0) == '(') {</span>
+<span class="fc" id="L584">                    int currentOffset = 1;</span>
+                    // Skip the argument types, one at a each loop iteration.
+<span class="fc bfc" id="L586" title="All 2 branches covered.">                    while (descriptor.charAt(currentOffset) != ')') {</span>
+<span class="fc bfc" id="L587" title="All 2 branches covered.">                        while (descriptor.charAt(currentOffset) == '[') {</span>
+<span class="fc" id="L588">                            currentOffset++;</span>
+                        }
+<span class="fc bfc" id="L590" title="All 2 branches covered.">                        if (descriptor.charAt(currentOffset++) == 'L') {</span>
+                            // Skip the argument descriptor content.
+<span class="fc" id="L592">                            int semiColumnOffset = descriptor.indexOf(';', currentOffset);</span>
+<span class="fc" id="L593">                            currentOffset = Math.max(currentOffset, semiColumnOffset + 1);</span>
+<span class="fc" id="L594">                        }</span>
+                    }
+<span class="fc" id="L596">                    typeDescriptorOffset = currentOffset + 1;</span>
+<span class="fc" id="L597">                } else {</span>
+<span class="fc" id="L598">                    typeDescriptorOffset = 0;</span>
+                }
+                break;
+        }
+
+<span class="fc" id="L603">        int abstractType = getAbstractTypeFromDescriptor(symbolTable, descriptor, typeDescriptorOffset);</span>
+<span class="fc bfc" id="L604" title="All 2 branches covered.">        if (abstractType != 0) {</span>
+<span class="fc" id="L605">            push(abstractType);</span>
+<span class="fc bfc" id="L606" title="All 4 branches covered.">            if (abstractType == LONG || abstractType == DOUBLE) {</span>
+<span class="fc" id="L607">                push(TOP);</span>
+            }
+        }
+<span class="fc" id="L610">    }</span>
+
+    /**
+     * Pops an abstract type from the output frame stack and returns its value.
+     *
+     * @return the abstract type that has been popped from the output frame stack.
+     */
+    private int pop() {
+<span class="fc bfc" id="L618" title="All 2 branches covered.">        if (outputStackTop &gt; 0) {</span>
+<span class="fc" id="L619">            return outputStack[--outputStackTop];</span>
+        } else {
+            // If the output frame stack is empty, pop from the input stack.
+<span class="fc" id="L622">            return STACK_KIND | -(--outputStackStart);</span>
+        }
+    }
+
+    /**
+     * Pops the given number of abstract types from the output frame stack.
+     *
+     * @param elements the number of abstract types that must be popped.
+     */
+    private void pop(final int elements) {
+<span class="fc bfc" id="L632" title="All 2 branches covered.">        if (outputStackTop &gt;= elements) {</span>
+<span class="fc" id="L633">            outputStackTop -= elements;</span>
+        } else {
+            // If the number of elements to be popped is greater than the number of elements in the output
+            // stack, clear it, and pop the remaining elements from the input stack.
+<span class="fc" id="L637">            outputStackStart -= elements - outputStackTop;</span>
+<span class="fc" id="L638">            outputStackTop = 0;</span>
+        }
+<span class="fc" id="L640">    }</span>
+
+    /**
+     * Pops as many abstract types from the output frame stack as described by the given descriptor.
+     *
+     * @param descriptor a type or method descriptor (in which case its argument types are popped).
+     */
+    private void pop(final String descriptor) {
+<span class="fc" id="L648">        char firstDescriptorChar = descriptor.charAt(0);</span>
+<span class="fc bfc" id="L649" title="All 2 branches covered.">        if (firstDescriptorChar == '(') {</span>
+<span class="fc" id="L650">            pop((Type.getArgumentsAndReturnSizes(descriptor) &gt;&gt; 2) - 1);</span>
+<span class="fc bfc" id="L651" title="All 4 branches covered.">        } else if (firstDescriptorChar == 'J' || firstDescriptorChar == 'D') {</span>
+<span class="fc" id="L652">            pop(2);</span>
+        } else {
+<span class="fc" id="L654">            pop(1);</span>
+        }
+<span class="fc" id="L656">    }</span>
+
+    // -----------------------------------------------------------------------------------------------
+    // Methods to handle uninitialized types
+    // -----------------------------------------------------------------------------------------------
+
+    /**
+     * Adds an abstract type to the list of types on which a constructor is invoked in the basic
+     * block.
+     *
+     * @param abstractType an abstract type on a which a constructor is invoked.
+     */
+    private void addInitializedType(final int abstractType) {
+        // Create and/or resize the initializations array if necessary.
+<span class="fc bfc" id="L670" title="All 2 branches covered.">        if (initializations == null) {</span>
+<span class="fc" id="L671">            initializations = new int[2];</span>
+        }
+<span class="fc" id="L673">        int initializationsLength = initializations.length;</span>
+<span class="pc bpc" id="L674" title="1 of 2 branches missed.">        if (initializationCount &gt;= initializationsLength) {</span>
+<span class="nc" id="L675">            int[] newInitializations =</span>
+<span class="nc" id="L676">                    new int[Math.max(initializationCount + 1, 2 * initializationsLength)];</span>
+<span class="nc" id="L677">            System.arraycopy(initializations, 0, newInitializations, 0, initializationsLength);</span>
+<span class="nc" id="L678">            initializations = newInitializations;</span>
+        }
+        // Store the abstract type.
+<span class="fc" id="L681">        initializations[initializationCount++] = abstractType;</span>
+<span class="fc" id="L682">    }</span>
+
+    /**
+     * Returns the &quot;initialized&quot; abstract type corresponding to the given abstract type.
+     *
+     * @param symbolTable  the type table to use to lookup and store type {@link Symbol}.
+     * @param abstractType an abstract type.
+     * @return the REFERENCE_KIND abstract type corresponding to abstractType if it is
+     * UNINITIALIZED_THIS or an UNINITIALIZED_KIND abstract type for one of the types on which a
+     * constructor is invoked in the basic block. Otherwise returns abstractType.
+     */
+    private int getInitializedType(final SymbolTable symbolTable, final int abstractType) {
+<span class="pc bpc" id="L694" title="1 of 4 branches missed.">        if (abstractType == UNINITIALIZED_THIS</span>
+                || (abstractType &amp; (DIM_MASK | KIND_MASK)) == UNINITIALIZED_KIND) {
+<span class="pc bpc" id="L696" title="1 of 2 branches missed.">            for (int i = 0; i &lt; initializationCount; ++i) {</span>
+<span class="fc" id="L697">                int initializedType = initializations[i];</span>
+<span class="fc" id="L698">                int dim = initializedType &amp; DIM_MASK;</span>
+<span class="fc" id="L699">                int kind = initializedType &amp; KIND_MASK;</span>
+<span class="fc" id="L700">                int value = initializedType &amp; VALUE_MASK;</span>
+<span class="pc bpc" id="L701" title="1 of 2 branches missed.">                if (kind == LOCAL_KIND) {</span>
+<span class="nc" id="L702">                    initializedType = dim + inputLocals[value];</span>
+<span class="pc bpc" id="L703" title="1 of 2 branches missed.">                } else if (kind == STACK_KIND) {</span>
+<span class="nc" id="L704">                    initializedType = dim + inputStack[inputStack.length - value];</span>
+                }
+<span class="fc bfc" id="L706" title="All 2 branches covered.">                if (abstractType == initializedType) {</span>
+<span class="pc bpc" id="L707" title="1 of 2 branches missed.">                    if (abstractType == UNINITIALIZED_THIS) {</span>
+<span class="nc" id="L708">                        return REFERENCE_KIND | symbolTable.addType(symbolTable.className);</span>
+                    } else {
+<span class="fc" id="L710">                        return REFERENCE_KIND</span>
+<span class="fc" id="L711">                                | symbolTable.addType(symbolTable.typeTable[abstractType &amp; VALUE_MASK].value);</span>
+                    }
+                }
+            }
+        }
+<span class="fc" id="L716">        return abstractType;</span>
+    }
+
+    // -----------------------------------------------------------------------------------------------
+    // Main method, to simulate the execution of each instruction on the output frame
+    // -----------------------------------------------------------------------------------------------
+
+    /**
+     * Simulates the action of the given instruction on the output stack frame.
+     *
+     * @param opcode      the opcode of the instruction.
+     * @param arg         the numeric operand of the instruction, if any.
+     * @param argSymbol   the Symbol operand of the instruction, if any.
+     * @param symbolTable the type table to use to lookup and store type {@link Symbol}.
+     */
+    void execute(
+            final int opcode, final int arg, final Symbol argSymbol, final SymbolTable symbolTable) {
+<span class="fc" id="L733">        final int CONSTANT_INTEGER_TAG = 3;</span>
+<span class="fc" id="L734">        final int CONSTANT_FLOAT_TAG = 4;</span>
+<span class="fc" id="L735">        final int CONSTANT_LONG_TAG = 5;</span>
+<span class="fc" id="L736">        final int CONSTANT_DOUBLE_TAG = 6;</span>
+<span class="fc" id="L737">        final int CONSTANT_CLASS_TAG = 7;</span>
+<span class="fc" id="L738">        final int CONSTANT_STRING_TAG = 8;</span>
+<span class="fc" id="L739">        final int CONSTANT_METHOD_HANDLE_TAG = 15;</span>
+<span class="fc" id="L740">        final int CONSTANT_METHOD_TYPE_TAG = 16;</span>
+<span class="fc" id="L741">        final int CONSTANT_DYNAMIC_TAG = 17;</span>
+
+        // Abstract types popped from the stack or read from local variables.
+        int abstractType1;
+        int abstractType2;
+        int abstractType3;
+        int abstractType4;
+<span class="pc bpc" id="L748" title="3 of 31 branches missed.">        switch (opcode) {</span>
+            case Opcodes.NOP:
+            case Opcodes.INEG:
+            case Opcodes.LNEG:
+            case Opcodes.FNEG:
+            case Opcodes.DNEG:
+            case Opcodes.I2B:
+            case Opcodes.I2C:
+            case Opcodes.I2S:
+            case Opcodes.GOTO:
+            case Opcodes.RETURN:
+<span class="fc" id="L759">                break;</span>
+            case Opcodes.ACONST_NULL:
+<span class="fc" id="L761">                push(NULL);</span>
+<span class="fc" id="L762">                break;</span>
+            case Opcodes.ICONST_M1:
+            case Opcodes.ICONST_0:
+            case Opcodes.ICONST_1:
+            case Opcodes.ICONST_2:
+            case Opcodes.ICONST_3:
+            case Opcodes.ICONST_4:
+            case Opcodes.ICONST_5:
+            case Opcodes.BIPUSH:
+            case Opcodes.SIPUSH:
+            case Opcodes.ILOAD:
+<span class="fc" id="L773">                push(INTEGER);</span>
+<span class="fc" id="L774">                break;</span>
+            case Opcodes.LCONST_0:
+            case Opcodes.LCONST_1:
+            case Opcodes.LLOAD:
+<span class="fc" id="L778">                push(LONG);</span>
+<span class="fc" id="L779">                push(TOP);</span>
+<span class="fc" id="L780">                break;</span>
+            case Opcodes.FCONST_0:
+            case Opcodes.FCONST_1:
+            case Opcodes.FCONST_2:
+            case Opcodes.FLOAD:
+<span class="fc" id="L785">                push(FLOAT);</span>
+<span class="fc" id="L786">                break;</span>
+            case Opcodes.DCONST_0:
+            case Opcodes.DCONST_1:
+            case Opcodes.DLOAD:
+<span class="fc" id="L790">                push(DOUBLE);</span>
+<span class="fc" id="L791">                push(TOP);</span>
+<span class="fc" id="L792">                break;</span>
+            case Opcodes.LDC:
+<span class="pc bpc" id="L794" title="6 of 10 branches missed.">                switch (argSymbol.tag) {</span>
+                    case CONSTANT_INTEGER_TAG:
+<span class="fc" id="L796">                        push(INTEGER);</span>
+<span class="fc" id="L797">                        break;</span>
+                    case CONSTANT_LONG_TAG:
+<span class="fc" id="L799">                        push(LONG);</span>
+<span class="fc" id="L800">                        push(TOP);</span>
+<span class="fc" id="L801">                        break;</span>
+                    case CONSTANT_FLOAT_TAG:
+<span class="nc" id="L803">                        push(FLOAT);</span>
+<span class="nc" id="L804">                        break;</span>
+                    case CONSTANT_DOUBLE_TAG:
+<span class="nc" id="L806">                        push(DOUBLE);</span>
+<span class="nc" id="L807">                        push(TOP);</span>
+<span class="nc" id="L808">                        break;</span>
+                    case CONSTANT_CLASS_TAG:
+<span class="fc" id="L810">                        push(REFERENCE_KIND | symbolTable.addType(&quot;java/lang/Class&quot;));</span>
+<span class="fc" id="L811">                        break;</span>
+                    case CONSTANT_STRING_TAG:
+<span class="fc" id="L813">                        push(REFERENCE_KIND | symbolTable.addType(&quot;java/lang/String&quot;));</span>
+<span class="fc" id="L814">                        break;</span>
+                    case CONSTANT_METHOD_TYPE_TAG:
+<span class="nc" id="L816">                        push(REFERENCE_KIND | symbolTable.addType(&quot;java/lang/invoke/MethodType&quot;));</span>
+<span class="nc" id="L817">                        break;</span>
+                    case CONSTANT_METHOD_HANDLE_TAG:
+<span class="nc" id="L819">                        push(REFERENCE_KIND | symbolTable.addType(&quot;java/lang/invoke/MethodHandle&quot;));</span>
+<span class="nc" id="L820">                        break;</span>
+                    case CONSTANT_DYNAMIC_TAG:
+<span class="nc" id="L822">                        push(symbolTable, argSymbol.value);</span>
+<span class="nc" id="L823">                        break;</span>
+                    default:
+<span class="nc" id="L825">                        throw new AssertionError();</span>
+                }
+                break;
+            case Opcodes.ALOAD:
+<span class="fc" id="L829">                push(getLocal(arg));</span>
+<span class="fc" id="L830">                break;</span>
+            case Opcodes.LALOAD:
+            case Opcodes.D2L:
+<span class="nc" id="L833">                pop(2);</span>
+<span class="nc" id="L834">                push(LONG);</span>
+<span class="nc" id="L835">                push(TOP);</span>
+<span class="nc" id="L836">                break;</span>
+            case Opcodes.AALOAD:
+<span class="fc" id="L838">                pop(1);</span>
+<span class="fc" id="L839">                abstractType1 = pop();</span>
+<span class="pc bpc" id="L840" title="1 of 2 branches missed.">                push(abstractType1 == NULL ? abstractType1 : ELEMENT_OF + abstractType1);</span>
+<span class="fc" id="L841">                break;</span>
+            case Opcodes.ISTORE:
+            case Opcodes.FSTORE:
+            case Opcodes.ASTORE:
+<span class="fc" id="L845">                abstractType1 = pop();</span>
+<span class="fc" id="L846">                setLocal(arg, abstractType1);</span>
+<span class="pc bpc" id="L847" title="1 of 2 branches missed.">                if (arg &gt; 0) {</span>
+<span class="fc" id="L848">                    int previousLocalType = getLocal(arg - 1);</span>
+<span class="pc bpc" id="L849" title="2 of 4 branches missed.">                    if (previousLocalType == LONG || previousLocalType == DOUBLE) {</span>
+<span class="nc" id="L850">                        setLocal(arg - 1, TOP);</span>
+<span class="fc bfc" id="L851" title="All 4 branches covered.">                    } else if ((previousLocalType &amp; KIND_MASK) == LOCAL_KIND</span>
+                            || (previousLocalType &amp; KIND_MASK) == STACK_KIND) {
+                        // The type of the previous local variable is not known yet, but if it later appears
+                        // to be LONG or DOUBLE, we should then use TOP instead.
+<span class="fc" id="L855">                        setLocal(arg - 1, previousLocalType | TOP_IF_LONG_OR_DOUBLE_FLAG);</span>
+                    }
+<span class="fc" id="L857">                }</span>
+                break;
+            case Opcodes.LSTORE:
+            case Opcodes.DSTORE:
+<span class="fc" id="L861">                pop(1);</span>
+<span class="fc" id="L862">                abstractType1 = pop();</span>
+<span class="fc" id="L863">                setLocal(arg, abstractType1);</span>
+<span class="fc" id="L864">                setLocal(arg + 1, TOP);</span>
+<span class="pc bpc" id="L865" title="1 of 2 branches missed.">                if (arg &gt; 0) {</span>
+<span class="fc" id="L866">                    int previousLocalType = getLocal(arg - 1);</span>
+<span class="pc bpc" id="L867" title="2 of 4 branches missed.">                    if (previousLocalType == LONG || previousLocalType == DOUBLE) {</span>
+<span class="nc" id="L868">                        setLocal(arg - 1, TOP);</span>
+<span class="pc bpc" id="L869" title="3 of 4 branches missed.">                    } else if ((previousLocalType &amp; KIND_MASK) == LOCAL_KIND</span>
+                            || (previousLocalType &amp; KIND_MASK) == STACK_KIND) {
+                        // The type of the previous local variable is not known yet, but if it later appears
+                        // to be LONG or DOUBLE, we should then use TOP instead.
+<span class="fc" id="L873">                        setLocal(arg - 1, previousLocalType | TOP_IF_LONG_OR_DOUBLE_FLAG);</span>
+                    }
+<span class="fc" id="L875">                }</span>
+                break;
+            case Opcodes.POP:
+            case Opcodes.IFEQ:
+            case Opcodes.IFNE:
+            case Opcodes.IFLT:
+            case Opcodes.IFGE:
+            case Opcodes.IFGT:
+            case Opcodes.IFLE:
+            case Opcodes.IRETURN:
+            case Opcodes.FRETURN:
+            case Opcodes.ARETURN:
+            case Opcodes.TABLESWITCH:
+            case Opcodes.LOOKUPSWITCH:
+            case Opcodes.ATHROW:
+            case Opcodes.MONITORENTER:
+            case Opcodes.MONITOREXIT:
+            case Opcodes.IFNULL:
+            case Opcodes.IFNONNULL:
+<span class="fc" id="L894">                pop(1);</span>
+<span class="fc" id="L895">                break;</span>
+            case Opcodes.POP2:
+            case Opcodes.IF_ICMPEQ:
+            case Opcodes.IF_ICMPNE:
+            case Opcodes.IF_ICMPLT:
+            case Opcodes.IF_ICMPGE:
+            case Opcodes.IF_ICMPGT:
+            case Opcodes.IF_ICMPLE:
+            case Opcodes.IF_ACMPEQ:
+            case Opcodes.IF_ACMPNE:
+            case Opcodes.LRETURN:
+            case Opcodes.DRETURN:
+<span class="fc" id="L907">                pop(2);</span>
+<span class="fc" id="L908">                break;</span>
+            case Opcodes.DUP:
+<span class="fc" id="L910">                abstractType1 = pop();</span>
+<span class="fc" id="L911">                push(abstractType1);</span>
+<span class="fc" id="L912">                push(abstractType1);</span>
+<span class="fc" id="L913">                break;</span>
+            case Opcodes.DUP2:
+<span class="fc" id="L915">                abstractType1 = pop();</span>
+<span class="fc" id="L916">                abstractType2 = pop();</span>
+<span class="fc" id="L917">                push(abstractType2);</span>
+<span class="fc" id="L918">                push(abstractType1);</span>
+<span class="fc" id="L919">                push(abstractType2);</span>
+<span class="fc" id="L920">                push(abstractType1);</span>
+<span class="fc" id="L921">                break;</span>
+            case Opcodes.SWAP:
+<span class="fc" id="L923">                abstractType1 = pop();</span>
+<span class="fc" id="L924">                abstractType2 = pop();</span>
+<span class="fc" id="L925">                push(abstractType1);</span>
+<span class="fc" id="L926">                push(abstractType2);</span>
+<span class="fc" id="L927">                break;</span>
+            case Opcodes.IALOAD:
+            case Opcodes.BALOAD:
+            case Opcodes.CALOAD:
+            case Opcodes.SALOAD:
+            case Opcodes.IADD:
+            case Opcodes.ISUB:
+            case Opcodes.IMUL:
+            case Opcodes.IDIV:
+            case Opcodes.IREM:
+            case Opcodes.IAND:
+            case Opcodes.IOR:
+            case Opcodes.IXOR:
+            case Opcodes.ISHL:
+            case Opcodes.ISHR:
+            case Opcodes.IUSHR:
+            case Opcodes.L2I:
+            case Opcodes.D2I:
+            case Opcodes.FCMPL:
+            case Opcodes.FCMPG:
+<span class="fc" id="L947">                pop(2);</span>
+<span class="fc" id="L948">                push(INTEGER);</span>
+<span class="fc" id="L949">                break;</span>
+            case Opcodes.LADD:
+            case Opcodes.LSUB:
+            case Opcodes.LMUL:
+            case Opcodes.LDIV:
+            case Opcodes.LREM:
+            case Opcodes.LAND:
+            case Opcodes.LOR:
+            case Opcodes.LXOR:
+<span class="fc" id="L958">                pop(4);</span>
+<span class="fc" id="L959">                push(LONG);</span>
+<span class="fc" id="L960">                push(TOP);</span>
+<span class="fc" id="L961">                break;</span>
+            case Opcodes.LSHL:
+            case Opcodes.LSHR:
+            case Opcodes.LUSHR:
+<span class="fc" id="L965">                pop(3);</span>
+<span class="fc" id="L966">                push(LONG);</span>
+<span class="fc" id="L967">                push(TOP);</span>
+<span class="fc" id="L968">                break;</span>
+            case Opcodes.IINC:
+<span class="fc" id="L970">                setLocal(arg, INTEGER);</span>
+<span class="fc" id="L971">                break;</span>
+            case Opcodes.F2I:
+            case Opcodes.ARRAYLENGTH:
+            case Opcodes.INSTANCEOF:
+<span class="fc" id="L975">                pop(1);</span>
+<span class="fc" id="L976">                push(INTEGER);</span>
+<span class="fc" id="L977">                break;</span>
+            case Opcodes.LCMP:
+            case Opcodes.DCMPL:
+            case Opcodes.DCMPG:
+<span class="fc" id="L981">                pop(4);</span>
+<span class="fc" id="L982">                push(INTEGER);</span>
+<span class="fc" id="L983">                break;</span>
+            case Opcodes.GETSTATIC:
+<span class="fc" id="L985">                push(symbolTable, argSymbol.value);</span>
+<span class="fc" id="L986">                break;</span>
+            case Opcodes.PUTSTATIC:
+<span class="nc" id="L988">                pop(argSymbol.value);</span>
+<span class="nc" id="L989">                break;</span>
+            case Opcodes.GETFIELD:
+<span class="fc" id="L991">                pop(1);</span>
+<span class="fc" id="L992">                push(symbolTable, argSymbol.value);</span>
+<span class="fc" id="L993">                break;</span>
+            case Opcodes.PUTFIELD:
+<span class="fc" id="L995">                pop(argSymbol.value);</span>
+<span class="fc" id="L996">                pop();</span>
+<span class="fc" id="L997">                break;</span>
+            case Opcodes.INVOKEVIRTUAL:
+            case Opcodes.INVOKESPECIAL:
+            case Opcodes.INVOKESTATIC:
+            case Opcodes.INVOKEINTERFACE:
+<span class="fc" id="L1002">                pop(argSymbol.value);</span>
+<span class="fc bfc" id="L1003" title="All 2 branches covered.">                if (opcode != Opcodes.INVOKESTATIC) {</span>
+<span class="fc" id="L1004">                    abstractType1 = pop();</span>
+<span class="fc bfc" id="L1005" title="All 4 branches covered.">                    if (opcode == Opcodes.INVOKESPECIAL &amp;&amp; argSymbol.name.charAt(0) == '&lt;') {</span>
+<span class="fc" id="L1006">                        addInitializedType(abstractType1);</span>
+                    }
+                }
+<span class="fc" id="L1009">                push(symbolTable, argSymbol.value);</span>
+<span class="fc" id="L1010">                break;</span>
+            case Opcodes.NEW:
+<span class="fc" id="L1012">                push(UNINITIALIZED_KIND | symbolTable.addUninitializedType(argSymbol.value, arg));</span>
+<span class="fc" id="L1013">                break;</span>
+            case Opcodes.CHECKCAST:
+<span class="fc" id="L1015">                String castType = argSymbol.value;</span>
+<span class="fc" id="L1016">                pop();</span>
+<span class="fc bfc" id="L1017" title="All 2 branches covered.">                if (castType.charAt(0) == '[') {</span>
+<span class="fc" id="L1018">                    push(symbolTable, castType);</span>
+                } else {
+<span class="fc" id="L1020">                    push(REFERENCE_KIND | symbolTable.addType(castType));</span>
+                }
+<span class="fc" id="L1022">                break;</span>
+            default:
+<span class="nc" id="L1024">                throw new IllegalArgumentException();</span>
+        }
+<span class="fc" id="L1026">    }</span>
+
+    // -----------------------------------------------------------------------------------------------
+    // Frame merging methods, used in the second step of the stack map frame computation algorithm
+    // -----------------------------------------------------------------------------------------------
+
+    /**
+     * Computes the concrete output type corresponding to a given abstract output type.
+     *
+     * @param abstractOutputType an abstract output type.
+     * @param numStack           the size of the input stack, used to resolve abstract output types of
+     *                           STACK_KIND kind.
+     * @return the concrete output type corresponding to 'abstractOutputType'.
+     */
+    private int getConcreteOutputType(final int abstractOutputType, final int numStack) {
+<span class="fc" id="L1041">        int dim = abstractOutputType &amp; DIM_MASK;</span>
+<span class="fc" id="L1042">        int kind = abstractOutputType &amp; KIND_MASK;</span>
+<span class="fc bfc" id="L1043" title="All 2 branches covered.">        if (kind == LOCAL_KIND) {</span>
+            // By definition, a LOCAL_KIND type designates the concrete type of a local variable at
+            // the beginning of the basic block corresponding to this frame (which is known when
+            // this method is called, but was not when the abstract type was computed).
+<span class="fc" id="L1047">            int concreteOutputType = dim + inputLocals[abstractOutputType &amp; VALUE_MASK];</span>
+<span class="pc bpc" id="L1048" title="2 of 6 branches missed.">            if ((abstractOutputType &amp; TOP_IF_LONG_OR_DOUBLE_FLAG) != 0</span>
+                    &amp;&amp; (concreteOutputType == LONG || concreteOutputType == DOUBLE)) {
+<span class="nc" id="L1050">                concreteOutputType = TOP;</span>
+            }
+<span class="fc" id="L1052">            return concreteOutputType;</span>
+<span class="fc bfc" id="L1053" title="All 2 branches covered.">        } else if (kind == STACK_KIND) {</span>
+            // By definition, a STACK_KIND type designates the concrete type of a local variable at
+            // the beginning of the basic block corresponding to this frame (which is known when
+            // this method is called, but was not when the abstract type was computed).
+<span class="fc" id="L1057">            int concreteOutputType = dim + inputStack[numStack - (abstractOutputType &amp; VALUE_MASK)];</span>
+<span class="pc bpc" id="L1058" title="2 of 6 branches missed.">            if ((abstractOutputType &amp; TOP_IF_LONG_OR_DOUBLE_FLAG) != 0</span>
+                    &amp;&amp; (concreteOutputType == LONG || concreteOutputType == DOUBLE)) {
+<span class="nc" id="L1060">                concreteOutputType = TOP;</span>
+            }
+<span class="fc" id="L1062">            return concreteOutputType;</span>
+        } else {
+<span class="fc" id="L1064">            return abstractOutputType;</span>
+        }
+    }
+
+    final boolean merge(final SymbolTable symbolTable, final Frame dstFrame) {
+        // Compute the concrete types of the local variables at the end of the basic block corresponding
+        // to this frame, by resolving its abstract output types, and merge these concrete types with
+        // those of the local variables in the input frame of dstFrame.
+<span class="fc" id="L1072">        int numLocal = inputLocals.length;</span>
+<span class="fc" id="L1073">        int numStack = inputStack.length;</span>
+        boolean frameChanged;
+<span class="fc bfc" id="L1075" title="All 4 branches covered.">        if (frameChanged = (dstFrame.inputLocals == null)) {</span>
+<span class="fc" id="L1076">            dstFrame.inputLocals = new int[numLocal];</span>
+        }
+<span class="fc bfc" id="L1078" title="All 2 branches covered.">        for (int i = 0; i &lt; numLocal; ++i) {</span>
+            int concreteOutputType;
+<span class="fc bfc" id="L1080" title="All 4 branches covered.">            if (outputLocals != null &amp;&amp; i &lt; outputLocals.length) {</span>
+<span class="fc" id="L1081">                int abstractOutputType = outputLocals[i];</span>
+<span class="fc bfc" id="L1082" title="All 2 branches covered.">                if (abstractOutputType == 0) {</span>
+                    // If the local variable has never been assigned in this basic block, it is equal to its
+                    // value at the beginning of the block.
+<span class="fc" id="L1085">                    concreteOutputType = inputLocals[i];</span>
+                } else {
+<span class="fc" id="L1087">                    concreteOutputType = getConcreteOutputType(abstractOutputType, numStack);</span>
+                }
+<span class="fc" id="L1089">            } else {</span>
+                // If the local variable has never been assigned in this basic block, it is equal to its
+                // value at the beginning of the block.
+<span class="fc" id="L1092">                concreteOutputType = inputLocals[i];</span>
+            }
+            // concreteOutputType might be an uninitialized type from the input locals or from the input
+            // stack. However, if a constructor has been called for this class type in the basic block,
+            // then this type is no longer uninitialized at the end of basic block.
+<span class="fc bfc" id="L1097" title="All 2 branches covered.">            if (initializations != null) {</span>
+<span class="fc" id="L1098">                concreteOutputType = getInitializedType(symbolTable, concreteOutputType);</span>
+            }
+<span class="fc" id="L1100">            frameChanged |= merge(symbolTable, concreteOutputType, dstFrame.inputLocals, i);</span>
+        }
+
+        // Compute the concrete types of the stack operands at the end of the basic block corresponding
+        // to this frame, by resolving its abstract output types, and merge these concrete types with
+        // those of the stack operands in the input frame of dstFrame.
+<span class="fc" id="L1106">        int numInputStack = inputStack.length + outputStackStart;</span>
+<span class="fc bfc" id="L1107" title="All 2 branches covered.">        if (dstFrame.inputStack == null) {</span>
+<span class="fc" id="L1108">            dstFrame.inputStack = new int[numInputStack + outputStackTop];</span>
+<span class="fc" id="L1109">            frameChanged = true;</span>
+        }
+        // First, do this for the stack operands that have not been popped in the basic block
+        // corresponding to this frame, and which are therefore equal to their value in the input
+        // frame (except for uninitialized types, which may have been initialized).
+<span class="fc bfc" id="L1114" title="All 2 branches covered.">        for (int i = 0; i &lt; numInputStack; ++i) {</span>
+<span class="fc" id="L1115">            int concreteOutputType = inputStack[i];</span>
+<span class="fc bfc" id="L1116" title="All 2 branches covered.">            if (initializations != null) {</span>
+<span class="fc" id="L1117">                concreteOutputType = getInitializedType(symbolTable, concreteOutputType);</span>
+            }
+<span class="fc" id="L1119">            frameChanged |= merge(symbolTable, concreteOutputType, dstFrame.inputStack, i);</span>
+        }
+        // Then, do this for the stack operands that have pushed in the basic block (this code is the
+        // same as the one above for local variables).
+<span class="fc bfc" id="L1123" title="All 2 branches covered.">        for (int i = 0; i &lt; outputStackTop; ++i) {</span>
+<span class="fc" id="L1124">            int abstractOutputType = outputStack[i];</span>
+<span class="fc" id="L1125">            int concreteOutputType = getConcreteOutputType(abstractOutputType, numStack);</span>
+<span class="fc bfc" id="L1126" title="All 2 branches covered.">            if (initializations != null) {</span>
+<span class="fc" id="L1127">                concreteOutputType = getInitializedType(symbolTable, concreteOutputType);</span>
+            }
+<span class="fc" id="L1129">            frameChanged |=</span>
+<span class="fc" id="L1130">                    merge(symbolTable, concreteOutputType, dstFrame.inputStack, numInputStack + i);</span>
+        }
+<span class="fc" id="L1132">        return frameChanged;</span>
+    }
+
+    /**
+     * Merges the type at the given index in the given abstract type array with the given type.
+     * Returns {@literal true} if the type array has been modified by this operation.
+     *
+     * @param symbolTable the type table to use to lookup and store type {@link Symbol}.
+     * @param sourceType  the abstract type with which the abstract type array element must be merged.
+     *                    This type should be of {@link #CONSTANT_KIND}, {@link #REFERENCE_KIND} or {@link
+     *                    #UNINITIALIZED_KIND} kind, with positive or {@literal null} array dimensions.
+     * @param dstTypes    an array of abstract types. These types should be of {@link #CONSTANT_KIND},
+     *                    {@link #REFERENCE_KIND} or {@link #UNINITIALIZED_KIND} kind, with positive or {@literal
+     *                    null} array dimensions.
+     * @param dstIndex    the index of the type that must be merged in dstTypes.
+     * @return {@literal true} if the type array has been modified by this operation.
+     */
+    private static boolean merge(
+            final SymbolTable symbolTable,
+            final int sourceType,
+            final int[] dstTypes,
+            final int dstIndex
+    ) {
+<span class="fc" id="L1155">        int dstType = dstTypes[dstIndex];</span>
+<span class="fc bfc" id="L1156" title="All 2 branches covered.">        if (dstType == sourceType) {</span>
+            // If the types are equal, merge(sourceType, dstType) = dstType, so there is no change.
+<span class="fc" id="L1158">            return false;</span>
+        }
+<span class="fc" id="L1160">        int srcType = sourceType;</span>
+<span class="fc bfc" id="L1161" title="All 2 branches covered.">        if ((sourceType &amp; ~DIM_MASK) == NULL) {</span>
+<span class="pc bpc" id="L1162" title="1 of 2 branches missed.">            if (dstType == NULL) {</span>
+<span class="nc" id="L1163">                return false;</span>
+            }
+<span class="fc" id="L1165">            srcType = NULL;</span>
+        }
+<span class="fc bfc" id="L1167" title="All 2 branches covered.">        if (dstType == 0) {</span>
+            // If dstTypes[dstIndex] has never been assigned, merge(srcType, dstType) = srcType.
+<span class="fc" id="L1169">            dstTypes[dstIndex] = srcType;</span>
+<span class="fc" id="L1170">            return true;</span>
+        }
+
+<span class="fc" id="L1173">        final String TYPE_JAVA_OBJECT = &quot;java/lang/Object&quot;;</span>
+
+        int mergedType;
+<span class="fc bfc" id="L1176" title="All 4 branches covered.">        if ((dstType &amp; DIM_MASK) != 0 || (dstType &amp; KIND_MASK) == REFERENCE_KIND) {</span>
+            // If dstType is a reference type of any array dimension.
+<span class="fc bfc" id="L1178" title="All 2 branches covered.">            if (srcType == NULL) {</span>
+                // If srcType is the NULL type, merge(srcType, dstType) = dstType, so there is no change.
+<span class="fc" id="L1180">                return false;</span>
+            }
+
+<span class="fc bfc" id="L1183" title="All 2 branches covered.">            if ((srcType &amp; (DIM_MASK | KIND_MASK)) == (dstType &amp; (DIM_MASK | KIND_MASK))) {</span>
+                // If srcType has the same array dimension and the same kind as dstType.
+<span class="pc bpc" id="L1185" title="1 of 2 branches missed.">                if ((dstType &amp; KIND_MASK) == REFERENCE_KIND) {</span>
+                    // If srcType and dstType are reference types with the same array dimension,
+                    // merge(srcType, dstType) = dim(srcType) | common super class of srcType and dstType.
+<span class="fc" id="L1188">                    mergedType =</span>
+                            (srcType &amp; DIM_MASK)
+                                    | REFERENCE_KIND
+<span class="fc" id="L1191">                                    | symbolTable.addMergedType(srcType &amp; VALUE_MASK, dstType &amp; VALUE_MASK);</span>
+                } else {
+                    // If srcType and dstType are array types of equal dimension but different element types,
+                    // merge(srcType, dstType) = dim(srcType) - 1 | java/lang/Object.
+<span class="nc" id="L1195">                    int mergedDim = ELEMENT_OF + (srcType &amp; DIM_MASK);</span>
+<span class="nc" id="L1196">                    mergedType = mergedDim | REFERENCE_KIND | symbolTable.addType(TYPE_JAVA_OBJECT);</span>
+<span class="nc" id="L1197">                }</span>
+<span class="pc bpc" id="L1198" title="2 of 4 branches missed.">            } else if ((srcType &amp; DIM_MASK) != 0 || (srcType &amp; KIND_MASK) == REFERENCE_KIND) {</span>
+                // If srcType is any other reference or array type,
+                // merge(srcType, dstType) = min(srcDdim, dstDim) | java/lang/Object
+                // where srcDim is the array dimension of srcType, minus 1 if srcType is an array type
+                // with a non reference element type (and similarly for dstDim).
+<span class="nc" id="L1203">                int srcDim = srcType &amp; DIM_MASK;</span>
+<span class="nc bnc" id="L1204" title="All 4 branches missed.">                if (srcDim != 0 &amp;&amp; (srcType &amp; KIND_MASK) != REFERENCE_KIND) {</span>
+<span class="nc" id="L1205">                    srcDim = ELEMENT_OF + srcDim;</span>
+                }
+<span class="nc" id="L1207">                int dstDim = dstType &amp; DIM_MASK;</span>
+<span class="nc bnc" id="L1208" title="All 4 branches missed.">                if (dstDim != 0 &amp;&amp; (dstType &amp; KIND_MASK) != REFERENCE_KIND) {</span>
+<span class="nc" id="L1209">                    dstDim = ELEMENT_OF + dstDim;</span>
+                }
+<span class="nc" id="L1211">                mergedType =</span>
+<span class="nc" id="L1212">                        Math.min(srcDim, dstDim) | REFERENCE_KIND | symbolTable.addType(TYPE_JAVA_OBJECT);</span>
+<span class="nc" id="L1213">            } else {</span>
+                // If srcType is any other type, merge(srcType, dstType) = TOP.
+<span class="fc" id="L1215">                mergedType = TOP;</span>
+            }
+        } else {
+<span class="pc bpc" id="L1218" title="1 of 6 branches missed.">            mergedType = dstType == NULL &amp;&amp; ((srcType &amp; DIM_MASK) != 0 || (srcType &amp; KIND_MASK) == REFERENCE_KIND)</span>
+                    ? srcType : TOP;
+        }
+
+<span class="fc bfc" id="L1222" title="All 2 branches covered.">        if (mergedType != dstType) {</span>
+<span class="fc" id="L1223">            dstTypes[dstIndex] = mergedType;</span>
+<span class="fc" id="L1224">            return true;</span>
+        }
+<span class="fc" id="L1226">        return false;</span>
+    }
+
+    // -----------------------------------------------------------------------------------------------
+    // Frame output methods, to generate StackMapFrame attributes
+    // -----------------------------------------------------------------------------------------------
+
+    /**
+     * Makes the given {@link MethodWriter} visit the input frame of this {@link Frame}. The visit is
+     * done with the {@link MethodWriter#visitFrameStart}, {@link MethodWriter#visitAbstractType} and
+     * {@link MethodWriter#visitFrameEnd} methods.
+     *
+     * @param methodWriter the {@link MethodWriter} that should visit the input frame of this {@link
+     *                     Frame}.
+     */
+    final void accept(final MethodWriter methodWriter) {
+        // Compute the number of locals, ignoring TOP types that are just after a LONG or a DOUBLE, and
+        // all trailing TOP types.
+<span class="fc" id="L1244">        int[] localTypes = inputLocals;</span>
+<span class="fc" id="L1245">        int numLocal = 0;</span>
+<span class="fc" id="L1246">        int numTrailingTop = 0;</span>
+<span class="fc" id="L1247">        int i = 0;</span>
+<span class="fc bfc" id="L1248" title="All 2 branches covered.">        while (i &lt; localTypes.length) {</span>
+<span class="fc" id="L1249">            int localType = localTypes[i];</span>
+<span class="fc bfc" id="L1250" title="All 4 branches covered.">            i += (localType == LONG || localType == DOUBLE) ? 2 : 1;</span>
+<span class="fc bfc" id="L1251" title="All 2 branches covered.">            if (localType == TOP) {</span>
+<span class="fc" id="L1252">                numTrailingTop++;</span>
+            } else {
+<span class="fc" id="L1254">                numLocal += numTrailingTop + 1;</span>
+<span class="fc" id="L1255">                numTrailingTop = 0;</span>
+            }
+<span class="fc" id="L1257">        }</span>
+        // Compute the stack size, ignoring TOP types that are just after a LONG or a DOUBLE.
+<span class="fc" id="L1259">        int[] stackTypes = inputStack;</span>
+<span class="fc" id="L1260">        int numStack = 0;</span>
+<span class="fc" id="L1261">        i = 0;</span>
+<span class="fc bfc" id="L1262" title="All 2 branches covered.">        while (i &lt; stackTypes.length) {</span>
+<span class="fc" id="L1263">            int stackType = stackTypes[i];</span>
+<span class="pc bpc" id="L1264" title="1 of 4 branches missed.">            i += (stackType == LONG || stackType == DOUBLE) ? 2 : 1;</span>
+<span class="fc" id="L1265">            numStack++;</span>
+<span class="fc" id="L1266">        }</span>
+        // Visit the frame and its content.
+<span class="fc" id="L1268">        int frameIndex = methodWriter.visitFrameStart(owner.bytecodeOffset, numLocal, numStack);</span>
+<span class="fc" id="L1269">        i = 0;</span>
+<span class="fc bfc" id="L1270" title="All 2 branches covered.">        while (numLocal-- &gt; 0) {</span>
+<span class="fc" id="L1271">            int localType = localTypes[i];</span>
+<span class="fc bfc" id="L1272" title="All 4 branches covered.">            i += (localType == LONG || localType == DOUBLE) ? 2 : 1;</span>
+<span class="fc" id="L1273">            methodWriter.visitAbstractType(frameIndex++, localType);</span>
+<span class="fc" id="L1274">        }</span>
+<span class="fc" id="L1275">        i = 0;</span>
+<span class="fc bfc" id="L1276" title="All 2 branches covered.">        while (numStack-- &gt; 0) {</span>
+<span class="fc" id="L1277">            int stackType = stackTypes[i];</span>
+<span class="pc bpc" id="L1278" title="1 of 4 branches missed.">            i += (stackType == LONG || stackType == DOUBLE) ? 2 : 1;</span>
+<span class="fc" id="L1279">            methodWriter.visitAbstractType(frameIndex++, stackType);</span>
+<span class="fc" id="L1280">        }</span>
+<span class="fc" id="L1281">        methodWriter.visitFrameEnd();</span>
+<span class="fc" id="L1282">    }</span>
+//
+//    /**
+//     * Put the given abstract type in the given ByteVector, using the JVMS verification_type_info
+//     * format used in StackMapTable attributes.
+//     *
+//     * @param symbolTable  the type table to use to lookup and store type {@link Symbol}.
+//     * @param abstractType an abstract type, restricted to {@link Frame#CONSTANT_KIND}, {@link
+//     *                     Frame#REFERENCE_KIND} or {@link Frame#UNINITIALIZED_KIND} types.
+//     * @param output       where the abstract type must be put.
+//     * @see &lt;a href=&quot;https://docs.oracle.com/javase/specs/jvms/se9/html/jvms-4.html#jvms-4.7.4&quot;&gt;JVMS
+//     * 4.7.4&lt;/a&gt;
+//     */
+//    static void putAbstractType(
+//            final SymbolTable symbolTable, final int abstractType, final ByteVector output) {
+//        int arrayDimensions = (abstractType &amp; Frame.DIM_MASK) &gt;&gt; DIM_SHIFT;
+//        if (arrayDimensions == 0) {
+//            int typeValue = abstractType &amp; VALUE_MASK;
+//            switch (abstractType &amp; KIND_MASK) {
+//                case CONSTANT_KIND:
+//                    output.putByte(typeValue);
+//                    break;
+//                case REFERENCE_KIND:
+//                    output
+//                            .putByte(ITEM_OBJECT)
+//                            .putShort(symbolTable.addConstantUtf8Reference(/*CONSTANT_CLASS_TAG*/ 7, symbolTable.typeTable[typeValue].value).index);
+//                    break;
+//                case UNINITIALIZED_KIND:
+//                    output.putByte(ITEM_UNINITIALIZED).putShort((int) symbolTable.typeTable[typeValue].data);
+//                    break;
+//                default:
+//                    throw new AssertionError();
+//            }
+//        } else {
+//            // Case of an array type, we need to build its descriptor first.
+//            StringBuilder typeDescriptor = new StringBuilder();
+//            while (arrayDimensions-- &gt; 0) {
+//                typeDescriptor.append('[');
+//            }
+//            if ((abstractType &amp; KIND_MASK) == REFERENCE_KIND) {
+//                typeDescriptor
+//                        .append('L')
+//                        .append(symbolTable.typeTable[abstractType &amp; VALUE_MASK].value)
+//                        .append(';');
+//            } else {
+//                switch (abstractType &amp; VALUE_MASK) {
+//                    case Frame.ITEM_ASM_BOOLEAN:
+//                        typeDescriptor.append('Z');
+//                        break;
+//                    case Frame.ITEM_ASM_BYTE:
+//                        typeDescriptor.append('B');
+//                        break;
+//                    case Frame.ITEM_ASM_CHAR:
+//                        typeDescriptor.append('C');
+//                        break;
+//                    case Frame.ITEM_ASM_SHORT:
+//                        typeDescriptor.append('S');
+//                        break;
+//                    case Frame.ITEM_INTEGER:
+//                        typeDescriptor.append('I');
+//                        break;
+//                    case Frame.ITEM_FLOAT:
+//                        typeDescriptor.append('F');
+//                        break;
+//                    case Frame.ITEM_LONG:
+//                        typeDescriptor.append('J');
+//                        break;
+//                    case Frame.ITEM_DOUBLE:
+//                        typeDescriptor.append('D');
+//                        break;
+//                    default:
+//                        throw new AssertionError();
+//                }
+//            }
+//            output
+//                    .putByte(ITEM_OBJECT)
+//                    .putShort(symbolTable.addConstantUtf8Reference(/*CONSTANT_CLASS_TAG*/ 7, typeDescriptor.toString()).index);
+//        }
+//    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.8.202204050719</span></div></body></html>

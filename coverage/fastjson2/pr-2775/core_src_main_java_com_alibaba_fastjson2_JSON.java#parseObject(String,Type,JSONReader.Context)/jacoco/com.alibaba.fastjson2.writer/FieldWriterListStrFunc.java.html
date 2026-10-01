@@ -1,0 +1,139 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>FieldWriterListStrFunc.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">fastjson2</a> &gt; <a href="index.source.html" class="el_package">com.alibaba.fastjson2.writer</a> &gt; <span class="el_source">FieldWriterListStrFunc.java</span></div><h1>FieldWriterListStrFunc.java</h1><pre class="source lang-java linenums">package com.alibaba.fastjson2.writer;
+
+import com.alibaba.fastjson2.JSONWriter;
+
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
+import java.lang.reflect.Type;
+import java.util.List;
+import java.util.function.Function;
+
+import static com.alibaba.fastjson2.JSONWriter.Feature.*;
+
+final class FieldWriterListStrFunc&lt;T&gt;
+        extends FieldWriter&lt;T&gt; {
+    final Function&lt;T, List&gt; function;
+
+    FieldWriterListStrFunc(
+            String fieldName,
+            int ordinal,
+            long features,
+            String format,
+            String label,
+            Field field,
+            Method method,
+            Function&lt;T, List&gt; function,
+            Type fieldType,
+            Class fieldClass
+    ) {
+<span class="fc" id="L29">        super(fieldName, ordinal, features, format, null, label, fieldType, fieldClass, field, method);</span>
+<span class="fc" id="L30">        this.function = function;</span>
+<span class="fc" id="L31">    }</span>
+
+    @Override
+    public Object getFieldValue(T object) {
+<span class="nc" id="L35">        return function.apply(object);</span>
+    }
+
+    @Override
+    public boolean write(JSONWriter jsonWriter, T object) {
+        List list;
+        try {
+<span class="fc" id="L42">            list = function.apply(object);</span>
+<span class="fc" id="L43">        } catch (RuntimeException error) {</span>
+<span class="pc bpc" id="L44" title="1 of 2 branches missed.">            if (jsonWriter.isIgnoreErrorGetter()) {</span>
+<span class="fc" id="L45">                return false;</span>
+            }
+<span class="nc" id="L47">            throw error;</span>
+<span class="fc" id="L48">        }</span>
+
+<span class="fc" id="L50">        long features = this.features | jsonWriter.getFeatures();</span>
+<span class="fc bfc" id="L51" title="All 2 branches covered.">        if (list == null) {</span>
+<span class="fc bfc" id="L52" title="All 2 branches covered.">            if ((features &amp; (WriteNulls.mask | NullAsDefaultValue.mask | WriteNullListAsEmpty.mask)) != 0) {</span>
+<span class="fc" id="L53">                writeFieldName(jsonWriter);</span>
+<span class="fc" id="L54">                jsonWriter.writeArrayNull();</span>
+<span class="fc" id="L55">                return true;</span>
+            } else {
+<span class="fc" id="L57">                return false;</span>
+            }
+        }
+
+<span class="pc bpc" id="L61" title="1 of 4 branches missed.">        if ((features &amp; NotWriteEmptyArray.mask) != 0 &amp;&amp; list.isEmpty()) {</span>
+<span class="fc" id="L62">            return false;</span>
+        }
+
+<span class="fc" id="L65">        writeFieldName(jsonWriter);</span>
+
+<span class="fc bfc" id="L67" title="All 2 branches covered.">        if (jsonWriter.jsonb) {</span>
+<span class="fc" id="L68">            int size = list.size();</span>
+<span class="fc" id="L69">            jsonWriter.startArray(size);</span>
+
+<span class="fc bfc" id="L71" title="All 2 branches covered.">            for (int i = 0; i &lt; size; i++) {</span>
+<span class="fc" id="L72">                String item = (String) list.get(i);</span>
+<span class="pc bpc" id="L73" title="1 of 2 branches missed.">                if (item == null) {</span>
+<span class="nc" id="L74">                    jsonWriter.writeNull();</span>
+<span class="nc" id="L75">                    continue;</span>
+                }
+<span class="fc" id="L77">                jsonWriter.writeString(item);</span>
+            }
+<span class="fc" id="L79">            return true;</span>
+        }
+
+<span class="fc" id="L82">        jsonWriter.startArray();</span>
+<span class="fc bfc" id="L83" title="All 2 branches covered.">        for (int i = 0; i &lt; list.size(); i++) {</span>
+<span class="fc bfc" id="L84" title="All 2 branches covered.">            if (i != 0) {</span>
+<span class="fc" id="L85">                jsonWriter.writeComma();</span>
+            }
+
+<span class="fc" id="L88">            String item = (String) list.get(i);</span>
+<span class="pc bpc" id="L89" title="1 of 2 branches missed.">            if (item == null) {</span>
+<span class="nc" id="L90">                jsonWriter.writeNull();</span>
+<span class="nc" id="L91">                continue;</span>
+            }
+<span class="fc" id="L93">            jsonWriter.writeString(item);</span>
+        }
+<span class="fc" id="L95">        jsonWriter.endArray();</span>
+
+<span class="fc" id="L97">        return true;</span>
+    }
+
+    @Override
+    public void writeValue(JSONWriter jsonWriter, T object) {
+<span class="fc" id="L102">        List list = function.apply(object);</span>
+<span class="fc bfc" id="L103" title="All 2 branches covered.">        if (list == null) {</span>
+<span class="fc" id="L104">            jsonWriter.writeNull();</span>
+<span class="fc" id="L105">            return;</span>
+        }
+
+<span class="fc bfc" id="L108" title="All 2 branches covered.">        if (jsonWriter.jsonb) {</span>
+<span class="fc" id="L109">            int size = list.size();</span>
+<span class="fc" id="L110">            jsonWriter.startArray(size);</span>
+
+<span class="fc bfc" id="L112" title="All 2 branches covered.">            for (int i = 0; i &lt; size; i++) {</span>
+<span class="fc" id="L113">                String item = (String) list.get(i);</span>
+<span class="pc bpc" id="L114" title="1 of 2 branches missed.">                if (item == null) {</span>
+<span class="nc" id="L115">                    jsonWriter.writeNull();</span>
+<span class="nc" id="L116">                    continue;</span>
+                }
+<span class="fc" id="L118">                jsonWriter.writeString(item);</span>
+            }
+<span class="fc" id="L120">            return;</span>
+        }
+
+<span class="fc" id="L123">        jsonWriter.startArray();</span>
+<span class="fc bfc" id="L124" title="All 2 branches covered.">        for (int i = 0; i &lt; list.size(); i++) {</span>
+<span class="pc bpc" id="L125" title="1 of 2 branches missed.">            if (i != 0) {</span>
+<span class="nc" id="L126">                jsonWriter.writeComma();</span>
+            }
+
+<span class="fc" id="L129">            String item = (String) list.get(i);</span>
+<span class="pc bpc" id="L130" title="1 of 2 branches missed.">            if (item == null) {</span>
+<span class="nc" id="L131">                jsonWriter.writeNull();</span>
+<span class="nc" id="L132">                continue;</span>
+            }
+<span class="fc" id="L134">            jsonWriter.writeString(item);</span>
+        }
+<span class="fc" id="L136">        jsonWriter.endArray();</span>
+<span class="fc" id="L137">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.8.202204050719</span></div></body></html>

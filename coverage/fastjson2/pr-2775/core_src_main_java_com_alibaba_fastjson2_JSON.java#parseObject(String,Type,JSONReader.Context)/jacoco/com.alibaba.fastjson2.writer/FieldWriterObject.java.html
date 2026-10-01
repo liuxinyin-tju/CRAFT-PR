@@ -1,0 +1,478 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>FieldWriterObject.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">fastjson2</a> &gt; <a href="index.source.html" class="el_package">com.alibaba.fastjson2.writer</a> &gt; <span class="el_source">FieldWriterObject.java</span></div><h1>FieldWriterObject.java</h1><pre class="source lang-java linenums">package com.alibaba.fastjson2.writer;
+
+import com.alibaba.fastjson2.JSONException;
+import com.alibaba.fastjson2.JSONWriter;
+import com.alibaba.fastjson2.codec.FieldInfo;
+import com.alibaba.fastjson2.util.BeanUtils;
+
+import java.io.Serializable;
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
+import java.lang.reflect.Type;
+import java.text.DecimalFormat;
+import java.util.*;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicIntegerArray;
+import java.util.concurrent.atomic.AtomicLongArray;
+import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
+
+import static com.alibaba.fastjson2.JSONWriter.Feature.*;
+import static com.alibaba.fastjson2.util.BeanUtils.SUPER;
+
+public class FieldWriterObject&lt;T&gt;
+        extends FieldWriter&lt;T&gt; {
+    volatile Class initValueClass;
+    final boolean unwrapped;
+    final boolean array;
+    final boolean number;
+
+<span class="fc" id="L29">    static final AtomicReferenceFieldUpdater&lt;FieldWriterObject, Class&gt; initValueClassUpdater = AtomicReferenceFieldUpdater.newUpdater(</span>
+            FieldWriterObject.class,
+            Class.class,
+            &quot;initValueClass&quot;
+    );
+
+    protected FieldWriterObject(
+            String name,
+            int ordinal,
+            long features,
+            String format,
+            Locale locale,
+            String label,
+            Type fieldType,
+            Class fieldClass,
+            Field field,
+            Method method
+    ) {
+<span class="fc" id="L47">        super(name, ordinal, features, format, locale, label, fieldType, fieldClass, field, method);</span>
+<span class="fc bfc" id="L48" title="All 2 branches covered.">        this.unwrapped = (features &amp; FieldInfo.UNWRAPPED_MASK) != 0;</span>
+
+<span class="fc bfc" id="L50" title="All 2 branches covered.">        if (fieldClass == Currency.class) {</span>
+<span class="fc" id="L51">            this.initValueClass = fieldClass;</span>
+<span class="fc" id="L52">            this.initObjectWriter = ObjectWriterImplCurrency.INSTANCE_FOR_FIELD;</span>
+        }
+
+<span class="fc bfc" id="L55" title="All 2 branches covered.">        array = fieldClass.isArray()</span>
+<span class="fc bfc" id="L56" title="All 6 branches covered.">                || Collection.class.isAssignableFrom(fieldClass)</span>
+                || fieldClass == AtomicLongArray.class
+                || fieldClass == AtomicIntegerArray.class;
+<span class="fc" id="L59">        number = Number.class.isAssignableFrom(fieldClass);</span>
+<span class="fc" id="L60">    }</span>
+
+    @Override
+    public ObjectWriter getInitWriter() {
+<span class="fc" id="L64">        return initObjectWriter;</span>
+    }
+
+    @Override
+    public boolean unwrapped() {
+<span class="fc" id="L69">        return unwrapped;</span>
+    }
+
+    @Override
+    public ObjectWriter getObjectWriter(JSONWriter jsonWriter, Class valueClass) {
+<span class="fc" id="L74">        final Class initValueClass = this.initValueClass;</span>
+<span class="pc bpc" id="L75" title="1 of 4 branches missed.">        if (initValueClass == null || initObjectWriter == ObjectWriterBaseModule.VoidObjectWriter.INSTANCE) {</span>
+<span class="fc" id="L76">            return getObjectWriterVoid(jsonWriter, valueClass);</span>
+        } else {
+<span class="fc bfc" id="L78" title="All 2 branches covered.">            boolean typeMatch = initValueClass == valueClass</span>
+<span class="pc bpc" id="L79" title="1 of 8 branches missed.">                    || (initValueClass.isAssignableFrom(valueClass) &amp;&amp; !jsonWriter.isEnabled(WriteClassName) &amp;&amp; fieldType instanceof Class)</span>
+<span class="pc bpc" id="L80" title="2 of 4 branches missed.">                    || (initValueClass == Map.class &amp;&amp; initValueClass.isAssignableFrom(valueClass))</span>
+<span class="pc bpc" id="L81" title="1 of 2 branches missed.">                    || (initValueClass == List.class &amp;&amp; initValueClass.isAssignableFrom(valueClass));</span>
+<span class="fc bfc" id="L82" title="All 4 branches covered.">            if (!typeMatch &amp;&amp; initValueClass.isPrimitive()) {</span>
+<span class="fc" id="L83">                typeMatch = typeMatch(initValueClass, valueClass);</span>
+            }
+
+<span class="fc bfc" id="L86" title="All 2 branches covered.">            if (typeMatch) {</span>
+                ObjectWriter objectWriter;
+<span class="fc bfc" id="L88" title="All 2 branches covered.">                if (initObjectWriter == null) {</span>
+<span class="fc" id="L89">                    objectWriter = getObjectWriterTypeMatch(jsonWriter, valueClass);</span>
+                } else {
+<span class="fc" id="L91">                    objectWriter = initObjectWriter;</span>
+                }
+<span class="fc" id="L93">                return objectWriter;</span>
+            } else {
+<span class="fc" id="L95">                return getObjectWriterTypeNotMatch(jsonWriter, valueClass);</span>
+            }
+        }
+    }
+
+    private ObjectWriter getObjectWriterVoid(JSONWriter jsonWriter, Class valueClass) {
+<span class="fc" id="L101">        ObjectWriter formattedWriter = null;</span>
+<span class="pc bpc" id="L102" title="1 of 4 branches missed.">        if (BeanUtils.isExtendedMap(valueClass) &amp;&amp; SUPER.equals(fieldName)) {</span>
+<span class="fc" id="L103">            JSONWriter.Context context = jsonWriter.context;</span>
+<span class="pc bpc" id="L104" title="1 of 2 branches missed.">            boolean fieldBased = ((features | context.getFeatures()) &amp; JSONWriter.Feature.FieldBased.mask) != 0;</span>
+<span class="fc" id="L105">            formattedWriter = context.provider.getObjectWriter(fieldType, fieldClass, fieldBased);</span>
+<span class="pc bpc" id="L106" title="1 of 2 branches missed.">            if (initObjectWriter == null) {</span>
+<span class="fc" id="L107">                boolean success = initValueClassUpdater.compareAndSet(this, null, valueClass);</span>
+<span class="pc bpc" id="L108" title="1 of 2 branches missed.">                if (success) {</span>
+<span class="fc" id="L109">                    initObjectWriterUpdater.compareAndSet(this, null, formattedWriter);</span>
+                }
+            }
+<span class="fc" id="L112">            return formattedWriter;</span>
+        }
+
+<span class="fc bfc" id="L115" title="All 2 branches covered.">        if (format == null) {</span>
+<span class="fc" id="L116">            JSONWriter.Context context = jsonWriter.context;</span>
+<span class="fc bfc" id="L117" title="All 2 branches covered.">            boolean fieldBased = ((features | context.getFeatures()) &amp; JSONWriter.Feature.FieldBased.mask) != 0;</span>
+<span class="fc" id="L118">            formattedWriter = context.provider.getObjectWriterFromCache(valueClass, valueClass, fieldBased);</span>
+        }
+
+<span class="fc" id="L121">        final DecimalFormat decimalFormat = this.decimalFormat;</span>
+<span class="fc bfc" id="L122" title="All 2 branches covered.">        if (valueClass == Float[].class) {</span>
+<span class="pc bpc" id="L123" title="1 of 2 branches missed.">            if (decimalFormat != null) {</span>
+<span class="fc" id="L124">                formattedWriter = new ObjectWriterArrayFinal(Float.class, decimalFormat);</span>
+            } else {
+<span class="nc" id="L126">                formattedWriter = ObjectWriterArrayFinal.FLOAT_ARRAY;</span>
+            }
+<span class="fc bfc" id="L128" title="All 2 branches covered.">        } else if (valueClass == Double[].class) {</span>
+<span class="pc bpc" id="L129" title="1 of 2 branches missed.">            if (decimalFormat != null) {</span>
+<span class="fc" id="L130">                formattedWriter = new ObjectWriterArrayFinal(Double.class, decimalFormat);</span>
+            } else {
+<span class="nc" id="L132">                formattedWriter = ObjectWriterArrayFinal.DOUBLE_ARRAY;</span>
+            }
+<span class="fc bfc" id="L134" title="All 2 branches covered.">        } else if (valueClass == float[].class) {</span>
+<span class="pc bpc" id="L135" title="1 of 2 branches missed.">            if (decimalFormat != null) {</span>
+<span class="fc" id="L136">                formattedWriter = new ObjectWriterImplFloatValueArray(decimalFormat);</span>
+            } else {
+<span class="nc" id="L138">                formattedWriter = ObjectWriterImplFloatValueArray.INSTANCE;</span>
+            }
+<span class="fc bfc" id="L140" title="All 2 branches covered.">        } else if (valueClass == double[].class) {</span>
+<span class="pc bpc" id="L141" title="1 of 2 branches missed.">            if (decimalFormat != null) {</span>
+<span class="fc" id="L142">                formattedWriter = new ObjectWriterImplDoubleValueArray(decimalFormat);</span>
+            } else {
+<span class="nc" id="L144">                formattedWriter = ObjectWriterImplDoubleValueArray.INSTANCE;</span>
+            }
+        }
+
+<span class="fc bfc" id="L148" title="All 2 branches covered.">        if (formattedWriter == null) {</span>
+<span class="fc" id="L149">            formattedWriter = FieldWriter.getObjectWriter(fieldType, fieldClass, format, locale, valueClass);</span>
+        }
+
+<span class="fc bfc" id="L152" title="All 2 branches covered.">        if (formattedWriter == null) {</span>
+<span class="fc" id="L153">            boolean success = initValueClassUpdater.compareAndSet(this, null, valueClass);</span>
+<span class="fc" id="L154">            formattedWriter = jsonWriter.getObjectWriter(valueClass);</span>
+<span class="pc bpc" id="L155" title="1 of 2 branches missed.">            if (success) {</span>
+<span class="fc" id="L156">                initObjectWriterUpdater.compareAndSet(this, null, formattedWriter);</span>
+            }
+<span class="fc" id="L158">        } else {</span>
+<span class="pc bpc" id="L159" title="1 of 2 branches missed.">            if (initObjectWriter == null) {</span>
+<span class="fc" id="L160">                boolean success = initValueClassUpdater.compareAndSet(this, null, valueClass);</span>
+<span class="pc bpc" id="L161" title="1 of 2 branches missed.">                if (success) {</span>
+<span class="fc" id="L162">                    initObjectWriterUpdater.compareAndSet(this, null, formattedWriter);</span>
+                }
+            }
+        }
+<span class="fc" id="L166">        return formattedWriter;</span>
+    }
+
+    static boolean typeMatch(Class initValueClass, Class valueClass) {
+<span class="pc bpc" id="L170" title="14 of 32 branches missed.">        return (initValueClass == int.class &amp;&amp; valueClass == Integer.class)</span>
+                || (initValueClass == long.class &amp;&amp; valueClass == Long.class)
+                || (initValueClass == boolean.class &amp;&amp; valueClass == Boolean.class)
+                || (initValueClass == short.class &amp;&amp; valueClass == Short.class)
+                || (initValueClass == byte.class &amp;&amp; valueClass == Byte.class)
+                || (initValueClass == float.class &amp;&amp; valueClass == Float.class)
+                || (initValueClass == double.class &amp;&amp; valueClass == Double.class)
+                || (initValueClass == char.class &amp;&amp; valueClass == Character.class);
+    }
+
+    private ObjectWriter getObjectWriterTypeNotMatch(JSONWriter jsonWriter, Class valueClass) {
+<span class="fc bfc" id="L181" title="All 2 branches covered.">        if (Map.class.isAssignableFrom(valueClass)) {</span>
+<span class="pc bpc" id="L182" title="1 of 2 branches missed.">            if (fieldClass.isAssignableFrom(valueClass)) {</span>
+<span class="fc" id="L183">                return ObjectWriterImplMap.of(fieldType, valueClass);</span>
+            } else {
+<span class="nc" id="L185">                return ObjectWriterImplMap.of(valueClass);</span>
+            }
+        } else {
+<span class="fc" id="L188">            ObjectWriter objectWriter = null;</span>
+<span class="fc bfc" id="L189" title="All 2 branches covered.">            if (format != null) {</span>
+<span class="fc" id="L190">                objectWriter = FieldWriter.getObjectWriter(fieldType, fieldClass, format, null, valueClass);</span>
+            }
+<span class="fc bfc" id="L192" title="All 2 branches covered.">            if (objectWriter == null) {</span>
+<span class="fc" id="L193">                objectWriter = jsonWriter.getObjectWriter(valueClass);</span>
+            }
+<span class="fc" id="L195">            return objectWriter;</span>
+        }
+    }
+
+    private ObjectWriter getObjectWriterTypeMatch(JSONWriter jsonWriter, Class valueClass) {
+        ObjectWriter objectWriter;
+<span class="pc bpc" id="L201" title="1 of 2 branches missed.">        if (Map.class.isAssignableFrom(valueClass)) {</span>
+<span class="nc bnc" id="L202" title="All 2 branches missed.">            if (fieldClass.isAssignableFrom(valueClass)) {</span>
+<span class="nc" id="L203">                objectWriter = ObjectWriterImplMap.of(fieldType, valueClass);</span>
+            } else {
+<span class="nc" id="L205">                objectWriter = ObjectWriterImplMap.of(valueClass);</span>
+            }
+        } else {
+<span class="fc" id="L208">            objectWriter = jsonWriter.getObjectWriter(valueClass);</span>
+        }
+<span class="fc" id="L210">        initObjectWriterUpdater.compareAndSet(this, null, objectWriter);</span>
+<span class="fc" id="L211">        return objectWriter;</span>
+    }
+
+    @Override
+    public void writeEnumJSONB(JSONWriter jsonWriter, Enum e) {
+<span class="pc bpc" id="L216" title="1 of 2 branches missed.">        if (e == null) {</span>
+<span class="nc" id="L217">            return;</span>
+        }
+
+<span class="fc" id="L220">        writeFieldName(jsonWriter);</span>
+
+<span class="fc" id="L222">        Class&lt;?&gt; valueClass = e.getClass();</span>
+        ObjectWriter valueWriter;
+<span class="pc bpc" id="L224" title="1 of 2 branches missed.">        if (initValueClass == null) {</span>
+<span class="fc" id="L225">            initValueClass = valueClass;</span>
+<span class="fc" id="L226">            valueWriter = jsonWriter.getObjectWriter(valueClass);</span>
+<span class="fc" id="L227">            initObjectWriterUpdater.compareAndSet(this, null, valueWriter);</span>
+        } else {
+<span class="nc bnc" id="L229" title="All 2 branches missed.">            if (initValueClass == valueClass) {</span>
+<span class="nc" id="L230">                valueWriter = initObjectWriter;</span>
+            } else {
+<span class="nc" id="L232">                valueWriter = jsonWriter.getObjectWriter(valueClass);</span>
+            }
+        }
+<span class="pc bpc" id="L235" title="1 of 2 branches missed.">        if (valueWriter == null) {</span>
+<span class="nc" id="L236">            throw new JSONException(&quot;get value writer error, valueType : &quot; + valueClass);</span>
+        }
+
+<span class="fc" id="L239">        valueWriter.writeJSONB(jsonWriter, e, fieldName, fieldType, this.features);</span>
+<span class="fc" id="L240">    }</span>
+
+    @Override
+    public boolean write(JSONWriter jsonWriter, T object) {
+<span class="fc" id="L244">        long features = this.features | jsonWriter.getFeatures();</span>
+
+<span class="pc bpc" id="L246" title="1 of 4 branches missed.">        if (!fieldClassSerializable &amp;&amp; (features &amp; JSONWriter.Feature.IgnoreNoneSerializable.mask) != 0) {</span>
+<span class="nc" id="L247">            return false;</span>
+        }
+
+<span class="pc bpc" id="L250" title="1 of 4 branches missed.">        if (backReference &amp;&amp; jsonWriter.containsReference(object)) {</span>
+<span class="fc" id="L251">            return false;</span>
+        }
+
+        Object value;
+        try {
+<span class="fc" id="L256">            value = getFieldValue(object);</span>
+<span class="fc" id="L257">        } catch (RuntimeException error) {</span>
+<span class="pc bpc" id="L258" title="1 of 2 branches missed.">            if (jsonWriter.isIgnoreErrorGetter()) {</span>
+<span class="fc" id="L259">                return false;</span>
+            }
+<span class="nc" id="L261">            throw error;</span>
+<span class="fc" id="L262">        }</span>
+
+        // (features &amp; JSONWriter.Feature.WriteNullNumberAsZero.mask) != 0
+<span class="fc bfc" id="L265" title="All 2 branches covered.">        if (value == null) {</span>
+<span class="fc bfc" id="L266" title="All 4 branches covered.">            if ((features &amp; WriteNulls.mask) != 0 &amp;&amp; (features &amp; NotWriteDefaultValue.mask) == 0) {</span>
+<span class="fc" id="L267">                writeFieldName(jsonWriter);</span>
+<span class="pc bpc" id="L268" title="1 of 2 branches missed.">                if (array) {</span>
+<span class="nc" id="L269">                    jsonWriter.writeArrayNull();</span>
+<span class="fc bfc" id="L270" title="All 2 branches covered.">                } else if (number) {</span>
+<span class="fc" id="L271">                    jsonWriter.writeNumberNull();</span>
+<span class="pc bpc" id="L272" title="3 of 6 branches missed.">                } else if (fieldClass == Appendable.class</span>
+                        || fieldClass == StringBuffer.class
+                        || fieldClass == StringBuilder.class) {
+<span class="nc" id="L275">                    jsonWriter.writeStringNull();</span>
+                } else {
+<span class="fc" id="L277">                    jsonWriter.writeNull();</span>
+                }
+<span class="fc" id="L279">                return true;</span>
+            } else {
+<span class="pc bpc" id="L281" title="3 of 4 branches missed.">                if ((features &amp; (WriteNullNumberAsZero.mask | NullAsDefaultValue.mask)) != 0 &amp;&amp; number) {</span>
+<span class="nc" id="L282">                    writeFieldName(jsonWriter);</span>
+<span class="nc" id="L283">                    jsonWriter.writeInt32(0);</span>
+<span class="nc" id="L284">                    return true;</span>
+<span class="pc bpc" id="L285" title="2 of 6 branches missed.">                } else if ((features &amp; (WriteNullBooleanAsFalse.mask | NullAsDefaultValue.mask)) != 0</span>
+                        &amp;&amp; (fieldClass == Boolean.class || fieldClass == AtomicBoolean.class)
+                ) {
+<span class="nc" id="L288">                    writeFieldName(jsonWriter);</span>
+<span class="nc" id="L289">                    jsonWriter.writeBool(false);</span>
+<span class="nc" id="L290">                    return true;</span>
+                }
+<span class="fc" id="L292">                return false;</span>
+            }
+        }
+
+<span class="fc bfc" id="L296" title="All 2 branches covered.">        if (value == object) {</span>
+<span class="pc bpc" id="L297" title="1 of 4 branches missed.">            if (fieldClass == Throwable.class</span>
+                    &amp;&amp; field != null
+<span class="pc bpc" id="L299" title="1 of 2 branches missed.">                    &amp;&amp; field.getDeclaringClass() == Throwable.class</span>
+            ) {
+<span class="fc" id="L301">                return false;</span>
+            }
+        }
+
+<span class="pc bpc" id="L305" title="3 of 4 branches missed.">        if ((features &amp; JSONWriter.Feature.IgnoreNoneSerializable.mask) != 0 &amp;&amp; !(value instanceof Serializable)) {</span>
+<span class="nc" id="L306">            return false;</span>
+        }
+
+<span class="fc bfc" id="L309" title="All 2 branches covered.">        if ((features &amp; JSONWriter.Feature.IgnoreEmpty.mask) != 0) {</span>
+<span class="pc bpc" id="L310" title="1 of 4 branches missed.">            if ((value instanceof Collection) &amp;&amp; ((Collection&lt;?&gt;) value).isEmpty()) {</span>
+<span class="fc" id="L311">                return false;</span>
+            }
+
+<span class="pc bpc" id="L314" title="2 of 4 branches missed.">            if ((value instanceof Map) &amp;&amp; ((Map&lt;?, ?&gt;) value).isEmpty()) {</span>
+<span class="fc" id="L315">                return false;</span>
+            }
+        }
+
+<span class="fc" id="L319">        boolean refDetect = jsonWriter.isRefDetect(value);</span>
+<span class="fc bfc" id="L320" title="All 2 branches covered.">        if (refDetect) {</span>
+<span class="pc bpc" id="L321" title="1 of 2 branches missed.">            if (value == object) {</span>
+<span class="nc" id="L322">                writeFieldName(jsonWriter);</span>
+<span class="nc" id="L323">                jsonWriter.writeReference(&quot;..&quot;);</span>
+<span class="nc" id="L324">                return true;</span>
+            }
+
+<span class="fc" id="L327">            String refPath = jsonWriter.setPath(this, value);</span>
+<span class="fc bfc" id="L328" title="All 2 branches covered.">            if (refPath != null) {</span>
+<span class="fc" id="L329">                writeFieldName(jsonWriter);</span>
+<span class="fc" id="L330">                jsonWriter.writeReference(refPath);</span>
+<span class="fc" id="L331">                jsonWriter.popPath(value);</span>
+<span class="fc" id="L332">                return true;</span>
+            }
+        }
+
+<span class="fc" id="L336">        Class&lt;?&gt; valueClass = value.getClass();</span>
+<span class="pc bpc" id="L337" title="1 of 2 branches missed.">        if (valueClass == byte[].class) {</span>
+<span class="nc" id="L338">            writeBinary(jsonWriter, (byte[]) value);</span>
+<span class="nc" id="L339">            return true;</span>
+        }
+
+<span class="fc" id="L342">        ObjectWriter valueWriter = getObjectWriter(jsonWriter, valueClass);</span>
+<span class="pc bpc" id="L343" title="1 of 2 branches missed.">        if (valueWriter == null) {</span>
+<span class="nc" id="L344">            throw new JSONException(&quot;get objectWriter error : &quot; + valueClass);</span>
+        }
+
+<span class="fc bfc" id="L347" title="All 2 branches covered.">        if (unwrapped</span>
+<span class="pc bpc" id="L348" title="1 of 2 branches missed.">                &amp;&amp; writeWithUnwrapped(jsonWriter, value, features, refDetect, valueWriter)) {</span>
+<span class="fc" id="L349">            return true;</span>
+        }
+
+<span class="fc" id="L352">        writeFieldName(jsonWriter);</span>
+<span class="fc" id="L353">        boolean jsonb = jsonWriter.jsonb;</span>
+<span class="fc bfc" id="L354" title="All 2 branches covered.">        if ((this.features &amp; JSONWriter.Feature.BeanToArray.mask) != 0) {</span>
+<span class="pc bpc" id="L355" title="1 of 2 branches missed.">            if (jsonb) {</span>
+<span class="nc" id="L356">                valueWriter.writeArrayMappingJSONB(jsonWriter, value, fieldName, fieldType, this.features);</span>
+            } else {
+<span class="fc" id="L358">                valueWriter.writeArrayMapping(jsonWriter, value, fieldName, fieldType, this.features);</span>
+            }
+        } else {
+<span class="fc bfc" id="L361" title="All 2 branches covered.">            if (jsonb) {</span>
+<span class="fc" id="L362">                valueWriter.writeJSONB(jsonWriter, value, fieldName, fieldType, this.features);</span>
+            } else {
+<span class="fc" id="L364">                valueWriter.write(jsonWriter, value, fieldName, fieldType, this.features);</span>
+            }
+        }
+
+<span class="fc bfc" id="L368" title="All 2 branches covered.">        if (refDetect) {</span>
+<span class="fc" id="L369">            jsonWriter.popPath(value);</span>
+        }
+<span class="fc" id="L371">        return true;</span>
+    }
+
+    protected final boolean writeWithUnwrapped(
+            JSONWriter jsonWriter,
+            Object value,
+            long features,
+            boolean refDetect,
+            ObjectWriter valueWriter
+    ) {
+<span class="fc bfc" id="L381" title="All 2 branches covered.">        if (value instanceof Map) {</span>
+<span class="fc" id="L382">            boolean jsonb = jsonWriter.jsonb;</span>
+<span class="fc bfc" id="L383" title="All 2 branches covered.">            for (Map.Entry entry : (Iterable&lt;Map.Entry&gt;) ((Map) value).entrySet()) {</span>
+<span class="fc" id="L384">                String entryKey = entry.getKey().toString();</span>
+<span class="fc" id="L385">                Object entryValue = entry.getValue();</span>
+<span class="fc bfc" id="L386" title="All 2 branches covered.">                if (entryValue == null) {</span>
+<span class="pc bpc" id="L387" title="1 of 2 branches missed.">                    if ((features &amp; WriteNulls.mask) == 0) {</span>
+<span class="fc" id="L388">                        continue;</span>
+                    }
+                }
+
+<span class="fc" id="L392">                jsonWriter.writeName(entryKey);</span>
+<span class="fc bfc" id="L393" title="All 2 branches covered.">                if (!jsonb) {</span>
+<span class="fc" id="L394">                    jsonWriter.writeColon();</span>
+                }
+<span class="pc bpc" id="L396" title="1 of 2 branches missed.">                if (entryValue == null) {</span>
+<span class="nc" id="L397">                    jsonWriter.writeNull();</span>
+                } else {
+<span class="fc" id="L399">                    Class&lt;?&gt; entryValueClass = entryValue.getClass();</span>
+<span class="fc" id="L400">                    ObjectWriter entryValueWriter = jsonWriter.getObjectWriter(entryValueClass);</span>
+<span class="fc" id="L401">                    entryValueWriter.write(jsonWriter, entryValue);</span>
+                }
+<span class="fc" id="L403">            }</span>
+
+<span class="pc bpc" id="L405" title="1 of 2 branches missed.">            if (refDetect) {</span>
+<span class="nc" id="L406">                jsonWriter.popPath(value);</span>
+            }
+<span class="fc" id="L408">            return true;</span>
+        }
+
+<span class="pc bpc" id="L411" title="1 of 2 branches missed.">        if (valueWriter instanceof ObjectWriterAdapter) {</span>
+<span class="fc" id="L412">            ObjectWriterAdapter writerAdapter = (ObjectWriterAdapter) valueWriter;</span>
+<span class="fc" id="L413">            List&lt;FieldWriter&gt; fieldWriters = writerAdapter.fieldWriters;</span>
+<span class="fc bfc" id="L414" title="All 2 branches covered.">            for (FieldWriter fieldWriter : fieldWriters) {</span>
+<span class="fc" id="L415">                fieldWriter.write(jsonWriter, value);</span>
+<span class="fc" id="L416">            }</span>
+<span class="fc" id="L417">            return true;</span>
+        }
+<span class="nc" id="L419">        return false;</span>
+    }
+
+    @Override
+    public void writeValue(JSONWriter jsonWriter, T object) {
+<span class="fc" id="L424">        Object value = getFieldValue(object);</span>
+<span class="fc bfc" id="L425" title="All 2 branches covered.">        if (value == null) {</span>
+<span class="fc" id="L426">            jsonWriter.writeNull();</span>
+<span class="fc" id="L427">            return;</span>
+        }
+
+<span class="fc" id="L430">        Class&lt;?&gt; valueClass = value.getClass();</span>
+        ObjectWriter valueWriter;
+<span class="pc bpc" id="L432" title="1 of 2 branches missed.">        if (initValueClass == null) {</span>
+<span class="nc" id="L433">            initValueClass = valueClass;</span>
+<span class="nc" id="L434">            valueWriter = jsonWriter.getObjectWriter(valueClass);</span>
+<span class="nc" id="L435">            initObjectWriterUpdater.compareAndSet(this, null, valueWriter);</span>
+        } else {
+<span class="pc bpc" id="L437" title="1 of 2 branches missed.">            if (initValueClass == valueClass) {</span>
+<span class="fc" id="L438">                valueWriter = initObjectWriter;</span>
+            } else {
+<span class="nc" id="L440">                valueWriter = jsonWriter.getObjectWriter(valueClass);</span>
+            }
+        }
+<span class="pc bpc" id="L443" title="1 of 2 branches missed.">        if (valueWriter == null) {</span>
+<span class="nc" id="L444">            throw new JSONException(&quot;get value writer error, valueType : &quot; + valueClass);</span>
+        }
+
+<span class="pc bpc" id="L447" title="3 of 4 branches missed.">        boolean refDetect = jsonWriter.isRefDetect() &amp;&amp; !ObjectWriterProvider.isNotReferenceDetect(valueClass);</span>
+
+<span class="pc bpc" id="L449" title="1 of 2 branches missed.">        if (refDetect) {</span>
+<span class="nc bnc" id="L450" title="All 2 branches missed.">            if (value == object) {</span>
+<span class="nc" id="L451">                jsonWriter.writeReference(&quot;..&quot;);</span>
+<span class="nc" id="L452">                return;</span>
+            }
+
+<span class="nc" id="L455">            String refPath = jsonWriter.setPath(fieldName, value);</span>
+<span class="nc bnc" id="L456" title="All 2 branches missed.">            if (refPath != null) {</span>
+<span class="nc" id="L457">                jsonWriter.writeReference(refPath);</span>
+<span class="nc" id="L458">                jsonWriter.popPath(value);</span>
+<span class="nc" id="L459">                return;</span>
+            }
+        }
+
+<span class="pc bpc" id="L463" title="1 of 2 branches missed.">        if (jsonWriter.jsonb) {</span>
+<span class="nc bnc" id="L464" title="All 2 branches missed.">            if (jsonWriter.isBeanToArray()) {</span>
+<span class="nc" id="L465">                valueWriter.writeArrayMappingJSONB(jsonWriter, value, fieldName, fieldClass, features);</span>
+            } else {
+<span class="nc" id="L467">                valueWriter.writeJSONB(jsonWriter, value, fieldName, fieldClass, features);</span>
+            }
+        } else {
+<span class="fc" id="L470">            valueWriter.write(jsonWriter, value, fieldName, fieldClass, features);</span>
+        }
+
+<span class="pc bpc" id="L473" title="1 of 2 branches missed.">        if (refDetect) {</span>
+<span class="nc" id="L474">            jsonWriter.popPath(value);</span>
+        }
+<span class="fc" id="L476">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.8.202204050719</span></div></body></html>

@@ -1,0 +1,389 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>CSVWriter.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">fastjson2</a> &gt; <a href="index.source.html" class="el_package">com.alibaba.fastjson2.support.csv</a> &gt; <span class="el_source">CSVWriter.java</span></div><h1>CSVWriter.java</h1><pre class="source lang-java linenums">package com.alibaba.fastjson2.support.csv;
+
+import com.alibaba.fastjson2.JSONFactory;
+import com.alibaba.fastjson2.codec.FieldInfo;
+import com.alibaba.fastjson2.util.*;
+import com.alibaba.fastjson2.writer.FieldWriter;
+import com.alibaba.fastjson2.writer.ObjectWriter;
+import com.alibaba.fastjson2.writer.ObjectWriterAdapter;
+import com.alibaba.fastjson2.writer.ObjectWriterProvider;
+
+import java.io.*;
+import java.math.BigDecimal;
+import java.math.BigInteger;
+import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
+import java.time.*;
+import java.time.format.DateTimeFormatter;
+import java.util.Date;
+import java.util.List;
+import java.util.Optional;
+import java.util.function.IntFunction;
+
+import static com.alibaba.fastjson2.util.DateUtils.DEFAULT_ZONE_ID;
+
+public abstract class CSVWriter
+        implements Closeable, Flushable {
+    private long features;
+
+    final ZoneId zoneId;
+
+    int off;
+
+<span class="fc" id="L33">    CSVWriter(ZoneId zoneId, Feature... features) {</span>
+<span class="pc bpc" id="L34" title="1 of 2 branches missed.">        for (Feature feature : features) {</span>
+<span class="nc" id="L35">            this.features |= feature.mask;</span>
+        }
+
+<span class="fc" id="L38">        this.zoneId = zoneId;</span>
+<span class="fc" id="L39">    }</span>
+
+    public static CSVWriter of() {
+<span class="fc" id="L42">        return of(new ByteArrayOutputStream());</span>
+    }
+
+    public static CSVWriter of(File file) throws FileNotFoundException {
+<span class="fc" id="L46">        return of(new FileOutputStream(file), StandardCharsets.UTF_8);</span>
+    }
+
+    public static CSVWriter of(File file, Charset charset) throws FileNotFoundException {
+<span class="fc" id="L50">        return of(new FileOutputStream(file), charset);</span>
+    }
+
+    public final void writeLineObject(Object object) {
+<span class="pc bpc" id="L54" title="1 of 2 branches missed.">        if (object == null) {</span>
+<span class="nc" id="L55">            this.writeLine();</span>
+<span class="nc" id="L56">            return;</span>
+        }
+<span class="fc" id="L58">        ObjectWriterProvider provider = JSONFactory.getDefaultObjectWriterProvider();</span>
+<span class="fc" id="L59">        Class&lt;?&gt; objectClass = object.getClass();</span>
+<span class="fc" id="L60">        ObjectWriter objectWriter = provider.getObjectWriter(objectClass);</span>
+<span class="pc bpc" id="L61" title="1 of 2 branches missed.">        if (objectWriter instanceof ObjectWriterAdapter) {</span>
+<span class="fc" id="L62">            ObjectWriterAdapter adapter = (ObjectWriterAdapter) objectWriter;</span>
+<span class="fc" id="L63">            List&lt;FieldWriter&gt; fieldWriters = adapter.getFieldWriters();</span>
+<span class="pc bpc" id="L64" title="3 of 4 branches missed.">            if (fieldWriters.size() == 1 &amp;&amp; (fieldWriters.get(0).features &amp; FieldInfo.VALUE_MASK) != 0) {</span>
+<span class="nc" id="L65">                Object fieldValue = fieldWriters.get(0).getFieldValue(object);</span>
+<span class="nc" id="L66">                writeLineObject(fieldValue);</span>
+<span class="nc" id="L67">                return;</span>
+            }
+
+<span class="fc" id="L70">            Object[] values = new Object[fieldWriters.size()];</span>
+<span class="fc bfc" id="L71" title="All 2 branches covered.">            for (int i = 0; i &lt; fieldWriters.size(); i++) {</span>
+<span class="fc" id="L72">                values[i] = fieldWriters.get(i).getFieldValue(object);</span>
+            }
+<span class="fc" id="L74">            writeLine(values);</span>
+<span class="fc" id="L75">        } else {</span>
+<span class="nc" id="L76">            writeLine(object);</span>
+        }
+<span class="fc" id="L78">    }</span>
+
+    public final void writeDate(Date date) {
+<span class="pc bpc" id="L81" title="1 of 2 branches missed.">        if (date == null) {</span>
+<span class="nc" id="L82">            return;</span>
+        }
+<span class="fc" id="L84">        long millis = date.getTime();</span>
+<span class="fc" id="L85">        writeDate(millis);</span>
+<span class="fc" id="L86">    }</span>
+
+    public final void writeInstant(Instant instant) {
+<span class="pc bpc" id="L89" title="1 of 2 branches missed.">        if (instant == null) {</span>
+<span class="nc" id="L90">            return;</span>
+        }
+
+<span class="fc" id="L93">        int nano = instant.getNano();</span>
+<span class="fc bfc" id="L94" title="All 2 branches covered.">        if (nano % 1000000 == 0) {</span>
+<span class="fc" id="L95">            long millis = instant.toEpochMilli();</span>
+<span class="fc" id="L96">            writeDate(millis);</span>
+<span class="fc" id="L97">            return;</span>
+        }
+
+<span class="pc bpc" id="L100" title="1 of 2 branches missed.">        if ((features &amp; Feature.AlwaysQuoteStrings.mask) != 0) {</span>
+<span class="nc" id="L101">            writeQuote();</span>
+        }
+
+<span class="fc" id="L104">        LocalDateTime ldt = instant.atZone(zoneId).toLocalDateTime();</span>
+<span class="fc" id="L105">        writeLocalDateTime(ldt);</span>
+<span class="fc" id="L106">    }</span>
+
+    public void writeLocalDate(LocalDate date) {
+<span class="pc bpc" id="L109" title="1 of 2 branches missed.">        if (date == null) {</span>
+<span class="nc" id="L110">            return;</span>
+        }
+<span class="fc" id="L112">        String str = DateTimeFormatter.ISO_LOCAL_DATE.format(date);</span>
+<span class="fc" id="L113">        writeRaw(str);</span>
+<span class="fc" id="L114">    }</span>
+
+    public abstract void writeLocalDateTime(LocalDateTime instant);
+
+//    protected abstract void writeDirect(byte[] bytes, int off, int len);
+
+    public final void writeLine(int columnCount, IntFunction function) {
+<span class="fc bfc" id="L121" title="All 2 branches covered.">        for (int i = 0; i &lt; columnCount; i++) {</span>
+<span class="fc" id="L122">            Object value = function.apply(i);</span>
+
+<span class="fc bfc" id="L124" title="All 2 branches covered.">            if (i != 0) {</span>
+<span class="fc" id="L125">                writeComma();</span>
+            }
+
+<span class="fc" id="L128">            writeValue(value);</span>
+        }
+
+<span class="fc" id="L131">        writeLine();</span>
+<span class="fc" id="L132">    }</span>
+
+    public final void writeLine(List values) {
+<span class="fc bfc" id="L135" title="All 2 branches covered.">        for (int i = 0; i &lt; values.size(); i++) {</span>
+<span class="fc bfc" id="L136" title="All 2 branches covered.">            if (i != 0) {</span>
+<span class="fc" id="L137">                writeComma();</span>
+            }
+
+<span class="fc" id="L140">            writeValue(values.get(i));</span>
+        }
+
+<span class="fc" id="L143">        writeLine();</span>
+<span class="fc" id="L144">    }</span>
+
+    public final void writeLine(Object... values) {
+<span class="fc bfc" id="L147" title="All 2 branches covered.">        for (int i = 0; i &lt; values.length; i++) {</span>
+<span class="fc bfc" id="L148" title="All 2 branches covered.">            if (i != 0) {</span>
+<span class="fc" id="L149">                writeComma();</span>
+            }
+
+<span class="fc" id="L152">            writeValue(values[i]);</span>
+        }
+
+<span class="fc" id="L155">        writeLine();</span>
+<span class="fc" id="L156">    }</span>
+
+    public abstract void writeComma();
+
+    protected abstract void writeQuote();
+
+    public abstract void writeLine();
+
+    public void writeValue(Object value) {
+<span class="pc bpc" id="L165" title="1 of 2 branches missed.">        if (value == null) {</span>
+<span class="nc" id="L166">            return;</span>
+        }
+
+<span class="pc bpc" id="L169" title="1 of 2 branches missed.">        if (value instanceof Optional) {</span>
+<span class="nc" id="L170">            Optional optional = (Optional) value;</span>
+<span class="nc bnc" id="L171" title="All 2 branches missed.">            if (!optional.isPresent()) {</span>
+<span class="nc" id="L172">                return;</span>
+            }
+<span class="nc" id="L174">            value = optional.get();</span>
+        }
+
+<span class="fc bfc" id="L177" title="All 2 branches covered.">        if (value instanceof Integer) {</span>
+<span class="fc" id="L178">            this.writeInt32((Integer) value);</span>
+<span class="fc bfc" id="L179" title="All 2 branches covered.">        } else if (value instanceof Long) {</span>
+<span class="fc" id="L180">            this.writeInt64((Long) value);</span>
+<span class="fc bfc" id="L181" title="All 2 branches covered.">        } else if (value instanceof String) {</span>
+<span class="fc" id="L182">            writeString((String) value);</span>
+<span class="fc bfc" id="L183" title="All 2 branches covered.">        } else if (value instanceof Boolean) {</span>
+<span class="fc" id="L184">            boolean booleanValue = (Boolean) value;</span>
+<span class="fc" id="L185">            writeBoolean(booleanValue);</span>
+<span class="fc bfc" id="L186" title="All 2 branches covered.">        } else if (value instanceof Float) {</span>
+<span class="fc" id="L187">            float floatValue = (Float) value;</span>
+<span class="fc" id="L188">            writeFloat(floatValue);</span>
+<span class="fc bfc" id="L189" title="All 2 branches covered.">        } else if (value instanceof Double) {</span>
+<span class="fc" id="L190">            writeDouble((Double) value);</span>
+<span class="fc bfc" id="L191" title="All 2 branches covered.">        } else if (value instanceof Short) {</span>
+<span class="fc" id="L192">            this.writeInt32(((Short) value).intValue());</span>
+<span class="fc bfc" id="L193" title="All 2 branches covered.">        } else if (value instanceof Byte) {</span>
+<span class="fc" id="L194">            this.writeInt32(((Byte) value).intValue());</span>
+<span class="fc bfc" id="L195" title="All 2 branches covered.">        } else if (value instanceof BigDecimal) {</span>
+<span class="fc" id="L196">            writeDecimal((BigDecimal) value);</span>
+<span class="fc bfc" id="L197" title="All 2 branches covered.">        } else if (value instanceof BigInteger) {</span>
+<span class="fc" id="L198">            writeBigInteger((BigInteger) value);</span>
+<span class="fc bfc" id="L199" title="All 2 branches covered.">        } else if (value instanceof Date) {</span>
+<span class="fc" id="L200">            writeDate((Date) value);</span>
+<span class="fc bfc" id="L201" title="All 2 branches covered.">        } else if (value instanceof Instant) {</span>
+<span class="fc" id="L202">            writeInstant((Instant) value);</span>
+<span class="fc bfc" id="L203" title="All 2 branches covered.">        } else if (value instanceof LocalDate) {</span>
+<span class="fc" id="L204">            writeLocalDate((LocalDate) value);</span>
+<span class="fc bfc" id="L205" title="All 2 branches covered.">        } else if (value instanceof LocalDateTime) {</span>
+<span class="fc" id="L206">            writeLocalDateTime((LocalDateTime) value);</span>
+        } else {
+<span class="fc" id="L208">            String str = value.toString();</span>
+<span class="fc" id="L209">            writeString(str);</span>
+        }
+<span class="fc" id="L211">    }</span>
+
+    public void writeBigInteger(BigInteger value) {
+<span class="pc bpc" id="L214" title="1 of 2 branches missed.">        if (value == null) {</span>
+<span class="nc" id="L215">            return;</span>
+        }
+
+<span class="fc" id="L218">        String str = value.toString();</span>
+<span class="fc" id="L219">        writeRaw(str);</span>
+<span class="fc" id="L220">    }</span>
+
+    public abstract void writeBoolean(boolean booleanValue);
+
+    public abstract void writeInt64(long longValue);
+
+    public final void writeDate(long millis) {
+<span class="fc" id="L227">        ZoneId zoneId = this.zoneId;</span>
+
+<span class="fc" id="L229">        final int SECONDS_PER_DAY = 60 * 60 * 24;</span>
+<span class="fc" id="L230">        long epochSecond = Math.floorDiv(millis, 1000L);</span>
+        int offsetTotalSeconds;
+<span class="pc bpc" id="L232" title="3 of 4 branches missed.">        if (zoneId == DateUtils.SHANGHAI_ZONE_ID || zoneId.getRules() == DateUtils.SHANGHAI_ZONE_RULES) {</span>
+<span class="fc" id="L233">            offsetTotalSeconds = DateUtils.getShanghaiZoneOffsetTotalSeconds(epochSecond);</span>
+        } else {
+<span class="nc" id="L235">            Instant instant = Instant.ofEpochMilli(millis);</span>
+<span class="nc" id="L236">            offsetTotalSeconds = zoneId.getRules().getOffset(instant).getTotalSeconds();</span>
+        }
+
+<span class="fc" id="L239">        long localSecond = epochSecond + offsetTotalSeconds;</span>
+<span class="fc" id="L240">        long localEpochDay = Math.floorDiv(localSecond, (long) SECONDS_PER_DAY);</span>
+<span class="fc" id="L241">        int secsOfDay = (int) Math.floorMod(localSecond, (long) SECONDS_PER_DAY);</span>
+        int year, month, dayOfMonth;
+        {
+<span class="fc" id="L244">            final int DAYS_PER_CYCLE = 146097;</span>
+<span class="fc" id="L245">            final long DAYS_0000_TO_1970 = (DAYS_PER_CYCLE * 5L) - (30L * 365L + 7L);</span>
+
+<span class="fc" id="L247">            long zeroDay = localEpochDay + DAYS_0000_TO_1970;</span>
+            // find the march-based year
+<span class="fc" id="L249">            zeroDay -= 60;  // adjust to 0000-03-01 so leap day is at end of four-year cycle</span>
+<span class="fc" id="L250">            long adjust = 0;</span>
+<span class="pc bpc" id="L251" title="1 of 2 branches missed.">            if (zeroDay &lt; 0) {</span>
+                // adjust negative years to positive for calculation
+<span class="nc" id="L253">                long adjustCycles = (zeroDay + 1) / DAYS_PER_CYCLE - 1;</span>
+<span class="nc" id="L254">                adjust = adjustCycles * 400;</span>
+<span class="nc" id="L255">                zeroDay += -adjustCycles * DAYS_PER_CYCLE;</span>
+            }
+<span class="fc" id="L257">            long yearEst = (400 * zeroDay + 591) / DAYS_PER_CYCLE;</span>
+<span class="fc" id="L258">            long doyEst = zeroDay - (365 * yearEst + yearEst / 4 - yearEst / 100 + yearEst / 400);</span>
+<span class="pc bpc" id="L259" title="1 of 2 branches missed.">            if (doyEst &lt; 0) {</span>
+                // fix estimate
+<span class="nc" id="L261">                yearEst--;</span>
+<span class="nc" id="L262">                doyEst = zeroDay - (365 * yearEst + yearEst / 4 - yearEst / 100 + yearEst / 400);</span>
+            }
+<span class="fc" id="L264">            yearEst += adjust;  // reset any negative year</span>
+<span class="fc" id="L265">            int marchDoy0 = (int) doyEst;</span>
+
+            // convert march-based values back to january-based
+<span class="fc" id="L268">            int marchMonth0 = (marchDoy0 * 5 + 2) / 153;</span>
+<span class="fc" id="L269">            month = (marchMonth0 + 2) % 12 + 1;</span>
+<span class="fc" id="L270">            dayOfMonth = marchDoy0 - (marchMonth0 * 306 + 5) / 10 + 1;</span>
+<span class="fc" id="L271">            yearEst += marchMonth0 / 10;</span>
+
+            // check year now we are certain it is correct
+<span class="pc bpc" id="L274" title="2 of 4 branches missed.">            if (yearEst &lt; Year.MIN_VALUE || yearEst &gt; Year.MAX_VALUE) {</span>
+<span class="nc" id="L275">                throw new DateTimeException(&quot;Invalid year &quot; + yearEst);</span>
+            }
+
+<span class="fc" id="L278">            year = (int) yearEst;</span>
+        }
+
+        int hour, minute, second;
+        {
+<span class="fc" id="L283">            final int MINUTES_PER_HOUR = 60;</span>
+<span class="fc" id="L284">            final int SECONDS_PER_MINUTE = 60;</span>
+<span class="fc" id="L285">            final int SECONDS_PER_HOUR = SECONDS_PER_MINUTE * MINUTES_PER_HOUR;</span>
+
+<span class="fc" id="L287">            long secondOfDay = secsOfDay;</span>
+<span class="pc bpc" id="L288" title="2 of 4 branches missed.">            if (secondOfDay &lt; 0 || secondOfDay &gt; 86399) {</span>
+<span class="nc" id="L289">                throw new DateTimeException(&quot;Invalid secondOfDay &quot; + secondOfDay);</span>
+            }
+<span class="fc" id="L291">            int hours = (int) (secondOfDay / SECONDS_PER_HOUR);</span>
+<span class="fc" id="L292">            secondOfDay -= hours * SECONDS_PER_HOUR;</span>
+<span class="fc" id="L293">            int minutes = (int) (secondOfDay / SECONDS_PER_MINUTE);</span>
+<span class="fc" id="L294">            secondOfDay -= minutes * SECONDS_PER_MINUTE;</span>
+
+<span class="fc" id="L296">            hour = hours;</span>
+<span class="fc" id="L297">            minute = minutes;</span>
+<span class="fc" id="L298">            second = (int) secondOfDay;</span>
+        }
+
+<span class="pc bpc" id="L301" title="2 of 4 branches missed.">        if (year &gt;= 0 &amp;&amp; year &lt;= 9999) {</span>
+<span class="fc" id="L302">            int mos = (int) Math.floorMod(millis, 1000L);</span>
+<span class="fc bfc" id="L303" title="All 2 branches covered.">            if (mos == 0) {</span>
+<span class="pc bpc" id="L304" title="2 of 6 branches missed.">                if (hour == 0 &amp;&amp; minute == 0 &amp;&amp; second == 0) {</span>
+<span class="fc" id="L305">                    writeDateYYYMMDD10(year, month, dayOfMonth);</span>
+                } else {
+<span class="fc" id="L307">                    writeDateTime19(year, month, dayOfMonth, hour, minute, second);</span>
+                }
+<span class="fc" id="L309">                return;</span>
+            }
+        }
+
+<span class="fc" id="L313">        String str = DateUtils.toString(millis, false, zoneId);</span>
+<span class="fc" id="L314">        writeRaw(str);</span>
+<span class="fc" id="L315">    }</span>
+
+    public abstract void writeDateYYYMMDD10(int year, int month, int dayOfMonth);
+
+    public abstract void writeDateTime19(
+            int year,
+            int month,
+            int dayOfMonth,
+            int hour,
+            int minute,
+            int second);
+
+    public abstract void writeString(String value);
+
+    public abstract void writeInt32(int intValue);
+
+    public abstract void writeDouble(double value);
+
+    public abstract void writeFloat(float value);
+
+    public abstract void flush();
+
+    public abstract void writeString(byte[] utf8);
+
+    public abstract void writeDecimal(BigDecimal value);
+
+    public abstract void writeDecimal(long unscaledVal, int scale);
+
+    protected abstract void writeRaw(String str);
+
+    @Override
+    public abstract void close() throws IOException;
+
+    public static CSVWriter of(OutputStream out, Feature... features) {
+<span class="fc" id="L349">        return new CSVWriterUTF8(out, StandardCharsets.UTF_8, DEFAULT_ZONE_ID, features);</span>
+    }
+
+    public static CSVWriter of(OutputStream out, Charset charset) {
+<span class="fc" id="L353">        return of(out, charset, DEFAULT_ZONE_ID);</span>
+    }
+
+    public static CSVWriter of(OutputStream out, Charset charset, ZoneId zoneId) {
+<span class="pc bpc" id="L357" title="2 of 6 branches missed.">        if (charset == StandardCharsets.UTF_16</span>
+                || charset == StandardCharsets.UTF_16LE
+                || charset == StandardCharsets.UTF_16BE
+        ) {
+<span class="fc" id="L361">            return of(new OutputStreamWriter(out, charset), zoneId);</span>
+        }
+
+<span class="pc bpc" id="L364" title="1 of 2 branches missed.">        if (charset == null) {</span>
+<span class="nc" id="L365">            charset = StandardCharsets.UTF_8;</span>
+        }
+
+<span class="fc" id="L368">        return new CSVWriterUTF8(out, charset, zoneId);</span>
+    }
+
+    public static CSVWriter of(Writer out) {
+<span class="fc" id="L372">        return new CSVWriterUTF16(out, DEFAULT_ZONE_ID);</span>
+    }
+
+    public static CSVWriter of(Writer out, ZoneId zoneId) {
+<span class="fc" id="L376">        return new CSVWriterUTF16(out, zoneId);</span>
+    }
+
+<span class="fc" id="L379">    public enum Feature {</span>
+<span class="fc" id="L380">        AlwaysQuoteStrings(1);</span>
+
+        public final long mask;
+
+<span class="fc" id="L384">        Feature(long mask) {</span>
+<span class="fc" id="L385">            this.mask = mask;</span>
+<span class="fc" id="L386">        }</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.8.202204050719</span></div></body></html>

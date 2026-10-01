@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ObjectWriterImplListEnum.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">fastjson2</a> &gt; <a href="index.source.html" class="el_package">com.alibaba.fastjson2.writer</a> &gt; <span class="el_source">ObjectWriterImplListEnum.java</span></div><h1>ObjectWriterImplListEnum.java</h1><pre class="source lang-java linenums">package com.alibaba.fastjson2.writer;
+
+import com.alibaba.fastjson2.JSONWriter;
+import com.alibaba.fastjson2.util.TypeUtils;
+
+import java.lang.reflect.Type;
+import java.util.List;
+
+final class ObjectWriterImplListEnum
+        extends ObjectWriterPrimitiveImpl {
+    final Class defineClass;
+    final Class enumType;
+    final long features;
+
+    byte[] typeNameJSONB;
+
+<span class="fc" id="L17">    public ObjectWriterImplListEnum(Class defineClass, Class enumType, long features) {</span>
+<span class="fc" id="L18">        this.defineClass = defineClass;</span>
+<span class="fc" id="L19">        this.enumType = enumType;</span>
+<span class="fc" id="L20">        this.features = features;</span>
+<span class="fc" id="L21">    }</span>
+
+    @Override
+    public void writeJSONB(JSONWriter jsonWriter, Object object, Object fieldName, Type fieldType, long features) {
+<span class="pc bpc" id="L25" title="1 of 2 branches missed.">        if (object == null) {</span>
+<span class="nc" id="L26">            jsonWriter.writeNull();</span>
+<span class="nc" id="L27">            return;</span>
+        }
+
+<span class="fc" id="L30">        Class&lt;?&gt; objectClass = object.getClass();</span>
+<span class="pc bpc" id="L31" title="1 of 4 branches missed.">        if (jsonWriter.isWriteTypeInfo(object) &amp;&amp; defineClass != objectClass) {</span>
+<span class="fc" id="L32">            jsonWriter.writeTypeName(TypeUtils.getTypeName(objectClass));</span>
+        }
+
+<span class="fc" id="L35">        List list = (List) object;</span>
+
+<span class="fc" id="L37">        int size = list.size();</span>
+<span class="fc" id="L38">        jsonWriter.startArray(size);</span>
+
+<span class="fc" id="L40">        boolean writeEnumUsingToString = jsonWriter.isEnabled(JSONWriter.Feature.WriteEnumUsingToString);</span>
+<span class="fc bfc" id="L41" title="All 2 branches covered.">        for (int i = 0; i &lt; size; i++) {</span>
+<span class="fc" id="L42">            Enum e = (Enum) list.get(i);</span>
+<span class="fc bfc" id="L43" title="All 2 branches covered.">            if (e == null) {</span>
+<span class="fc" id="L44">                jsonWriter.writeNull();</span>
+<span class="fc" id="L45">                continue;</span>
+            }
+<span class="fc" id="L47">            Class enumClass = e.getClass();</span>
+<span class="fc bfc" id="L48" title="All 2 branches covered.">            if (enumClass != enumType) {</span>
+<span class="fc" id="L49">                ObjectWriter enumWriter = jsonWriter.getObjectWriter(enumClass);</span>
+<span class="fc" id="L50">                enumWriter.writeJSONB(jsonWriter, e, null, enumType, this.features | features);</span>
+<span class="fc" id="L51">                continue;</span>
+            }
+
+            String str;
+<span class="pc bpc" id="L55" title="1 of 2 branches missed.">            if (writeEnumUsingToString) {</span>
+<span class="nc" id="L56">                str = e.toString();</span>
+            } else {
+<span class="fc" id="L58">                str = e.name();</span>
+            }
+<span class="fc" id="L60">            jsonWriter.writeString(str);</span>
+        }
+<span class="fc" id="L62">        jsonWriter.endArray();</span>
+<span class="fc" id="L63">    }</span>
+
+    @Override
+    public void write(JSONWriter jsonWriter, Object object, Object fieldName, Type fieldType, long features) {
+<span class="nc bnc" id="L67" title="All 2 branches missed.">        if (object == null) {</span>
+<span class="nc" id="L68">            jsonWriter.writeNull();</span>
+<span class="nc" id="L69">            return;</span>
+        }
+
+<span class="nc" id="L72">        List list = (List) object;</span>
+
+<span class="nc" id="L74">        jsonWriter.startArray();</span>
+<span class="nc bnc" id="L75" title="All 2 branches missed.">        for (int i = 0; i &lt; list.size(); i++) {</span>
+<span class="nc bnc" id="L76" title="All 2 branches missed.">            if (i != 0) {</span>
+<span class="nc" id="L77">                jsonWriter.writeComma();</span>
+            }
+
+<span class="nc" id="L80">            String item = (String) list.get(i);</span>
+<span class="nc bnc" id="L81" title="All 2 branches missed.">            if (item == null) {</span>
+<span class="nc" id="L82">                jsonWriter.writeNull();</span>
+<span class="nc" id="L83">                continue;</span>
+            }
+<span class="nc" id="L85">            jsonWriter.writeString(item);</span>
+        }
+<span class="nc" id="L87">        jsonWriter.endArray();</span>
+<span class="nc" id="L88">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.8.202204050719</span></div></body></html>

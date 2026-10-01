@@ -1,0 +1,204 @@
+==================================================
+You are an expert Java software engineer and test automation specialist. Your task is to generate unit tests for the provided patch.
+
+### Condition:
+You should strictly follow the conditions::
+1. Cover the changes introduced by the patch.
+2. Compile successfully. The generated test code must be syntactically correct and compatible with the existing codebase.
+3. Pass after the patch is applied. The test should succeed once the patch is applied, demonstrating that the issue is fixed.
+
+### Output
+Provide the full source code of the test class(es) to be added. The test code must be enclosed in a java code block using ```java ``` format. Include:
+1. The appropriate package declaration and imports.
+2. The test class with a descriptive name (e.g., OriginalClassTest or Issue123Test).
+3. Clear assertions that validate the expected behavior.
+
+IMPORTANT TIPS: 
+    * Your reply can only contain one ```java ``` block!
+    * You should first check whether the resovled issue or structured requirements contains a reproduction method. If it does, just follow the method.
+    * If the issue statements suggest you add some test cases, please omit them!
+    * YOU CAN USE ASSERT IN YOUR REPRODUCE. YOU CAN USE ASSERT IN YOUR REPRODUCE. YOU CAN USE ASSERT IN YOUR REPRODUCE.
+    * YOU MUST FOLLOW THE CONDITIONS. YOU MUST FOLLOW THE CONDITIONS. YOU MUST FOLLOW THE CONDITIONS. 
+
+The following are the patch, related code and other information.
+## PATCH
+diff --git a/core/src/main/java/com/alibaba/fastjson2/JSON.java b/core/src/main/java/com/alibaba/fastjson2/JSON.java
+index 2407c645c9..afbf8404f1 100644
+--- a/core/src/main/java/com/alibaba/fastjson2/JSON.java
++++ b/core/src/main/java/com/alibaba/fastjson2/JSON.java
+@@ -999,6 +999,37 @@ static <T> T parseObject(String text, Type type) {
+         }
+     }
+ 
++    /**
++     * Parses the json string as {@link T}. Returns {@code null}
++     * if received {@link String} is {@code null} or empty or its content is null.
++     *
++     * @param text the specified string to be parsed
++     * @param type the specified actual type of {@link T}
++     * @param context the specified custom context
++     * @return {@link T} or {@code null}
++     * @throws JSONException If a parsing error occurs
++     * @since 2.0.52
++     */
++    @SuppressWarnings("unchecked")
++    static <T> T parseObject(String text, Type type, JSONReader.Context context) {
++        if (text == null || text.isEmpty()) {
++            return null;
++        }
++
++        final ObjectReader<T> objectReader = context.getObjectReader(type);
++
++        try (JSONReader reader = JSONReader.of(text, context)) {
++            T object = objectReader.readObject(reader, type, null, 0);
++            if (reader.resolveTasks != null) {
++                reader.handleResolveTasks(object);
++            }
++            if (reader.ch != EOI && (context.features & IgnoreCheckClose.mask) == 0) {
++                throw new JSONException(reader.info("input not end"));
++            }
++            return object;
++        }
++    }
++
+     /**
+      * Parses the json string as {@link T}. Returns
+      * {@code null} if received {@link String} is {@code null} or empty.
+
+
+## CONTEXT
+Here is the focal method that you need to generate test cases for:
+@SuppressWarnings("unchecked")
+    static <T> T parseObject(String text, Type type, JSONReader.Context context) {
+        if (text == null || text.isEmpty()) {
+            return null;
+        }
+
+        final ObjectReader<T> objectReader = context.getObjectReader(type);
+
+        try (JSONReader reader = JSONReader.of(text, context)) {
+            T object = objectReader.readObject(reader, type, null, 0);
+            if (reader.resolveTasks != null) {
+                reader.handleResolveTasks(object);
+            }
+            if (reader.ch != EOI && (context.features & IgnoreCheckClose.mask) == 0) {
+                throw new JSONException(reader.info("input not end"));
+            }
+            return object;
+        }
+    }
+
+Here is the PR about the patch:
+add new method JSON.parseObject(String, Type, JSONReader.Context)
+### What this PR does / why we need it?
+
+add new method JSON.parseObject(String, Type, JSONReader.Context), ref #2774
+
+close #2774
+
+### Summary of your change
+
+
+
+#### Please indicate you've done the following:
+
+- [ ] Made sure tests are passing and test coverage is added if needed.
+- [ ] Made sure commit message follow the rule of [Conventional Commits specification](https://www.conventionalcommits.org/).
+- [ ] Considered the docs impact and opened a new docs issue or PR with docs changes if needed.
+
+
+
+Here is the resovled issue about the patch:
+[FEATURE] 需要个新接口：JSON.parseObject(String, Type, JSONReader.Context)
+目前有：
+
+```java
+JSON.parseObject(String, Class<?>, JSONReader.Context)
+JSON.parseObject(String, Type)
+```
+
+需要加个新的：
+
+```java
+JSON.parseObject(String, Type, JSONReader.Context)
+```
+
+
+The following is the relative information about the focal method:
+<Package name>
+com.alibaba.fastjson2
+</Package name>
+
+<Imports>
+
+import com.alibaba.fastjson2.modules.ObjectReaderModule;
+import com.alibaba.fastjson2.modules.ObjectWriterModule;
+import com.alibaba.fastjson2.writer.FieldWriter;
+import java.io.OutputStream;
+import com.alibaba.fastjson2.writer.ObjectWriterProvider;
+import java.util.*;
+import static com.alibaba.fastjson2.JSONReader.Feature.UseNativeObject;
+import com.alibaba.fastjson2.util.DateUtils;
+import com.alibaba.fastjson2.util.MultiType;
+import com.alibaba.fastjson2.writer.ObjectWriterAdapter;
+import java.io.InputStream;
+import java.io.IOException;
+import java.time.ZoneId;
+import static com.alibaba.fastjson2.JSONFactory.*;
+import com.alibaba.fastjson2.filter.*;
+import com.alibaba.fastjson2.util.MapMultiValueType;
+import com.alibaba.fastjson2.util.TypeUtils;
+import java.lang.reflect.Type;
+import java.time.LocalDate;
+import static com.alibaba.fastjson2.JSONReader.EOI;
+import com.alibaba.fastjson2.reader.*;
+import com.alibaba.fastjson2.writer.ObjectWriter;
+import java.net.URL;
+import java.io.Reader;
+import java.nio.ByteBuffer;
+import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
+import java.util.function.Consumer;
+import java.util.function.Function;
+import static com.alibaba.fastjson2.JSONReader.Feature.IgnoreCheckClose;
+</Imports>
+
+<Focal class>
+JSON
+</Focal class>
+
+<Field>
+
+</Field>
+
+<Adjacent methods>
+
+parse(String)
+parseArray(String)
+mixIn(Class<?>,Class<?>)
+register(ObjectReaderModule)
+registerSeeAlsoSubType(Class)
+toJSONString(Object)
+isValid(char[])
+toJavaObject(Object,Class<T>)
+toJSONBytes(Object)
+writeTo(OutputStream,Object,String,Filter[])
+isEnabled(JSONReader.Feature)
+config(JSONReader.Feature,boolean)
+registerIfAbsent(Type,ObjectReader<?>,boolean)
+isValidArray(byte[])
+isValidObject(byte[])
+copyTo(Object,Class<T>)
+configWriterZoneId(ZoneId)
+toJSON(Object)
+configReaderZoneId(ZoneId)
+copy(T)
+configWriterDateFormat(String)
+configReaderDateFormat(String)
+to(Class<T>,Object)
+</Adjacent methods>
+
+<Inner methods>
+
+</Inner methods>
+

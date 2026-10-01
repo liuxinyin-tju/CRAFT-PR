@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>MethodCollector.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">fastjson2</a> &gt; <a href="index.source.html" class="el_package">com.alibaba.fastjson2.internal.asm</a> &gt; <span class="el_source">MethodCollector.java</span></div><h1>MethodCollector.java</h1><pre class="source lang-java linenums">package com.alibaba.fastjson2.internal.asm;
+
+/**
+ * Created by wenshao on 05/08/2017.
+ */
+public class MethodCollector {
+    private final int paramCount;
+
+    private final int ignoreCount;
+
+    private int currentParameter;
+
+    private final StringBuilder result;
+
+    protected boolean debugInfoPresent;
+
+<span class="fc" id="L17">    protected MethodCollector(int ignoreCount, int paramCount) {</span>
+<span class="fc" id="L18">        this.ignoreCount = ignoreCount;</span>
+<span class="fc" id="L19">        this.paramCount = paramCount;</span>
+<span class="fc" id="L20">        this.result = new StringBuilder();</span>
+<span class="fc" id="L21">        this.currentParameter = 0;</span>
+        // if there are 0 parameters, there is no need for debug info
+<span class="pc bpc" id="L23" title="1 of 2 branches missed.">        this.debugInfoPresent = paramCount == 0;</span>
+<span class="fc" id="L24">    }</span>
+
+    protected void visitLocalVariable(String name, int index) {
+<span class="fc bfc" id="L27" title="All 4 branches covered.">        if (index &gt;= ignoreCount &amp;&amp; index &lt; ignoreCount + paramCount) {</span>
+<span class="pc bpc" id="L28" title="1 of 2 branches missed.">            if (!(&quot;arg&quot; + currentParameter).equals(name)) {</span>
+<span class="fc" id="L29">                debugInfoPresent = true;</span>
+            }
+<span class="fc" id="L31">            result.append(',');</span>
+<span class="fc" id="L32">            result.append(name);</span>
+<span class="fc" id="L33">            currentParameter++;</span>
+        }
+<span class="fc" id="L35">    }</span>
+
+    protected String getResult() {
+<span class="pc bpc" id="L38" title="1 of 2 branches missed.">        return result.length() != 0 ? result.substring(1) : &quot;&quot;;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.8.202204050719</span></div></body></html>

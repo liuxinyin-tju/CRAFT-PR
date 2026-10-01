@@ -1,0 +1,126 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ObjectReaderImplMethod.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">fastjson2</a> &gt; <a href="index.source.html" class="el_package">com.alibaba.fastjson2.reader</a> &gt; <span class="el_source">ObjectReaderImplMethod.java</span></div><h1>ObjectReaderImplMethod.java</h1><pre class="source lang-java linenums">package com.alibaba.fastjson2.reader;
+
+import com.alibaba.fastjson2.JSONException;
+import com.alibaba.fastjson2.JSONReader;
+import com.alibaba.fastjson2.util.Fnv;
+import com.alibaba.fastjson2.util.TypeUtils;
+
+import java.lang.reflect.Method;
+import java.lang.reflect.Type;
+import java.util.List;
+
+<span class="fc" id="L12">public class ObjectReaderImplMethod</span>
+        implements ObjectReader&lt;Method&gt; {
+<span class="fc" id="L14">    static final long HASH_DECLARING_CLASS = Fnv.hashCode64(&quot;declaringClass&quot;);</span>
+<span class="fc" id="L15">    static final long HASH_NAME = Fnv.hashCode64(&quot;name&quot;);</span>
+<span class="fc" id="L16">    static final long HASH_PARAMETER_TYPES = Fnv.hashCode64(&quot;parameterTypes&quot;);</span>
+
+    @Override
+    public Method readJSONBObject(JSONReader jsonReader, Type fieldType, Object fieldName, long features) {
+<span class="fc" id="L20">        return readObject(jsonReader, fieldType, fieldName, features);</span>
+    }
+
+    @Override
+    public Method readArrayMappingJSONBObject(JSONReader jsonReader, Type fieldType, Object fieldName, long features) {
+<span class="fc" id="L25">        int entryCount = jsonReader.startArray();</span>
+<span class="pc bpc" id="L26" title="1 of 2 branches missed.">        if (entryCount != 3) {</span>
+<span class="nc" id="L27">            throw new JSONException(&quot;not support input &quot; + jsonReader.info());</span>
+        }
+
+<span class="fc" id="L30">        String declaringClassName = jsonReader.readString();</span>
+<span class="fc" id="L31">        String methodName = jsonReader.readString();</span>
+<span class="fc" id="L32">        List&lt;String&gt; paramTypeNames = jsonReader.readArray(String.class);</span>
+
+<span class="fc" id="L34">        return getMethod(jsonReader.getContext().getFeatures() | features, methodName, declaringClassName, paramTypeNames);</span>
+    }
+
+    @Override
+    public Method readArrayMappingObject(JSONReader jsonReader, Type fieldType, Object fieldName, long features) {
+<span class="fc" id="L39">        boolean arrayStart = jsonReader.nextIfArrayStart();</span>
+<span class="pc bpc" id="L40" title="1 of 2 branches missed.">        if (!arrayStart) {</span>
+<span class="nc" id="L41">            throw new JSONException(&quot;not support input &quot; + jsonReader.info());</span>
+        }
+
+<span class="fc" id="L44">        String declaringClassName = jsonReader.readString();</span>
+<span class="fc" id="L45">        String methodName = jsonReader.readString();</span>
+<span class="fc" id="L46">        List&lt;String&gt; paramTypeNames = jsonReader.readArray(String.class);</span>
+
+<span class="fc" id="L48">        boolean arrayEnd = jsonReader.nextIfArrayEnd();</span>
+<span class="pc bpc" id="L49" title="1 of 2 branches missed.">        if (!arrayEnd) {</span>
+<span class="nc" id="L50">            throw new JSONException(&quot;not support input &quot; + jsonReader.info());</span>
+        }
+
+<span class="fc" id="L53">        jsonReader.nextIfComma();</span>
+
+<span class="fc" id="L55">        return getMethod(jsonReader.getContext().getFeatures() | features, methodName, declaringClassName, paramTypeNames);</span>
+    }
+
+    @Override
+    public Method readObject(JSONReader jsonReader, Type fieldType, Object fieldName, long features) {
+<span class="fc" id="L60">        boolean objectStart = jsonReader.nextIfObjectStart();</span>
+<span class="fc bfc" id="L61" title="All 2 branches covered.">        if (!objectStart) {</span>
+<span class="pc bpc" id="L62" title="1 of 2 branches missed.">            if (jsonReader.isSupportBeanArray(features)) {</span>
+<span class="fc bfc" id="L63" title="All 2 branches covered.">                if (jsonReader.jsonb) {</span>
+<span class="fc" id="L64">                    return readArrayMappingJSONBObject(jsonReader, fieldType, fieldName, features);</span>
+                } else {
+<span class="fc" id="L66">                    return readArrayMappingObject(jsonReader, fieldType, fieldName, features);</span>
+                }
+            }
+<span class="nc" id="L69">            throw new JSONException(&quot;not support input &quot; + jsonReader.info());</span>
+        }
+
+<span class="fc" id="L72">        String methodName = null, declaringClassName = null;</span>
+<span class="fc" id="L73">        List&lt;String&gt; paramTypeNames = null;</span>
+
+<span class="fc bfc" id="L75" title="All 2 branches covered.">        while (!jsonReader.nextIfObjectEnd()) {</span>
+<span class="fc" id="L76">            long nameHashCode = jsonReader.readFieldNameHashCode();</span>
+<span class="fc bfc" id="L77" title="All 2 branches covered.">            if (nameHashCode == HASH_DECLARING_CLASS) {</span>
+<span class="fc" id="L78">                declaringClassName = jsonReader.readString();</span>
+<span class="fc bfc" id="L79" title="All 2 branches covered.">            } else if (nameHashCode == HASH_NAME) {</span>
+<span class="fc" id="L80">                methodName = jsonReader.readString();</span>
+<span class="pc bpc" id="L81" title="1 of 2 branches missed.">            } else if (nameHashCode == HASH_PARAMETER_TYPES) {</span>
+<span class="fc" id="L82">                paramTypeNames = jsonReader.readArray(String.class);</span>
+            } else {
+<span class="nc" id="L84">                jsonReader.skipValue();</span>
+            }
+<span class="fc" id="L86">        }</span>
+
+<span class="fc bfc" id="L88" title="All 2 branches covered.">        if (!jsonReader.jsonb) {</span>
+<span class="fc" id="L89">            jsonReader.nextIfComma();</span>
+        }
+
+<span class="fc" id="L92">        return getMethod(jsonReader.getContext().getFeatures() | features, methodName, declaringClassName, paramTypeNames);</span>
+    }
+
+    private Method getMethod(long features,
+                             String methodName,
+                             String declaringClassName,
+                             List&lt;String&gt; paramTypeNames) {
+        Class declaringClass;
+
+<span class="fc bfc" id="L101" title="All 2 branches covered.">        boolean supportClassForName = (features &amp; JSONReader.Feature.SupportClassForName.mask) != 0;</span>
+<span class="fc bfc" id="L102" title="All 2 branches covered.">        if (supportClassForName) {</span>
+<span class="fc" id="L103">            declaringClass = TypeUtils.loadClass(declaringClassName);</span>
+        } else {
+<span class="fc" id="L105">            throw new JSONException(&quot;ClassForName not support&quot;);</span>
+        }
+
+        Class[] paramTypes;
+<span class="pc bpc" id="L109" title="1 of 2 branches missed.">        if (paramTypeNames == null) {</span>
+<span class="nc" id="L110">            paramTypes = new Class[0];</span>
+        } else {
+<span class="fc" id="L112">            paramTypes = new Class[paramTypeNames.size()];</span>
+<span class="fc bfc" id="L113" title="All 2 branches covered.">            for (int i = 0; i &lt; paramTypeNames.size(); i++) {</span>
+<span class="fc" id="L114">                String paramTypeName = paramTypeNames.get(i);</span>
+<span class="fc" id="L115">                paramTypes[i] = TypeUtils.loadClass(paramTypeName);</span>
+            }
+        }
+
+        try {
+<span class="fc" id="L120">            return declaringClass.getDeclaredMethod(methodName, paramTypes);</span>
+<span class="nc" id="L121">        } catch (NoSuchMethodException e) {</span>
+<span class="nc" id="L122">            throw new JSONException(&quot;method not found&quot;, e);</span>
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.8.202204050719</span></div></body></html>

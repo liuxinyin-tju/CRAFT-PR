@@ -1,0 +1,258 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ApacheLang3Support.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">fastjson2</a> &gt; <a href="index.source.html" class="el_package">com.alibaba.fastjson2.util</a> &gt; <span class="el_source">ApacheLang3Support.java</span></div><h1>ApacheLang3Support.java</h1><pre class="source lang-java linenums">package com.alibaba.fastjson2.util;
+
+import com.alibaba.fastjson2.JSONB;
+import com.alibaba.fastjson2.JSONException;
+import com.alibaba.fastjson2.JSONReader;
+import com.alibaba.fastjson2.JSONWriter;
+import com.alibaba.fastjson2.annotation.JSONCreator;
+import com.alibaba.fastjson2.reader.ObjectReader;
+import com.alibaba.fastjson2.support.LambdaMiscCodec;
+import com.alibaba.fastjson2.writer.ObjectWriter;
+
+import java.lang.reflect.Type;
+import java.util.function.BiFunction;
+import java.util.function.Function;
+
+import static com.alibaba.fastjson2.JSONB.Constants.BC_TYPED_ANY;
+
+public interface ApacheLang3Support {
+    interface TripleMixIn&lt;L, M, R&gt; {
+        @JSONCreator
+        static &lt;L, M, R&gt; Object of(L left, M middle, R right) {
+<span class="fc" id="L22">            return null;</span>
+        }
+    }
+
+    class PairReader
+            implements ObjectReader {
+<span class="fc" id="L28">        static final long LEFT = Fnv.hashCode64(&quot;left&quot;);</span>
+<span class="fc" id="L29">        static final long RIGHT = Fnv.hashCode64(&quot;right&quot;);</span>
+
+        final Class objectClass;
+        final Type leftType;
+        final Type rightType;
+
+        final BiFunction of;
+
+<span class="fc" id="L37">        public PairReader(Class objectClass, Type leftType, Type rightType) {</span>
+<span class="fc" id="L38">            this.objectClass = objectClass;</span>
+<span class="fc" id="L39">            this.leftType = leftType;</span>
+<span class="fc" id="L40">            this.rightType = rightType;</span>
+
+            try {
+<span class="fc" id="L43">                of = LambdaMiscCodec.createBiFunction(</span>
+<span class="fc" id="L44">                        objectClass.getMethod(&quot;of&quot;, Object.class, Object.class)</span>
+                );
+<span class="nc" id="L46">            } catch (NoSuchMethodException e) {</span>
+<span class="nc" id="L47">                throw new JSONException(&quot;Pair.of method not found&quot;, e);</span>
+<span class="fc" id="L48">            }</span>
+<span class="fc" id="L49">        }</span>
+
+        @Override
+        public Object readJSONBObject(JSONReader jsonReader, Type fieldType, Object fieldName, long features) {
+<span class="pc bpc" id="L53" title="1 of 2 branches missed.">            if (jsonReader.nextIfNull()) {</span>
+<span class="nc" id="L54">                return null;</span>
+            }
+
+<span class="fc bfc" id="L57" title="All 2 branches covered.">            if (jsonReader.nextIfMatch(BC_TYPED_ANY)) {</span>
+<span class="fc" id="L58">                long typeHash = jsonReader.readTypeHashCode();</span>
+
+<span class="fc" id="L60">                final long PAIR = 4645080105124911238L; // Fnv.hashCode64(&quot;org.apache.commons.lang3.tuple.Pair&quot;);</span>
+<span class="fc" id="L61">                final long MUTABLE_PAIR = 8310287657375596772L; // Fnv.hashCode64(&quot;org.apache.commons.lang3.tuple.MutablePair&quot;);</span>
+<span class="fc" id="L62">                final long IMMUTABLE_PAIR = -2802985644706367574L; // Fnv.hashCode64(&quot;org.apache.commons.lang3.tuple.ImmutablePair&quot;);</span>
+
+<span class="pc bpc" id="L64" title="2 of 6 branches missed.">                if (typeHash != PAIR &amp;&amp; typeHash != IMMUTABLE_PAIR &amp;&amp; typeHash != MUTABLE_PAIR) {</span>
+<span class="nc" id="L65">                    throw new JSONException(&quot;not support inputType : &quot; + jsonReader.getString());</span>
+                }
+            }
+
+<span class="fc" id="L69">            Object left = null, right = null;</span>
+<span class="pc bpc" id="L70" title="1 of 2 branches missed.">            if (jsonReader.nextIfObjectStart()) {</span>
+<span class="pc bpc" id="L71" title="1 of 2 branches missed.">                for (int i = 0; i &lt; 100; i++) {</span>
+<span class="fc bfc" id="L72" title="All 2 branches covered.">                    if (jsonReader.nextIfObjectEnd()) {</span>
+<span class="fc" id="L73">                        break;</span>
+                    }
+<span class="pc bpc" id="L75" title="1 of 2 branches missed.">                    if (jsonReader.isString()) {</span>
+<span class="fc" id="L76">                        long hashCode = jsonReader.readFieldNameHashCode();</span>
+<span class="fc bfc" id="L77" title="All 2 branches covered.">                        if (hashCode == LEFT) {</span>
+<span class="fc" id="L78">                            left = jsonReader.read(leftType);</span>
+<span class="fc bfc" id="L79" title="All 2 branches covered.">                        } else if (hashCode == RIGHT) {</span>
+<span class="fc" id="L80">                            right = jsonReader.read(rightType);</span>
+<span class="pc bpc" id="L81" title="1 of 2 branches missed.">                        } else if (i == 0) {</span>
+<span class="fc" id="L82">                            left = jsonReader.getFieldName();</span>
+<span class="fc" id="L83">                            right = jsonReader.read(rightType);</span>
+                        } else {
+<span class="nc" id="L85">                            jsonReader.skipValue();</span>
+                        }
+<span class="pc bnc" id="L87" title="All 2 branches missed.">                    } else if (i == 0) {</span>
+<span class="nc" id="L88">                        left = jsonReader.read(leftType);</span>
+<span class="nc" id="L89">                        right = jsonReader.read(rightType);</span>
+                    } else {
+<span class="nc" id="L91">                        throw new JSONException(jsonReader.info(&quot;not support input&quot;));</span>
+                    }
+                }
+<span class="nc bnc" id="L94" title="All 2 branches missed.">            } else if (jsonReader.isArray()) {</span>
+<span class="nc" id="L95">                int len = jsonReader.startArray();</span>
+<span class="nc bnc" id="L96" title="All 2 branches missed.">                if (len != 2) {</span>
+<span class="nc" id="L97">                    throw new JSONException(jsonReader.info(&quot;not support input&quot;));</span>
+                }
+<span class="nc" id="L99">                left = jsonReader.read(leftType);</span>
+<span class="nc" id="L100">                right = jsonReader.read(rightType);</span>
+<span class="nc" id="L101">            } else {</span>
+<span class="nc" id="L102">                throw new JSONException(jsonReader.info(&quot;not support input&quot;));</span>
+            }
+
+<span class="fc" id="L105">            return of.apply(left, right);</span>
+        }
+
+        @Override
+        public Object readObject(JSONReader jsonReader, Type fieldType, Object fieldName, long features) {
+<span class="pc bpc" id="L110" title="1 of 2 branches missed.">            if (jsonReader.nextIfNull()) {</span>
+<span class="nc" id="L111">                return null;</span>
+            }
+
+<span class="fc" id="L114">            Object left = null, right = null;</span>
+<span class="fc bfc" id="L115" title="All 2 branches covered.">            if (jsonReader.nextIfObjectStart()) {</span>
+<span class="pc bpc" id="L116" title="1 of 2 branches missed.">                for (int i = 0; i &lt; 100; i++) {</span>
+<span class="fc bfc" id="L117" title="All 2 branches covered.">                    if (jsonReader.nextIfObjectEnd()) {</span>
+<span class="fc" id="L118">                        break;</span>
+                    }
+<span class="pc bpc" id="L120" title="1 of 2 branches missed.">                    if (jsonReader.isString()) {</span>
+<span class="fc" id="L121">                        long hashCode = jsonReader.readFieldNameHashCode();</span>
+<span class="fc bfc" id="L122" title="All 2 branches covered.">                        if (hashCode == LEFT) {</span>
+<span class="fc" id="L123">                            left = jsonReader.read(leftType);</span>
+<span class="fc bfc" id="L124" title="All 2 branches covered.">                        } else if (hashCode == RIGHT) {</span>
+<span class="fc" id="L125">                            right = jsonReader.read(rightType);</span>
+<span class="fc bfc" id="L126" title="All 2 branches covered.">                        } else if (i == 0) {</span>
+<span class="fc" id="L127">                            left = jsonReader.getFieldName();</span>
+<span class="fc" id="L128">                            jsonReader.nextIfMatch(':');</span>
+<span class="fc" id="L129">                            right = jsonReader.read(rightType);</span>
+                        } else {
+<span class="fc" id="L131">                            jsonReader.skipValue();</span>
+                        }
+<span class="pc bnc" id="L133" title="All 2 branches missed.">                    } else if (i == 0) {</span>
+<span class="nc" id="L134">                        left = jsonReader.read(leftType);</span>
+<span class="nc" id="L135">                        jsonReader.nextIfMatch(':');</span>
+<span class="nc" id="L136">                        right = jsonReader.read(rightType);</span>
+                    } else {
+<span class="nc" id="L138">                        throw new JSONException(jsonReader.info(&quot;not support input&quot;));</span>
+                    }
+                }
+<span class="pc bpc" id="L141" title="1 of 2 branches missed.">            } else if (jsonReader.nextIfArrayStart()) {</span>
+<span class="fc" id="L142">                left = jsonReader.read(leftType);</span>
+<span class="fc" id="L143">                right = jsonReader.read(rightType);</span>
+<span class="pc bpc" id="L144" title="1 of 2 branches missed.">                if (!jsonReader.nextIfArrayEnd()) {</span>
+<span class="nc" id="L145">                    throw new JSONException(jsonReader.info(&quot;not support input&quot;));</span>
+                }
+            } else {
+<span class="nc" id="L148">                throw new JSONException(jsonReader.info(&quot;not support input&quot;));</span>
+            }
+
+<span class="fc" id="L151">            return of.apply(left, right);</span>
+        }
+    }
+
+    class PairWriter
+            implements ObjectWriter {
+        final Class objectClass;
+        final String typeName;
+        final long typeNameHash;
+        Function left;
+        Function right;
+
+        byte[] typeNameJSONB;
+
+<span class="fc" id="L165">        static final byte[] leftName = JSONB.toBytes(&quot;left&quot;);</span>
+<span class="fc" id="L166">        static final byte[] rightName = JSONB.toBytes(&quot;right&quot;);</span>
+
+<span class="fc" id="L168">        public PairWriter(Class objectClass) {</span>
+<span class="fc" id="L169">            this.objectClass = objectClass;</span>
+<span class="fc" id="L170">            this.typeName = objectClass.getName();</span>
+<span class="fc" id="L171">            this.typeNameHash = Fnv.hashCode64(typeName);</span>
+<span class="fc" id="L172">        }</span>
+
+        @Override
+        public void writeJSONB(JSONWriter jsonWriter, Object object, Object fieldName, Type fieldType, long features) {
+<span class="pc bpc" id="L176" title="1 of 2 branches missed.">            if (object == null) {</span>
+<span class="nc" id="L177">                jsonWriter.writeNull();</span>
+<span class="nc" id="L178">                return;</span>
+            }
+
+<span class="pc bpc" id="L181" title="1 of 2 branches missed.">            if ((jsonWriter.getFeatures(features) &amp; JSONWriter.Feature.WriteClassName.mask) != 0) {</span>
+<span class="fc bfc" id="L182" title="All 2 branches covered.">                if (typeNameJSONB == null) {</span>
+<span class="fc" id="L183">                    typeNameJSONB = JSONB.toBytes(typeName);</span>
+                }
+<span class="fc" id="L185">                jsonWriter.writeTypeName(typeNameJSONB, typeNameHash);</span>
+            }
+
+<span class="fc" id="L188">            jsonWriter.startObject();</span>
+
+<span class="fc" id="L190">            Object left = getLeft(object);</span>
+<span class="fc" id="L191">            Object right = getRight(object);</span>
+
+<span class="fc" id="L193">            jsonWriter.writeNameRaw(leftName, PairReader.LEFT);</span>
+<span class="fc" id="L194">            jsonWriter.writeAny(left);</span>
+
+<span class="fc" id="L196">            jsonWriter.writeNameRaw(rightName, PairReader.RIGHT);</span>
+<span class="fc" id="L197">            jsonWriter.writeAny(right);</span>
+<span class="fc" id="L198">            jsonWriter.endObject();</span>
+<span class="fc" id="L199">        }</span>
+
+        @Override
+        public void write(JSONWriter jsonWriter, Object object, Object fieldName, Type fieldType, long features) {
+<span class="pc bpc" id="L203" title="1 of 2 branches missed.">            if (object == null) {</span>
+<span class="nc" id="L204">                jsonWriter.writeNull();</span>
+<span class="nc" id="L205">                return;</span>
+            }
+
+<span class="fc" id="L208">            Object left = getLeft(object);</span>
+<span class="fc" id="L209">            Object right = getRight(object);</span>
+
+<span class="fc" id="L211">            jsonWriter.startObject();</span>
+<span class="fc bfc" id="L212" title="All 2 branches covered.">            if ((jsonWriter.getFeatures(features) &amp; JSONWriter.Feature.WritePairAsJavaBean.mask) != 0) {</span>
+<span class="fc" id="L213">                jsonWriter.writeName(&quot;left&quot;);</span>
+<span class="fc" id="L214">                jsonWriter.writeColon();</span>
+<span class="fc" id="L215">                jsonWriter.writeAny(left);</span>
+
+<span class="fc" id="L217">                jsonWriter.writeName(&quot;right&quot;);</span>
+            } else {
+<span class="fc" id="L219">                jsonWriter.writeNameAny(left);</span>
+            }
+<span class="fc" id="L221">            jsonWriter.writeColon();</span>
+<span class="fc" id="L222">            jsonWriter.writeAny(right);</span>
+
+<span class="fc" id="L224">            jsonWriter.endObject();</span>
+<span class="fc" id="L225">        }</span>
+
+        Object getLeft(Object object) {
+<span class="fc" id="L228">            Class&lt;?&gt; objectClass = object.getClass();</span>
+<span class="fc bfc" id="L229" title="All 2 branches covered.">            if (left == null) {</span>
+                try {
+<span class="fc" id="L231">                    left = LambdaMiscCodec.createFunction(</span>
+<span class="fc" id="L232">                            objectClass.getMethod(&quot;getLeft&quot;)</span>
+                    );
+<span class="nc" id="L234">                } catch (NoSuchMethodException e) {</span>
+<span class="nc" id="L235">                    throw new JSONException(&quot;getLeft method not found&quot;, e);</span>
+<span class="fc" id="L236">                }</span>
+            }
+
+<span class="fc" id="L239">            return left.apply(object);</span>
+        }
+
+        Object getRight(Object object) {
+<span class="fc" id="L243">            Class&lt;?&gt; objectClass = object.getClass();</span>
+<span class="fc bfc" id="L244" title="All 2 branches covered.">            if (right == null) {</span>
+                try {
+<span class="fc" id="L246">                    right = LambdaMiscCodec.createFunction(</span>
+<span class="fc" id="L247">                            objectClass.getMethod(&quot;getRight&quot;)</span>
+                    );
+<span class="nc" id="L249">                } catch (NoSuchMethodException e) {</span>
+<span class="nc" id="L250">                    throw new JSONException(&quot;getRight method not found&quot;, e);</span>
+<span class="fc" id="L251">                }</span>
+            }
+
+<span class="fc" id="L254">            return right.apply(object);</span>
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.8.202204050719</span></div></body></html>

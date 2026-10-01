@@ -1,0 +1,509 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>FDBigInteger.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">fastjson2</a> &gt; <a href="index.source.html" class="el_package">com.alibaba.fastjson2.util</a> &gt; <span class="el_source">FDBigInteger.java</span></div><h1>FDBigInteger.java</h1><pre class="source lang-java linenums">package com.alibaba.fastjson2.util;
+
+import java.util.Arrays;
+
+public final class FDBigInteger {
+<span class="fc" id="L6">    private static final int[] SMALL_5_POW = {</span>
+            1, 5, 25, 125, 625, 3125, 15625, 78125, 390625, 1953125, 9765625, 48828125, 244140625, 1220703125
+    };
+
+    private static final FDBigInteger[] POW_5_CACHE;
+
+    static {
+<span class="fc" id="L13">        POW_5_CACHE = new FDBigInteger[340];</span>
+<span class="fc" id="L14">        int i = 0;</span>
+<span class="fc bfc" id="L15" title="All 2 branches covered.">        while (i &lt; SMALL_5_POW.length) {</span>
+<span class="fc" id="L16">            FDBigInteger pow5 = new FDBigInteger(new int[]{SMALL_5_POW[i]}, 0);</span>
+<span class="fc" id="L17">            pow5.makeImmutable();</span>
+<span class="fc" id="L18">            POW_5_CACHE[i] = pow5;</span>
+<span class="fc" id="L19">            i++;</span>
+<span class="fc" id="L20">        }</span>
+<span class="fc" id="L21">        FDBigInteger prev = POW_5_CACHE[i - 1];</span>
+<span class="fc bfc" id="L22" title="All 2 branches covered.">        while (i &lt; 340) {</span>
+<span class="fc" id="L23">            POW_5_CACHE[i] = prev = prev.mult(5);</span>
+<span class="fc" id="L24">            prev.makeImmutable();</span>
+<span class="fc" id="L25">            i++;</span>
+        }
+<span class="fc" id="L27">    }</span>
+
+    private int[] data;  // value: data[0] is least significant
+    private int offset;  // number of least significant zero padding ints
+    private int nWords;  // data[nWords-1]!=0, all values above are zero
+    private boolean immutable;
+
+<span class="fc" id="L34">    private FDBigInteger(int[] data, int offset) {</span>
+<span class="fc" id="L35">        this.data = data;</span>
+<span class="fc" id="L36">        this.offset = offset;</span>
+<span class="fc" id="L37">        this.nWords = data.length;</span>
+<span class="fc" id="L38">        trimLeadingZeros();</span>
+<span class="fc" id="L39">    }</span>
+
+<span class="fc" id="L41">    public FDBigInteger(long lValue, char[] digits, int kDigits, int nDigits) {</span>
+<span class="fc" id="L42">        int n = Math.max((nDigits + 8) / 9, 2);        // estimate size needed.</span>
+<span class="fc" id="L43">        data = new int[n];      // allocate enough space</span>
+<span class="fc" id="L44">        data[0] = (int) lValue;    // starting value</span>
+<span class="fc" id="L45">        data[1] = (int) (lValue &gt;&gt;&gt; 32);</span>
+<span class="fc" id="L46">        offset = 0;</span>
+<span class="fc" id="L47">        nWords = 2;</span>
+<span class="fc" id="L48">        int i = kDigits;</span>
+<span class="fc" id="L49">        int limit = nDigits - 5;       // slurp digits 5 at a time.</span>
+        int v;
+<span class="fc bfc" id="L51" title="All 2 branches covered.">        while (i &lt; limit) {</span>
+<span class="fc" id="L52">            int ilim = i + 5;</span>
+<span class="fc" id="L53">            v = (int) digits[i++] - (int) '0';</span>
+<span class="fc bfc" id="L54" title="All 2 branches covered.">            while (i &lt; ilim) {</span>
+<span class="fc" id="L55">                v = 10 * v + (int) digits[i++] - (int) '0';</span>
+            }
+<span class="fc" id="L57">            multAddMe(100000, v); // ... where 100000 is 10^5.</span>
+<span class="fc" id="L58">        }</span>
+<span class="fc" id="L59">        int factor = 1;</span>
+<span class="fc" id="L60">        v = 0;</span>
+<span class="fc bfc" id="L61" title="All 2 branches covered.">        while (i &lt; nDigits) {</span>
+<span class="fc" id="L62">            v = 10 * v + (int) digits[i++] - (int) '0';</span>
+<span class="fc" id="L63">            factor *= 10;</span>
+        }
+<span class="fc bfc" id="L65" title="All 2 branches covered.">        if (factor != 1) {</span>
+<span class="fc" id="L66">            multAddMe(factor, v);</span>
+        }
+<span class="fc" id="L68">        trimLeadingZeros();</span>
+<span class="fc" id="L69">    }</span>
+
+    public void makeImmutable() {
+<span class="fc" id="L72">        this.immutable = true;</span>
+<span class="fc" id="L73">    }</span>
+
+    private void multAddMe(int iv, int addend) {
+<span class="fc" id="L76">        long v = iv &amp; 0XFFFFFFFFL;</span>
+        // unroll 0th iteration, doing addition.
+<span class="fc" id="L78">        long p = v * (data[0] &amp; 0XFFFFFFFFL) + (addend &amp; 0XFFFFFFFFL);</span>
+<span class="fc" id="L79">        data[0] = (int) p;</span>
+<span class="fc" id="L80">        p &gt;&gt;&gt;= 32;</span>
+<span class="fc bfc" id="L81" title="All 2 branches covered.">        for (int i = 1; i &lt; nWords; i++) {</span>
+<span class="fc" id="L82">            p += v * (data[i] &amp; 0XFFFFFFFFL);</span>
+<span class="fc" id="L83">            data[i] = (int) p;</span>
+<span class="fc" id="L84">            p &gt;&gt;&gt;= 32;</span>
+        }
+<span class="fc bfc" id="L86" title="All 2 branches covered.">        if (p != 0L) {</span>
+<span class="fc" id="L87">            data[nWords++] = (int) p; // will fail noisily if illegal!</span>
+        }
+<span class="fc" id="L89">    }</span>
+
+    private void trimLeadingZeros() {
+<span class="fc" id="L92">        int i = nWords;</span>
+<span class="pc bpc" id="L93" title="1 of 4 branches missed.">        if (i &gt; 0 &amp;&amp; (data[--i] == 0)) {</span>
+            //for (; i &gt; 0 &amp;&amp; data[i - 1] == 0; i--) ;
+<span class="pc bpc" id="L95" title="1 of 4 branches missed.">            while (i &gt; 0 &amp;&amp; data[i - 1] == 0) {</span>
+<span class="fc" id="L96">                i--;</span>
+            }
+<span class="fc" id="L98">            this.nWords = i;</span>
+<span class="pc bpc" id="L99" title="1 of 2 branches missed.">            if (i == 0) { // all words are zero</span>
+<span class="nc" id="L100">                this.offset = 0;</span>
+            }
+        }
+<span class="fc" id="L103">    }</span>
+
+    private int size() {
+<span class="fc" id="L106">        return nWords + offset;</span>
+    }
+
+    public FDBigInteger multByPow52(int p5, int p2) {
+<span class="pc bpc" id="L110" title="1 of 2 branches missed.">        if (this.nWords == 0) {</span>
+<span class="nc" id="L111">            return this;</span>
+        }
+<span class="fc" id="L113">        FDBigInteger res = this;</span>
+<span class="fc bfc" id="L114" title="All 2 branches covered.">        if (p5 != 0) {</span>
+            int[] r;
+<span class="pc bpc" id="L116" title="1 of 2 branches missed.">            int extraSize = (p2 != 0) ? 1 : 0;</span>
+<span class="fc bfc" id="L117" title="All 2 branches covered.">            if (p5 &lt; SMALL_5_POW.length) {</span>
+<span class="fc" id="L118">                r = new int[this.nWords + 1 + extraSize];</span>
+<span class="fc" id="L119">                mult(this.data, this.nWords, SMALL_5_POW[p5], r);</span>
+<span class="fc" id="L120">                res = new FDBigInteger(r, this.offset);</span>
+            } else {
+<span class="fc" id="L122">                FDBigInteger pow5 = big5pow(p5);</span>
+<span class="fc" id="L123">                r = new int[this.nWords + pow5.size() + extraSize];</span>
+<span class="fc" id="L124">                mult(this.data, this.nWords, pow5.data, pow5.nWords, r);</span>
+<span class="fc" id="L125">                res = new FDBigInteger(r, this.offset + pow5.offset);</span>
+            }
+        }
+<span class="fc" id="L128">        return res.leftShift(p2);</span>
+    }
+
+    private static FDBigInteger big5pow(int p) {
+<span class="pc bpc" id="L132" title="1 of 2 branches missed.">        assert p &gt;= 0 : p; // negative power of 5</span>
+<span class="pc bpc" id="L133" title="1 of 2 branches missed.">        if (p &lt; 340) {</span>
+<span class="fc" id="L134">            return POW_5_CACHE[p];</span>
+        }
+<span class="nc" id="L136">        return big5powRec(p);</span>
+    }
+
+    private FDBigInteger mult(int i) {
+<span class="pc bpc" id="L140" title="1 of 2 branches missed.">        if (this.nWords == 0) {</span>
+<span class="nc" id="L141">            return this;</span>
+        }
+<span class="fc" id="L143">        int[] r = new int[nWords + 1];</span>
+<span class="fc" id="L144">        mult(data, nWords, i, r);</span>
+<span class="fc" id="L145">        return new FDBigInteger(r, offset);</span>
+    }
+
+    private FDBigInteger mult(FDBigInteger other) {
+<span class="nc bnc" id="L149" title="All 2 branches missed.">        if (this.nWords == 0) {</span>
+<span class="nc" id="L150">            return this;</span>
+        }
+<span class="nc bnc" id="L152" title="All 2 branches missed.">        if (this.size() == 1) {</span>
+<span class="nc" id="L153">            return other.mult(data[0]);</span>
+        }
+<span class="nc bnc" id="L155" title="All 2 branches missed.">        if (other.nWords == 0) {</span>
+<span class="nc" id="L156">            return other;</span>
+        }
+<span class="nc bnc" id="L158" title="All 2 branches missed.">        if (other.size() == 1) {</span>
+<span class="nc" id="L159">            return this.mult(other.data[0]);</span>
+        }
+<span class="nc" id="L161">        int[] r = new int[nWords + other.nWords];</span>
+<span class="nc" id="L162">        mult(this.data, this.nWords, other.data, other.nWords, r);</span>
+<span class="nc" id="L163">        return new FDBigInteger(r, this.offset + other.offset);</span>
+    }
+
+    private static void mult(int[] src, int srcLen, int value, int[] dst) {
+<span class="fc" id="L167">        long val = value &amp; 0XFFFFFFFFL;</span>
+<span class="fc" id="L168">        long carry = 0;</span>
+<span class="fc bfc" id="L169" title="All 2 branches covered.">        for (int i = 0; i &lt; srcLen; i++) {</span>
+<span class="fc" id="L170">            long product = (src[i] &amp; 0XFFFFFFFFL) * val + carry;</span>
+<span class="fc" id="L171">            dst[i] = (int) product;</span>
+<span class="fc" id="L172">            carry = product &gt;&gt;&gt; 32;</span>
+        }
+<span class="fc" id="L174">        dst[srcLen] = (int) carry;</span>
+<span class="fc" id="L175">    }</span>
+
+    private static void mult(int[] s1, int s1Len, int[] s2, int s2Len, int[] dst) {
+<span class="fc bfc" id="L178" title="All 2 branches covered.">        for (int i = 0; i &lt; s1Len; i++) {</span>
+<span class="fc" id="L179">            long v = s1[i] &amp; 0XFFFFFFFFL;</span>
+<span class="fc" id="L180">            long p = 0L;</span>
+<span class="fc bfc" id="L181" title="All 2 branches covered.">            for (int j = 0; j &lt; s2Len; j++) {</span>
+<span class="fc" id="L182">                p += (dst[i + j] &amp; 0XFFFFFFFFL) + v * (s2[j] &amp; 0XFFFFFFFFL);</span>
+<span class="fc" id="L183">                dst[i + j] = (int) p;</span>
+<span class="fc" id="L184">                p &gt;&gt;&gt;= 32;</span>
+            }
+<span class="fc" id="L186">            dst[i + s2Len] = (int) p;</span>
+        }
+<span class="fc" id="L188">    }</span>
+
+    private static void mult(int[] src, int srcLen, int v0, int v1, int[] dst) {
+<span class="fc" id="L191">        long v = v0 &amp; 0XFFFFFFFFL;</span>
+<span class="fc" id="L192">        long carry = 0;</span>
+<span class="fc bfc" id="L193" title="All 2 branches covered.">        for (int j = 0; j &lt; srcLen; j++) {</span>
+<span class="fc" id="L194">            long product = v * (src[j] &amp; 0XFFFFFFFFL) + carry;</span>
+<span class="fc" id="L195">            dst[j] = (int) product;</span>
+<span class="fc" id="L196">            carry = product &gt;&gt;&gt; 32;</span>
+        }
+<span class="fc" id="L198">        dst[srcLen] = (int) carry;</span>
+<span class="fc" id="L199">        v = v1 &amp; 0XFFFFFFFFL;</span>
+<span class="fc" id="L200">        carry = 0;</span>
+<span class="fc bfc" id="L201" title="All 2 branches covered.">        for (int j = 0; j &lt; srcLen; j++) {</span>
+<span class="fc" id="L202">            long product = (dst[j + 1] &amp; 0XFFFFFFFFL) + v * (src[j] &amp; 0XFFFFFFFFL) + carry;</span>
+<span class="fc" id="L203">            dst[j + 1] = (int) product;</span>
+<span class="fc" id="L204">            carry = product &gt;&gt;&gt; 32;</span>
+        }
+<span class="fc" id="L206">        dst[srcLen + 1] = (int) carry;</span>
+<span class="fc" id="L207">    }</span>
+
+    private static void leftShift(int[] src, int idx, int[] result, int bitcount, int anticount, int prev) {
+<span class="fc bfc" id="L210" title="All 2 branches covered.">        for (; idx &gt; 0; idx--) {</span>
+<span class="fc" id="L211">            int v = (prev &lt;&lt; bitcount);</span>
+<span class="fc" id="L212">            prev = src[idx - 1];</span>
+<span class="fc" id="L213">            v |= (prev &gt;&gt;&gt; anticount);</span>
+<span class="fc" id="L214">            result[idx] = v;</span>
+        }
+<span class="fc" id="L216">        int v = prev &lt;&lt; bitcount;</span>
+<span class="fc" id="L217">        result[0] = v;</span>
+<span class="fc" id="L218">    }</span>
+
+    public FDBigInteger leftShift(int shift) {
+<span class="fc" id="L221">        final int[] data = this.data;</span>
+<span class="fc" id="L222">        int nWords = this.nWords;</span>
+<span class="fc" id="L223">        int offset = this.offset;</span>
+<span class="pc bpc" id="L224" title="1 of 4 branches missed.">        if (shift == 0 || nWords == 0) {</span>
+<span class="fc" id="L225">            return this;</span>
+        }
+<span class="fc" id="L227">        int wordcount = shift &gt;&gt; 5;</span>
+<span class="fc" id="L228">        int bitcount = shift &amp; 0x1f;</span>
+<span class="fc bfc" id="L229" title="All 2 branches covered.">        if (this.immutable) {</span>
+<span class="fc bfc" id="L230" title="All 2 branches covered.">            if (bitcount == 0) {</span>
+<span class="fc" id="L231">                return new FDBigInteger(Arrays.copyOf(data, nWords), offset + wordcount);</span>
+            } else {
+<span class="fc" id="L233">                int anticount = 32 - bitcount;</span>
+<span class="fc" id="L234">                int idx = nWords - 1;</span>
+<span class="fc" id="L235">                int prev = data[idx];</span>
+<span class="fc" id="L236">                int hi = prev &gt;&gt;&gt; anticount;</span>
+                int[] result;
+<span class="fc bfc" id="L238" title="All 2 branches covered.">                if (hi != 0) {</span>
+<span class="fc" id="L239">                    result = new int[nWords + 1];</span>
+<span class="fc" id="L240">                    result[nWords] = hi;</span>
+                } else {
+<span class="fc" id="L242">                    result = new int[nWords];</span>
+                }
+<span class="fc" id="L244">                leftShift(data, idx, result, bitcount, anticount, prev);</span>
+<span class="fc" id="L245">                return new FDBigInteger(result, offset + wordcount);</span>
+            }
+        } else {
+<span class="pc bpc" id="L248" title="1 of 2 branches missed.">            if (bitcount != 0) {</span>
+<span class="fc" id="L249">                int anticount = 32 - bitcount;</span>
+<span class="pc bpc" id="L250" title="1 of 2 branches missed.">                if ((data[0] &lt;&lt; bitcount) == 0) {</span>
+<span class="nc" id="L251">                    int idx = 0;</span>
+<span class="nc" id="L252">                    int prev = data[idx];</span>
+<span class="nc bnc" id="L253" title="All 2 branches missed.">                    for (; idx &lt; nWords - 1; idx++) {</span>
+<span class="nc" id="L254">                        int v = (prev &gt;&gt;&gt; anticount);</span>
+<span class="nc" id="L255">                        prev = data[idx + 1];</span>
+<span class="nc" id="L256">                        v |= (prev &lt;&lt; bitcount);</span>
+<span class="nc" id="L257">                        data[idx] = v;</span>
+                    }
+<span class="nc" id="L259">                    int v = prev &gt;&gt;&gt; anticount;</span>
+<span class="nc" id="L260">                    data[idx] = v;</span>
+<span class="nc bnc" id="L261" title="All 2 branches missed.">                    if (v == 0) {</span>
+<span class="nc" id="L262">                        nWords--;</span>
+                    }
+<span class="nc" id="L264">                    offset++;</span>
+<span class="nc" id="L265">                } else {</span>
+<span class="fc" id="L266">                    int idx = nWords - 1;</span>
+<span class="fc" id="L267">                    int prev = data[idx];</span>
+<span class="fc" id="L268">                    int hi = prev &gt;&gt;&gt; anticount;</span>
+<span class="fc" id="L269">                    int[] result = data;</span>
+<span class="fc" id="L270">                    int[] src = data;</span>
+<span class="fc bfc" id="L271" title="All 2 branches covered.">                    if (hi != 0) {</span>
+<span class="pc bpc" id="L272" title="1 of 2 branches missed.">                        if (nWords == data.length) {</span>
+<span class="nc" id="L273">                            this.data = result = new int[nWords + 1];</span>
+                        }
+<span class="fc" id="L275">                        result[nWords++] = hi;</span>
+                    }
+<span class="fc" id="L277">                    leftShift(src, idx, result, bitcount, anticount, prev);</span>
+                }
+            }
+<span class="fc" id="L280">            this.nWords = nWords;</span>
+<span class="fc" id="L281">            this.offset = offset + wordcount;</span>
+<span class="fc" id="L282">            return this;</span>
+        }
+    }
+
+    private static FDBigInteger big5powRec(int p) {
+<span class="nc bnc" id="L287" title="All 2 branches missed.">        if (p &lt; 340) {</span>
+<span class="nc" id="L288">            return POW_5_CACHE[p];</span>
+        }
+        // construct the value.
+        // recursively.
+        int q, r;
+        // in order to compute 5^p,
+        // compute its square root, 5^(p/2) and square.
+        // or, let q = p / 2, r = p -q, then
+        // 5^p = 5^(q+r) = 5^q * 5^r
+<span class="nc" id="L297">        q = p &gt;&gt; 1;</span>
+<span class="nc" id="L298">        r = p - q;</span>
+<span class="nc" id="L299">        FDBigInteger bigq = big5powRec(q);</span>
+<span class="nc bnc" id="L300" title="All 2 branches missed.">        if (r &lt; SMALL_5_POW.length) {</span>
+<span class="nc" id="L301">            return bigq.mult(SMALL_5_POW[r]);</span>
+        } else {
+<span class="nc" id="L303">            return bigq.mult(big5powRec(r));</span>
+        }
+    }
+
+    public static FDBigInteger valueOfMulPow52(long value, int p5, int p2) {
+<span class="pc bpc" id="L308" title="1 of 2 branches missed.">        assert p5 &gt;= 0 : p5;</span>
+<span class="pc bpc" id="L309" title="1 of 2 branches missed.">        assert p2 &gt;= 0 : p2;</span>
+<span class="fc" id="L310">        int v0 = (int) value;</span>
+<span class="fc" id="L311">        int v1 = (int) (value &gt;&gt;&gt; 32);</span>
+<span class="fc" id="L312">        int wordcount = p2 &gt;&gt; 5;</span>
+<span class="fc" id="L313">        int bitcount = p2 &amp; 0x1f;</span>
+<span class="fc bfc" id="L314" title="All 2 branches covered.">        if (p5 != 0) {</span>
+<span class="fc bfc" id="L315" title="All 2 branches covered.">            if (p5 &lt; SMALL_5_POW.length) {</span>
+<span class="fc" id="L316">                long pow5 = SMALL_5_POW[p5] &amp; 0XFFFFFFFFL;</span>
+<span class="fc" id="L317">                long carry = (v0 &amp; 0XFFFFFFFFL) * pow5;</span>
+<span class="fc" id="L318">                v0 = (int) carry;</span>
+<span class="fc" id="L319">                carry &gt;&gt;&gt;= 32;</span>
+<span class="fc" id="L320">                carry = (v1 &amp; 0XFFFFFFFFL) * pow5 + carry;</span>
+<span class="fc" id="L321">                v1 = (int) carry;</span>
+<span class="fc" id="L322">                int v2 = (int) (carry &gt;&gt;&gt; 32);</span>
+<span class="pc bpc" id="L323" title="1 of 2 branches missed.">                if (bitcount == 0) {</span>
+<span class="nc" id="L324">                    return new FDBigInteger(new int[]{v0, v1, v2}, wordcount);</span>
+                } else {
+<span class="fc" id="L326">                    return new FDBigInteger(new int[]{</span>
+                            v0 &lt;&lt; bitcount,
+                            (v1 &lt;&lt; bitcount) | (v0 &gt;&gt;&gt; (32 - bitcount)),
+                            (v2 &lt;&lt; bitcount) | (v1 &gt;&gt;&gt; (32 - bitcount)),
+                            v2 &gt;&gt;&gt; (32 - bitcount)
+                    }, wordcount);
+                }
+            } else {
+<span class="fc" id="L334">                FDBigInteger pow5 = big5pow(p5);</span>
+                int[] r;
+<span class="fc bfc" id="L336" title="All 2 branches covered.">                if (v1 == 0) {</span>
+<span class="pc bpc" id="L337" title="1 of 2 branches missed.">                    r = new int[pow5.nWords + 1 + ((p2 != 0) ? 1 : 0)];</span>
+<span class="fc" id="L338">                    mult(pow5.data, pow5.nWords, v0, r);</span>
+                } else {
+<span class="pc bpc" id="L340" title="1 of 2 branches missed.">                    r = new int[pow5.nWords + 2 + ((p2 != 0) ? 1 : 0)];</span>
+<span class="fc" id="L341">                    mult(pow5.data, pow5.nWords, v0, v1, r);</span>
+                }
+<span class="fc" id="L343">                return (new FDBigInteger(r, pow5.offset)).leftShift(p2);</span>
+            }
+<span class="pc bpc" id="L345" title="1 of 2 branches missed.">        } else if (p2 != 0) {</span>
+<span class="pc bpc" id="L346" title="1 of 2 branches missed.">            if (bitcount == 0) {</span>
+<span class="nc" id="L347">                return new FDBigInteger(new int[]{v0, v1}, wordcount);</span>
+            } else {
+<span class="fc" id="L349">                return new FDBigInteger(new int[]{</span>
+                        v0 &lt;&lt; bitcount,
+                        (v1 &lt;&lt; bitcount) | (v0 &gt;&gt;&gt; (32 - bitcount)),
+                        v1 &gt;&gt;&gt; (32 - bitcount)
+                }, wordcount);
+            }
+        }
+<span class="nc" id="L356">        return new FDBigInteger(new int[]{v0, v1}, 0);</span>
+    }
+
+    public int cmp(FDBigInteger other) {
+<span class="fc" id="L360">        int aSize = nWords + offset;</span>
+<span class="fc" id="L361">        int bSize = other.nWords + other.offset;</span>
+<span class="fc bfc" id="L362" title="All 2 branches covered.">        if (aSize &gt; bSize) {</span>
+<span class="fc" id="L363">            return 1;</span>
+<span class="fc bfc" id="L364" title="All 2 branches covered.">        } else if (aSize &lt; bSize) {</span>
+<span class="fc" id="L365">            return -1;</span>
+        }
+<span class="fc" id="L367">        int aLen = nWords;</span>
+<span class="fc" id="L368">        int bLen = other.nWords;</span>
+<span class="fc bfc" id="L369" title="All 4 branches covered.">        while (aLen &gt; 0 &amp;&amp; bLen &gt; 0) {</span>
+<span class="fc" id="L370">            int a = data[--aLen];</span>
+<span class="fc" id="L371">            int b = other.data[--bLen];</span>
+<span class="fc bfc" id="L372" title="All 2 branches covered.">            if (a != b) {</span>
+<span class="fc bfc" id="L373" title="All 2 branches covered.">                return ((a &amp; 0XFFFFFFFFL) &lt; (b &amp; 0XFFFFFFFFL)) ? -1 : 1;</span>
+            }
+<span class="fc" id="L375">        }</span>
+<span class="fc bfc" id="L376" title="All 2 branches covered.">        if (aLen &gt; 0) {</span>
+<span class="fc" id="L377">            return checkZeroTail(data, aLen);</span>
+        }
+<span class="pc bpc" id="L379" title="1 of 2 branches missed.">        if (bLen &gt; 0) {</span>
+<span class="nc" id="L380">            return -checkZeroTail(other.data, bLen);</span>
+        }
+<span class="fc" id="L382">        return 0;</span>
+    }
+
+    private static int checkZeroTail(int[] a, int from) {
+<span class="fc bfc" id="L386" title="All 2 branches covered.">        while (from &gt; 0) {</span>
+<span class="pc bpc" id="L387" title="1 of 2 branches missed.">            if (a[--from] != 0) {</span>
+<span class="fc" id="L388">                return 1;</span>
+            }
+        }
+<span class="fc" id="L391">        return 0;</span>
+    }
+
+    public FDBigInteger leftInplaceSub(FDBigInteger subtrahend) {
+<span class="pc bpc" id="L395" title="1 of 2 branches missed.">        assert this.size() &gt;= subtrahend.size() : &quot;result should be positive&quot;;</span>
+        FDBigInteger minuend;
+<span class="pc bpc" id="L397" title="1 of 2 branches missed.">        if (this.immutable) {</span>
+<span class="nc" id="L398">            minuend = new FDBigInteger(this.data.clone(), this.offset);</span>
+        } else {
+<span class="fc" id="L400">            minuend = this;</span>
+        }
+<span class="fc" id="L402">        int offsetDiff = subtrahend.offset - minuend.offset;</span>
+<span class="fc" id="L403">        int[] sData = subtrahend.data;</span>
+<span class="fc" id="L404">        int[] mData = minuend.data;</span>
+<span class="fc" id="L405">        int subLen = subtrahend.nWords;</span>
+<span class="fc" id="L406">        int minLen = minuend.nWords;</span>
+<span class="fc bfc" id="L407" title="All 2 branches covered.">        if (offsetDiff &lt; 0) {</span>
+            // need to expand minuend
+<span class="fc" id="L409">            int rLen = minLen - offsetDiff;</span>
+<span class="pc bpc" id="L410" title="1 of 2 branches missed.">            if (rLen &lt; mData.length) {</span>
+<span class="nc" id="L411">                System.arraycopy(mData, 0, mData, -offsetDiff, minLen);</span>
+<span class="nc" id="L412">                Arrays.fill(mData, 0, -offsetDiff, 0);</span>
+            } else {
+<span class="fc" id="L414">                int[] r = new int[rLen];</span>
+<span class="fc" id="L415">                System.arraycopy(mData, 0, r, -offsetDiff, minLen);</span>
+<span class="fc" id="L416">                minuend.data = mData = r;</span>
+            }
+<span class="fc" id="L418">            minuend.offset = subtrahend.offset;</span>
+<span class="fc" id="L419">            minuend.nWords = minLen = rLen;</span>
+<span class="fc" id="L420">            offsetDiff = 0;</span>
+        }
+<span class="fc" id="L422">        long borrow = 0L;</span>
+<span class="fc" id="L423">        int mIndex = offsetDiff;</span>
+<span class="pc bpc" id="L424" title="1 of 4 branches missed.">        for (int sIndex = 0; sIndex &lt; subLen &amp;&amp; mIndex &lt; minLen; sIndex++, mIndex++) {</span>
+<span class="fc" id="L425">            long diff = (mData[mIndex] &amp; 0XFFFFFFFFL) - (sData[sIndex] &amp; 0XFFFFFFFFL) + borrow;</span>
+<span class="fc" id="L426">            mData[mIndex] = (int) diff;</span>
+<span class="fc" id="L427">            borrow = diff &gt;&gt; 32; // signed shift</span>
+        }
+<span class="pc bpc" id="L429" title="3 of 4 branches missed.">        for (; borrow != 0 &amp;&amp; mIndex &lt; minLen; mIndex++) {</span>
+<span class="nc" id="L430">            long diff = (mData[mIndex] &amp; 0XFFFFFFFFL) + borrow;</span>
+<span class="nc" id="L431">            mData[mIndex] = (int) diff;</span>
+<span class="nc" id="L432">            borrow = diff &gt;&gt; 32; // signed shift</span>
+        }
+<span class="pc bpc" id="L434" title="1 of 2 branches missed.">        assert borrow == 0L : borrow; // borrow out of subtract,</span>
+        // result should be positive
+<span class="fc" id="L436">        minuend.trimLeadingZeros();</span>
+<span class="fc" id="L437">        return minuend;</span>
+    }
+
+    public FDBigInteger rightInplaceSub(FDBigInteger subtrahend) {
+<span class="pc bpc" id="L441" title="1 of 2 branches missed.">        assert this.size() &gt;= subtrahend.size() : &quot;result should be positive&quot;;</span>
+<span class="fc" id="L442">        FDBigInteger minuend = this;</span>
+<span class="pc bpc" id="L443" title="1 of 2 branches missed.">        if (subtrahend.immutable) {</span>
+<span class="nc" id="L444">            subtrahend = new FDBigInteger(subtrahend.data.clone(), subtrahend.offset);</span>
+        }
+<span class="fc" id="L446">        int offsetDiff = minuend.offset - subtrahend.offset;</span>
+<span class="fc" id="L447">        int[] sData = subtrahend.data;</span>
+<span class="fc" id="L448">        int[] mData = minuend.data;</span>
+<span class="fc" id="L449">        int subLen = subtrahend.nWords;</span>
+<span class="fc" id="L450">        int minLen = minuend.nWords;</span>
+<span class="fc bfc" id="L451" title="All 2 branches covered.">        if (offsetDiff &lt; 0) {</span>
+<span class="pc bpc" id="L452" title="1 of 2 branches missed.">            if (minLen &lt; sData.length) {</span>
+<span class="nc" id="L453">                System.arraycopy(sData, 0, sData, -offsetDiff, subLen);</span>
+<span class="nc" id="L454">                Arrays.fill(sData, 0, -offsetDiff, 0);</span>
+            } else {
+<span class="fc" id="L456">                int[] r = new int[minLen];</span>
+<span class="fc" id="L457">                System.arraycopy(sData, 0, r, -offsetDiff, subLen);</span>
+<span class="fc" id="L458">                subtrahend.data = sData = r;</span>
+            }
+<span class="fc" id="L460">            subtrahend.offset = minuend.offset;</span>
+<span class="fc" id="L461">            offsetDiff = 0;</span>
+        } else {
+<span class="fc" id="L463">            int rLen = minLen + offsetDiff;</span>
+<span class="pc bpc" id="L464" title="1 of 2 branches missed.">            if (rLen &gt;= sData.length) {</span>
+<span class="nc" id="L465">                subtrahend.data = sData = Arrays.copyOf(sData, rLen);</span>
+            }
+        }
+
+<span class="fc" id="L469">        int sIndex = 0;</span>
+<span class="fc" id="L470">        long borrow = 0L;</span>
+<span class="fc bfc" id="L471" title="All 2 branches covered.">        for (; sIndex &lt; offsetDiff; sIndex++) {</span>
+<span class="fc" id="L472">            long diff = -(sData[sIndex] &amp; 0XFFFFFFFFL) + borrow;</span>
+<span class="fc" id="L473">            sData[sIndex] = (int) diff;</span>
+<span class="fc" id="L474">            borrow = diff &gt;&gt; 32; // signed shift</span>
+        }
+
+<span class="fc bfc" id="L477" title="All 2 branches covered.">        for (int mIndex = 0; mIndex &lt; minLen; sIndex++, mIndex++) {</span>
+<span class="fc" id="L478">            long diff = (mData[mIndex] &amp; 0XFFFFFFFFL) - (sData[sIndex] &amp; 0XFFFFFFFFL) + borrow;</span>
+<span class="fc" id="L479">            sData[sIndex] = (int) diff;</span>
+<span class="fc" id="L480">            borrow = diff &gt;&gt; 32; // signed shift</span>
+        }
+<span class="pc bpc" id="L482" title="1 of 2 branches missed.">        assert borrow == 0L : borrow; // borrow out of subtract,</span>
+        // result should be positive
+<span class="fc" id="L484">        subtrahend.nWords = sIndex;</span>
+<span class="fc" id="L485">        subtrahend.trimLeadingZeros();</span>
+<span class="fc" id="L486">        return subtrahend;</span>
+    }
+
+    public int cmpPow52(int p5, int p2) {
+<span class="fc bfc" id="L490" title="All 2 branches covered.">        if (p5 == 0) {</span>
+<span class="fc" id="L491">            int wordcount = p2 &gt;&gt; 5;</span>
+<span class="fc" id="L492">            int bitcount = p2 &amp; 0x1f;</span>
+<span class="fc" id="L493">            int size = this.nWords + this.offset;</span>
+<span class="pc bpc" id="L494" title="1 of 2 branches missed.">            if (size &gt; wordcount + 1) {</span>
+<span class="nc" id="L495">                return 1;</span>
+<span class="pc bpc" id="L496" title="1 of 2 branches missed.">            } else if (size &lt; wordcount + 1) {</span>
+<span class="nc" id="L497">                return -1;</span>
+            }
+<span class="fc" id="L499">            int a = this.data[this.nWords - 1];</span>
+<span class="fc" id="L500">            int b = 1 &lt;&lt; bitcount;</span>
+<span class="fc bfc" id="L501" title="All 2 branches covered.">            if (a != b) {</span>
+<span class="fc bfc" id="L502" title="All 2 branches covered.">                return ((a &amp; 0XFFFFFFFFL) &lt; (b &amp; 0XFFFFFFFFL)) ? -1 : 1;</span>
+            }
+<span class="fc" id="L504">            return checkZeroTail(this.data, this.nWords - 1);</span>
+        }
+<span class="fc" id="L506">        return this.cmp(big5pow(p5).leftShift(p2));</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.8.202204050719</span></div></body></html>

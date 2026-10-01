@@ -1,0 +1,296 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>CSVWriterUTF16.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">fastjson2</a> &gt; <a href="index.source.html" class="el_package">com.alibaba.fastjson2.support.csv</a> &gt; <span class="el_source">CSVWriterUTF16.java</span></div><h1>CSVWriterUTF16.java</h1><pre class="source lang-java linenums">package com.alibaba.fastjson2.support.csv;
+
+import com.alibaba.fastjson2.JSONException;
+import com.alibaba.fastjson2.util.DoubleToDecimal;
+import com.alibaba.fastjson2.util.IOUtils;
+
+import java.io.IOException;
+import java.io.StringWriter;
+import java.io.Writer;
+import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+
+import static com.alibaba.fastjson2.util.IOUtils.PACKED_DIGITS_UTF16;
+import static com.alibaba.fastjson2.util.JDKUtils.ARRAY_CHAR_BASE_OFFSET;
+import static com.alibaba.fastjson2.util.JDKUtils.UNSAFE;
+
+final class CSVWriterUTF16
+        extends CSVWriter {
+<span class="fc" id="L21">    static final char[] BYTES_TRUE = &quot;true&quot;.toCharArray();</span>
+<span class="fc" id="L22">    static final char[] BYTES_FALSE = &quot;false&quot;.toCharArray();</span>
+
+    final Writer out;
+    final char[] chars;
+
+    CSVWriterUTF16(
+            Writer out,
+            ZoneId zoneId,
+            Feature... features
+    ) {
+<span class="fc" id="L32">        super(zoneId, features);</span>
+<span class="fc" id="L33">        this.out = out;</span>
+<span class="fc" id="L34">        this.chars = new char[1024 * 64];</span>
+<span class="fc" id="L35">    }</span>
+
+    void writeDirect(char[] bytes, int off, int len) {
+        try {
+<span class="fc" id="L39">            out.write(bytes, off, len);</span>
+<span class="nc" id="L40">        } catch (IOException e) {</span>
+<span class="nc" id="L41">            throw new JSONException(&quot;write csv error&quot;, e);</span>
+<span class="fc" id="L42">        }</span>
+<span class="fc" id="L43">    }</span>
+
+    public void writeComma() {
+<span class="pc bpc" id="L46" title="1 of 2 branches missed.">        if (off + 1 == chars.length) {</span>
+<span class="nc" id="L47">            flush();</span>
+        }
+<span class="fc" id="L49">        chars[off++] = ',';</span>
+<span class="fc" id="L50">    }</span>
+
+    protected void writeQuote() {
+<span class="pc bpc" id="L53" title="1 of 2 branches missed.">        if (off + 1 == chars.length) {</span>
+<span class="nc" id="L54">            flush();</span>
+        }
+<span class="fc" id="L56">        chars[off++] = '&quot;';</span>
+<span class="fc" id="L57">    }</span>
+
+    public void writeLine() {
+<span class="pc bpc" id="L60" title="1 of 2 branches missed.">        if (off + 1 == chars.length) {</span>
+<span class="nc" id="L61">            flush();</span>
+        }
+<span class="fc" id="L63">        chars[off++] = '\n';</span>
+<span class="fc" id="L64">    }</span>
+
+    public void writeBoolean(boolean booleanValue) {
+<span class="pc bpc" id="L67" title="1 of 2 branches missed.">        char[] valueBytes = booleanValue ? BYTES_TRUE : BYTES_FALSE;</span>
+<span class="fc" id="L68">        writeRaw(valueBytes);</span>
+<span class="fc" id="L69">    }</span>
+
+    public void writeInt64(long longValue) {
+<span class="fc" id="L72">        int minCapacity = off + 21;</span>
+<span class="pc bpc" id="L73" title="1 of 2 branches missed.">        if (minCapacity - this.chars.length &gt; 0) {</span>
+<span class="nc" id="L74">            flush();</span>
+        }
+
+<span class="fc" id="L77">        off = IOUtils.writeInt64(chars, off, longValue);</span>
+<span class="fc" id="L78">    }</span>
+
+    public void writeDateYYYMMDD10(int year, int month, int dayOfMonth) {
+<span class="pc bpc" id="L81" title="1 of 2 branches missed.">        if (off + 11 &gt;= this.chars.length) {</span>
+<span class="nc" id="L82">            flush();</span>
+        }
+
+<span class="fc" id="L85">        off = IOUtils.writeLocalDate(chars, off, year, month, dayOfMonth);</span>
+<span class="fc" id="L86">    }</span>
+
+    public void writeDateTime19(
+            int year,
+            int month,
+            int dayOfMonth,
+            int hour,
+            int minute,
+            int second) {
+<span class="pc bpc" id="L95" title="1 of 2 branches missed.">        if (off + 20 &gt;= this.chars.length) {</span>
+<span class="nc" id="L96">            flush();</span>
+        }
+
+<span class="fc" id="L99">        final char[] chars = this.chars;</span>
+<span class="fc" id="L100">        int off = this.off;</span>
+<span class="fc" id="L101">        off = IOUtils.writeLocalDate(chars, off, year, month, dayOfMonth);</span>
+<span class="fc" id="L102">        chars[off] = ' ';</span>
+<span class="fc" id="L103">        UNSAFE.putInt(chars, ARRAY_CHAR_BASE_OFFSET + ((off + 1) &lt;&lt; 1), PACKED_DIGITS_UTF16[hour]);</span>
+<span class="fc" id="L104">        chars[off + 3] = ':';</span>
+<span class="fc" id="L105">        UNSAFE.putInt(chars, ARRAY_CHAR_BASE_OFFSET + ((off + 4) &lt;&lt; 1), PACKED_DIGITS_UTF16[minute]);</span>
+<span class="fc" id="L106">        chars[off + 6] = ':';</span>
+<span class="fc" id="L107">        UNSAFE.putInt(chars, ARRAY_CHAR_BASE_OFFSET + ((off + 7) &lt;&lt; 1), PACKED_DIGITS_UTF16[second]);</span>
+<span class="fc" id="L108">        this.off = off + 9;</span>
+<span class="fc" id="L109">    }</span>
+
+    public void writeString(String str) {
+<span class="pc bpc" id="L112" title="2 of 4 branches missed.">        if (str == null || str.isEmpty()) {</span>
+<span class="nc" id="L113">            return;</span>
+        }
+
+<span class="fc" id="L116">        final int len = str.length();</span>
+<span class="fc" id="L117">        int escapeCount = 0;</span>
+<span class="fc" id="L118">        boolean comma = false;</span>
+
+<span class="fc bfc" id="L120" title="All 2 branches covered.">        if (str.charAt(0) == '&quot;') {</span>
+<span class="fc bfc" id="L121" title="All 2 branches covered.">            for (int i = 0; i &lt; len; i++) {</span>
+<span class="fc" id="L122">                char ch = str.charAt(i);</span>
+<span class="fc bfc" id="L123" title="All 2 branches covered.">                if (ch == '&quot;') {</span>
+<span class="fc" id="L124">                    escapeCount++;</span>
+                }
+            }
+        } else {
+<span class="fc bfc" id="L128" title="All 2 branches covered.">            for (int i = 0; i &lt; len; i++) {</span>
+<span class="fc" id="L129">                char ch = str.charAt(i);</span>
+<span class="pc bpc" id="L130" title="1 of 2 branches missed.">                if (ch == ',') {</span>
+<span class="nc" id="L131">                    comma = true;</span>
+<span class="pc bpc" id="L132" title="1 of 2 branches missed.">                } else if (ch == '&quot;') {</span>
+<span class="nc" id="L133">                    escapeCount++;</span>
+                }
+            }
+<span class="pc bpc" id="L136" title="1 of 2 branches missed.">            if (!comma) {</span>
+<span class="fc" id="L137">                escapeCount = 0;</span>
+            }
+        }
+
+<span class="fc bfc" id="L141" title="All 2 branches covered.">        if (escapeCount == 0) {</span>
+<span class="fc" id="L142">            str.getChars(0, str.length(), chars, off);</span>
+<span class="fc" id="L143">            off += str.length();</span>
+<span class="fc" id="L144">            return;</span>
+        }
+
+<span class="pc bpc" id="L147" title="1 of 2 branches missed.">        if (off + 2 + str.length() + escapeCount &gt;= chars.length) {</span>
+<span class="nc" id="L148">            flush();</span>
+        }
+
+<span class="fc" id="L151">        chars[off++] = '&quot;';</span>
+<span class="fc bfc" id="L152" title="All 2 branches covered.">        for (int i = 0; i &lt; str.length(); i++) {</span>
+<span class="fc" id="L153">            char ch = str.charAt(i);</span>
+<span class="fc bfc" id="L154" title="All 2 branches covered.">            if (ch == '&quot;') {</span>
+<span class="fc" id="L155">                chars[off++] = '&quot;';</span>
+<span class="fc" id="L156">                chars[off++] = '&quot;';</span>
+            } else {
+<span class="fc" id="L158">                chars[off++] = ch;</span>
+            }
+        }
+<span class="fc" id="L161">        chars[off++] = '&quot;';</span>
+<span class="fc" id="L162">    }</span>
+
+    public void writeInt32(int intValue) {
+<span class="fc" id="L165">        int minCapacity = off + 11;</span>
+<span class="pc bpc" id="L166" title="1 of 2 branches missed.">        if (minCapacity - this.chars.length &gt; 0) {</span>
+<span class="nc" id="L167">            flush();</span>
+        }
+
+<span class="fc" id="L170">        off = IOUtils.writeInt32(chars, off, intValue);</span>
+<span class="fc" id="L171">    }</span>
+
+    public void writeDouble(double value) {
+<span class="fc" id="L174">        int minCapacity = off + 24;</span>
+<span class="pc bpc" id="L175" title="1 of 2 branches missed.">        if (minCapacity - this.chars.length &gt; 0) {</span>
+<span class="nc" id="L176">            flush();</span>
+        }
+
+<span class="fc" id="L179">        int size = DoubleToDecimal.toString(value, this.chars, off, true);</span>
+<span class="fc" id="L180">        off += size;</span>
+<span class="fc" id="L181">    }</span>
+
+    public void writeFloat(float value) {
+<span class="fc" id="L184">        int minCapacity = off + 15;</span>
+<span class="pc bpc" id="L185" title="1 of 2 branches missed.">        if (minCapacity - this.chars.length &gt; 0) {</span>
+<span class="nc" id="L186">            flush();</span>
+        }
+
+<span class="fc" id="L189">        int size = DoubleToDecimal.toString(value, this.chars, off, true);</span>
+<span class="fc" id="L190">        off += size;</span>
+<span class="fc" id="L191">    }</span>
+
+    public void flush() {
+        try {
+<span class="fc" id="L195">            out.write(chars, 0, off);</span>
+<span class="fc" id="L196">            off = 0;</span>
+<span class="fc" id="L197">            out.flush();</span>
+<span class="nc" id="L198">        } catch (IOException e) {</span>
+<span class="nc" id="L199">            throw new JSONException(&quot;write csv error&quot;, e);</span>
+<span class="fc" id="L200">        }</span>
+<span class="fc" id="L201">    }</span>
+
+    public void writeString(byte[] utf8) {
+<span class="pc bpc" id="L204" title="2 of 4 branches missed.">        if (utf8 == null || utf8.length == 0) {</span>
+<span class="nc" id="L205">            return;</span>
+        }
+
+<span class="fc" id="L208">        String str = new String(utf8, 0, utf8.length, StandardCharsets.UTF_8);</span>
+<span class="fc" id="L209">        writeString(str);</span>
+<span class="fc" id="L210">    }</span>
+
+    public void writeDecimal(BigDecimal value) {
+<span class="pc bpc" id="L213" title="1 of 2 branches missed.">        if (value == null) {</span>
+<span class="nc" id="L214">            return;</span>
+        }
+
+<span class="fc" id="L217">        String str = value.toString();</span>
+<span class="fc" id="L218">        int strlen = str.length();</span>
+<span class="fc" id="L219">        str.getChars(0, strlen, chars, off);</span>
+<span class="fc" id="L220">        off += strlen;</span>
+<span class="fc" id="L221">    }</span>
+
+    public void writeDecimal(long unscaledVal, int scale) {
+<span class="fc bfc" id="L224" title="All 2 branches covered.">        if (scale == 0) {</span>
+<span class="fc" id="L225">            writeInt64(unscaledVal);</span>
+<span class="fc" id="L226">            return;</span>
+        }
+
+<span class="pc bpc" id="L229" title="3 of 6 branches missed.">        if (unscaledVal == Long.MIN_VALUE || scale &gt;= 20 || scale &lt; 0) {</span>
+<span class="nc" id="L230">            writeDecimal(BigDecimal.valueOf(unscaledVal, scale));</span>
+<span class="nc" id="L231">            return;</span>
+        }
+
+<span class="fc" id="L234">        int minCapacity = off + 24;</span>
+<span class="pc bpc" id="L235" title="1 of 2 branches missed.">        if (minCapacity - this.chars.length &gt; 0) {</span>
+<span class="nc" id="L236">            flush();</span>
+        }
+
+<span class="fc" id="L239">        off = IOUtils.writeDecimal(chars, off, unscaledVal, scale);</span>
+<span class="fc" id="L240">    }</span>
+
+    void writeRaw(char[] chars) {
+<span class="pc bpc" id="L243" title="1 of 2 branches missed.">        if (chars.length + off &lt; this.chars.length) {</span>
+<span class="fc" id="L244">            System.arraycopy(chars, 0, this.chars, off, chars.length);</span>
+<span class="fc" id="L245">            off += chars.length;</span>
+        } else {
+<span class="nc" id="L247">            flush();</span>
+<span class="nc bnc" id="L248" title="All 2 branches missed.">            if (chars.length &gt;= this.chars.length) {</span>
+<span class="nc" id="L249">                writeDirect(chars, 0, chars.length);</span>
+            } else {
+<span class="nc" id="L251">                System.arraycopy(chars, 0, this.chars, off, chars.length);</span>
+<span class="nc" id="L252">                off += chars.length;</span>
+            }
+        }
+<span class="fc" id="L255">    }</span>
+
+    public void writeLocalDateTime(LocalDateTime ldt) {
+<span class="pc bpc" id="L258" title="1 of 2 branches missed.">        if (ldt == null) {</span>
+<span class="nc" id="L259">            return;</span>
+        }
+
+<span class="fc" id="L262">        off = IOUtils.writeLocalDate(chars, off, ldt.getYear(), ldt.getMonthValue(), ldt.getDayOfMonth());</span>
+<span class="fc" id="L263">        chars[off++] = ' ';</span>
+<span class="fc" id="L264">        off = IOUtils.writeLocalTime(chars, off, ldt.toLocalTime());</span>
+<span class="fc" id="L265">    }</span>
+
+    protected void writeRaw(String str) {
+<span class="pc bpc" id="L268" title="2 of 4 branches missed.">        if (str == null || str.isEmpty()) {</span>
+<span class="nc" id="L269">            return;</span>
+        }
+
+<span class="pc bpc" id="L272" title="1 of 2 branches missed.">        if (str.length() + off &gt;= chars.length) {</span>
+<span class="nc" id="L273">            flush();</span>
+        }
+<span class="fc" id="L275">        str.getChars(0, str.length(), this.chars, off);</span>
+<span class="fc" id="L276">        off += str.length();</span>
+<span class="fc" id="L277">    }</span>
+
+    @Override
+    public void close() throws IOException {
+<span class="fc bfc" id="L281" title="All 2 branches covered.">        if (off &gt; 0) {</span>
+<span class="fc" id="L282">            flush();</span>
+        }
+
+<span class="fc" id="L285">        out.close();</span>
+<span class="fc" id="L286">    }</span>
+
+    public String toString() {
+<span class="pc bpc" id="L289" title="1 of 2 branches missed.">        if (out instanceof StringWriter) {</span>
+<span class="fc" id="L290">            flush();</span>
+<span class="fc" id="L291">            return out.toString();</span>
+        }
+<span class="nc" id="L293">        return super.toString();</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.8.202204050719</span></div></body></html>

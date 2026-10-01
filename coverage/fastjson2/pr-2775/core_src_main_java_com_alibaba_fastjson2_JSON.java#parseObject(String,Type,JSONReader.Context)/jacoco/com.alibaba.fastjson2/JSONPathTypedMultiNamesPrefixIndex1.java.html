@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>JSONPathTypedMultiNamesPrefixIndex1.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">fastjson2</a> &gt; <a href="index.source.html" class="el_package">com.alibaba.fastjson2</a> &gt; <span class="el_source">JSONPathTypedMultiNamesPrefixIndex1.java</span></div><h1>JSONPathTypedMultiNamesPrefixIndex1.java</h1><pre class="source lang-java linenums">package com.alibaba.fastjson2;
+
+import java.lang.reflect.Type;
+import java.time.ZoneId;
+
+public class JSONPathTypedMultiNamesPrefixIndex1
+        extends JSONPathTypedMultiNames {
+    final int index;
+
+    JSONPathTypedMultiNamesPrefixIndex1(
+            JSONPath[] paths,
+            JSONPathSingleIndex prefix,
+            JSONPath[] namePaths,
+            Type[] types,
+            String[] formats,
+            long[] pathFeatures,
+            ZoneId zoneId,
+            long features) {
+<span class="fc" id="L19">        super(paths, prefix, namePaths, types, formats, pathFeatures, zoneId, features);</span>
+<span class="fc" id="L20">        index = prefix.index;</span>
+<span class="fc" id="L21">    }</span>
+
+    @Override
+    public Object extract(JSONReader jsonReader) {
+<span class="fc bfc" id="L25" title="All 2 branches covered.">        if (jsonReader.nextIfNull()) {</span>
+<span class="fc" id="L26">            return new Object[paths.length];</span>
+        }
+
+<span class="fc bfc" id="L29" title="All 2 branches covered.">        if (!jsonReader.nextIfArrayStart()) {</span>
+<span class="fc" id="L30">            throw new JSONException(jsonReader.info(&quot;illegal input, expect '[', but &quot; + jsonReader.current()));</span>
+        }
+
+<span class="fc bfc" id="L33" title="All 2 branches covered.">        for (int i = 0; i &lt; index; ++i) {</span>
+<span class="fc bfc" id="L34" title="All 2 branches covered.">            if (jsonReader.nextIfArrayEnd()) {</span>
+<span class="fc" id="L35">                return new Object[paths.length];</span>
+            }
+
+<span class="fc bfc" id="L38" title="All 2 branches covered.">            if (jsonReader.isEnd()) {</span>
+<span class="fc" id="L39">                throw new JSONException(jsonReader.info(&quot;illegal input, expect '[', but &quot; + jsonReader.current()));</span>
+            }
+
+<span class="fc" id="L42">            jsonReader.skipValue();</span>
+        }
+
+<span class="fc bfc" id="L45" title="All 2 branches covered.">        if (jsonReader.nextIfNull()) {</span>
+<span class="fc" id="L46">            return new Object[paths.length];</span>
+        }
+
+<span class="fc bfc" id="L49" title="All 2 branches covered.">        if (jsonReader.nextIfArrayEnd()) {</span>
+<span class="fc" id="L50">            return new Object[paths.length];</span>
+        }
+
+<span class="fc" id="L53">        return objectReader.readObject(jsonReader);</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.8.202204050719</span></div></body></html>

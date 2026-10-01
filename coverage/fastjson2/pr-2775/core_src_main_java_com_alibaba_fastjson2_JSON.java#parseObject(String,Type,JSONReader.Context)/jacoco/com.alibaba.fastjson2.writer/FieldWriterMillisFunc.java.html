@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>FieldWriterMillisFunc.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">fastjson2</a> &gt; <a href="index.source.html" class="el_package">com.alibaba.fastjson2.writer</a> &gt; <span class="el_source">FieldWriterMillisFunc.java</span></div><h1>FieldWriterMillisFunc.java</h1><pre class="source lang-java linenums">package com.alibaba.fastjson2.writer;
+
+import com.alibaba.fastjson2.JSONWriter;
+
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
+import java.util.function.ToLongFunction;
+
+final class FieldWriterMillisFunc&lt;T&gt;
+        extends FieldWriterDate&lt;T&gt; {
+    final ToLongFunction function;
+
+    FieldWriterMillisFunc(String fieldName,
+            int ordinal,
+            long features,
+            String dateTimeFormat,
+            String label,
+            Field field,
+            Method method,
+            ToLongFunction function
+    ) {
+<span class="fc" id="L22">        super(fieldName, ordinal, features, dateTimeFormat, label, long.class, long.class, field, method);</span>
+<span class="fc" id="L23">        this.function = function;</span>
+<span class="fc" id="L24">    }</span>
+
+    @Override
+    public Object getFieldValue(T object) {
+<span class="nc" id="L28">        return function.applyAsLong(object);</span>
+    }
+
+    @Override
+    public boolean write(JSONWriter jsonWriter, T object) {
+<span class="fc" id="L33">        long millis = function.applyAsLong(object);</span>
+<span class="fc bfc" id="L34" title="All 2 branches covered.">        if (millis == 0) {</span>
+<span class="fc" id="L35">            long features = this.features | jsonWriter.getFeatures();</span>
+<span class="fc bfc" id="L36" title="All 2 branches covered.">            if ((features &amp; JSONWriter.Feature.WriteNulls.mask) != 0) {</span>
+<span class="fc" id="L37">                writeFieldName(jsonWriter);</span>
+<span class="fc" id="L38">                jsonWriter.writeNull();</span>
+<span class="fc" id="L39">                return true;</span>
+            } else {
+<span class="fc" id="L41">                return false;</span>
+            }
+        }
+
+<span class="fc" id="L45">        writeDate(jsonWriter, millis);</span>
+<span class="fc" id="L46">        return true;</span>
+    }
+
+    @Override
+    public void writeValue(JSONWriter jsonWriter, T object) {
+<span class="fc" id="L51">        long millis = function.applyAsLong(object);</span>
+<span class="fc" id="L52">        writeDate(jsonWriter, false, millis);</span>
+<span class="fc" id="L53">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.8.202204050719</span></div></body></html>

@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>JSONWriterUTF16JDK8UF.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">fastjson2</a> &gt; <a href="index.source.html" class="el_package">com.alibaba.fastjson2</a> &gt; <span class="el_source">JSONWriterUTF16JDK8UF.java</span></div><h1>JSONWriterUTF16JDK8UF.java</h1><pre class="source lang-java linenums">package com.alibaba.fastjson2;
+
+import com.alibaba.fastjson2.util.JDKUtils;
+
+import static com.alibaba.fastjson2.JSONWriter.Feature.*;
+import static com.alibaba.fastjson2.util.JDKUtils.UNSAFE;
+
+public final class JSONWriterUTF16JDK8UF
+        extends JSONWriterUTF16 {
+    JSONWriterUTF16JDK8UF(Context ctx) {
+<span class="fc" id="L11">        super(ctx);</span>
+<span class="fc" id="L12">    }</span>
+
+    @Override
+    public void writeString(String str) {
+<span class="fc bfc" id="L16" title="All 2 branches covered.">        if (str == null) {</span>
+<span class="fc" id="L17">            writeStringNull();</span>
+<span class="fc" id="L18">            return;</span>
+        }
+
+<span class="fc bfc" id="L21" title="All 2 branches covered.">        boolean browserSecure = (context.features &amp; BrowserSecure.mask) != 0;</span>
+<span class="fc bfc" id="L22" title="All 2 branches covered.">        boolean escapeNoneAscii = (context.features &amp; EscapeNoneAscii.mask) != 0;</span>
+<span class="fc" id="L23">        char[] value = (char[]) UNSAFE.getObject(str, JDKUtils.FIELD_STRING_VALUE_OFFSET);</span>
+<span class="fc" id="L24">        final int strlen = value.length;</span>
+
+<span class="fc" id="L26">        boolean escape = false;</span>
+<span class="fc bfc" id="L27" title="All 2 branches covered.">        for (int i = 0; i &lt; value.length; i++) {</span>
+<span class="fc" id="L28">            char ch = value[i];</span>
+<span class="pc bpc" id="L29" title="1 of 20 branches missed.">            if (ch == quote || ch == '\\' || ch &lt; ' '</span>
+                    || (browserSecure &amp;&amp; (ch == '&lt;' || ch == '&gt;' || ch == '(' || ch == ')'))
+                    || (escapeNoneAscii &amp;&amp; ch &gt; 0x007F)
+            ) {
+<span class="fc" id="L33">                escape = true;</span>
+<span class="fc" id="L34">                break;</span>
+            }
+        }
+
+<span class="fc bfc" id="L38" title="All 2 branches covered.">        if (!escape) {</span>
+<span class="fc" id="L39">            int off = this.off;</span>
+            // inline ensureCapacity(off + strlen + 2);
+<span class="fc" id="L41">            int minCapacity = off + strlen + 2;</span>
+<span class="fc bfc" id="L42" title="All 2 branches covered.">            if (minCapacity &gt;= chars.length) {</span>
+<span class="fc" id="L43">                ensureCapacity(minCapacity);</span>
+            }
+
+<span class="fc" id="L46">            final char[] chars = this.chars;</span>
+<span class="fc" id="L47">            chars[off++] = quote;</span>
+<span class="fc" id="L48">            System.arraycopy(value, 0, chars, off, value.length);</span>
+<span class="fc" id="L49">            off += strlen;</span>
+<span class="fc" id="L50">            chars[off] = quote;</span>
+<span class="fc" id="L51">            this.off = off + 1;</span>
+<span class="fc" id="L52">            return;</span>
+        }
+
+<span class="fc" id="L55">        writeStringEscape(str);</span>
+<span class="fc" id="L56">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.8.202204050719</span></div></body></html>

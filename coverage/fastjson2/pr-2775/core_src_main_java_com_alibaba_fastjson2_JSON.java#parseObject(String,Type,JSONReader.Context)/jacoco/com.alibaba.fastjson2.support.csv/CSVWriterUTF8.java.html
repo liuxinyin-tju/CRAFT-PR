@@ -1,0 +1,308 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>CSVWriterUTF8.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">fastjson2</a> &gt; <a href="index.source.html" class="el_package">com.alibaba.fastjson2.support.csv</a> &gt; <span class="el_source">CSVWriterUTF8.java</span></div><h1>CSVWriterUTF8.java</h1><pre class="source lang-java linenums">package com.alibaba.fastjson2.support.csv;
+
+import com.alibaba.fastjson2.JSONException;
+import com.alibaba.fastjson2.util.*;
+
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.OutputStream;
+import java.math.BigDecimal;
+import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+
+import static com.alibaba.fastjson2.util.IOUtils.*;
+import static com.alibaba.fastjson2.util.JDKUtils.*;
+
+final class CSVWriterUTF8
+        extends CSVWriter {
+<span class="fc" id="L20">    static final byte[] BYTES_TRUE = &quot;true&quot;.getBytes();</span>
+<span class="fc" id="L21">    static final byte[] BYTES_FALSE = &quot;false&quot;.getBytes();</span>
+<span class="fc" id="L22">    static final byte[] BYTES_LONG_MIN = &quot;-9223372036854775808&quot;.getBytes();</span>
+
+    final OutputStream out;
+    final Charset charset;
+    final byte[] bytes;
+
+    CSVWriterUTF8(
+            OutputStream out,
+            Charset charset,
+            ZoneId zoneId,
+            Feature... features
+    ) {
+<span class="fc" id="L34">        super(zoneId, features);</span>
+<span class="fc" id="L35">        this.out = out;</span>
+<span class="fc" id="L36">        this.charset = charset;</span>
+<span class="fc" id="L37">        this.bytes = new byte[1024 * 64];</span>
+<span class="fc" id="L38">    }</span>
+
+    void writeDirect(byte[] bytes, int off, int len) {
+        try {
+<span class="fc" id="L42">            out.write(bytes, off, len);</span>
+<span class="nc" id="L43">        } catch (IOException e) {</span>
+<span class="nc" id="L44">            throw new JSONException(&quot;write csv error&quot;, e);</span>
+<span class="fc" id="L45">        }</span>
+<span class="fc" id="L46">    }</span>
+
+    public void writeComma() {
+<span class="fc bfc" id="L49" title="All 2 branches covered.">        if (off + 1 == bytes.length) {</span>
+<span class="fc" id="L50">            flush();</span>
+        }
+<span class="fc" id="L52">        bytes[off++] = ',';</span>
+<span class="fc" id="L53">    }</span>
+
+    protected void writeQuote() {
+<span class="pc bpc" id="L56" title="1 of 2 branches missed.">        if (off + 1 == bytes.length) {</span>
+<span class="nc" id="L57">            flush();</span>
+        }
+<span class="fc" id="L59">        bytes[off++] = '&quot;';</span>
+<span class="fc" id="L60">    }</span>
+
+    public void writeLine() {
+<span class="pc bpc" id="L63" title="1 of 2 branches missed.">        if (off + 1 == bytes.length) {</span>
+<span class="nc" id="L64">            flush();</span>
+        }
+<span class="fc" id="L66">        bytes[off++] = '\n';</span>
+<span class="fc" id="L67">    }</span>
+
+    public void writeBoolean(boolean booleanValue) {
+<span class="pc bpc" id="L70" title="1 of 2 branches missed.">        byte[] valueBytes = booleanValue ? BYTES_TRUE : BYTES_FALSE;</span>
+<span class="fc" id="L71">        writeRaw(valueBytes);</span>
+<span class="fc" id="L72">    }</span>
+
+    public void writeInt64(long longValue) {
+<span class="fc" id="L75">        int minCapacity = off + 21;</span>
+<span class="fc bfc" id="L76" title="All 2 branches covered.">        if (minCapacity - this.bytes.length &gt; 0) {</span>
+<span class="fc" id="L77">            flush();</span>
+        }
+
+<span class="fc" id="L80">        off = IOUtils.writeInt64(bytes, off, longValue);</span>
+<span class="fc" id="L81">    }</span>
+
+    public void writeDateYYYMMDD10(int year, int month, int dayOfMonth) {
+<span class="pc bpc" id="L84" title="1 of 2 branches missed.">        if (off + 11 &gt;= this.bytes.length) {</span>
+<span class="nc" id="L85">            flush();</span>
+        }
+
+<span class="fc" id="L88">        off = IOUtils.writeLocalDate(bytes, off, year, month, dayOfMonth);</span>
+<span class="fc" id="L89">    }</span>
+
+    public void writeDateTime19(
+            int year,
+            int month,
+            int dayOfMonth,
+            int hour,
+            int minute,
+            int second
+    ) {
+<span class="pc bpc" id="L99" title="1 of 2 branches missed.">        if (off + 20 &gt;= this.bytes.length) {</span>
+<span class="nc" id="L100">            flush();</span>
+        }
+
+<span class="fc" id="L103">        final byte[] bytes = this.bytes;</span>
+<span class="fc" id="L104">        int off = this.off;</span>
+<span class="fc" id="L105">        off = IOUtils.writeLocalDate(bytes, off, year, month, dayOfMonth);</span>
+<span class="fc" id="L106">        bytes[off] = ' ';</span>
+<span class="fc" id="L107">        UNSAFE.putShort(bytes, ARRAY_BYTE_BASE_OFFSET + off + 1, PACKED_DIGITS[hour]);</span>
+<span class="fc" id="L108">        bytes[off + 3] = ':';</span>
+<span class="fc" id="L109">        UNSAFE.putShort(bytes, ARRAY_BYTE_BASE_OFFSET + off + 4, PACKED_DIGITS[minute]);</span>
+<span class="fc" id="L110">        bytes[off + 6] = ':';</span>
+<span class="fc" id="L111">        UNSAFE.putShort(bytes, ARRAY_BYTE_BASE_OFFSET + off + 7, PACKED_DIGITS[second]);</span>
+<span class="fc" id="L112">        this.off = off + 9;</span>
+<span class="fc" id="L113">    }</span>
+
+    public void writeString(String value) {
+        byte[] bytes;
+<span class="pc bpc" id="L117" title="2 of 4 branches missed.">        if (JDKUtils.STRING_CODER != null</span>
+                &amp;&amp; JDKUtils.STRING_VALUE != null
+<span class="nc bnc" id="L119" title="All 2 branches missed.">                &amp;&amp; JDKUtils.STRING_CODER.applyAsInt(value) == JDKUtils.LATIN1) {</span>
+<span class="nc" id="L120">            bytes = JDKUtils.STRING_VALUE.apply(value);</span>
+        } else {
+<span class="fc" id="L122">            bytes = value.getBytes(charset);</span>
+        }
+<span class="fc" id="L124">        writeString(bytes);</span>
+<span class="fc" id="L125">    }</span>
+
+    public void writeInt32(int intValue) {
+<span class="fc" id="L128">        int minCapacity = off + 11;</span>
+<span class="pc bpc" id="L129" title="1 of 2 branches missed.">        if (minCapacity - this.bytes.length &gt; 0) {</span>
+<span class="nc" id="L130">            flush();</span>
+        }
+
+<span class="fc" id="L133">        off = IOUtils.writeInt32(bytes, off, intValue);</span>
+<span class="fc" id="L134">    }</span>
+
+    public void writeDouble(double value) {
+<span class="fc" id="L137">        int minCapacity = off + 24;</span>
+<span class="fc bfc" id="L138" title="All 2 branches covered.">        if (minCapacity - this.bytes.length &gt; 0) {</span>
+<span class="fc" id="L139">            flush();</span>
+        }
+
+<span class="fc" id="L142">        int size = DoubleToDecimal.toString(value, this.bytes, off, true);</span>
+<span class="fc" id="L143">        off += size;</span>
+<span class="fc" id="L144">    }</span>
+
+    public void writeFloat(float value) {
+<span class="fc" id="L147">        int minCapacity = off + 15;</span>
+<span class="pc bpc" id="L148" title="1 of 2 branches missed.">        if (minCapacity - this.bytes.length &gt; 0) {</span>
+<span class="nc" id="L149">            flush();</span>
+        }
+
+<span class="fc" id="L152">        int size = DoubleToDecimal.toString(value, this.bytes, off, true);</span>
+<span class="fc" id="L153">        off += size;</span>
+<span class="fc" id="L154">    }</span>
+
+    public void flush() {
+        try {
+<span class="fc" id="L158">            out.write(bytes, 0, off);</span>
+<span class="fc" id="L159">            off = 0;</span>
+<span class="fc" id="L160">            out.flush();</span>
+<span class="nc" id="L161">        } catch (IOException e) {</span>
+<span class="nc" id="L162">            throw new JSONException(&quot;write csv error&quot;, e);</span>
+<span class="fc" id="L163">        }</span>
+<span class="fc" id="L164">    }</span>
+
+    public void writeString(byte[] utf8) {
+<span class="pc bpc" id="L167" title="2 of 4 branches missed.">        if (utf8 == null || utf8.length == 0) {</span>
+<span class="nc" id="L168">            return;</span>
+        }
+
+<span class="fc" id="L171">        final int len = utf8.length;</span>
+<span class="fc" id="L172">        int escapeCount = 0;</span>
+<span class="fc" id="L173">        boolean comma = false;</span>
+
+<span class="fc bfc" id="L175" title="All 2 branches covered.">        if (utf8[0] == '&quot;') {</span>
+<span class="fc bfc" id="L176" title="All 2 branches covered.">            for (byte ch : utf8) {</span>
+<span class="fc bfc" id="L177" title="All 2 branches covered.">                if (ch == '&quot;') {</span>
+<span class="fc" id="L178">                    escapeCount++;</span>
+                }
+            }
+        } else {
+<span class="fc bfc" id="L182" title="All 2 branches covered.">            for (byte ch : utf8) {</span>
+<span class="fc bfc" id="L183" title="All 2 branches covered.">                if (ch == ',') {</span>
+<span class="fc" id="L184">                    comma = true;</span>
+<span class="pc bpc" id="L185" title="1 of 2 branches missed.">                } else if (ch == '&quot;') {</span>
+<span class="nc" id="L186">                    escapeCount++;</span>
+                }
+            }
+<span class="fc bfc" id="L189" title="All 2 branches covered.">            if (!comma) {</span>
+<span class="fc" id="L190">                escapeCount = 0;</span>
+            }
+        }
+
+<span class="fc bfc" id="L194" title="All 2 branches covered.">        if (escapeCount == 0) {</span>
+<span class="fc" id="L195">            writeRaw(utf8);</span>
+<span class="fc" id="L196">            return;</span>
+        }
+
+<span class="pc bpc" id="L199" title="1 of 2 branches missed.">        if (off + 2 + utf8.length + escapeCount &gt;= bytes.length) {</span>
+<span class="nc" id="L200">            flush();</span>
+        }
+
+<span class="fc" id="L203">        bytes[off++] = '&quot;';</span>
+<span class="fc bfc" id="L204" title="All 2 branches covered.">        for (byte ch : utf8) {</span>
+<span class="fc bfc" id="L205" title="All 2 branches covered.">            if (ch == '&quot;') {</span>
+<span class="fc" id="L206">                bytes[off++] = '&quot;';</span>
+<span class="fc" id="L207">                bytes[off++] = '&quot;';</span>
+            } else {
+<span class="fc" id="L209">                bytes[off++] = ch;</span>
+            }
+        }
+<span class="fc" id="L212">        bytes[off++] = '&quot;';</span>
+<span class="fc" id="L213">    }</span>
+
+    public void writeDecimal(BigDecimal value) {
+<span class="pc bpc" id="L216" title="1 of 2 branches missed.">        if (value == null) {</span>
+<span class="nc" id="L217">            return;</span>
+        }
+
+<span class="fc" id="L220">        String str = value.toString();</span>
+<span class="fc" id="L221">        int strlen = str.length();</span>
+<span class="fc" id="L222">        str.getBytes(0, strlen, bytes, off);</span>
+<span class="fc" id="L223">        off += strlen;</span>
+<span class="fc" id="L224">    }</span>
+
+    public void writeDecimal(long unscaledVal, int scale) {
+<span class="fc bfc" id="L227" title="All 2 branches covered.">        if (scale == 0) {</span>
+<span class="fc" id="L228">            writeInt64(unscaledVal);</span>
+<span class="fc" id="L229">            return;</span>
+        }
+
+<span class="pc bpc" id="L232" title="3 of 6 branches missed.">        if (unscaledVal == Long.MIN_VALUE || scale &gt;= 20 || scale &lt; 0) {</span>
+<span class="nc" id="L233">            writeDecimal(BigDecimal.valueOf(unscaledVal, scale));</span>
+<span class="nc" id="L234">            return;</span>
+        }
+
+<span class="fc" id="L237">        int minCapacity = off + 24;</span>
+<span class="pc bpc" id="L238" title="1 of 2 branches missed.">        if (minCapacity - this.bytes.length &gt; 0) {</span>
+<span class="nc" id="L239">            flush();</span>
+        }
+
+<span class="fc" id="L242">        off = IOUtils.writeDecimal(bytes, off, unscaledVal, scale);</span>
+<span class="fc" id="L243">    }</span>
+
+    private void writeRaw(byte[] strBytes) {
+<span class="fc bfc" id="L246" title="All 2 branches covered.">        if (strBytes.length + off &lt; bytes.length) {</span>
+<span class="fc" id="L247">            System.arraycopy(strBytes, 0, bytes, off, strBytes.length);</span>
+<span class="fc" id="L248">            off += strBytes.length;</span>
+        } else {
+<span class="fc" id="L250">            flush();</span>
+<span class="pc bpc" id="L251" title="1 of 2 branches missed.">            if (strBytes.length &gt;= bytes.length) {</span>
+<span class="nc" id="L252">                writeDirect(strBytes, 0, strBytes.length);</span>
+            } else {
+<span class="fc" id="L254">                System.arraycopy(strBytes, 0, bytes, off, strBytes.length);</span>
+<span class="fc" id="L255">                off += strBytes.length;</span>
+            }
+        }
+<span class="fc" id="L258">    }</span>
+
+    protected void writeRaw(String str) {
+<span class="pc bpc" id="L261" title="2 of 4 branches missed.">        if (str == null || str.isEmpty()) {</span>
+<span class="nc" id="L262">            return;</span>
+        }
+
+<span class="fc" id="L265">        byte[] strBytes = str.getBytes(charset);</span>
+<span class="pc bpc" id="L266" title="1 of 2 branches missed.">        if (strBytes.length + off &lt; bytes.length) {</span>
+<span class="fc" id="L267">            System.arraycopy(strBytes, 0, bytes, off, strBytes.length);</span>
+<span class="fc" id="L268">            off += strBytes.length;</span>
+        } else {
+<span class="nc" id="L270">            flush();</span>
+<span class="nc bnc" id="L271" title="All 2 branches missed.">            if (strBytes.length &gt;= bytes.length) {</span>
+<span class="nc" id="L272">                writeDirect(strBytes, 0, strBytes.length);</span>
+            } else {
+<span class="nc" id="L274">                System.arraycopy(strBytes, 0, bytes, off, strBytes.length);</span>
+<span class="nc" id="L275">                off += strBytes.length;</span>
+            }
+        }
+<span class="fc" id="L278">    }</span>
+
+    public void writeLocalDateTime(LocalDateTime ldt) {
+<span class="pc bpc" id="L281" title="1 of 2 branches missed.">        if (ldt == null) {</span>
+<span class="nc" id="L282">            return;</span>
+        }
+
+<span class="fc" id="L285">        off = IOUtils.writeLocalDate(bytes, off, ldt.getYear(), ldt.getMonthValue(), ldt.getDayOfMonth());</span>
+<span class="fc" id="L286">        bytes[off++] = ' ';</span>
+<span class="fc" id="L287">        off = IOUtils.writeLocalTime(bytes, off, ldt.toLocalTime());</span>
+<span class="fc" id="L288">    }</span>
+
+    @Override
+    public void close() throws IOException {
+<span class="fc bfc" id="L292" title="All 2 branches covered.">        if (off &gt; 0) {</span>
+<span class="fc" id="L293">            flush();</span>
+        }
+
+<span class="fc" id="L296">        out.close();</span>
+<span class="fc" id="L297">    }</span>
+
+    public String toString() {
+<span class="pc bpc" id="L300" title="1 of 2 branches missed.">        if (out instanceof ByteArrayOutputStream) {</span>
+<span class="fc" id="L301">            flush();</span>
+<span class="fc" id="L302">            byte[] strBytes = ((ByteArrayOutputStream) out).toByteArray();</span>
+<span class="fc" id="L303">            return new String(strBytes, StandardCharsets.UTF_8);</span>
+        }
+<span class="nc" id="L305">        return super.toString();</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.8.202204050719</span></div></body></html>

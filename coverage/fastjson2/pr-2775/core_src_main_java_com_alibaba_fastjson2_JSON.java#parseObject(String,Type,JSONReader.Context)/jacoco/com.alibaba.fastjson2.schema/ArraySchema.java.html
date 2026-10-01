@@ -1,0 +1,359 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ArraySchema.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">fastjson2</a> &gt; <a href="index.source.html" class="el_package">com.alibaba.fastjson2.schema</a> &gt; <span class="el_source">ArraySchema.java</span></div><h1>ArraySchema.java</h1><pre class="source lang-java linenums">package com.alibaba.fastjson2.schema;
+
+import com.alibaba.fastjson2.JSON;
+import com.alibaba.fastjson2.JSONArray;
+import com.alibaba.fastjson2.JSONException;
+import com.alibaba.fastjson2.JSONObject;
+
+import java.lang.reflect.Array;
+import java.math.BigDecimal;
+import java.util.*;
+import java.util.function.IntFunction;
+import java.util.function.Predicate;
+
+public final class ArraySchema
+        extends JSONSchema {
+    final Map&lt;String, JSONSchema&gt; definitions;
+    final Map&lt;String, JSONSchema&gt; defs;
+
+    final boolean typed;
+
+    final int maxLength;
+    final int minLength;
+    JSONSchema itemSchema;
+    final JSONSchema[] prefixItems;
+    final boolean additionalItems;
+    final JSONSchema additionalItem;
+    final JSONSchema contains;
+    final int minContains;
+    final int maxContains;
+    final boolean uniqueItems;
+
+    final AllOf allOf;
+    final AnyOf anyOf;
+    final OneOf oneOf;
+    final boolean encoded;
+
+    public ArraySchema(JSONObject input, JSONSchema root) {
+<span class="fc" id="L38">        super(input);</span>
+
+<span class="fc" id="L40">        this.typed = &quot;array&quot;.equals(input.get(&quot;type&quot;));</span>
+<span class="fc" id="L41">        this.definitions = new LinkedHashMap&lt;&gt;();</span>
+<span class="fc" id="L42">        this.defs = new LinkedHashMap&lt;&gt;();</span>
+<span class="fc" id="L43">        this.encoded = input.getBooleanValue(&quot;encoded&quot;, false);</span>
+
+<span class="fc" id="L45">        JSONObject definitions = input.getJSONObject(&quot;definitions&quot;);</span>
+<span class="fc bfc" id="L46" title="All 2 branches covered.">        if (definitions != null) {</span>
+<span class="fc bfc" id="L47" title="All 2 branches covered.">            for (Map.Entry&lt;String, Object&gt; entry : definitions.entrySet()) {</span>
+<span class="fc" id="L48">                String entryKey = entry.getKey();</span>
+<span class="fc" id="L49">                JSONObject entryValue = (JSONObject) entry.getValue();</span>
+<span class="pc bpc" id="L50" title="1 of 2 branches missed.">                JSONSchema schema = JSONSchema.of(entryValue, root == null ? this : root);</span>
+<span class="fc" id="L51">                this.definitions.put(entryKey, schema);</span>
+<span class="fc" id="L52">            }</span>
+        }
+
+<span class="fc" id="L55">        JSONObject defs = input.getJSONObject(&quot;$defs&quot;);</span>
+<span class="fc bfc" id="L56" title="All 2 branches covered.">        if (defs != null) {</span>
+<span class="fc bfc" id="L57" title="All 2 branches covered.">            for (Map.Entry&lt;String, Object&gt; entry : defs.entrySet()) {</span>
+<span class="fc" id="L58">                String entryKey = entry.getKey();</span>
+<span class="fc" id="L59">                JSONObject entryValue = (JSONObject) entry.getValue();</span>
+<span class="pc bpc" id="L60" title="1 of 2 branches missed.">                JSONSchema schema = JSONSchema.of(entryValue, root == null ? this : root);</span>
+<span class="fc" id="L61">                this.defs.put(entryKey, schema);</span>
+<span class="fc" id="L62">            }</span>
+        }
+
+<span class="fc" id="L65">        this.minLength = input.getIntValue(&quot;minItems&quot;, -1);</span>
+<span class="fc" id="L66">        this.maxLength = input.getIntValue(&quot;maxItems&quot;, -1);</span>
+
+<span class="fc" id="L68">        Object items = input.get(&quot;items&quot;);</span>
+<span class="fc" id="L69">        Object additionalItems = input.get(&quot;additionalItems&quot;);</span>
+<span class="fc" id="L70">        JSONArray prefixItems = input.getJSONArray(&quot;prefixItems&quot;);</span>
+
+        boolean additionalItemsSupport;
+<span class="fc bfc" id="L73" title="All 2 branches covered.">        if (items == null) {</span>
+<span class="fc" id="L74">            additionalItemsSupport = true;</span>
+<span class="fc" id="L75">            this.itemSchema = null;</span>
+<span class="fc bfc" id="L76" title="All 2 branches covered.">        } else if (items instanceof Boolean) {</span>
+<span class="fc" id="L77">            additionalItemsSupport = (Boolean) items;</span>
+<span class="fc" id="L78">            this.itemSchema = null;</span>
+<span class="fc bfc" id="L79" title="All 2 branches covered.">        } else if (items instanceof JSONArray) {</span>
+<span class="pc bpc" id="L80" title="1 of 2 branches missed.">            if (prefixItems == null) {</span>
+<span class="fc" id="L81">                prefixItems = (JSONArray) items;</span>
+            } else {
+<span class="nc" id="L83">                throw new JSONException(&quot;schema error, items : &quot; + items);</span>
+            }
+<span class="fc" id="L85">            this.itemSchema = null;</span>
+<span class="fc" id="L86">            additionalItemsSupport = true;</span>
+        } else {
+<span class="fc" id="L88">            additionalItemsSupport = true;</span>
+<span class="fc bfc" id="L89" title="All 2 branches covered.">            this.itemSchema = JSONSchema.of((JSONObject) items, root != null ? root : this);</span>
+        }
+
+<span class="fc bfc" id="L92" title="All 2 branches covered.">        if (additionalItems instanceof JSONObject) {</span>
+<span class="pc bpc" id="L93" title="1 of 2 branches missed.">            additionalItem = JSONSchema.of((JSONObject) additionalItems, root == null ? this : root);</span>
+<span class="fc" id="L94">            additionalItemsSupport = true;</span>
+<span class="fc bfc" id="L95" title="All 2 branches covered.">        } else if (additionalItems instanceof Boolean) {</span>
+<span class="fc" id="L96">            additionalItemsSupport = (Boolean) additionalItems;</span>
+<span class="fc" id="L97">            this.additionalItem = null;</span>
+        } else {
+<span class="fc" id="L99">            this.additionalItem = null;</span>
+        }
+//        ((itemSchema != null &amp;&amp; !(itemSchema instanceof Any))
+//                || this.prefixItems.length &gt; 0)
+<span class="fc bfc" id="L103" title="All 4 branches covered.">        if (itemSchema != null &amp;&amp; !(itemSchema instanceof Any)) {</span>
+<span class="fc" id="L104">            additionalItemsSupport = true;</span>
+<span class="fc bfc" id="L105" title="All 4 branches covered.">        } else if (prefixItems == null &amp;&amp; !(items instanceof Boolean)) {</span>
+<span class="fc" id="L106">            additionalItemsSupport = true;</span>
+        }
+<span class="fc" id="L108">        this.additionalItems = additionalItemsSupport;</span>
+
+<span class="fc bfc" id="L110" title="All 2 branches covered.">        if (prefixItems == null) {</span>
+<span class="fc" id="L111">            this.prefixItems = new JSONSchema[0];</span>
+        } else {
+<span class="fc" id="L113">            this.prefixItems = new JSONSchema[prefixItems.size()];</span>
+<span class="fc bfc" id="L114" title="All 2 branches covered.">            for (int i = 0; i &lt; prefixItems.size(); i++) {</span>
+                JSONSchema schema;
+
+<span class="fc" id="L117">                Object prefixItem = prefixItems.get(i);</span>
+<span class="fc bfc" id="L118" title="All 2 branches covered.">                if (prefixItem instanceof Boolean) {</span>
+<span class="fc bfc" id="L119" title="All 2 branches covered.">                    schema = (Boolean) prefixItem ? Any.INSTANCE : Any.NOT_ANY;</span>
+                } else {
+<span class="fc" id="L121">                    JSONObject jsonObject = (JSONObject) prefixItem;</span>
+<span class="fc bfc" id="L122" title="All 2 branches covered.">                    schema = JSONSchema.of(jsonObject, root == null ? this : root);</span>
+                }
+
+<span class="fc" id="L125">                this.prefixItems[i] = schema;</span>
+            }
+        }
+
+<span class="fc" id="L129">        this.contains = input.getObject(&quot;contains&quot;, JSONSchema::of);</span>
+<span class="fc" id="L130">        this.minContains = input.getIntValue(&quot;minContains&quot;, -1);</span>
+<span class="fc" id="L131">        this.maxContains = input.getIntValue(&quot;maxContains&quot;, -1);</span>
+
+<span class="fc" id="L133">        this.uniqueItems = input.getBooleanValue(&quot;uniqueItems&quot;);</span>
+
+<span class="fc" id="L135">        allOf = allOf(input, null);</span>
+<span class="fc" id="L136">        anyOf = anyOf(input, null);</span>
+<span class="fc" id="L137">        oneOf = oneOf(input, null);</span>
+<span class="fc" id="L138">    }</span>
+
+    @Override
+    public Type getType() {
+<span class="fc" id="L142">        return Type.Array;</span>
+    }
+
+    @Override
+    public ValidateResult validate(Object value) {
+<span class="fc bfc" id="L147" title="All 2 branches covered.">        if (value == null) {</span>
+<span class="fc bfc" id="L148" title="All 2 branches covered.">            return typed ? FAIL_INPUT_NULL : SUCCESS;</span>
+        }
+
+<span class="fc bfc" id="L151" title="All 2 branches covered.">        if (encoded) {</span>
+<span class="fc bfc" id="L152" title="All 2 branches covered.">            if (value instanceof String) {</span>
+                try {
+<span class="fc" id="L154">                    value = JSON.parseArray((String) value);</span>
+<span class="nc" id="L155">                } catch (JSONException e) {</span>
+<span class="nc" id="L156">                    return FAIL_INPUT_NOT_ENCODED;</span>
+<span class="fc" id="L157">                }</span>
+            } else {
+<span class="fc" id="L159">                return FAIL_INPUT_NOT_ENCODED;</span>
+            }
+        }
+
+<span class="fc bfc" id="L163" title="All 2 branches covered.">        if (value instanceof Object[]) {</span>
+<span class="fc" id="L164">            final Object[] items = (Object[]) value;</span>
+<span class="fc" id="L165">            return validateItems(value, items.length, i -&gt; items[i]);</span>
+        }
+
+<span class="fc bfc" id="L168" title="All 2 branches covered.">        if (value.getClass().isArray()) {</span>
+<span class="fc" id="L169">            final int size = Array.getLength(value);</span>
+<span class="fc" id="L170">            final Object finalValue = value;</span>
+<span class="fc" id="L171">            return validateItems(finalValue, size, i -&gt; Array.get(finalValue, i));</span>
+        }
+
+<span class="fc bfc" id="L174" title="All 2 branches covered.">        if (value instanceof Collection) {</span>
+<span class="fc" id="L175">            final Collection&lt;?&gt; items = (Collection&lt;?&gt;) value;</span>
+<span class="fc" id="L176">            final Iterator&lt;?&gt; iterator = items.iterator();</span>
+<span class="fc" id="L177">            return validateItems(value, items.size(), i -&gt; iterator.next());</span>
+        }
+
+<span class="fc bfc" id="L180" title="All 2 branches covered.">        return typed ? FAIL_TYPE_NOT_MATCH : SUCCESS;</span>
+    }
+
+    private ValidateResult validateItems(final Object value, final int size, IntFunction&lt;Object&gt; itemGetter) {
+<span class="fc bfc" id="L184" title="All 4 branches covered.">        if (minLength &gt;= 0 &amp;&amp; size &lt; minLength) {</span>
+<span class="fc" id="L185">            return new ValidateResult(false, &quot;minLength not match, expect &gt;= %s, but %s&quot;, minLength, size);</span>
+        }
+
+<span class="fc bfc" id="L188" title="All 4 branches covered.">        if (maxLength &gt;= 0 &amp;&amp; size &gt; maxLength) {</span>
+<span class="fc" id="L189">            return new ValidateResult(false, &quot;maxLength not match, expect &lt;= %s, but %s&quot;, maxLength, size);</span>
+        }
+
+<span class="fc bfc" id="L192" title="All 4 branches covered.">        if (!additionalItems &amp;&amp; size &gt; prefixItems.length) {</span>
+<span class="fc" id="L193">            return new ValidateResult(false, &quot;additional items not match, max size %s, but %s&quot;, prefixItems.length, size);</span>
+        }
+
+<span class="fc" id="L196">        final boolean isCollection = value instanceof Collection;</span>
+<span class="fc" id="L197">        Set&lt;Object&gt; uniqueItemsSet = null;</span>
+<span class="fc" id="L198">        int containsCount = 0;</span>
+<span class="fc bfc" id="L199" title="All 2 branches covered.">        for (int index = 0; index &lt; size; index++) {</span>
+<span class="fc" id="L200">            Object item = itemGetter.apply(index);</span>
+
+<span class="fc" id="L202">            boolean prefixMatch = false;</span>
+<span class="fc bfc" id="L203" title="All 2 branches covered.">            if (index &lt; prefixItems.length) {</span>
+<span class="fc" id="L204">                ValidateResult result = prefixItems[index].validate(item);</span>
+<span class="fc bfc" id="L205" title="All 2 branches covered.">                if (!result.isSuccess()) {</span>
+<span class="fc" id="L206">                    return result;</span>
+                }
+<span class="fc" id="L208">                prefixMatch = true;</span>
+<span class="fc bfc" id="L209" title="All 6 branches covered.">            } else if (isCollection &amp;&amp; itemSchema == null &amp;&amp; additionalItem != null) { // 只有 Collection 才会执行这部分校验</span>
+<span class="fc" id="L210">                ValidateResult result = additionalItem.validate(item);</span>
+<span class="pc bpc" id="L211" title="1 of 2 branches missed.">                if (!result.isSuccess()) {</span>
+<span class="fc" id="L212">                    return result;</span>
+                }
+            }
+
+<span class="fc bfc" id="L216" title="All 4 branches covered.">            if (!prefixMatch &amp;&amp; itemSchema != null) {</span>
+<span class="fc" id="L217">                ValidateResult result = itemSchema.validate(item);</span>
+<span class="fc bfc" id="L218" title="All 2 branches covered.">                if (!result.isSuccess()) {</span>
+<span class="fc" id="L219">                    return result;</span>
+                }
+            }
+
+<span class="fc bfc" id="L223" title="All 8 branches covered.">            if (this.contains != null &amp;&amp; (minContains &gt; 0 || maxContains &gt; 0 || containsCount == 0)) {</span>
+<span class="fc" id="L224">                ValidateResult result = this.contains.validate(item);</span>
+<span class="fc bfc" id="L225" title="All 2 branches covered.">                if (result == SUCCESS) {</span>
+<span class="fc" id="L226">                    containsCount++;</span>
+                }
+            }
+
+<span class="fc bfc" id="L230" title="All 2 branches covered.">            if (uniqueItems) {</span>
+<span class="fc bfc" id="L231" title="All 2 branches covered.">                if (uniqueItemsSet == null) {</span>
+<span class="fc" id="L232">                    uniqueItemsSet = new HashSet&lt;&gt;(size, 1F);</span>
+                }
+
+<span class="fc bfc" id="L235" title="All 2 branches covered.">                if (item instanceof BigDecimal) {</span>
+<span class="fc" id="L236">                    item = ((BigDecimal) item).stripTrailingZeros();</span>
+                }
+
+<span class="fc bfc" id="L239" title="All 2 branches covered.">                if (!uniqueItemsSet.add(item)) {</span>
+<span class="fc" id="L240">                    return UNIQUE_ITEMS_NOT_MATCH;</span>
+                }
+            }
+        }
+
+<span class="fc bfc" id="L245" title="All 4 branches covered.">        if (!isCollection || this.contains != null) {</span>
+<span class="fc bfc" id="L246" title="All 4 branches covered.">            if (minContains &gt;= 0 &amp;&amp; containsCount &lt; minContains) {</span>
+<span class="fc" id="L247">                return new ValidateResult(false, &quot;minContains not match, expect %s, but %s&quot;, minContains, containsCount);</span>
+            }
+
+<span class="fc bfc" id="L250" title="All 2 branches covered.">            if (isCollection) { // Collection 和 数组 的部分校验规则不一样</span>
+<span class="fc bfc" id="L251" title="All 4 branches covered.">                if (containsCount == 0 &amp;&amp; minContains != 0) {</span>
+<span class="fc" id="L252">                    return CONTAINS_NOT_MATCH;</span>
+                }
+<span class="fc bfc" id="L254" title="All 4 branches covered.">            } else if (this.contains != null &amp;&amp; containsCount == 0) {</span>
+<span class="fc" id="L255">                return CONTAINS_NOT_MATCH;</span>
+            }
+
+<span class="fc bfc" id="L258" title="All 4 branches covered.">            if (maxContains &gt;= 0 &amp;&amp; containsCount &gt; maxContains) {</span>
+<span class="fc" id="L259">                return new ValidateResult(false, &quot;maxContains not match, expect %s, but %s&quot;, maxContains, containsCount);</span>
+            }
+        }
+
+<span class="fc bfc" id="L263" title="All 2 branches covered.">        if (allOf != null) {</span>
+<span class="fc" id="L264">            ValidateResult result = allOf.validate(value);</span>
+<span class="pc bpc" id="L265" title="1 of 2 branches missed.">            if (!result.isSuccess()) {</span>
+<span class="nc" id="L266">                return result;</span>
+            }
+        }
+
+<span class="pc bpc" id="L270" title="1 of 2 branches missed.">        if (anyOf != null) {</span>
+<span class="nc" id="L271">            ValidateResult result = anyOf.validate(value);</span>
+<span class="nc bnc" id="L272" title="All 2 branches missed.">            if (!result.isSuccess()) {</span>
+<span class="nc" id="L273">                return result;</span>
+            }
+        }
+
+<span class="pc bpc" id="L277" title="1 of 2 branches missed.">        if (oneOf != null) {</span>
+<span class="nc" id="L278">            ValidateResult result = oneOf.validate(value);</span>
+<span class="nc bnc" id="L279" title="All 2 branches missed.">            if (!result.isSuccess()) {</span>
+<span class="nc" id="L280">                return result;</span>
+            }
+        }
+
+<span class="fc" id="L284">        return SUCCESS;</span>
+    }
+
+    @Override
+    public JSONObject toJSONObject() {
+<span class="fc" id="L289">        JSONObject object = new JSONObject();</span>
+<span class="fc" id="L290">        object.put(&quot;type&quot;, &quot;array&quot;);</span>
+
+<span class="pc bpc" id="L292" title="1 of 2 branches missed.">        if (maxLength != -1) {</span>
+<span class="nc" id="L293">            object.put(&quot;maxLength&quot;, maxLength);</span>
+        }
+
+<span class="pc bpc" id="L296" title="1 of 2 branches missed.">        if (minLength != -1) {</span>
+<span class="nc" id="L297">            object.put(&quot;minLength&quot;, minLength);</span>
+        }
+
+<span class="fc bfc" id="L300" title="All 2 branches covered.">        if (itemSchema != null) {</span>
+<span class="fc" id="L301">            object.put(&quot;items&quot;, itemSchema);</span>
+        }
+
+<span class="pc bpc" id="L304" title="2 of 4 branches missed.">        if (prefixItems != null &amp;&amp; prefixItems.length != 0) {</span>
+<span class="nc" id="L305">            object.put(&quot;prefixItems&quot;, prefixItems);</span>
+        }
+
+<span class="pc bpc" id="L308" title="1 of 2 branches missed.">        if (!additionalItems) {</span>
+<span class="nc" id="L309">            object.put(&quot;additionalItems&quot;, additionalItems);</span>
+        }
+
+<span class="pc bpc" id="L312" title="1 of 2 branches missed.">        if (additionalItem != null) {</span>
+<span class="nc" id="L313">            object.put(&quot;additionalItem&quot;, additionalItem);</span>
+        }
+
+<span class="pc bpc" id="L316" title="1 of 2 branches missed.">        if (contains != null) {</span>
+<span class="nc" id="L317">            object.put(&quot;contains&quot;, contains);</span>
+        }
+
+<span class="pc bpc" id="L320" title="1 of 2 branches missed.">        if (minContains != -1) {</span>
+<span class="nc" id="L321">            object.put(&quot;minContains&quot;, minContains);</span>
+        }
+
+<span class="pc bpc" id="L324" title="1 of 2 branches missed.">        if (maxContains != -1) {</span>
+<span class="nc" id="L325">            object.put(&quot;maxContains&quot;, maxContains);</span>
+        }
+
+<span class="pc bpc" id="L328" title="1 of 2 branches missed.">        if (uniqueItems) {</span>
+<span class="nc" id="L329">            object.put(&quot;uniqueItems&quot;, uniqueItems);</span>
+        }
+
+<span class="pc bpc" id="L332" title="1 of 2 branches missed.">        if (allOf != null) {</span>
+<span class="nc" id="L333">            object.put(&quot;allOf&quot;, allOf);</span>
+        }
+
+<span class="pc bpc" id="L336" title="1 of 2 branches missed.">        if (anyOf != null) {</span>
+<span class="nc" id="L337">            object.put(&quot;anyOf&quot;, anyOf);</span>
+        }
+
+<span class="pc bpc" id="L340" title="1 of 2 branches missed.">        if (oneOf != null) {</span>
+<span class="nc" id="L341">            object.put(&quot;oneOf&quot;, oneOf);</span>
+        }
+<span class="fc" id="L343">        return object;</span>
+    }
+
+    @Override
+    public void accept(Predicate&lt;JSONSchema&gt; v) {
+<span class="nc bnc" id="L348" title="All 2 branches missed.">        if (v.test(this)) {</span>
+<span class="nc bnc" id="L349" title="All 2 branches missed.">            if (itemSchema != null) {</span>
+<span class="nc" id="L350">                itemSchema.accept(v);</span>
+            }
+        }
+<span class="nc" id="L353">    }</span>
+
+    public JSONSchema getItemSchema() {
+<span class="fc" id="L356">        return itemSchema;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.8.202204050719</span></div></body></html>

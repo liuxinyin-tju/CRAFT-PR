@@ -1,0 +1,494 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>JDKUtils.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">fastjson2</a> &gt; <a href="index.source.html" class="el_package">com.alibaba.fastjson2.util</a> &gt; <span class="el_source">JDKUtils.java</span></div><h1>JDKUtils.java</h1><pre class="source lang-java linenums">package com.alibaba.fastjson2.util;
+
+import com.alibaba.fastjson2.JSONException;
+import sun.misc.Unsafe;
+
+import java.lang.invoke.*;
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
+import java.math.BigDecimal;
+import java.math.BigInteger;
+import java.nio.ByteOrder;
+import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.*;
+
+import static java.lang.invoke.MethodType.methodType;
+
+<span class="nc" id="L18">public class JDKUtils {</span>
+    public static final Unsafe UNSAFE;
+    public static final long ARRAY_BYTE_BASE_OFFSET;
+    public static final long ARRAY_CHAR_BASE_OFFSET;
+
+    public static final int JVM_VERSION;
+<span class="fc" id="L24">    public static final Byte LATIN1 = 0;</span>
+<span class="fc" id="L25">    public static final Byte UTF16 = 1;</span>
+
+    public static final Field FIELD_STRING_VALUE;
+    public static final long FIELD_STRING_VALUE_OFFSET;
+    public static volatile boolean FIELD_STRING_VALUE_ERROR;
+
+    public static final long FIELD_DECIMAL_INT_COMPACT_OFFSET;
+    public static final long FIELD_BIGINTEGER_MAG_OFFSET;
+
+    public static final Field FIELD_STRING_CODER;
+    public static final long FIELD_STRING_CODER_OFFSET;
+    public static volatile boolean FIELD_STRING_CODER_ERROR;
+
+    static final Class&lt;?&gt; CLASS_SQL_DATASOURCE;
+    static final Class&lt;?&gt; CLASS_SQL_ROW_SET;
+    public static final boolean HAS_SQL;
+    public static final boolean ANDROID;
+    public static final boolean GRAAL;
+    public static final boolean OPENJ9;
+    public static final int ANDROID_SDK_INT;
+
+    // Android not support
+    public static final Class CLASS_TRANSIENT;
+    public static final boolean BIG_ENDIAN;
+
+    public static final boolean VECTOR_SUPPORT;
+    public static final int VECTOR_BIT_LENGTH;
+
+    // GraalVM not support
+    // Android not support
+    public static final BiFunction&lt;char[], Boolean, String&gt; STRING_CREATOR_JDK8;
+    public static final BiFunction&lt;byte[], Byte, String&gt; STRING_CREATOR_JDK11;
+    public static final ToIntFunction&lt;String&gt; STRING_CODER;
+    public static final Function&lt;String, byte[]&gt; STRING_VALUE;
+
+    public static final MethodHandle METHOD_HANDLE_HAS_NEGATIVE;
+    public static final Predicate&lt;byte[]&gt; PREDICATE_IS_ASCII;
+
+    static final MethodHandles.Lookup IMPL_LOOKUP;
+    static volatile MethodHandle CONSTRUCTOR_LOOKUP;
+    static volatile boolean CONSTRUCTOR_LOOKUP_ERROR;
+    static volatile Throwable initErrorLast;
+    static volatile Throwable reflectErrorLast;
+<span class="fc" id="L68">    static final AtomicInteger reflectErrorCount = new AtomicInteger();</span>
+
+    static {
+        Unsafe unsafe;
+        long offset, charOffset;
+        try {
+<span class="fc" id="L74">            Field theUnsafeField = Unsafe.class.getDeclaredField(&quot;theUnsafe&quot;);</span>
+<span class="fc" id="L75">            theUnsafeField.setAccessible(true);</span>
+<span class="fc" id="L76">            unsafe = (Unsafe) theUnsafeField.get(null);</span>
+<span class="fc" id="L77">            offset = unsafe.arrayBaseOffset(byte[].class);</span>
+<span class="fc" id="L78">            charOffset = unsafe.arrayBaseOffset(char[].class);</span>
+<span class="nc" id="L79">        } catch (Throwable e) {</span>
+<span class="nc" id="L80">            throw new JSONException(&quot;init unsafe error&quot;, e);</span>
+<span class="fc" id="L81">        }</span>
+
+<span class="fc" id="L83">        UNSAFE = unsafe;</span>
+<span class="fc" id="L84">        ARRAY_BYTE_BASE_OFFSET = offset;</span>
+<span class="fc" id="L85">        ARRAY_CHAR_BASE_OFFSET = charOffset;</span>
+
+<span class="pc bpc" id="L87" title="1 of 2 branches missed.">        if (offset == -1) {</span>
+<span class="nc" id="L88">            throw new JSONException(&quot;init JDKUtils error&quot;, initErrorLast);</span>
+        }
+
+<span class="fc" id="L91">        int jvmVersion = -1, android_sdk_int = -1;</span>
+<span class="fc" id="L92">        boolean openj9 = false, android = false, graal = false;</span>
+        try {
+<span class="fc" id="L94">            String jmvName = System.getProperty(&quot;java.vm.name&quot;);</span>
+<span class="fc" id="L95">            openj9 = jmvName.contains(&quot;OpenJ9&quot;);</span>
+<span class="fc" id="L96">            android = &quot;Dalvik&quot;.equals(jmvName);</span>
+<span class="pc bpc" id="L97" title="1 of 2 branches missed.">            graal = System.getProperty(&quot;org.graalvm.nativeimage.imagecode&quot;) != null;</span>
+<span class="pc bpc" id="L98" title="3 of 6 branches missed.">            if (openj9 || android || graal) {</span>
+<span class="nc" id="L99">                FIELD_STRING_VALUE_ERROR = true;</span>
+            }
+
+<span class="fc" id="L102">            String javaSpecVer = System.getProperty(&quot;java.specification.version&quot;);</span>
+            // android is 0.9
+<span class="pc bpc" id="L104" title="1 of 2 branches missed.">            if (javaSpecVer.startsWith(&quot;1.&quot;)) {</span>
+<span class="fc" id="L105">                javaSpecVer = javaSpecVer.substring(2);</span>
+            }
+<span class="pc bpc" id="L107" title="1 of 2 branches missed.">            if (javaSpecVer.indexOf('.') == -1) {</span>
+<span class="fc" id="L108">                jvmVersion = Integer.parseInt(javaSpecVer);</span>
+            }
+
+<span class="pc bpc" id="L111" title="1 of 2 branches missed.">            if (android) {</span>
+<span class="nc" id="L112">                android_sdk_int = Class.forName(&quot;android.os.Build$VERSION&quot;)</span>
+<span class="nc" id="L113">                        .getField(&quot;SDK_INT&quot;)</span>
+<span class="nc" id="L114">                        .getInt(null);</span>
+            }
+<span class="nc" id="L116">        } catch (Throwable e) {</span>
+<span class="nc" id="L117">            initErrorLast = e;</span>
+<span class="fc" id="L118">        }</span>
+
+<span class="fc" id="L120">        OPENJ9 = openj9;</span>
+<span class="fc" id="L121">        ANDROID = android;</span>
+<span class="fc" id="L122">        GRAAL = graal;</span>
+<span class="fc" id="L123">        ANDROID_SDK_INT = android_sdk_int;</span>
+
+<span class="fc" id="L125">        boolean hasJavaSql = true;</span>
+<span class="fc" id="L126">        Class dataSourceClass = null;</span>
+<span class="fc" id="L127">        Class rowSetClass = null;</span>
+        try {
+<span class="fc" id="L129">            dataSourceClass = Class.forName(&quot;javax.sql.DataSource&quot;);</span>
+<span class="fc" id="L130">            rowSetClass = Class.forName(&quot;javax.sql.RowSet&quot;);</span>
+<span class="nc" id="L131">        } catch (Throwable ignored) {</span>
+<span class="nc" id="L132">            hasJavaSql = false;</span>
+<span class="fc" id="L133">        }</span>
+<span class="fc" id="L134">        CLASS_SQL_DATASOURCE = dataSourceClass;</span>
+<span class="fc" id="L135">        CLASS_SQL_ROW_SET = rowSetClass;</span>
+<span class="fc" id="L136">        HAS_SQL = hasJavaSql;</span>
+
+<span class="fc" id="L138">        Class transientClass = null;</span>
+<span class="pc bpc" id="L139" title="1 of 2 branches missed.">        if (!android) {</span>
+            try {
+<span class="fc" id="L141">                transientClass = Class.forName(&quot;java.beans.Transient&quot;);</span>
+<span class="nc" id="L142">            } catch (Throwable ignored) {</span>
+<span class="fc" id="L143">            }</span>
+        }
+<span class="fc" id="L145">        CLASS_TRANSIENT = transientClass;</span>
+
+<span class="fc" id="L147">        JVM_VERSION = jvmVersion;</span>
+
+<span class="pc bpc" id="L149" title="1 of 2 branches missed.">        if (JVM_VERSION == 8) {</span>
+<span class="fc" id="L150">            Field field = null;</span>
+<span class="fc" id="L151">            long fieldOffset = -1;</span>
+<span class="pc bpc" id="L152" title="1 of 2 branches missed.">            if (!ANDROID) {</span>
+                try {
+<span class="fc" id="L154">                    field = String.class.getDeclaredField(&quot;value&quot;);</span>
+<span class="fc" id="L155">                    field.setAccessible(true);</span>
+<span class="fc" id="L156">                    fieldOffset = UNSAFE.objectFieldOffset(field);</span>
+<span class="nc" id="L157">                } catch (Exception ignored) {</span>
+<span class="nc" id="L158">                    FIELD_STRING_VALUE_ERROR = true;</span>
+<span class="fc" id="L159">                }</span>
+            }
+
+<span class="fc" id="L162">            FIELD_STRING_VALUE = field;</span>
+<span class="fc" id="L163">            FIELD_STRING_VALUE_OFFSET = fieldOffset;</span>
+
+<span class="fc" id="L165">            FIELD_STRING_CODER = null;</span>
+<span class="fc" id="L166">            FIELD_STRING_CODER_OFFSET = -1;</span>
+<span class="fc" id="L167">            FIELD_STRING_CODER_ERROR = true;</span>
+<span class="fc" id="L168">        } else {</span>
+<span class="nc" id="L169">            Field fieldValue = null;</span>
+<span class="nc" id="L170">            long fieldValueOffset = -1;</span>
+<span class="nc bnc" id="L171" title="All 2 branches missed.">            if (!ANDROID) {</span>
+                try {
+<span class="nc" id="L173">                    fieldValue = String.class.getDeclaredField(&quot;value&quot;);</span>
+<span class="nc" id="L174">                    fieldValueOffset = UNSAFE.objectFieldOffset(fieldValue);</span>
+<span class="nc" id="L175">                } catch (Exception ignored) {</span>
+<span class="nc" id="L176">                    FIELD_STRING_VALUE_ERROR = true;</span>
+<span class="nc" id="L177">                }</span>
+            }
+<span class="nc" id="L179">            FIELD_STRING_VALUE_OFFSET = fieldValueOffset;</span>
+<span class="nc" id="L180">            FIELD_STRING_VALUE = fieldValue;</span>
+
+<span class="nc" id="L182">            Field fieldCode = null;</span>
+<span class="nc" id="L183">            long fieldCodeOffset = -1;</span>
+<span class="nc bnc" id="L184" title="All 2 branches missed.">            if (!ANDROID) {</span>
+                try {
+<span class="nc" id="L186">                    fieldCode = String.class.getDeclaredField(&quot;coder&quot;);</span>
+<span class="nc" id="L187">                    fieldCodeOffset = UNSAFE.objectFieldOffset(fieldCode);</span>
+<span class="nc" id="L188">                } catch (Exception ignored) {</span>
+<span class="nc" id="L189">                    FIELD_STRING_CODER_ERROR = true;</span>
+<span class="nc" id="L190">                }</span>
+            }
+<span class="nc" id="L192">            FIELD_STRING_CODER_OFFSET = fieldCodeOffset;</span>
+<span class="nc" id="L193">            FIELD_STRING_CODER = fieldCode;</span>
+        }
+
+        {
+<span class="fc" id="L197">            long fieldOffset = -1;</span>
+<span class="pc bpc" id="L198" title="1 of 2 branches missed.">            for (Field field : BigDecimal.class.getDeclaredFields()) {</span>
+<span class="fc" id="L199">                String fieldName = field.getName();</span>
+<span class="fc bfc" id="L200" title="All 2 branches covered.">                if (fieldName.equals(&quot;intCompact&quot;)</span>
+<span class="pc bpc" id="L201" title="1 of 2 branches missed.">                        || fieldName.equals(&quot;smallValue&quot;) // android</span>
+                ) {
+<span class="fc" id="L203">                    fieldOffset = UNSAFE.objectFieldOffset(field);</span>
+<span class="fc" id="L204">                    break;</span>
+                }
+            }
+
+<span class="fc" id="L208">            FIELD_DECIMAL_INT_COMPACT_OFFSET = fieldOffset;</span>
+        }
+
+        {
+<span class="fc" id="L212">            long fieldOffset = -1;</span>
+            try {
+<span class="fc" id="L214">                Field field = BigInteger.class.getDeclaredField(&quot;mag&quot;);</span>
+<span class="fc" id="L215">                fieldOffset = UNSAFE.objectFieldOffset(field);</span>
+<span class="nc" id="L216">            } catch (Throwable ignored) {</span>
+                // ignored
+<span class="fc" id="L218">            }</span>
+<span class="fc" id="L219">            FIELD_BIGINTEGER_MAG_OFFSET = fieldOffset;</span>
+        }
+
+<span class="pc bpc" id="L222" title="1 of 2 branches missed.">        BIG_ENDIAN = ByteOrder.nativeOrder() == ByteOrder.BIG_ENDIAN;</span>
+
+<span class="fc" id="L224">        BiFunction&lt;char[], Boolean, String&gt; stringCreatorJDK8 = null;</span>
+<span class="fc" id="L225">        BiFunction&lt;byte[], Byte, String&gt; stringCreatorJDK11 = null;</span>
+<span class="fc" id="L226">        ToIntFunction&lt;String&gt; stringCoder = null;</span>
+<span class="fc" id="L227">        Function&lt;String, byte[]&gt; stringValue = null;</span>
+
+<span class="fc" id="L229">        MethodHandles.Lookup trustedLookup = null;</span>
+<span class="pc bpc" id="L230" title="1 of 2 branches missed.">        if (!ANDROID) {</span>
+            try {
+<span class="fc" id="L232">                Class lookupClass = MethodHandles.Lookup.class;</span>
+<span class="fc" id="L233">                Field implLookup = lookupClass.getDeclaredField(&quot;IMPL_LOOKUP&quot;);</span>
+<span class="fc" id="L234">                long fieldOffset = UNSAFE.staticFieldOffset(implLookup);</span>
+<span class="fc" id="L235">                trustedLookup = (MethodHandles.Lookup) UNSAFE.getObject(lookupClass, fieldOffset);</span>
+<span class="nc" id="L236">            } catch (Throwable ignored) {</span>
+                // ignored
+<span class="fc" id="L238">            }</span>
+<span class="pc bpc" id="L239" title="1 of 2 branches missed.">            if (trustedLookup == null) {</span>
+<span class="nc" id="L240">                trustedLookup = MethodHandles.lookup();</span>
+            }
+        }
+<span class="fc" id="L243">        IMPL_LOOKUP = trustedLookup;</span>
+
+<span class="fc" id="L245">        int vector_bit_length = -1;</span>
+<span class="fc" id="L246">        boolean vector_support = false;</span>
+        try {
+<span class="pc bpc" id="L248" title="1 of 2 branches missed.">            if (JVM_VERSION &gt;= 11) {</span>
+<span class="nc" id="L249">                Class&lt;?&gt; factorClass = Class.forName(&quot;java.lang.management.ManagementFactory&quot;);</span>
+<span class="nc" id="L250">                Class&lt;?&gt; runtimeMXBeanClass = Class.forName(&quot;java.lang.management.RuntimeMXBean&quot;);</span>
+<span class="nc" id="L251">                Method getRuntimeMXBean = factorClass.getMethod(&quot;getRuntimeMXBean&quot;);</span>
+<span class="nc" id="L252">                Object runtimeMXBean = getRuntimeMXBean.invoke(null);</span>
+<span class="nc" id="L253">                Method getInputArguments = runtimeMXBeanClass.getMethod(&quot;getInputArguments&quot;);</span>
+<span class="nc" id="L254">                List&lt;String&gt; inputArguments = (List&lt;String&gt;) getInputArguments.invoke(runtimeMXBean);</span>
+<span class="nc" id="L255">                vector_support = inputArguments.contains(&quot;--add-modules=jdk.incubator.vector&quot;);</span>
+
+<span class="nc bnc" id="L257" title="All 2 branches missed.">                if (vector_support) {</span>
+<span class="nc" id="L258">                    Class&lt;?&gt; byteVectorClass = Class.forName(&quot;jdk.incubator.vector.ByteVector&quot;);</span>
+<span class="nc" id="L259">                    Class&lt;?&gt; vectorSpeciesClass = Class.forName(&quot;jdk.incubator.vector.VectorSpecies&quot;);</span>
+<span class="nc" id="L260">                    Field speciesMax = byteVectorClass.getField(&quot;SPECIES_MAX&quot;);</span>
+<span class="nc" id="L261">                    Object species = speciesMax.get(null);</span>
+<span class="nc" id="L262">                    Method lengthMethod = vectorSpeciesClass.getMethod(&quot;length&quot;);</span>
+<span class="nc" id="L263">                    int length = (Integer) lengthMethod.invoke(species);</span>
+<span class="nc" id="L264">                    vector_bit_length = length * 8;</span>
+                }
+            }
+<span class="nc" id="L267">        } catch (Throwable e) {</span>
+<span class="nc" id="L268">            initErrorLast = e;</span>
+<span class="fc" id="L269">        }</span>
+<span class="fc" id="L270">        VECTOR_SUPPORT = vector_support;</span>
+<span class="fc" id="L271">        VECTOR_BIT_LENGTH = vector_bit_length;</span>
+
+        {
+<span class="fc" id="L274">            Predicate&lt;byte[]&gt; isAscii = null;</span>
+            // isASCII
+<span class="fc" id="L276">            MethodHandle handle = null;</span>
+<span class="fc" id="L277">            Class&lt;?&gt; classStringCoding = null;</span>
+<span class="pc bpc" id="L278" title="1 of 2 branches missed.">            if (JVM_VERSION &gt;= 17) {</span>
+                try {
+<span class="nc" id="L280">                    handle = trustedLookup.findStatic(</span>
+                            classStringCoding = String.class,
+                            &quot;isASCII&quot;,
+<span class="nc" id="L283">                            MethodType.methodType(boolean.class, byte[].class)</span>
+                    );
+<span class="nc" id="L285">                } catch (Throwable e) {</span>
+<span class="nc" id="L286">                    initErrorLast = e;</span>
+<span class="nc" id="L287">                }</span>
+            }
+
+<span class="pc bpc" id="L290" title="2 of 4 branches missed.">            if (handle == null &amp;&amp; JVM_VERSION &gt;= 11) {</span>
+                try {
+<span class="nc" id="L292">                    classStringCoding = Class.forName(&quot;java.lang.StringCoding&quot;);</span>
+<span class="nc" id="L293">                    handle = trustedLookup.findStatic(</span>
+                            classStringCoding,
+                            &quot;isASCII&quot;,
+<span class="nc" id="L296">                            MethodType.methodType(boolean.class, byte[].class)</span>
+                    );
+<span class="nc" id="L298">                } catch (Throwable e) {</span>
+<span class="nc" id="L299">                    initErrorLast = e;</span>
+<span class="nc" id="L300">                }</span>
+            }
+
+<span class="pc bpc" id="L303" title="1 of 2 branches missed.">            if (handle != null) {</span>
+                try {
+<span class="nc" id="L305">                    MethodHandles.Lookup lookup = trustedLookup(classStringCoding);</span>
+<span class="nc" id="L306">                    CallSite callSite = LambdaMetafactory.metafactory(</span>
+                            lookup,
+                            &quot;test&quot;,
+<span class="nc" id="L309">                            methodType(Predicate.class),</span>
+<span class="nc" id="L310">                            methodType(boolean.class, Object.class),</span>
+                            handle,
+<span class="nc" id="L312">                            methodType(boolean.class, byte[].class)</span>
+                    );
+<span class="nc" id="L314">                    isAscii = (Predicate&lt;byte[]&gt;) callSite.getTarget().invokeExact();</span>
+<span class="nc" id="L315">                } catch (Throwable e) {</span>
+<span class="nc" id="L316">                    initErrorLast = e;</span>
+<span class="nc" id="L317">                }</span>
+            }
+
+<span class="fc" id="L320">            PREDICATE_IS_ASCII = isAscii;</span>
+        }
+
+        {
+<span class="fc" id="L324">            MethodHandle handle = null;</span>
+<span class="pc bpc" id="L325" title="1 of 2 branches missed.">            if (JVM_VERSION &gt;= 11) {</span>
+                try {
+<span class="nc" id="L327">                    Class&lt;?&gt; classStringCoding = Class.forName(&quot;java.lang.StringCoding&quot;);</span>
+<span class="nc" id="L328">                    handle = trustedLookup.findStatic(</span>
+                            classStringCoding,
+                            &quot;hasNegatives&quot;,
+<span class="nc" id="L331">                            MethodType.methodType(boolean.class, byte[].class, int.class, int.class)</span>
+                    );
+<span class="nc" id="L333">                } catch (Throwable e) {</span>
+<span class="nc" id="L334">                    initErrorLast = e;</span>
+<span class="nc" id="L335">                }</span>
+            }
+<span class="fc" id="L337">            METHOD_HANDLE_HAS_NEGATIVE = handle;</span>
+        }
+
+<span class="fc" id="L340">        Boolean compact_strings = null;</span>
+        try {
+<span class="pc bpc" id="L342" title="1 of 2 branches missed.">            if (JVM_VERSION == 8) {</span>
+<span class="fc" id="L343">                MethodHandles.Lookup lookup = trustedLookup(String.class);</span>
+
+<span class="fc" id="L345">                MethodHandle handle = lookup.findConstructor(</span>
+<span class="fc" id="L346">                        String.class, methodType(void.class, char[].class, boolean.class)</span>
+                );
+
+<span class="fc" id="L349">                CallSite callSite = LambdaMetafactory.metafactory(</span>
+                        lookup,
+                        &quot;apply&quot;,
+<span class="fc" id="L352">                        methodType(BiFunction.class),</span>
+<span class="fc" id="L353">                        methodType(Object.class, Object.class, Object.class),</span>
+                        handle,
+<span class="fc" id="L355">                        methodType(String.class, char[].class, boolean.class)</span>
+                );
+<span class="fc" id="L357">                stringCreatorJDK8 = (BiFunction&lt;char[], Boolean, String&gt;) callSite.getTarget().invokeExact();</span>
+            }
+
+<span class="fc" id="L360">            boolean lookupLambda = false;</span>
+<span class="pc bpc" id="L361" title="3 of 4 branches missed.">            if (JVM_VERSION &gt; 8 &amp;&amp; !android) {</span>
+                try {
+<span class="nc" id="L363">                    Field compact_strings_field = String.class.getDeclaredField(&quot;COMPACT_STRINGS&quot;);</span>
+<span class="nc" id="L364">                    long fieldOffset = UNSAFE.staticFieldOffset(compact_strings_field);</span>
+<span class="nc" id="L365">                    compact_strings = UNSAFE.getBoolean(String.class, fieldOffset);</span>
+<span class="nc" id="L366">                } catch (Throwable e) {</span>
+<span class="nc" id="L367">                    initErrorLast = e;</span>
+<span class="nc" id="L368">                }</span>
+<span class="nc bnc" id="L369" title="All 4 branches missed.">                lookupLambda = compact_strings != null &amp;&amp; compact_strings;</span>
+            }
+
+<span class="pc bpc" id="L372" title="1 of 2 branches missed.">            if (lookupLambda) {</span>
+<span class="nc" id="L373">                MethodHandles.Lookup lookup = trustedLookup.in(String.class);</span>
+<span class="nc" id="L374">                MethodHandle handle = lookup.findConstructor(</span>
+<span class="nc" id="L375">                        String.class, methodType(void.class, byte[].class, byte.class)</span>
+                );
+<span class="nc" id="L377">                CallSite callSite = LambdaMetafactory.metafactory(</span>
+                        lookup,
+                        &quot;apply&quot;,
+<span class="nc" id="L380">                        methodType(BiFunction.class),</span>
+<span class="nc" id="L381">                        methodType(Object.class, Object.class, Object.class),</span>
+                        handle,
+<span class="nc" id="L383">                        methodType(String.class, byte[].class, Byte.class)</span>
+                );
+<span class="nc" id="L385">                stringCreatorJDK11 = (BiFunction&lt;byte[], Byte, String&gt;) callSite.getTarget().invokeExact();</span>
+
+<span class="nc" id="L387">                MethodHandle coder = lookup.findSpecial(</span>
+                        String.class,
+                        &quot;coder&quot;,
+<span class="nc" id="L390">                        methodType(byte.class),</span>
+                        String.class
+                );
+<span class="nc" id="L393">                CallSite applyAsInt = LambdaMetafactory.metafactory(</span>
+                        lookup,
+                        &quot;applyAsInt&quot;,
+<span class="nc" id="L396">                        methodType(ToIntFunction.class),</span>
+<span class="nc" id="L397">                        methodType(int.class, Object.class),</span>
+                        coder,
+<span class="nc" id="L399">                        methodType(byte.class, String.class)</span>
+                );
+<span class="nc" id="L401">                stringCoder = (ToIntFunction&lt;String&gt;) applyAsInt.getTarget().invokeExact();</span>
+
+<span class="nc" id="L403">                MethodHandle value = lookup.findSpecial(</span>
+                        String.class,
+                        &quot;value&quot;,
+<span class="nc" id="L406">                        methodType(byte[].class),</span>
+                        String.class
+                );
+<span class="nc" id="L409">                CallSite apply = LambdaMetafactory.metafactory(</span>
+                        lookup,
+                        &quot;apply&quot;,
+<span class="nc" id="L412">                        methodType(Function.class),</span>
+<span class="nc" id="L413">                        methodType(Object.class, Object.class),</span>
+                        value,
+<span class="nc" id="L415">                        methodType(byte[].class, String.class)</span>
+                );
+<span class="nc" id="L417">                stringValue = (Function&lt;String, byte[]&gt;) apply.getTarget().invokeExact();</span>
+            }
+<span class="nc" id="L419">        } catch (Throwable e) {</span>
+<span class="nc" id="L420">            initErrorLast = e;</span>
+<span class="fc" id="L421">        }</span>
+
+<span class="pc bpc" id="L423" title="1 of 2 branches missed.">        if (stringCoder == null) {</span>
+<span class="fc" id="L424">            stringCoder = (str) -&gt; 1;</span>
+        }
+
+<span class="fc" id="L427">        STRING_CREATOR_JDK8 = stringCreatorJDK8;</span>
+<span class="fc" id="L428">        STRING_CREATOR_JDK11 = stringCreatorJDK11;</span>
+<span class="fc" id="L429">        STRING_CODER = stringCoder;</span>
+<span class="fc" id="L430">        STRING_VALUE = stringValue;</span>
+<span class="fc" id="L431">    }</span>
+
+    public static boolean isSQLDataSourceOrRowSet(Class&lt;?&gt; type) {
+<span class="pc bpc" id="L434" title="2 of 6 branches missed.">        return (CLASS_SQL_DATASOURCE != null &amp;&amp; CLASS_SQL_DATASOURCE.isAssignableFrom(type))</span>
+<span class="fc bfc" id="L435" title="All 2 branches covered.">                || (CLASS_SQL_ROW_SET != null &amp;&amp; CLASS_SQL_ROW_SET.isAssignableFrom(type));</span>
+    }
+
+    public static void setReflectErrorLast(Throwable error) {
+<span class="nc" id="L439">        reflectErrorCount.incrementAndGet();</span>
+<span class="nc" id="L440">        reflectErrorLast = error;</span>
+<span class="nc" id="L441">    }</span>
+
+    public static char[] getCharArray(String str) {
+        // GraalVM not support
+        // Android not support
+<span class="pc bpc" id="L446" title="1 of 2 branches missed.">        if (!FIELD_STRING_VALUE_ERROR) {</span>
+            try {
+<span class="fc" id="L448">                return (char[]) UNSAFE.getObject(str, FIELD_STRING_VALUE_OFFSET);</span>
+<span class="nc" id="L449">            } catch (Exception ignored) {</span>
+<span class="nc" id="L450">                FIELD_STRING_VALUE_ERROR = true;</span>
+            }
+        }
+
+<span class="nc" id="L454">        return str.toCharArray();</span>
+    }
+
+    public static MethodHandles.Lookup trustedLookup(Class objectClass) {
+<span class="pc bpc" id="L458" title="1 of 2 branches missed.">        if (!CONSTRUCTOR_LOOKUP_ERROR) {</span>
+            try {
+<span class="fc" id="L460">                int TRUSTED = -1;</span>
+
+<span class="fc" id="L462">                MethodHandle constructor = CONSTRUCTOR_LOOKUP;</span>
+<span class="pc bpc" id="L463" title="1 of 2 branches missed.">                if (JVM_VERSION &lt; 15) {</span>
+<span class="fc bfc" id="L464" title="All 2 branches covered.">                    if (constructor == null) {</span>
+<span class="fc" id="L465">                        constructor = IMPL_LOOKUP.findConstructor(</span>
+                                MethodHandles.Lookup.class,
+<span class="fc" id="L467">                                methodType(void.class, Class.class, int.class)</span>
+                        );
+<span class="fc" id="L469">                        CONSTRUCTOR_LOOKUP = constructor;</span>
+                    }
+<span class="fc" id="L471">                    int FULL_ACCESS_MASK = 31; // for IBM Open J9 JDK</span>
+<span class="pc bpc" id="L472" title="1 of 2 branches missed.">                    return (MethodHandles.Lookup) constructor.invoke(</span>
+                            objectClass,
+                            OPENJ9 ? FULL_ACCESS_MASK : TRUSTED
+                    );
+                } else {
+<span class="nc bnc" id="L477" title="All 2 branches missed.">                    if (constructor == null) {</span>
+<span class="nc" id="L478">                        constructor = IMPL_LOOKUP.findConstructor(</span>
+                                MethodHandles.Lookup.class,
+<span class="nc" id="L480">                                methodType(void.class, Class.class, Class.class, int.class)</span>
+                        );
+<span class="nc" id="L482">                        CONSTRUCTOR_LOOKUP = constructor;</span>
+                    }
+<span class="nc" id="L484">                    return (MethodHandles.Lookup) constructor.invoke(objectClass, null, TRUSTED);</span>
+                }
+<span class="nc" id="L486">            } catch (Throwable ignored) {</span>
+<span class="nc" id="L487">                CONSTRUCTOR_LOOKUP_ERROR = true;</span>
+            }
+        }
+
+<span class="nc" id="L491">        return IMPL_LOOKUP.in(objectClass);</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.8.202204050719</span></div></body></html>

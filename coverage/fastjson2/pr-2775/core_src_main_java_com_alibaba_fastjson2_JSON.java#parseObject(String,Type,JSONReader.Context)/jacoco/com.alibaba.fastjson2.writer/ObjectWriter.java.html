@@ -1,0 +1,182 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ObjectWriter.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">fastjson2</a> &gt; <a href="index.source.html" class="el_package">com.alibaba.fastjson2.writer</a> &gt; <span class="el_source">ObjectWriter.java</span></div><h1>ObjectWriter.java</h1><pre class="source lang-java linenums">package com.alibaba.fastjson2.writer;
+
+import com.alibaba.fastjson2.JSONWriter;
+import com.alibaba.fastjson2.filter.*;
+import com.alibaba.fastjson2.util.Fnv;
+
+import java.lang.reflect.Type;
+import java.util.Collections;
+import java.util.List;
+
+public interface ObjectWriter&lt;T&gt; {
+    default long getFeatures() {
+<span class="nc" id="L13">        return 0;</span>
+    }
+
+    default List&lt;FieldWriter&gt; getFieldWriters() {
+<span class="fc" id="L17">        return Collections.emptyList();</span>
+    }
+
+    default FieldWriter getFieldWriter(long hashCode) {
+<span class="fc" id="L21">        return null;</span>
+    }
+
+    default Object getFieldValue(Object object, String fieldName) {
+<span class="fc" id="L25">        FieldWriter fieldWriter = getFieldWriter(fieldName);</span>
+<span class="pc bpc" id="L26" title="1 of 2 branches missed.">        if (fieldWriter == null) {</span>
+<span class="nc" id="L27">            return null;</span>
+        }
+<span class="fc" id="L29">        return fieldWriter.getFieldValue(object);</span>
+    }
+
+    default FieldWriter getFieldWriter(String name) {
+<span class="fc" id="L33">        long nameHash = Fnv.hashCode64(name);</span>
+<span class="fc" id="L34">        FieldWriter fieldWriter = getFieldWriter(nameHash);</span>
+<span class="fc bfc" id="L35" title="All 2 branches covered.">        if (fieldWriter == null) {</span>
+<span class="fc" id="L36">            long nameHashLCase = Fnv.hashCode64LCase(name);</span>
+<span class="pc bpc" id="L37" title="1 of 2 branches missed.">            if (nameHashLCase != nameHash) {</span>
+<span class="nc" id="L38">                fieldWriter = getFieldWriter(nameHashLCase);</span>
+            }
+        }
+<span class="fc" id="L41">        return fieldWriter;</span>
+    }
+
+    default boolean writeTypeInfo(JSONWriter jsonWriter) {
+<span class="nc" id="L45">        return false;</span>
+    }
+
+    default void writeJSONB(JSONWriter jsonWriter, Object object, Object fieldName, Type fieldType, long features) {
+<span class="fc" id="L49">        write(jsonWriter, object, fieldName, fieldType, features);</span>
+<span class="fc" id="L50">    }</span>
+
+    default void writeArrayMappingJSONB(JSONWriter jsonWriter, Object object) {
+<span class="nc" id="L53">        writeArrayMappingJSONB(jsonWriter, object, null, null, 0);</span>
+<span class="nc" id="L54">    }</span>
+
+    default void writeArrayMappingJSONB(JSONWriter jsonWriter, Object object, Object fieldName, Type fieldType, long features) {
+<span class="nc" id="L57">        List&lt;FieldWriter&gt; fieldWriters = getFieldWriters();</span>
+<span class="nc" id="L58">        int size = fieldWriters.size();</span>
+<span class="nc" id="L59">        jsonWriter.startArray(size);</span>
+<span class="nc bnc" id="L60" title="All 2 branches missed.">        for (int i = 0; i &lt; size; ++i) {</span>
+<span class="nc" id="L61">            FieldWriter fieldWriter = fieldWriters.get(i);</span>
+<span class="nc" id="L62">            fieldWriter.writeValue(jsonWriter, object);</span>
+        }
+<span class="nc" id="L64">    }</span>
+
+    default void writeArrayMapping(JSONWriter jsonWriter, Object object, Object fieldName, Type fieldType, long features) {
+<span class="pc bpc" id="L67" title="1 of 2 branches missed.">        if (jsonWriter.jsonb) {</span>
+<span class="nc" id="L68">            writeArrayMappingJSONB(jsonWriter, object, fieldName, fieldType, features);</span>
+<span class="nc" id="L69">            return;</span>
+        }
+
+<span class="fc" id="L72">        List&lt;FieldWriter&gt; fieldWriters = getFieldWriters();</span>
+<span class="fc" id="L73">        jsonWriter.startArray();</span>
+<span class="fc" id="L74">        boolean hasFilter = hasFilter(jsonWriter);</span>
+<span class="fc bfc" id="L75" title="All 2 branches covered.">        if (!hasFilter) {</span>
+<span class="fc bfc" id="L76" title="All 2 branches covered.">            for (int i = 0, size = fieldWriters.size(); i &lt; size; ++i) {</span>
+<span class="fc bfc" id="L77" title="All 2 branches covered.">                if (i != 0) {</span>
+<span class="fc" id="L78">                    jsonWriter.writeComma();</span>
+                }
+<span class="fc" id="L80">                FieldWriter fieldWriter = fieldWriters.get(i);</span>
+<span class="fc" id="L81">                fieldWriter.writeValue(jsonWriter, object);</span>
+            }
+        } else {
+<span class="fc" id="L84">            JSONWriter.Context ctx = jsonWriter.context;</span>
+<span class="fc" id="L85">            PropertyPreFilter propertyPreFilter = ctx.getPropertyPreFilter();</span>
+<span class="fc" id="L86">            ValueFilter valueFilter = ctx.getValueFilter();</span>
+<span class="fc" id="L87">            PropertyFilter propertyFilter = ctx.getPropertyFilter();</span>
+
+<span class="fc bfc" id="L89" title="All 2 branches covered.">            for (int i = 0, size = fieldWriters.size(); i &lt; size; ++i) {</span>
+<span class="fc bfc" id="L90" title="All 2 branches covered.">                if (i != 0) {</span>
+<span class="fc" id="L91">                    jsonWriter.writeComma();</span>
+                }
+<span class="fc" id="L93">                FieldWriter fieldWriter = fieldWriters.get(i);</span>
+<span class="pc bpc" id="L94" title="1 of 4 branches missed.">                if (propertyPreFilter != null &amp;&amp; !propertyPreFilter.process(jsonWriter, object, fieldWriter.fieldName)) {</span>
+<span class="fc" id="L95">                    jsonWriter.writeNull();</span>
+<span class="fc" id="L96">                    continue;</span>
+                }
+
+<span class="fc" id="L99">                Object fieldValue = fieldWriter.getFieldValue(object);</span>
+<span class="pc bpc" id="L100" title="3 of 4 branches missed.">                if (propertyFilter != null &amp;&amp; !propertyFilter.apply(object, fieldWriter.fieldName, fieldValue)) {</span>
+<span class="nc" id="L101">                    jsonWriter.writeNull();</span>
+<span class="nc" id="L102">                    continue;</span>
+                }
+
+<span class="pc bpc" id="L105" title="1 of 2 branches missed.">                if (valueFilter != null) {</span>
+<span class="nc" id="L106">                    Object processValue = valueFilter.apply(object, fieldWriter.fieldName, fieldValue);</span>
+<span class="nc bnc" id="L107" title="All 2 branches missed.">                    if (processValue == null) {</span>
+<span class="nc" id="L108">                        jsonWriter.writeNull();</span>
+<span class="nc" id="L109">                        continue;</span>
+                    }
+
+<span class="nc" id="L112">                    ObjectWriter processValueWriter = fieldWriter.getObjectWriter(jsonWriter, processValue.getClass());</span>
+<span class="nc" id="L113">                    processValueWriter.write(jsonWriter, fieldValue);</span>
+<span class="nc" id="L114">                } else {</span>
+<span class="pc bpc" id="L115" title="1 of 2 branches missed.">                    if (fieldValue == null) {</span>
+<span class="nc" id="L116">                        jsonWriter.writeNull();</span>
+<span class="nc" id="L117">                        continue;</span>
+                    }
+
+<span class="fc" id="L120">                    ObjectWriter fieldValueWriter = fieldWriter.getObjectWriter(jsonWriter, fieldValue.getClass());</span>
+<span class="fc" id="L121">                    fieldValueWriter.write(jsonWriter, fieldValue);</span>
+                }
+            }
+        }
+
+<span class="fc" id="L126">        jsonWriter.endArray();</span>
+<span class="fc" id="L127">    }</span>
+
+    default boolean hasFilter(JSONWriter jsonWriter) {
+<span class="fc" id="L130">        return jsonWriter.hasFilter(JSONWriter.Feature.IgnoreNonFieldGetter.mask);</span>
+    }
+
+    default void write(JSONWriter jsonWriter, Object object) {
+<span class="fc" id="L134">        write(jsonWriter, object, null, null, 0);</span>
+<span class="fc" id="L135">    }</span>
+
+    default String toJSONString(T object, JSONWriter.Feature... features) {
+<span class="fc" id="L138">        JSONWriter jsonWriter = JSONWriter.of(features);</span>
+<span class="fc" id="L139">        write(jsonWriter, object, null, null, 0);</span>
+<span class="fc" id="L140">        return jsonWriter.toString();</span>
+    }
+
+    void write(JSONWriter jsonWriter, Object object, Object fieldName, Type fieldType, long features);
+
+    default void writeWithFilter(JSONWriter jsonWriter, Object object) {
+<span class="fc" id="L146">        writeWithFilter(jsonWriter, object, null, null, 0);</span>
+<span class="fc" id="L147">    }</span>
+
+    default void writeWithFilter(JSONWriter jsonWriter, Object object, Object fieldName, Type fieldType, long features) {
+<span class="nc" id="L150">        throw new UnsupportedOperationException();</span>
+    }
+
+    default void setPropertyFilter(PropertyFilter propertyFilter) {
+<span class="nc" id="L154">    }</span>
+
+    default void setValueFilter(ValueFilter valueFilter) {
+<span class="nc" id="L157">    }</span>
+
+    default void setNameFilter(NameFilter nameFilter) {
+<span class="nc" id="L160">    }</span>
+
+    default void setPropertyPreFilter(PropertyPreFilter propertyPreFilter) {
+<span class="nc" id="L163">    }</span>
+
+    default void setFilter(Filter filter) {
+<span class="pc bpc" id="L166" title="1 of 2 branches missed.">        if (filter instanceof PropertyFilter) {</span>
+<span class="nc" id="L167">            setPropertyFilter((PropertyFilter) filter);</span>
+        }
+
+<span class="fc bfc" id="L170" title="All 2 branches covered.">        if (filter instanceof ValueFilter) {</span>
+<span class="fc" id="L171">            setValueFilter((ValueFilter) filter);</span>
+        }
+
+<span class="fc bfc" id="L174" title="All 2 branches covered.">        if (filter instanceof NameFilter) {</span>
+<span class="fc" id="L175">            setNameFilter((NameFilter) filter);</span>
+        }
+<span class="pc bpc" id="L177" title="1 of 2 branches missed.">        if (filter instanceof PropertyPreFilter) {</span>
+<span class="nc" id="L178">            setPropertyPreFilter((PropertyPreFilter) filter);</span>
+        }
+<span class="fc" id="L180">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.8.202204050719</span></div></body></html>

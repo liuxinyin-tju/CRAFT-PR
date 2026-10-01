@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>Labels.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">fastjson2</a> &gt; <a href="index.source.html" class="el_package">com.alibaba.fastjson2.filter</a> &gt; <span class="el_source">Labels.java</span></div><h1>Labels.java</h1><pre class="source lang-java linenums">package com.alibaba.fastjson2.filter;
+
+import java.util.Arrays;
+
+<span class="nc" id="L5">public class Labels {</span>
+    public static class DefaultLabelFilter
+            implements LabelFilter {
+        final String[] includes;
+        final String[] excludes;
+
+<span class="fc" id="L11">        public DefaultLabelFilter(String[] includes, String[] excludes) {</span>
+<span class="fc bfc" id="L12" title="All 2 branches covered.">            if (includes != null) {</span>
+<span class="fc" id="L13">                this.includes = new String[includes.length];</span>
+<span class="fc" id="L14">                System.arraycopy(includes, 0, this.includes, 0, includes.length);</span>
+<span class="fc" id="L15">                Arrays.sort(this.includes);</span>
+            } else {
+<span class="fc" id="L17">                this.includes = null;</span>
+            }
+
+<span class="fc bfc" id="L20" title="All 2 branches covered.">            if (excludes != null) {</span>
+<span class="fc" id="L21">                this.excludes = new String[excludes.length];</span>
+<span class="fc" id="L22">                System.arraycopy(excludes, 0, this.excludes, 0, excludes.length);</span>
+<span class="fc" id="L23">                Arrays.sort(this.excludes);</span>
+            } else {
+<span class="fc" id="L25">                this.excludes = null;</span>
+            }
+<span class="fc" id="L27">        }</span>
+
+        @Override
+        public boolean apply(String label) {
+<span class="fc bfc" id="L31" title="All 2 branches covered.">            if (excludes != null) {</span>
+<span class="fc bfc" id="L32" title="All 2 branches covered.">                return Arrays.binarySearch(excludes, label) &lt; 0;</span>
+            }
+
+<span class="pc bpc" id="L35" title="1 of 4 branches missed.">            return includes != null &amp;&amp; Arrays.binarySearch(includes, label) &gt;= 0;</span>
+        }
+    }
+
+    public static LabelFilter includes(String... views) {
+<span class="fc" id="L40">        return new DefaultLabelFilter(views, null);</span>
+    }
+
+    public static LabelFilter excludes(String... views) {
+<span class="fc" id="L44">        return new DefaultLabelFilter(null, views);</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.8.202204050719</span></div></body></html>

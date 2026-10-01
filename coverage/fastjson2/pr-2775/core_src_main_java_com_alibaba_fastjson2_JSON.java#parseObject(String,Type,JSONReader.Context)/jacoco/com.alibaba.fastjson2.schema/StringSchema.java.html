@@ -1,0 +1,286 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>StringSchema.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">fastjson2</a> &gt; <a href="index.source.html" class="el_package">com.alibaba.fastjson2.schema</a> &gt; <span class="el_source">StringSchema.java</span></div><h1>StringSchema.java</h1><pre class="source lang-java linenums">package com.alibaba.fastjson2.schema;
+
+import com.alibaba.fastjson2.JSONArray;
+import com.alibaba.fastjson2.JSONObject;
+import com.alibaba.fastjson2.TypeReference;
+import com.alibaba.fastjson2.util.DateUtils;
+import com.alibaba.fastjson2.util.TypeUtils;
+
+import java.net.URI;
+import java.net.URISyntaxException;
+import java.time.Duration;
+import java.time.format.DateTimeParseException;
+import java.util.*;
+import java.util.function.Predicate;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
+public final class StringSchema
+        extends JSONSchema {
+<span class="fc" id="L20">    static final Pattern EMAIL_PATTERN = Pattern.compile(&quot;^\\s*?(.+)@(.+?)\\s*$&quot;);</span>
+<span class="fc" id="L21">    static final Pattern IP_DOMAIN_PATTERN = Pattern.compile(&quot;^\\[(.*)\\]$&quot;);</span>
+<span class="fc" id="L22">    static final Pattern USER_PATTERN = Pattern.compile(&quot;^\\s*(((\\\\.)|[^\\s\\p{Cntrl}\\(\\)&lt;&gt;@,;:'\\\\\\\&quot;\\.\\[\\]]|')+|(\&quot;[^\&quot;]*\&quot;))(\\.(((\\\\.)|[^\\s\\p{Cntrl}\\(\\)&lt;&gt;@,;:'\\\\\\\&quot;\\.\\[\\]]|')+|(\&quot;[^\&quot;]*\&quot;)))*$&quot;);</span>
+
+    final int maxLength;
+    final int minLength;
+    final String format;
+    final String patternFormat;
+    final Pattern pattern;
+    final boolean typed;
+    final AnyOf anyOf;
+    final OneOf oneOf;
+    final String constValue;
+    final Set&lt;String&gt; enumValues;
+
+    final Predicate&lt;String&gt; formatValidator;
+
+    StringSchema(JSONObject input) {
+<span class="fc" id="L38">        super(input);</span>
+<span class="fc" id="L39">        this.typed = &quot;string&quot;.equalsIgnoreCase(input.getString(&quot;type&quot;));</span>
+<span class="fc" id="L40">        this.minLength = input.getIntValue(&quot;minLength&quot;, -1);</span>
+<span class="fc" id="L41">        this.maxLength = input.getIntValue(&quot;maxLength&quot;, -1);</span>
+<span class="fc" id="L42">        this.patternFormat = input.getString(&quot;pattern&quot;);</span>
+<span class="fc bfc" id="L43" title="All 2 branches covered.">        this.pattern = patternFormat == null ? null : Pattern.compile(patternFormat);</span>
+<span class="fc" id="L44">        this.format = input.getString(&quot;format&quot;);</span>
+
+<span class="fc" id="L46">        Object anyOf = input.get(&quot;anyOf&quot;);</span>
+<span class="fc bfc" id="L47" title="All 2 branches covered.">        if (anyOf instanceof JSONArray) {</span>
+<span class="fc" id="L48">            this.anyOf = anyOf((JSONArray) anyOf, String.class);</span>
+        } else {
+<span class="fc" id="L50">            this.anyOf = null;</span>
+        }
+
+<span class="fc" id="L53">        Object oneOf = input.get(&quot;oneOf&quot;);</span>
+<span class="fc bfc" id="L54" title="All 2 branches covered.">        if (oneOf instanceof JSONArray) {</span>
+<span class="fc" id="L55">            this.oneOf = oneOf((JSONArray) oneOf, String.class);</span>
+        } else {
+<span class="fc" id="L57">            this.oneOf = null;</span>
+        }
+
+<span class="fc" id="L60">        this.constValue = input.getString(&quot;const&quot;);</span>
+
+        {
+<span class="fc" id="L63">            Set&lt;String&gt; enumValues = null;</span>
+<span class="fc" id="L64">            Object property = input.get(&quot;enum&quot;);</span>
+<span class="fc bfc" id="L65" title="All 2 branches covered.">            if (property instanceof Collection) {</span>
+<span class="fc" id="L66">                Collection enums = (Collection) property;</span>
+<span class="fc" id="L67">                enumValues = new LinkedHashSet&lt;&gt;(enums.size());</span>
+<span class="fc" id="L68">                enumValues.addAll((Collection&lt;String&gt;) enums);</span>
+<span class="fc bfc" id="L69" title="All 2 branches covered.">            } else if (property instanceof Object[]) {</span>
+<span class="fc" id="L70">                enumValues = input.getObject(&quot;enum&quot;, TypeReference.collectionType(LinkedHashSet.class, String.class));</span>
+            }
+<span class="fc" id="L72">            this.enumValues = enumValues;</span>
+        }
+
+<span class="fc bfc" id="L75" title="All 2 branches covered.">        if (format == null) {</span>
+<span class="fc" id="L76">            formatValidator = null;</span>
+        } else {
+<span class="fc bfc" id="L78" title="All 10 branches covered.">            switch (format) {</span>
+                case &quot;email&quot;:
+<span class="fc" id="L80">                    formatValidator = StringSchema::isEmail;</span>
+<span class="fc" id="L81">                    break;</span>
+                case &quot;ipv4&quot;:
+<span class="fc" id="L83">                    formatValidator = TypeUtils::validateIPv4;</span>
+<span class="fc" id="L84">                    break;</span>
+                case &quot;ipv6&quot;:
+<span class="fc" id="L86">                    formatValidator = TypeUtils::validateIPv6;</span>
+<span class="fc" id="L87">                    break;</span>
+                case &quot;uri&quot;:
+<span class="fc" id="L89">                    formatValidator = url -&gt; {</span>
+<span class="pc bpc" id="L90" title="2 of 4 branches missed.">                        if (url == null || url.isEmpty()) {</span>
+<span class="nc" id="L91">                            return false;</span>
+                        }
+
+                        try {
+<span class="fc" id="L95">                            new URI(url);</span>
+<span class="fc" id="L96">                            return true;</span>
+<span class="fc" id="L97">                        } catch (URISyntaxException ignored) {</span>
+<span class="fc" id="L98">                            return false;</span>
+                        }
+                    };
+<span class="fc" id="L101">                    break;</span>
+                case &quot;date-time&quot;:
+<span class="fc" id="L103">                    formatValidator = DateUtils::isDate;</span>
+<span class="fc" id="L104">                    break;</span>
+                case &quot;date&quot;:
+<span class="fc" id="L106">                    formatValidator = DateUtils::isLocalDate;</span>
+<span class="fc" id="L107">                    break;</span>
+                case &quot;time&quot;:
+<span class="fc" id="L109">                    formatValidator = DateUtils::isLocalTime;</span>
+<span class="fc" id="L110">                    break;</span>
+                case &quot;duration&quot;:
+<span class="fc" id="L112">                    formatValidator = str -&gt; {</span>
+<span class="pc bpc" id="L113" title="1 of 4 branches missed.">                        if (str == null || str.isEmpty()) {</span>
+<span class="fc" id="L114">                            return false;</span>
+                        }
+
+                        try {
+<span class="fc" id="L118">                            Duration.parse(str);</span>
+<span class="fc" id="L119">                            return true;</span>
+<span class="fc" id="L120">                        } catch (DateTimeParseException ignored) {</span>
+<span class="fc" id="L121">                            return false;</span>
+                        }
+                    };
+<span class="fc" id="L124">                    break;</span>
+                case &quot;uuid&quot;:
+<span class="fc" id="L126">                    formatValidator = TypeUtils::isUUID;</span>
+<span class="fc" id="L127">                    break;</span>
+                default:
+<span class="fc" id="L129">                    formatValidator = null;</span>
+                    break;
+            }
+        }
+<span class="fc" id="L133">    }</span>
+
+    @Override
+    public Type getType() {
+<span class="fc" id="L137">        return Type.String;</span>
+    }
+
+    @Override
+    public ValidateResult validate(Object value) {
+<span class="fc bfc" id="L142" title="All 2 branches covered.">        if (value == null) {</span>
+<span class="fc bfc" id="L143" title="All 2 branches covered.">            if (typed) {</span>
+<span class="fc" id="L144">                return REQUIRED_NOT_MATCH;</span>
+            }
+<span class="fc" id="L146">            return SUCCESS;</span>
+        }
+
+<span class="fc bfc" id="L149" title="All 2 branches covered.">        if (value instanceof String) {</span>
+<span class="fc" id="L150">            String str = (String) value;</span>
+
+<span class="fc bfc" id="L152" title="All 4 branches covered.">            if (minLength &gt;= 0 || maxLength &gt;= 0) {</span>
+<span class="fc" id="L153">                int count = str.codePointCount(0, str.length());</span>
+<span class="fc bfc" id="L154" title="All 4 branches covered.">                if (minLength &gt;= 0 &amp;&amp; count &lt; minLength) {</span>
+<span class="fc" id="L155">                    return new ValidateResult(false, &quot;minLength not match, expect &gt;= %s, but %s&quot;, minLength, str.length());</span>
+                }
+
+<span class="fc bfc" id="L158" title="All 4 branches covered.">                if (maxLength &gt;= 0 &amp;&amp; count &gt; maxLength) {</span>
+<span class="fc" id="L159">                    return new ValidateResult(false, &quot;maxLength not match, expect &lt;= %s, but %s&quot;, maxLength, str.length());</span>
+                }
+            }
+
+<span class="fc bfc" id="L163" title="All 2 branches covered.">            if (pattern != null) {</span>
+<span class="fc bfc" id="L164" title="All 2 branches covered.">                if (!pattern.matcher(str).find()) {</span>
+<span class="fc" id="L165">                    return new ValidateResult(false, &quot;pattern not match, expect %s, but %s&quot;, patternFormat, str);</span>
+                }
+            }
+
+<span class="fc bfc" id="L169" title="All 2 branches covered.">            if (formatValidator != null) {</span>
+<span class="fc bfc" id="L170" title="All 2 branches covered.">                if (!formatValidator.test(str)) {</span>
+<span class="fc" id="L171">                    return new ValidateResult(false, &quot;format not match, expect %s, but %s&quot;, format, str);</span>
+                }
+            }
+
+<span class="fc bfc" id="L175" title="All 2 branches covered.">            if (anyOf != null) {</span>
+<span class="fc" id="L176">                ValidateResult result = anyOf.validate(str);</span>
+<span class="fc bfc" id="L177" title="All 2 branches covered.">                if (!result.isSuccess()) {</span>
+<span class="fc" id="L178">                    return result;</span>
+                }
+            }
+
+<span class="fc bfc" id="L182" title="All 2 branches covered.">            if (oneOf != null) {</span>
+<span class="fc" id="L183">                ValidateResult result = oneOf.validate(str);</span>
+<span class="fc bfc" id="L184" title="All 2 branches covered.">                if (!result.isSuccess()) {</span>
+<span class="fc" id="L185">                    return result;</span>
+                }
+            }
+
+<span class="fc bfc" id="L189" title="All 2 branches covered.">            if (constValue != null) {</span>
+<span class="fc bfc" id="L190" title="All 2 branches covered.">                if (!constValue.equals(str)) {</span>
+<span class="fc" id="L191">                    return new ValidateResult(false, &quot;must be const %s, but %s&quot;, constValue, str);</span>
+                }
+            }
+
+<span class="fc bfc" id="L195" title="All 2 branches covered.">            if (enumValues != null) {</span>
+<span class="fc bfc" id="L196" title="All 2 branches covered.">                if (!enumValues.contains(str)) {</span>
+<span class="fc" id="L197">                    return new ValidateResult(false, &quot;not in enum values, %s&quot;, str);</span>
+                }
+            }
+
+<span class="fc" id="L201">            return SUCCESS;</span>
+        }
+
+<span class="fc bfc" id="L204" title="All 2 branches covered.">        if (!typed) {</span>
+<span class="fc" id="L205">            return SUCCESS;</span>
+        }
+
+<span class="fc" id="L208">        return new ValidateResult(false, &quot;expect type %s, but %s&quot;, Type.String, value.getClass());</span>
+    }
+
+    public static boolean isEmail(String email) {
+<span class="fc bfc" id="L212" title="All 2 branches covered.">        if (email == null) {</span>
+<span class="fc" id="L213">            return false;</span>
+        }
+
+<span class="fc bfc" id="L216" title="All 2 branches covered.">        if (email.endsWith(&quot;.&quot;)) { // check this first - it's cheap!</span>
+<span class="fc" id="L217">            return false;</span>
+        }
+
+        // Check the whole email address structure
+<span class="fc" id="L221">        Matcher emailMatcher = EMAIL_PATTERN.matcher(email);</span>
+<span class="fc bfc" id="L222" title="All 2 branches covered.">        if (!emailMatcher.matches()) {</span>
+<span class="fc" id="L223">            return false;</span>
+        }
+
+<span class="fc" id="L226">        String user = emailMatcher.group(1);</span>
+<span class="fc bfc" id="L227" title="All 2 branches covered.">        if (user.length() &gt; 64) {</span>
+<span class="fc" id="L228">            return false;</span>
+        }
+
+<span class="pc bpc" id="L231" title="1 of 2 branches missed.">        if (!USER_PATTERN.matcher(user).matches()) {</span>
+<span class="nc" id="L232">            return false;</span>
+        }
+
+<span class="fc" id="L235">        String domain = emailMatcher.group(2);</span>
+<span class="fc" id="L236">        Matcher ipDomainMatcher = IP_DOMAIN_PATTERN.matcher(domain);</span>
+
+        boolean validDomain;
+<span class="fc bfc" id="L239" title="All 2 branches covered.">        if (ipDomainMatcher.matches()) {</span>
+<span class="fc" id="L240">            String inetAddress = ipDomainMatcher.group(1);</span>
+<span class="fc bfc" id="L241" title="All 4 branches covered.">            validDomain = TypeUtils.validateIPv4(inetAddress) || TypeUtils.validateIPv6(inetAddress);</span>
+<span class="fc" id="L242">        } else {</span>
+<span class="pc bpc" id="L243" title="1 of 4 branches missed.">            validDomain = DomainValidator.isValid(domain) || DomainValidator.isValidTld(domain);</span>
+        }
+
+<span class="fc" id="L246">        return validDomain;</span>
+    }
+
+    @Override
+    public JSONObject toJSONObject() {
+<span class="fc" id="L251">        JSONObject object = new JSONObject();</span>
+
+<span class="fc" id="L253">        object.put(&quot;type&quot;, &quot;string&quot;);</span>
+
+<span class="pc bpc" id="L255" title="1 of 2 branches missed.">        if (minLength != -1) {</span>
+<span class="nc" id="L256">            object.put(&quot;minLength&quot;, minLength);</span>
+        }
+
+<span class="pc bpc" id="L259" title="1 of 2 branches missed.">        if (format != null) {</span>
+<span class="nc" id="L260">            object.put(&quot;format&quot;, format);</span>
+        }
+
+<span class="pc bpc" id="L263" title="1 of 2 branches missed.">        if (patternFormat != null) {</span>
+<span class="nc" id="L264">            object.put(&quot;pattern&quot;, pattern);</span>
+        }
+
+<span class="pc bpc" id="L267" title="1 of 2 branches missed.">        if (anyOf != null) {</span>
+<span class="nc" id="L268">            object.put(&quot;anyOf&quot;, anyOf);</span>
+        }
+
+<span class="pc bpc" id="L271" title="1 of 2 branches missed.">        if (oneOf != null) {</span>
+<span class="nc" id="L272">            object.put(&quot;oneOf&quot;, oneOf);</span>
+        }
+
+<span class="pc bpc" id="L275" title="1 of 2 branches missed.">        if (constValue != null) {</span>
+<span class="nc" id="L276">            object.put(&quot;const&quot;, constValue);</span>
+        }
+
+<span class="pc bpc" id="L279" title="1 of 4 branches missed.">        if (enumValues != null &amp;&amp; !enumValues.isEmpty()) {</span>
+<span class="fc" id="L280">            object.put(&quot;enum&quot;, enumValues);</span>
+        }
+
+<span class="fc" id="L283">        return object;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.8.202204050719</span></div></body></html>

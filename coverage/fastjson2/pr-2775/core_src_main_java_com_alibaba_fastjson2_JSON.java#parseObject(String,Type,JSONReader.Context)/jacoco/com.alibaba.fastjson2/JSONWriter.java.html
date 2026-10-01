@@ -1,0 +1,2626 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>JSONWriter.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">fastjson2</a> &gt; <a href="index.source.html" class="el_package">com.alibaba.fastjson2</a> &gt; <span class="el_source">JSONWriter.java</span></div><h1>JSONWriter.java</h1><pre class="source lang-java linenums">package com.alibaba.fastjson2;
+
+import com.alibaba.fastjson2.filter.*;
+import com.alibaba.fastjson2.util.IOUtils;
+import com.alibaba.fastjson2.util.TypeUtils;
+import com.alibaba.fastjson2.writer.FieldWriter;
+import com.alibaba.fastjson2.writer.ObjectWriter;
+import com.alibaba.fastjson2.writer.ObjectWriterProvider;
+
+import java.io.*;
+import java.lang.reflect.GenericArrayType;
+import java.lang.reflect.ParameterizedType;
+import java.lang.reflect.Type;
+import java.math.BigDecimal;
+import java.math.BigInteger;
+import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
+import java.text.DecimalFormat;
+import java.time.*;
+import java.time.format.DateTimeFormatter;
+import java.util.*;
+
+import static com.alibaba.fastjson2.JSONFactory.*;
+import static com.alibaba.fastjson2.JSONWriter.Feature.*;
+import static com.alibaba.fastjson2.util.JDKUtils.*;
+import static com.alibaba.fastjson2.util.TypeUtils.isJavaScriptSupport;
+
+public abstract class JSONWriter
+        implements Closeable {
+<span class="fc" id="L30">    static final long WRITE_ARRAY_NULL_MASK = NullAsDefaultValue.mask | WriteNullListAsEmpty.mask;</span>
+<span class="fc" id="L31">    static final char[] DIGITS = {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F'};</span>
+
+    public final Context context;
+    public final boolean utf8;
+    public final boolean utf16;
+    public final boolean jsonb;
+    public final boolean useSingleQuote;
+    public final SymbolTable symbolTable;
+
+    protected final Charset charset;
+    protected final char quote;
+    protected final int maxArraySize;
+
+    protected boolean startObject;
+    protected int level;
+    protected int off;
+    protected Object rootObject;
+    protected IdentityHashMap&lt;Object, Path&gt; refs;
+    protected Path path;
+    protected String lastReference;
+    protected boolean pretty;
+    protected int indent;
+    protected Object attachment;
+
+    protected JSONWriter(
+            Context context,
+            SymbolTable symbolTable,
+            boolean jsonb,
+            Charset charset
+<span class="fc" id="L60">    ) {</span>
+<span class="fc" id="L61">        this.context = context;</span>
+<span class="fc" id="L62">        this.symbolTable = symbolTable;</span>
+<span class="fc" id="L63">        this.charset = charset;</span>
+<span class="fc" id="L64">        this.jsonb = jsonb;</span>
+<span class="fc bfc" id="L65" title="All 4 branches covered.">        this.utf8 = !jsonb &amp;&amp; charset == StandardCharsets.UTF_8;</span>
+<span class="fc bfc" id="L66" title="All 4 branches covered.">        this.utf16 = !jsonb &amp;&amp; charset == StandardCharsets.UTF_16;</span>
+<span class="fc bfc" id="L67" title="All 4 branches covered.">        this.useSingleQuote = !jsonb &amp;&amp; (context.features &amp; UseSingleQuotes.mask) != 0;</span>
+
+<span class="fc bfc" id="L69" title="All 2 branches covered.">        quote = useSingleQuote ? '\'' : '&quot;';</span>
+
+        // 64M or 1G
+<span class="fc bfc" id="L72" title="All 2 branches covered.">        maxArraySize = (context.features &amp; LargeObject.mask) != 0 ? 1073741824 : 67108864;</span>
+<span class="fc bfc" id="L73" title="All 2 branches covered.">        pretty = (context.features &amp; PrettyFormat.mask) != 0;</span>
+<span class="fc" id="L74">    }</span>
+
+    public final Charset getCharset() {
+<span class="fc" id="L77">        return charset;</span>
+    }
+
+    public final boolean isUTF8() {
+<span class="fc" id="L81">        return utf8;</span>
+    }
+
+    public final boolean isUTF16() {
+<span class="fc" id="L85">        return utf16;</span>
+    }
+
+    public final boolean isIgnoreNoneSerializable() {
+<span class="pc bpc" id="L89" title="1 of 2 branches missed.">        return (context.features &amp; IgnoreNoneSerializable.mask) != 0;</span>
+    }
+
+    public final boolean isIgnoreNoneSerializable(Object object) {
+<span class="pc bpc" id="L93" title="1 of 4 branches missed.">        return (context.features &amp; IgnoreNoneSerializable.mask) != 0</span>
+                &amp;&amp; object != null
+<span class="pc bpc" id="L95" title="1 of 2 branches missed.">                &amp;&amp; !Serializable.class.isAssignableFrom(object.getClass());</span>
+    }
+
+    public final SymbolTable getSymbolTable() {
+<span class="fc" id="L99">        return symbolTable;</span>
+    }
+
+    public final void config(Feature... features) {
+<span class="fc" id="L103">        context.config(features);</span>
+<span class="fc" id="L104">    }</span>
+
+    public final void config(Feature feature, boolean state) {
+<span class="fc" id="L107">        context.config(feature, state);</span>
+<span class="fc" id="L108">    }</span>
+
+    public final Context getContext() {
+<span class="fc" id="L111">        return context;</span>
+    }
+
+    public final int level() {
+<span class="fc" id="L115">        return level;</span>
+    }
+
+    public final void setRootObject(Object rootObject) {
+<span class="fc" id="L119">        this.rootObject = rootObject;</span>
+<span class="fc" id="L120">        this.path = JSONWriter.Path.ROOT;</span>
+<span class="fc" id="L121">    }</span>
+
+    public final String setPath(String name, Object object) {
+<span class="fc bfc" id="L124" title="All 2 branches covered.">        if (!isRefDetect(object)) {</span>
+<span class="fc" id="L125">            return null;</span>
+        }
+
+<span class="fc" id="L128">        this.path = new Path(this.path, name);</span>
+
+        Path previous;
+<span class="fc bfc" id="L131" title="All 2 branches covered.">        if (object == rootObject) {</span>
+<span class="fc" id="L132">            previous = Path.ROOT;</span>
+        } else {
+<span class="fc bfc" id="L134" title="All 4 branches covered.">            if (refs == null || (previous = refs.get(object)) == null) {</span>
+<span class="fc bfc" id="L135" title="All 2 branches covered.">                if (refs == null) {</span>
+<span class="fc" id="L136">                    refs = new IdentityHashMap(8);</span>
+                }
+<span class="fc" id="L138">                refs.put(object, this.path);</span>
+<span class="fc" id="L139">                return null;</span>
+            }
+        }
+
+<span class="fc" id="L143">        return previous.toString();</span>
+    }
+
+    public final String setPath(FieldWriter fieldWriter, Object object) {
+<span class="fc bfc" id="L147" title="All 2 branches covered.">        if (!isRefDetect(object)) {</span>
+<span class="fc" id="L148">            return null;</span>
+        }
+
+<span class="fc bfc" id="L151" title="All 2 branches covered.">        this.path = this.path == Path.ROOT</span>
+<span class="fc" id="L152">                ? fieldWriter.getRootParentPath()</span>
+<span class="fc" id="L153">                : fieldWriter.getPath(path);</span>
+
+        Path previous;
+<span class="fc bfc" id="L156" title="All 2 branches covered.">        if (object == rootObject) {</span>
+<span class="fc" id="L157">            previous = Path.ROOT;</span>
+        } else {
+<span class="fc bfc" id="L159" title="All 4 branches covered.">            if (refs == null || (previous = refs.get(object)) == null) {</span>
+<span class="fc bfc" id="L160" title="All 2 branches covered.">                if (refs == null) {</span>
+<span class="fc" id="L161">                    refs = new IdentityHashMap(8);</span>
+                }
+<span class="fc" id="L163">                refs.put(object, this.path);</span>
+<span class="fc" id="L164">                return null;</span>
+            }
+        }
+
+<span class="fc" id="L168">        return previous.toString();</span>
+    }
+
+    public final void addManagerReference(Object object) {
+<span class="pc bpc" id="L172" title="1 of 2 branches missed.">        if (refs == null) {</span>
+<span class="fc" id="L173">            refs = new IdentityHashMap(8);</span>
+        }
+<span class="fc" id="L175">        refs.putIfAbsent(object, Path.MANGER_REFERNCE);</span>
+<span class="fc" id="L176">    }</span>
+
+    public final boolean writeReference(int index, Object object) {
+<span class="fc" id="L179">        String refPath = setPath(index, object);</span>
+<span class="fc bfc" id="L180" title="All 2 branches covered.">        if (refPath != null) {</span>
+<span class="fc" id="L181">            writeReference(refPath);</span>
+<span class="fc" id="L182">            popPath(object);</span>
+<span class="fc" id="L183">            return true;</span>
+        }
+<span class="fc" id="L185">        return false;</span>
+    }
+
+    public final String setPath(int index, Object object) {
+<span class="fc bfc" id="L189" title="All 2 branches covered.">        if (!isRefDetect(object)) {</span>
+<span class="fc" id="L190">            return null;</span>
+        }
+
+<span class="fc bfc" id="L193" title="All 8 branches covered.">        this.path = index == 0</span>
+                ? (path.child0 != null ? path.child0 : (path.child0 = new Path(path, index)))
+                : index == 1
+                ? (path.child1 != null ? path.child1 : (path.child1 = new Path(path, index)))
+                : new Path(path, index);
+
+        Path previous;
+<span class="fc bfc" id="L200" title="All 2 branches covered.">        if (object == rootObject) {</span>
+<span class="fc" id="L201">            previous = Path.ROOT;</span>
+        } else {
+<span class="fc bfc" id="L203" title="All 4 branches covered.">            if (refs == null || (previous = refs.get(object)) == null) {</span>
+<span class="fc bfc" id="L204" title="All 2 branches covered.">                if (refs == null) {</span>
+<span class="fc" id="L205">                    refs = new IdentityHashMap(8);</span>
+                }
+<span class="fc" id="L207">                refs.put(object, this.path);</span>
+<span class="fc" id="L208">                return null;</span>
+            }
+        }
+
+<span class="fc" id="L212">        return previous.toString();</span>
+    }
+
+    public final void popPath(Object object) {
+<span class="fc bfc" id="L216" title="All 2 branches covered.">        if (!isRefDetect(object)) {</span>
+<span class="fc" id="L217">            return;</span>
+        }
+
+<span class="pc bpc" id="L220" title="4 of 8 branches missed.">        if (this.path == null</span>
+                || (context.features &amp; ReferenceDetection.mask) == 0
+                || object == Collections.EMPTY_LIST
+                || object == Collections.EMPTY_SET
+        ) {
+<span class="nc" id="L225">            return;</span>
+        }
+
+<span class="fc" id="L228">        this.path = this.path.parent;</span>
+<span class="fc" id="L229">    }</span>
+
+    public final boolean hasFilter() {
+<span class="nc" id="L232">        return context.hasFilter;</span>
+    }
+
+    public final boolean hasFilter(long feature) {
+<span class="fc bfc" id="L236" title="All 4 branches covered.">        return context.hasFilter || (context.features &amp; feature) != 0;</span>
+    }
+
+    public final boolean hasFilter(boolean containsNoneFieldGetter) {
+<span class="fc bfc" id="L240" title="All 6 branches covered.">        return context.hasFilter || containsNoneFieldGetter &amp;&amp; (context.features &amp; IgnoreNonFieldGetter.mask) != 0;</span>
+    }
+
+    public final boolean isWriteNulls() {
+<span class="fc bfc" id="L244" title="All 2 branches covered.">        return (context.features &amp; WriteNulls.mask) != 0;</span>
+    }
+
+    public final boolean isRefDetect() {
+<span class="fc bfc" id="L248" title="All 2 branches covered.">        return (context.features &amp; ReferenceDetection.mask) != 0;</span>
+    }
+
+    public final boolean isUseSingleQuotes() {
+<span class="fc" id="L252">        return useSingleQuote;</span>
+    }
+
+    public final boolean isRefDetect(Object object) {
+<span class="pc bpc" id="L256" title="1 of 4 branches missed.">        return (context.features &amp; ReferenceDetection.mask) != 0</span>
+                &amp;&amp; object != null
+<span class="fc bfc" id="L258" title="All 2 branches covered.">                &amp;&amp; !ObjectWriterProvider.isNotReferenceDetect(object.getClass());</span>
+    }
+
+    public final boolean containsReference(Object value) {
+<span class="pc bpc" id="L262" title="1 of 4 branches missed.">        return refs != null &amp;&amp; refs.containsKey(value);</span>
+    }
+
+    public final String getPath(Object value) {
+        Path path;
+<span class="nc bnc" id="L267" title="All 4 branches missed.">        return refs == null || (path = refs.get(value)) == null</span>
+                ? &quot;$&quot;
+<span class="nc" id="L269">                : path.toString();</span>
+    }
+
+    /**
+     * If ReferenceDetection has been set, returns the path of the current object, otherwise returns null
+     * @since 2.0.51
+     * @return the path of the current object
+     */
+    public String getPath() {
+<span class="pc bpc" id="L278" title="1 of 2 branches missed.">        return path == null ? null : path.toString();</span>
+    }
+
+    public final boolean removeReference(Object value) {
+<span class="pc bpc" id="L282" title="3 of 4 branches missed.">        return this.refs != null &amp;&amp; this.refs.remove(value) != null;</span>
+    }
+
+    public final boolean isBeanToArray() {
+<span class="fc bfc" id="L286" title="All 2 branches covered.">        return (context.features &amp; BeanToArray.mask) != 0;</span>
+    }
+
+    public final boolean isEnabled(Feature feature) {
+<span class="fc bfc" id="L290" title="All 2 branches covered.">        return (context.features &amp; feature.mask) != 0;</span>
+    }
+
+    public final boolean isEnabled(long feature) {
+<span class="fc bfc" id="L294" title="All 2 branches covered.">        return (context.features &amp; feature) != 0;</span>
+    }
+
+    public final long getFeatures() {
+<span class="fc" id="L298">        return context.features;</span>
+    }
+
+    public final long getFeatures(long features) {
+<span class="fc" id="L302">        return context.features | features;</span>
+    }
+
+    public final boolean isIgnoreErrorGetter() {
+<span class="pc bpc" id="L306" title="1 of 2 branches missed.">        return (context.features &amp; IgnoreErrorGetter.mask) != 0;</span>
+    }
+
+    public final boolean isWriteTypeInfo(Object object, Class fieldClass) {
+<span class="fc" id="L310">        long features = context.features;</span>
+<span class="fc bfc" id="L311" title="All 2 branches covered.">        if ((features &amp; WriteClassName.mask) == 0) {</span>
+<span class="fc" id="L312">            return false;</span>
+        }
+
+<span class="fc bfc" id="L315" title="All 2 branches covered.">        if (object == null) {</span>
+<span class="fc" id="L316">            return false;</span>
+        }
+
+<span class="fc" id="L319">        Class objectClass = object.getClass();</span>
+<span class="pc bpc" id="L320" title="1 of 2 branches missed.">        if (objectClass == fieldClass) {</span>
+<span class="nc" id="L321">            return false;</span>
+        }
+
+<span class="fc bfc" id="L324" title="All 2 branches covered.">        if ((features &amp; NotWriteHashMapArrayListClassName.mask) != 0) {</span>
+<span class="fc bfc" id="L325" title="All 4 branches covered.">            if (objectClass == HashMap.class || objectClass == ArrayList.class) {</span>
+<span class="fc" id="L326">                return false;</span>
+            }
+        }
+
+<span class="pc bpc" id="L330" title="3 of 4 branches missed.">        return (features &amp; NotWriteRootClassName.mask) == 0</span>
+                || object != this.rootObject;
+    }
+
+    public final boolean isWriteTypeInfo(Object object, Type fieldType) {
+<span class="fc" id="L335">        long features = context.features;</span>
+<span class="fc bfc" id="L336" title="All 4 branches covered.">        if ((features &amp; WriteClassName.mask) == 0</span>
+                || object == null
+        ) {
+<span class="fc" id="L339">            return false;</span>
+        }
+
+<span class="fc" id="L342">        Class objectClass = object.getClass();</span>
+<span class="fc" id="L343">        Class fieldClass = null;</span>
+<span class="fc bfc" id="L344" title="All 2 branches covered.">        if (fieldType instanceof Class) {</span>
+<span class="fc" id="L345">            fieldClass = (Class) fieldType;</span>
+<span class="fc bfc" id="L346" title="All 2 branches covered.">        } else if (fieldType instanceof GenericArrayType) {</span>
+<span class="pc bpc" id="L347" title="1 of 2 branches missed.">            if (isWriteTypeInfoGenericArray((GenericArrayType) fieldType, objectClass)) {</span>
+<span class="fc" id="L348">                return false;</span>
+            }
+<span class="fc bfc" id="L350" title="All 2 branches covered.">        } else if (fieldType instanceof ParameterizedType) {</span>
+<span class="fc" id="L351">            Type rawType = ((ParameterizedType) fieldType).getRawType();</span>
+<span class="pc bpc" id="L352" title="1 of 2 branches missed.">            if (rawType instanceof Class) {</span>
+<span class="fc" id="L353">                fieldClass = (Class) rawType;</span>
+            }
+        }
+<span class="fc bfc" id="L356" title="All 2 branches covered.">        if (objectClass == fieldClass) {</span>
+<span class="fc" id="L357">            return false;</span>
+        }
+
+<span class="fc bfc" id="L360" title="All 2 branches covered.">        if ((features &amp; NotWriteHashMapArrayListClassName.mask) != 0) {</span>
+<span class="fc bfc" id="L361" title="All 4 branches covered.">            if (objectClass == HashMap.class || objectClass == ArrayList.class) {</span>
+<span class="fc" id="L362">                return false;</span>
+            }
+        }
+
+<span class="pc bpc" id="L366" title="1 of 4 branches missed.">        return (features &amp; NotWriteRootClassName.mask) == 0</span>
+                || object != this.rootObject;
+    }
+
+    private static boolean isWriteTypeInfoGenericArray(GenericArrayType fieldType, Class objectClass) {
+<span class="fc" id="L371">        Type componentType = fieldType.getGenericComponentType();</span>
+<span class="pc bpc" id="L372" title="1 of 2 branches missed.">        if (componentType instanceof ParameterizedType) {</span>
+<span class="fc" id="L373">            componentType = ((ParameterizedType) componentType).getRawType();</span>
+        }
+<span class="pc bpc" id="L375" title="1 of 2 branches missed.">        if (objectClass.isArray()) {</span>
+<span class="fc" id="L376">            return objectClass.getComponentType().equals(componentType);</span>
+        }
+<span class="nc" id="L378">        return false;</span>
+    }
+
+    public final boolean isWriteTypeInfo(Object object) {
+<span class="fc" id="L382">        long features = context.features;</span>
+<span class="fc bfc" id="L383" title="All 2 branches covered.">        if ((features &amp; WriteClassName.mask) == 0) {</span>
+<span class="fc" id="L384">            return false;</span>
+        }
+
+<span class="pc bpc" id="L387" title="1 of 4 branches missed.">        if ((features &amp; NotWriteHashMapArrayListClassName.mask) != 0</span>
+                &amp;&amp; object != null) {
+<span class="fc" id="L389">            Class objectClass = object.getClass();</span>
+<span class="fc bfc" id="L390" title="All 4 branches covered.">            if (objectClass == HashMap.class || objectClass == ArrayList.class) {</span>
+<span class="fc" id="L391">                return false;</span>
+            }
+        }
+
+<span class="pc bpc" id="L395" title="3 of 4 branches missed.">        return (features &amp; NotWriteRootClassName.mask) == 0</span>
+                || object != this.rootObject;
+    }
+
+    public final boolean isWriteTypeInfo(Object object, Type fieldType, long features) {
+<span class="fc" id="L400">        features |= context.features;</span>
+
+<span class="fc bfc" id="L402" title="All 2 branches covered.">        if ((features &amp; WriteClassName.mask) == 0) {</span>
+<span class="fc" id="L403">            return false;</span>
+        }
+
+<span class="fc bfc" id="L406" title="All 2 branches covered.">        if (object == null) {</span>
+<span class="fc" id="L407">            return false;</span>
+        }
+
+<span class="fc" id="L410">        Class objectClass = object.getClass();</span>
+<span class="fc" id="L411">        Class fieldClass = null;</span>
+<span class="fc bfc" id="L412" title="All 2 branches covered.">        if (fieldType instanceof Class) {</span>
+<span class="fc" id="L413">            fieldClass = (Class) fieldType;</span>
+<span class="fc bfc" id="L414" title="All 2 branches covered.">        } else if (fieldType instanceof ParameterizedType) {</span>
+<span class="fc" id="L415">            Type rawType = ((ParameterizedType) fieldType).getRawType();</span>
+<span class="pc bpc" id="L416" title="1 of 2 branches missed.">            if (rawType instanceof Class) {</span>
+<span class="fc" id="L417">                fieldClass = (Class) rawType;</span>
+            }
+        }
+<span class="fc bfc" id="L420" title="All 2 branches covered.">        if (objectClass == fieldClass) {</span>
+<span class="fc" id="L421">            return false;</span>
+        }
+
+<span class="fc bfc" id="L424" title="All 2 branches covered.">        if ((features &amp; NotWriteHashMapArrayListClassName.mask) != 0) {</span>
+<span class="fc bfc" id="L425" title="All 2 branches covered.">            if (objectClass == HashMap.class) {</span>
+<span class="pc bpc" id="L426" title="1 of 8 branches missed.">                if (fieldClass == null || fieldClass == Object.class || fieldClass == Map.class || fieldClass == AbstractMap.class) {</span>
+<span class="fc" id="L427">                    return false;</span>
+                }
+<span class="fc bfc" id="L429" title="All 2 branches covered.">            } else if (objectClass == ArrayList.class) {</span>
+<span class="fc" id="L430">                return false;</span>
+            }
+        }
+
+<span class="fc bfc" id="L434" title="All 4 branches covered.">        return (features &amp; NotWriteRootClassName.mask) == 0</span>
+                || object != this.rootObject;
+    }
+
+    public final boolean isWriteTypeInfo(Object object, Class fieldClass, long features) {
+<span class="fc bfc" id="L439" title="All 2 branches covered.">        if (object == null) {</span>
+<span class="fc" id="L440">            return false;</span>
+        }
+
+<span class="fc" id="L443">        Class objectClass = object.getClass();</span>
+<span class="fc bfc" id="L444" title="All 2 branches covered.">        if (objectClass == fieldClass) {</span>
+<span class="fc" id="L445">            return false;</span>
+        }
+
+<span class="fc" id="L448">        features |= context.features;</span>
+
+<span class="fc bfc" id="L450" title="All 2 branches covered.">        if ((features &amp; WriteClassName.mask) == 0) {</span>
+<span class="fc" id="L451">            return false;</span>
+        }
+
+<span class="fc bfc" id="L454" title="All 2 branches covered.">        if ((features &amp; NotWriteHashMapArrayListClassName.mask) != 0) {</span>
+<span class="fc bfc" id="L455" title="All 2 branches covered.">            if (objectClass == HashMap.class) {</span>
+<span class="pc bpc" id="L456" title="5 of 8 branches missed.">                if (fieldClass == null || fieldClass == Object.class || fieldClass == Map.class || fieldClass == AbstractMap.class) {</span>
+<span class="fc" id="L457">                    return false;</span>
+                }
+<span class="fc bfc" id="L459" title="All 2 branches covered.">            } else if (objectClass == ArrayList.class) {</span>
+<span class="fc" id="L460">                return false;</span>
+            }
+        }
+
+<span class="pc bpc" id="L464" title="3 of 4 branches missed.">        return (features &amp; NotWriteRootClassName.mask) == 0</span>
+                || object != this.rootObject;
+    }
+
+    public final boolean isWriteMapTypeInfo(Object object, Class fieldClass, long features) {
+<span class="fc bfc" id="L469" title="All 2 branches covered.">        if (object == null) {</span>
+<span class="fc" id="L470">            return false;</span>
+        }
+
+<span class="fc" id="L473">        Class objectClass = object.getClass();</span>
+<span class="fc bfc" id="L474" title="All 2 branches covered.">        if (objectClass == fieldClass) {</span>
+<span class="fc" id="L475">            return false;</span>
+        }
+
+<span class="fc" id="L478">        features |= context.features;</span>
+
+<span class="fc bfc" id="L480" title="All 2 branches covered.">        if ((features &amp; WriteClassName.mask) == 0) {</span>
+<span class="fc" id="L481">            return false;</span>
+        }
+
+<span class="fc bfc" id="L484" title="All 2 branches covered.">        if ((features &amp; NotWriteHashMapArrayListClassName.mask) != 0) {</span>
+<span class="pc bpc" id="L485" title="1 of 2 branches missed.">            if (objectClass == HashMap.class) {</span>
+<span class="fc" id="L486">                return false;</span>
+            }
+        }
+
+<span class="pc bpc" id="L490" title="1 of 4 branches missed.">        return (features &amp; NotWriteRootClassName.mask) == 0 || object != this.rootObject;</span>
+    }
+
+    public final boolean isWriteTypeInfo(Object object, long features) {
+<span class="fc" id="L494">        features |= context.features;</span>
+
+<span class="fc bfc" id="L496" title="All 2 branches covered.">        if ((features &amp; WriteClassName.mask) == 0) {</span>
+<span class="fc" id="L497">            return false;</span>
+        }
+
+<span class="fc bfc" id="L500" title="All 2 branches covered.">        if ((features &amp; NotWriteHashMapArrayListClassName.mask) != 0) {</span>
+<span class="pc bpc" id="L501" title="1 of 2 branches missed.">            if (object != null) {</span>
+<span class="fc" id="L502">                Class objectClass = object.getClass();</span>
+<span class="fc bfc" id="L503" title="All 4 branches covered.">                if (objectClass == HashMap.class || objectClass == ArrayList.class) {</span>
+<span class="fc" id="L504">                    return false;</span>
+                }
+            }
+        }
+
+<span class="fc bfc" id="L509" title="All 4 branches covered.">        return (features &amp; NotWriteRootClassName.mask) == 0</span>
+                || object != this.rootObject;
+    }
+
+    public final ObjectWriter getObjectWriter(Class objectClass) {
+<span class="fc bfc" id="L514" title="All 2 branches covered.">        boolean fieldBased = (context.features &amp; FieldBased.mask) != 0;</span>
+<span class="fc" id="L515">        return context.provider.getObjectWriter(objectClass, objectClass, fieldBased);</span>
+    }
+
+    public final ObjectWriter getObjectWriter(Class objectClass, String format) {
+<span class="pc bpc" id="L519" title="1 of 2 branches missed.">        boolean fieldBased = (context.features &amp; FieldBased.mask) != 0;</span>
+<span class="fc" id="L520">        return context.provider.getObjectWriter(objectClass, objectClass, format, fieldBased);</span>
+    }
+
+    public final ObjectWriter getObjectWriter(Type objectType, Class objectClass) {
+<span class="fc bfc" id="L524" title="All 2 branches covered.">        boolean fieldBased = (context.features &amp; FieldBased.mask) != 0;</span>
+<span class="fc" id="L525">        return context.provider.getObjectWriter(objectType, objectClass, fieldBased);</span>
+    }
+
+    public static JSONWriter of() {
+<span class="fc" id="L529">        JSONWriter.Context writeContext = new JSONWriter.Context(defaultObjectWriterProvider);</span>
+        JSONWriter jsonWriter;
+<span class="pc bpc" id="L531" title="1 of 2 branches missed.">        if (JVM_VERSION == 8) {</span>
+<span class="pc bpc" id="L532" title="3 of 6 branches missed.">            if (FIELD_STRING_VALUE != null &amp;&amp; !ANDROID &amp;&amp; !OPENJ9) {</span>
+<span class="fc" id="L533">                jsonWriter = new JSONWriterUTF16JDK8UF(writeContext);</span>
+            } else {
+<span class="nc" id="L535">                jsonWriter = new JSONWriterUTF16JDK8(writeContext);</span>
+            }
+<span class="nc bnc" id="L537" title="All 2 branches missed.">        } else if ((defaultWriterFeatures &amp; OptimizedForAscii.mask) != 0) {</span>
+<span class="nc bnc" id="L538" title="All 2 branches missed.">            if (STRING_VALUE != null) {</span>
+<span class="nc bnc" id="L539" title="All 2 branches missed.">                if (INCUBATOR_VECTOR_WRITER_CREATOR_UTF8 != null) {</span>
+<span class="nc" id="L540">                    jsonWriter = INCUBATOR_VECTOR_WRITER_CREATOR_UTF8.apply(writeContext);</span>
+                } else {
+<span class="nc" id="L542">                    jsonWriter = new JSONWriterUTF8JDK9(writeContext);</span>
+                }
+            } else {
+<span class="nc" id="L545">                jsonWriter = new JSONWriterUTF8(writeContext);</span>
+            }
+        } else {
+<span class="nc bnc" id="L548" title="All 2 branches missed.">            if (INCUBATOR_VECTOR_WRITER_CREATOR_UTF16 != null) {</span>
+<span class="nc" id="L549">                jsonWriter = INCUBATOR_VECTOR_WRITER_CREATOR_UTF16.apply(writeContext);</span>
+<span class="nc bnc" id="L550" title="All 6 branches missed.">            } else if (FIELD_STRING_VALUE != null &amp;&amp; STRING_CODER != null &amp;&amp; STRING_VALUE != null) {</span>
+<span class="nc" id="L551">                jsonWriter = new JSONWriterUTF16JDK9UF(writeContext);</span>
+            } else {
+<span class="nc" id="L553">                jsonWriter = new JSONWriterUTF16(writeContext);</span>
+            }
+        }
+<span class="fc" id="L556">        return jsonWriter;</span>
+    }
+
+    public static JSONWriter of(ObjectWriterProvider provider, Feature... features) {
+<span class="fc" id="L560">        Context context = new Context(provider);</span>
+<span class="fc" id="L561">        context.config(features);</span>
+<span class="fc" id="L562">        return of(context);</span>
+    }
+
+    public static JSONWriter of(Context context) {
+<span class="pc bpc" id="L566" title="1 of 2 branches missed.">        if (context == null) {</span>
+<span class="nc" id="L567">            context = createWriteContext();</span>
+        }
+
+        JSONWriter jsonWriter;
+<span class="pc bpc" id="L571" title="1 of 2 branches missed.">        if (JVM_VERSION == 8) {</span>
+<span class="pc bpc" id="L572" title="3 of 6 branches missed.">            if (FIELD_STRING_VALUE != null &amp;&amp; !ANDROID &amp;&amp; !OPENJ9) {</span>
+<span class="fc" id="L573">                jsonWriter = new JSONWriterUTF16JDK8UF(context);</span>
+            } else {
+<span class="nc" id="L575">                jsonWriter = new JSONWriterUTF16JDK8(context);</span>
+            }
+<span class="nc bnc" id="L577" title="All 2 branches missed.">        } else if ((context.features &amp; OptimizedForAscii.mask) != 0) {</span>
+<span class="nc bnc" id="L578" title="All 2 branches missed.">            if (STRING_VALUE != null) {</span>
+<span class="nc bnc" id="L579" title="All 2 branches missed.">                if (INCUBATOR_VECTOR_WRITER_CREATOR_UTF8 != null) {</span>
+<span class="nc" id="L580">                    jsonWriter = INCUBATOR_VECTOR_WRITER_CREATOR_UTF8.apply(context);</span>
+                } else {
+<span class="nc" id="L582">                    jsonWriter = new JSONWriterUTF8JDK9(context);</span>
+                }
+            } else {
+<span class="nc" id="L585">                jsonWriter = new JSONWriterUTF8(context);</span>
+            }
+        } else {
+<span class="nc bnc" id="L588" title="All 2 branches missed.">            if (INCUBATOR_VECTOR_WRITER_CREATOR_UTF16 != null) {</span>
+<span class="nc" id="L589">                jsonWriter = INCUBATOR_VECTOR_WRITER_CREATOR_UTF16.apply(context);</span>
+            } else {
+<span class="nc" id="L591">                jsonWriter = new JSONWriterUTF16(context);</span>
+            }
+        }
+
+<span class="fc" id="L595">        return jsonWriter;</span>
+    }
+
+    public static JSONWriter of(Feature... features) {
+<span class="fc" id="L599">        Context writeContext = createWriteContext(features);</span>
+        JSONWriter jsonWriter;
+<span class="pc bpc" id="L601" title="1 of 2 branches missed.">        if (JVM_VERSION == 8) {</span>
+<span class="pc bpc" id="L602" title="3 of 6 branches missed.">            if (FIELD_STRING_VALUE != null &amp;&amp; !ANDROID &amp;&amp; !OPENJ9) {</span>
+<span class="fc" id="L603">                jsonWriter = new JSONWriterUTF16JDK8UF(writeContext);</span>
+            } else {
+<span class="nc" id="L605">                jsonWriter = new JSONWriterUTF16JDK8(writeContext);</span>
+            }
+<span class="nc bnc" id="L607" title="All 2 branches missed.">        } else if ((writeContext.features &amp; OptimizedForAscii.mask) != 0) {</span>
+<span class="nc bnc" id="L608" title="All 2 branches missed.">            if (STRING_VALUE != null) {</span>
+<span class="nc bnc" id="L609" title="All 2 branches missed.">                if (INCUBATOR_VECTOR_WRITER_CREATOR_UTF8 != null) {</span>
+<span class="nc" id="L610">                    jsonWriter = INCUBATOR_VECTOR_WRITER_CREATOR_UTF8.apply(writeContext);</span>
+                } else {
+<span class="nc" id="L612">                    jsonWriter = new JSONWriterUTF8JDK9(writeContext);</span>
+                }
+            } else {
+<span class="nc" id="L615">                jsonWriter = new JSONWriterUTF8(writeContext);</span>
+            }
+        } else {
+<span class="nc bnc" id="L618" title="All 2 branches missed.">            if (INCUBATOR_VECTOR_WRITER_CREATOR_UTF16 != null) {</span>
+<span class="nc" id="L619">                jsonWriter = INCUBATOR_VECTOR_WRITER_CREATOR_UTF16.apply(writeContext);</span>
+            } else {
+<span class="nc" id="L621">                jsonWriter = new JSONWriterUTF16(writeContext);</span>
+            }
+        }
+
+<span class="fc" id="L625">        return jsonWriter;</span>
+    }
+
+    public static JSONWriter ofUTF16(Feature... features) {
+<span class="fc" id="L629">        Context writeContext = createWriteContext(features);</span>
+        JSONWriter jsonWriter;
+<span class="pc bpc" id="L631" title="1 of 2 branches missed.">        if (JVM_VERSION == 8) {</span>
+<span class="pc bpc" id="L632" title="3 of 6 branches missed.">            if (FIELD_STRING_VALUE != null &amp;&amp; !ANDROID &amp;&amp; !OPENJ9) {</span>
+<span class="fc" id="L633">                jsonWriter = new JSONWriterUTF16JDK8UF(writeContext);</span>
+            } else {
+<span class="nc" id="L635">                jsonWriter = new JSONWriterUTF16JDK8(writeContext);</span>
+            }
+        } else {
+<span class="nc bnc" id="L638" title="All 2 branches missed.">            if (INCUBATOR_VECTOR_WRITER_CREATOR_UTF16 != null) {</span>
+<span class="nc" id="L639">                jsonWriter = INCUBATOR_VECTOR_WRITER_CREATOR_UTF16.apply(writeContext);</span>
+            } else {
+<span class="nc" id="L641">                jsonWriter = new JSONWriterUTF16(writeContext);</span>
+            }
+        }
+
+<span class="fc" id="L645">        return jsonWriter;</span>
+    }
+
+    public static JSONWriter ofJSONB() {
+<span class="fc" id="L649">        return new JSONWriterJSONB(</span>
+                new JSONWriter.Context(defaultObjectWriterProvider),
+                null
+        );
+    }
+
+    public static JSONWriter ofJSONB(JSONWriter.Context context) {
+<span class="fc" id="L656">        return new JSONWriterJSONB(context, null);</span>
+    }
+
+    public static JSONWriter ofJSONB(JSONWriter.Context context, SymbolTable symbolTable) {
+<span class="fc" id="L660">        return new JSONWriterJSONB(context, symbolTable);</span>
+    }
+
+    public static JSONWriter ofJSONB(Feature... features) {
+<span class="fc" id="L664">        return new JSONWriterJSONB(</span>
+                new JSONWriter.Context(defaultObjectWriterProvider, features),
+                null
+        );
+    }
+
+    public static JSONWriter ofJSONB(SymbolTable symbolTable) {
+<span class="fc" id="L671">        return new JSONWriterJSONB(</span>
+                new JSONWriter.Context(defaultObjectWriterProvider),
+                symbolTable
+        );
+    }
+
+    public static JSONWriter ofPretty() {
+<span class="fc" id="L678">        return of(PrettyFormat);</span>
+    }
+
+    public static JSONWriter ofPretty(JSONWriter writer) {
+<span class="pc bpc" id="L682" title="1 of 2 branches missed.">        if (!writer.pretty) {</span>
+<span class="fc" id="L683">            writer.pretty = true;</span>
+<span class="fc" id="L684">            writer.context.features |= PrettyFormat.mask;</span>
+        }
+<span class="fc" id="L686">        return writer;</span>
+    }
+
+    public static JSONWriter ofUTF8() {
+<span class="fc" id="L690">        Context context = createWriteContext();</span>
+        JSONWriter jsonWriter;
+<span class="pc bpc" id="L692" title="1 of 2 branches missed.">        if (STRING_VALUE != null) {</span>
+<span class="nc bnc" id="L693" title="All 2 branches missed.">            if (INCUBATOR_VECTOR_WRITER_CREATOR_UTF8 != null) {</span>
+<span class="nc" id="L694">                jsonWriter = INCUBATOR_VECTOR_WRITER_CREATOR_UTF8.apply(context);</span>
+            } else {
+<span class="nc" id="L696">                jsonWriter = new JSONWriterUTF8JDK9(context);</span>
+            }
+        } else {
+<span class="fc" id="L699">            jsonWriter = new JSONWriterUTF8(context);</span>
+        }
+
+<span class="fc" id="L702">        return jsonWriter;</span>
+    }
+
+    public static JSONWriter ofUTF8(JSONWriter.Context context) {
+        JSONWriter jsonWriter;
+<span class="pc bpc" id="L707" title="1 of 2 branches missed.">        if (STRING_VALUE != null) {</span>
+<span class="nc bnc" id="L708" title="All 2 branches missed.">            if (INCUBATOR_VECTOR_WRITER_CREATOR_UTF8 != null) {</span>
+<span class="nc" id="L709">                jsonWriter = INCUBATOR_VECTOR_WRITER_CREATOR_UTF8.apply(context);</span>
+            } else {
+<span class="nc" id="L711">                jsonWriter = new JSONWriterUTF8JDK9(context);</span>
+            }
+        } else {
+<span class="fc" id="L714">            jsonWriter = new JSONWriterUTF8(context);</span>
+        }
+
+<span class="fc" id="L717">        return jsonWriter;</span>
+    }
+
+    public static JSONWriter ofUTF8(Feature... features) {
+<span class="fc" id="L721">        Context context = createWriteContext(features);</span>
+
+        JSONWriter jsonWriter;
+<span class="pc bpc" id="L724" title="1 of 2 branches missed.">        if (STRING_VALUE != null) {</span>
+<span class="nc bnc" id="L725" title="All 2 branches missed.">            if (INCUBATOR_VECTOR_WRITER_CREATOR_UTF8 != null) {</span>
+<span class="nc" id="L726">                jsonWriter = INCUBATOR_VECTOR_WRITER_CREATOR_UTF8.apply(context);</span>
+            } else {
+<span class="nc" id="L728">                jsonWriter = new JSONWriterUTF8JDK9(context);</span>
+            }
+        } else {
+<span class="fc" id="L731">            jsonWriter = new JSONWriterUTF8(context);</span>
+        }
+
+<span class="fc" id="L734">        return jsonWriter;</span>
+    }
+
+    public void writeBinary(byte[] bytes) {
+<span class="pc bpc" id="L738" title="1 of 2 branches missed.">        if (bytes == null) {</span>
+<span class="nc" id="L739">            writeArrayNull();</span>
+<span class="nc" id="L740">            return;</span>
+        }
+
+<span class="pc bpc" id="L743" title="1 of 2 branches missed.">        if ((context.features &amp; WriteByteArrayAsBase64.mask) != 0) {</span>
+<span class="nc" id="L744">            writeBase64(bytes);</span>
+<span class="nc" id="L745">            return;</span>
+        }
+
+<span class="fc" id="L748">        startArray();</span>
+<span class="fc bfc" id="L749" title="All 2 branches covered.">        for (int i = 0; i &lt; bytes.length; i++) {</span>
+<span class="fc bfc" id="L750" title="All 2 branches covered.">            if (i != 0) {</span>
+<span class="fc" id="L751">                writeComma();</span>
+            }
+<span class="fc" id="L753">            writeInt32(bytes[i]);</span>
+        }
+<span class="fc" id="L755">        endArray();</span>
+<span class="fc" id="L756">    }</span>
+
+    public abstract void writeBase64(byte[] bytes);
+
+    public abstract void writeHex(byte[] bytes);
+
+    protected abstract void write0(char ch);
+
+    public abstract void writeRaw(String str);
+
+    public abstract void writeRaw(byte[] bytes);
+
+    public void writeRaw(byte b) {
+<span class="fc" id="L769">        throw new JSONException(&quot;UnsupportedOperation&quot;);</span>
+    }
+
+    public void writeNameRaw(byte[] bytes, int offset, int len) {
+<span class="fc" id="L773">        throw new JSONException(&quot;UnsupportedOperation&quot;);</span>
+    }
+
+    public final void writeRaw(char[] chars) {
+<span class="fc" id="L777">        writeRaw(chars, 0, chars.length);</span>
+<span class="fc" id="L778">    }</span>
+
+    public void writeRaw(char[] chars, int off, int charslen) {
+<span class="fc" id="L781">        throw new JSONException(&quot;UnsupportedOperation&quot;);</span>
+    }
+
+    public abstract void writeChar(char ch);
+
+    public abstract void writeRaw(char ch);
+
+    public void writeRaw(char c0, char c1) {
+<span class="nc" id="L789">        throw new JSONException(&quot;UnsupportedOperation&quot;);</span>
+    }
+
+    public abstract void writeNameRaw(byte[] bytes);
+
+    public abstract void writeName2Raw(long name);
+
+    public abstract void writeName3Raw(long name);
+
+    public abstract void writeName4Raw(long name);
+
+    public abstract void writeName5Raw(long name);
+
+    public abstract void writeName6Raw(long name);
+
+    public abstract void writeName7Raw(long name);
+
+    public abstract void writeName8Raw(long name0);
+
+    public abstract void writeName9Raw(long name0, int name1);
+
+    public abstract void writeName10Raw(long name0, long name1);
+
+    public abstract void writeName11Raw(long name0, long name2);
+
+    public abstract void writeName12Raw(long name0, long name2);
+
+    public abstract void writeName13Raw(long name0, long name2);
+
+    public abstract void writeName14Raw(long name0, long name2);
+
+    public abstract void writeName15Raw(long name0, long name2);
+
+    public abstract void writeName16Raw(long name0, long name2);
+
+    public void writeSymbol(int symbol) {
+<span class="fc" id="L825">        throw new JSONException(&quot;UnsupportedOperation&quot;);</span>
+    }
+
+    public void writeNameRaw(byte[] name, long nameHash) {
+<span class="fc" id="L829">        throw new JSONException(&quot;UnsupportedOperation&quot;);</span>
+    }
+
+    protected static boolean isWriteAsString(long value, long features) {
+<span class="fc bfc" id="L833" title="All 2 branches covered.">        if ((features &amp; (WriteNonStringValueAsString.mask | WriteLongAsString.mask)) != 0) {</span>
+<span class="fc" id="L834">            return true;</span>
+        }
+
+<span class="fc bfc" id="L837" title="All 2 branches covered.">        return (features &amp; BrowserCompatible.mask) != 0</span>
+<span class="fc bfc" id="L838" title="All 2 branches covered.">                &amp;&amp; !isJavaScriptSupport(value);</span>
+    }
+
+    protected static boolean isWriteAsString(BigInteger value, long features) {
+<span class="pc bpc" id="L842" title="1 of 2 branches missed.">        if ((features &amp; WriteNonStringValueAsString.mask) != 0) {</span>
+<span class="nc" id="L843">            return true;</span>
+        }
+
+<span class="fc bfc" id="L846" title="All 2 branches covered.">        return (features &amp; BrowserCompatible.mask) != 0</span>
+<span class="fc bfc" id="L847" title="All 2 branches covered.">                &amp;&amp; !isJavaScriptSupport(value);</span>
+    }
+
+    protected static boolean isWriteAsString(BigDecimal value, long features) {
+<span class="fc bfc" id="L851" title="All 2 branches covered.">        if ((features &amp; WriteNonStringValueAsString.mask) != 0) {</span>
+<span class="fc" id="L852">            return true;</span>
+        }
+
+<span class="fc bfc" id="L855" title="All 2 branches covered.">        return (features &amp; BrowserCompatible.mask) != 0</span>
+<span class="fc bfc" id="L856" title="All 2 branches covered.">                &amp;&amp; value.precision() &gt;= 16</span>
+<span class="fc bfc" id="L857" title="All 2 branches covered.">                &amp;&amp; !isJavaScriptSupport(value.unscaledValue());</span>
+    }
+
+    public abstract void writeNameRaw(char[] chars);
+
+    public abstract void writeNameRaw(char[] bytes, int offset, int len);
+
+    public void writeName(String name) {
+<span class="fc bfc" id="L865" title="All 2 branches covered.">        if (startObject) {</span>
+<span class="fc" id="L866">            startObject = false;</span>
+        } else {
+<span class="fc" id="L868">            writeComma();</span>
+        }
+
+<span class="fc bfc" id="L871" title="All 2 branches covered.">        boolean unquote = (context.features &amp; UnquoteFieldName.mask) != 0;</span>
+<span class="pc bpc" id="L872" title="2 of 6 branches missed.">        if (unquote &amp;&amp; (name.indexOf(quote) &gt;= 0 || name.indexOf('\\') &gt;= 0)) {</span>
+<span class="nc" id="L873">            unquote = false;</span>
+        }
+
+<span class="fc bfc" id="L876" title="All 2 branches covered.">        if (unquote) {</span>
+<span class="fc" id="L877">            writeRaw(name);</span>
+<span class="fc" id="L878">            return;</span>
+        }
+
+<span class="fc" id="L881">        writeString(name);</span>
+<span class="fc" id="L882">    }</span>
+
+    public final void writeNameValue(String name, Object value) {
+<span class="fc" id="L885">        writeName(name);</span>
+<span class="fc" id="L886">        writeAny(value);</span>
+<span class="fc" id="L887">    }</span>
+
+    public final void writeName(long name) {
+<span class="fc bfc" id="L890" title="All 2 branches covered.">        if (startObject) {</span>
+<span class="fc" id="L891">            startObject = false;</span>
+        } else {
+<span class="fc" id="L893">            writeComma();</span>
+        }
+
+<span class="fc" id="L896">        writeInt64(name);</span>
+<span class="fc" id="L897">    }</span>
+
+    public final void writeName(int name) {
+<span class="fc bfc" id="L900" title="All 2 branches covered.">        if (startObject) {</span>
+<span class="fc" id="L901">            startObject = false;</span>
+        } else {
+<span class="fc" id="L903">            writeComma();</span>
+        }
+
+<span class="fc" id="L906">        writeInt32(name);</span>
+<span class="fc" id="L907">    }</span>
+
+    public void writeNameAny(Object name) {
+<span class="fc bfc" id="L910" title="All 2 branches covered.">        if (startObject) {</span>
+<span class="fc" id="L911">            startObject = false;</span>
+        } else {
+<span class="fc" id="L913">            writeComma();</span>
+        }
+
+<span class="fc" id="L916">        writeAny(name);</span>
+<span class="fc" id="L917">    }</span>
+
+    public abstract void startObject();
+
+    public abstract void endObject();
+
+    public abstract void startArray();
+
+    public void startArray(int size) {
+<span class="fc" id="L926">        throw new JSONException(&quot;UnsupportedOperation&quot;);</span>
+    }
+
+    public void startArray0() {
+<span class="nc" id="L930">        startArray(0);</span>
+<span class="nc" id="L931">    }</span>
+
+    public void startArray1() {
+<span class="nc" id="L934">        startArray(1);</span>
+<span class="nc" id="L935">    }</span>
+
+    public void startArray2() {
+<span class="nc" id="L938">        startArray(2);</span>
+<span class="nc" id="L939">    }</span>
+
+    public void startArray3() {
+<span class="nc" id="L942">        startArray(3);</span>
+<span class="nc" id="L943">    }</span>
+
+    public void startArray4() {
+<span class="nc" id="L946">        startArray(4);</span>
+<span class="nc" id="L947">    }</span>
+
+    public void startArray5() {
+<span class="nc" id="L950">        startArray(5);</span>
+<span class="nc" id="L951">    }</span>
+
+    public void startArray6() {
+<span class="nc" id="L954">        startArray(6);</span>
+<span class="nc" id="L955">    }</span>
+
+    public void startArray7() {
+<span class="nc" id="L958">        startArray(7);</span>
+<span class="nc" id="L959">    }</span>
+
+    public void startArray8() {
+<span class="nc" id="L962">        startArray(8);</span>
+<span class="nc" id="L963">    }</span>
+
+    public void startArray9() {
+<span class="nc" id="L966">        startArray(9);</span>
+<span class="nc" id="L967">    }</span>
+
+    public void startArray10() {
+<span class="nc" id="L970">        startArray(10);</span>
+<span class="nc" id="L971">    }</span>
+
+    public void startArray11() {
+<span class="nc" id="L974">        startArray(11);</span>
+<span class="nc" id="L975">    }</span>
+
+    public void startArray12() {
+<span class="nc" id="L978">        startArray(12);</span>
+<span class="nc" id="L979">    }</span>
+
+    public void startArray13() {
+<span class="nc" id="L982">        startArray(13);</span>
+<span class="nc" id="L983">    }</span>
+
+    public void startArray14() {
+<span class="nc" id="L986">        startArray(14);</span>
+<span class="nc" id="L987">    }</span>
+
+    public void startArray15() {
+<span class="nc" id="L990">        startArray(15);</span>
+<span class="nc" id="L991">    }</span>
+
+    public void startArray(Object array, int size) {
+<span class="fc" id="L994">        throw new JSONException(&quot;UnsupportedOperation&quot;);</span>
+    }
+
+    public abstract void endArray();
+
+    public abstract void writeComma();
+
+    public abstract void writeColon();
+
+    public void writeInt16(short[] value) {
+<span class="fc bfc" id="L1004" title="All 2 branches covered.">        if (value == null) {</span>
+<span class="fc" id="L1005">            writeArrayNull();</span>
+<span class="fc" id="L1006">            return;</span>
+        }
+<span class="fc" id="L1008">        startArray();</span>
+<span class="fc bfc" id="L1009" title="All 2 branches covered.">        for (int i = 0; i &lt; value.length; i++) {</span>
+<span class="fc bfc" id="L1010" title="All 2 branches covered.">            if (i != 0) {</span>
+<span class="fc" id="L1011">                writeComma();</span>
+            }
+<span class="fc" id="L1013">            writeInt16(value[i]);</span>
+        }
+<span class="fc" id="L1015">        endArray();</span>
+<span class="fc" id="L1016">    }</span>
+
+    public abstract void writeInt8(byte value);
+    public abstract void writeInt8(byte[] value);
+
+    public abstract void writeInt16(short value);
+
+    public abstract void writeInt32(int[] value);
+
+    public abstract void writeInt32(int value);
+
+    public abstract void writeInt32(Integer i);
+
+    public final void writeInt32(int value, DecimalFormat format) {
+<span class="pc bpc" id="L1030" title="1 of 4 branches missed.">        if (format == null || jsonb) {</span>
+<span class="fc" id="L1031">            writeInt32(value);</span>
+<span class="fc" id="L1032">            return;</span>
+        }
+
+<span class="fc" id="L1035">        writeString(format.format(value));</span>
+<span class="fc" id="L1036">    }</span>
+
+    public final void writeInt32(int value, String format) {
+<span class="pc bpc" id="L1039" title="2 of 4 branches missed.">        if (format == null || jsonb) {</span>
+<span class="nc" id="L1040">            writeInt32(value);</span>
+<span class="nc" id="L1041">            return;</span>
+        }
+
+<span class="fc" id="L1044">        writeString(String.format(format, value));</span>
+<span class="fc" id="L1045">    }</span>
+
+    public abstract void writeInt64(long i);
+
+    public abstract void writeInt64(Long i);
+
+    public void writeMillis(long i) {
+<span class="fc" id="L1052">        writeInt64(i);</span>
+<span class="fc" id="L1053">    }</span>
+
+    public abstract void writeInt64(long[] value);
+
+    public abstract void writeListInt64(List&lt;Long&gt; values);
+
+    public abstract void writeListInt32(List&lt;Integer&gt; values);
+
+    public abstract void writeFloat(float value);
+
+    public final void writeFloat(float value, DecimalFormat format) {
+<span class="pc bpc" id="L1064" title="2 of 4 branches missed.">        if (format == null || jsonb) {</span>
+<span class="nc" id="L1065">            writeFloat(value);</span>
+<span class="nc" id="L1066">            return;</span>
+        }
+<span class="fc bfc" id="L1068" title="All 4 branches covered.">        if (Float.isNaN(value) || Float.isInfinite(value)) {</span>
+<span class="fc" id="L1069">            writeNull();</span>
+<span class="fc" id="L1070">            return;</span>
+        }
+
+<span class="fc" id="L1073">        String str = format.format(value);</span>
+<span class="fc" id="L1074">        writeRaw(str);</span>
+<span class="fc" id="L1075">    }</span>
+
+    public abstract void writeFloat(float[] value);
+
+    public final void writeFloat(float[] value, DecimalFormat format) {
+<span class="pc bpc" id="L1080" title="2 of 4 branches missed.">        if (format == null || jsonb) {</span>
+<span class="nc" id="L1081">            writeFloat(value);</span>
+<span class="nc" id="L1082">            return;</span>
+        }
+
+<span class="pc bpc" id="L1085" title="1 of 2 branches missed.">        if (value == null) {</span>
+<span class="nc" id="L1086">            writeNull();</span>
+<span class="nc" id="L1087">            return;</span>
+        }
+
+<span class="fc" id="L1090">        startArray();</span>
+<span class="fc bfc" id="L1091" title="All 2 branches covered.">        for (int i = 0; i &lt; value.length; i++) {</span>
+<span class="pc bpc" id="L1092" title="1 of 2 branches missed.">            if (i != 0) {</span>
+<span class="nc" id="L1093">                writeComma();</span>
+            }
+<span class="fc" id="L1095">            String str = format.format(value[i]);</span>
+<span class="fc" id="L1096">            writeRaw(str);</span>
+        }
+<span class="fc" id="L1098">        endArray();</span>
+<span class="fc" id="L1099">    }</span>
+
+    public final void writeFloat(Float value) {
+<span class="pc bpc" id="L1102" title="1 of 2 branches missed.">        if (value == null) {</span>
+<span class="fc" id="L1103">            writeNumberNull();</span>
+        } else {
+<span class="nc" id="L1105">            writeDouble(value);</span>
+        }
+<span class="fc" id="L1107">    }</span>
+
+    public abstract void writeDouble(double value);
+
+    public final void writeDouble(double value, DecimalFormat format) {
+<span class="pc bpc" id="L1112" title="2 of 4 branches missed.">        if (format == null || jsonb) {</span>
+<span class="nc" id="L1113">            writeDouble(value);</span>
+<span class="nc" id="L1114">            return;</span>
+        }
+<span class="fc bfc" id="L1116" title="All 4 branches covered.">        if (Double.isNaN(value) || Double.isInfinite(value)) {</span>
+<span class="fc" id="L1117">            writeNull();</span>
+<span class="fc" id="L1118">            return;</span>
+        }
+
+<span class="fc" id="L1121">        String str = format.format(value);</span>
+<span class="fc" id="L1122">        writeRaw(str);</span>
+<span class="fc" id="L1123">    }</span>
+
+    public void writeDoubleArray(double value0, double value1) {
+<span class="fc" id="L1126">        startArray();</span>
+<span class="fc" id="L1127">        writeDouble(value0);</span>
+<span class="fc" id="L1128">        writeComma();</span>
+<span class="fc" id="L1129">        writeDouble(value1);</span>
+<span class="fc" id="L1130">        endArray();</span>
+<span class="fc" id="L1131">    }</span>
+
+    public final void writeDouble(double[] value, DecimalFormat format) {
+<span class="pc bpc" id="L1134" title="2 of 4 branches missed.">        if (format == null || jsonb) {</span>
+<span class="nc" id="L1135">            writeDouble(value);</span>
+<span class="nc" id="L1136">            return;</span>
+        }
+
+<span class="pc bpc" id="L1139" title="1 of 2 branches missed.">        if (value == null) {</span>
+<span class="nc" id="L1140">            writeNull();</span>
+<span class="nc" id="L1141">            return;</span>
+        }
+
+<span class="fc" id="L1144">        startArray();</span>
+<span class="fc bfc" id="L1145" title="All 2 branches covered.">        for (int i = 0; i &lt; value.length; i++) {</span>
+<span class="pc bpc" id="L1146" title="1 of 2 branches missed.">            if (i != 0) {</span>
+<span class="nc" id="L1147">                writeComma();</span>
+            }
+
+<span class="fc" id="L1150">            String str = format.format(value[i]);</span>
+<span class="fc" id="L1151">            writeRaw(str);</span>
+        }
+<span class="fc" id="L1153">        endArray();</span>
+<span class="fc" id="L1154">    }</span>
+
+    public abstract void writeDouble(double[] value);
+
+    public abstract void writeBool(boolean value);
+
+    public void writeBool(boolean[] value) {
+<span class="fc bfc" id="L1161" title="All 2 branches covered.">        if (value == null) {</span>
+<span class="fc" id="L1162">            writeArrayNull();</span>
+<span class="fc" id="L1163">            return;</span>
+        }
+
+<span class="fc" id="L1166">        startArray();</span>
+<span class="fc bfc" id="L1167" title="All 2 branches covered.">        for (int i = 0; i &lt; value.length; i++) {</span>
+<span class="fc bfc" id="L1168" title="All 2 branches covered.">            if (i != 0) {</span>
+<span class="fc" id="L1169">                writeComma();</span>
+            }
+<span class="fc" id="L1171">            writeBool(value[i]);</span>
+        }
+<span class="fc" id="L1173">        endArray();</span>
+<span class="fc" id="L1174">    }</span>
+
+    public abstract void writeNull();
+
+    public void writeStringNull() {
+        String raw;
+<span class="fc bfc" id="L1180" title="All 2 branches covered.">        if ((this.context.features &amp; (NullAsDefaultValue.mask | WriteNullStringAsEmpty.mask)) != 0) {</span>
+<span class="fc bfc" id="L1181" title="All 2 branches covered.">            raw = (this.context.features &amp; UseSingleQuotes.mask) != 0 ? &quot;''&quot; : &quot;\&quot;\&quot;&quot;;</span>
+        } else {
+<span class="fc" id="L1183">            raw = &quot;null&quot;;</span>
+        }
+<span class="fc" id="L1185">        writeRaw(raw);</span>
+<span class="fc" id="L1186">    }</span>
+
+    public void writeArrayNull() {
+        String raw;
+<span class="fc bfc" id="L1190" title="All 2 branches covered.">        if ((this.context.features &amp; (NullAsDefaultValue.mask | WriteNullListAsEmpty.mask)) != 0) {</span>
+<span class="fc" id="L1191">            raw = &quot;[]&quot;;</span>
+        } else {
+<span class="fc" id="L1193">            raw = &quot;null&quot;;</span>
+        }
+<span class="fc" id="L1195">        writeRaw(raw);</span>
+<span class="fc" id="L1196">    }</span>
+
+    public final void writeNumberNull() {
+<span class="fc bfc" id="L1199" title="All 2 branches covered.">        if ((this.context.features &amp; (NullAsDefaultValue.mask | WriteNullNumberAsZero.mask)) != 0) {</span>
+<span class="fc" id="L1200">            writeInt32(0);</span>
+        } else {
+<span class="fc" id="L1202">            writeNull();</span>
+        }
+<span class="fc" id="L1204">    }</span>
+
+    public final void writeInt64Null() {
+<span class="fc bfc" id="L1207" title="All 2 branches covered.">        if ((this.context.features &amp; (NullAsDefaultValue.mask | WriteNullNumberAsZero.mask)) != 0) {</span>
+<span class="fc" id="L1208">            writeInt64(0);</span>
+        } else {
+<span class="fc" id="L1210">            writeNull();</span>
+        }
+<span class="fc" id="L1212">    }</span>
+
+    public final void writeBooleanNull() {
+<span class="fc bfc" id="L1215" title="All 2 branches covered.">        if ((this.context.features &amp; (NullAsDefaultValue.mask | WriteNullBooleanAsFalse.mask)) != 0) {</span>
+<span class="fc" id="L1216">            writeBool(false);</span>
+        } else {
+<span class="fc" id="L1218">            writeNull();</span>
+        }
+<span class="fc" id="L1220">    }</span>
+
+    public final void writeDecimal(BigDecimal value) {
+<span class="fc" id="L1223">        writeDecimal(value, 0, null);</span>
+<span class="fc" id="L1224">    }</span>
+
+    public final void writeDecimal(BigDecimal value, long features) {
+<span class="fc" id="L1227">        writeDecimal(value, features, null);</span>
+<span class="fc" id="L1228">    }</span>
+
+    public abstract void writeDecimal(BigDecimal value, long features, DecimalFormat format);
+
+    public void writeEnum(Enum e) {
+<span class="fc bfc" id="L1233" title="All 2 branches covered.">        if (e == null) {</span>
+<span class="fc" id="L1234">            writeNull();</span>
+<span class="fc" id="L1235">            return;</span>
+        }
+
+<span class="fc bfc" id="L1238" title="All 2 branches covered.">        if ((context.features &amp; WriteEnumUsingToString.mask) != 0) {</span>
+<span class="fc" id="L1239">            writeString(e.toString());</span>
+<span class="fc bfc" id="L1240" title="All 2 branches covered.">        } else if ((context.features &amp; WriteEnumsUsingName.mask) != 0) {</span>
+<span class="fc" id="L1241">            writeString(e.name());</span>
+        } else {
+<span class="fc" id="L1243">            writeInt32(e.ordinal());</span>
+        }
+<span class="fc" id="L1245">    }</span>
+
+    public final void writeBigInt(BigInteger value) {
+<span class="fc" id="L1248">        writeBigInt(value, 0);</span>
+<span class="fc" id="L1249">    }</span>
+
+    public abstract void writeBigInt(BigInteger value, long features);
+
+    public abstract void writeUUID(UUID value);
+
+    public final void checkAndWriteTypeName(Object object, Class fieldClass) {
+<span class="fc" id="L1256">        long features = context.features;</span>
+        Class objectClass;
+<span class="pc bpc" id="L1258" title="1 of 4 branches missed.">        if ((features &amp; WriteClassName.mask) == 0</span>
+                || object == null
+<span class="pc bpc" id="L1260" title="5 of 12 branches missed.">                || (objectClass = object.getClass()) == fieldClass</span>
+                || ((features &amp; NotWriteHashMapArrayListClassName.mask) != 0 &amp;&amp; (objectClass == HashMap.class || objectClass == ArrayList.class))
+                || ((features &amp; NotWriteRootClassName.mask) != 0 &amp;&amp; object == this.rootObject)
+        ) {
+<span class="fc" id="L1264">            return;</span>
+        }
+
+<span class="fc" id="L1267">        writeTypeName(TypeUtils.getTypeName(objectClass));</span>
+<span class="fc" id="L1268">    }</span>
+
+    public void writeTypeName(String typeName) {
+<span class="fc" id="L1271">        throw new JSONException(&quot;UnsupportedOperation&quot;);</span>
+    }
+
+    public boolean writeTypeName(byte[] typeName, long typeNameHash) {
+<span class="fc" id="L1275">        throw new JSONException(&quot;UnsupportedOperation&quot;);</span>
+    }
+
+    public final void writeString(Reader reader) {
+<span class="fc" id="L1279">        writeRaw(quote);</span>
+
+        try {
+<span class="fc" id="L1282">            char[] chars = new char[2048];</span>
+            for (; ; ) {
+<span class="fc" id="L1284">                int len = reader.read(chars, 0, chars.length);</span>
+<span class="fc bfc" id="L1285" title="All 2 branches covered.">                if (len &lt; 0) {</span>
+<span class="fc" id="L1286">                    break;</span>
+                }
+
+<span class="pc bpc" id="L1289" title="1 of 2 branches missed.">                if (len &gt; 0) {</span>
+<span class="fc" id="L1290">                    writeString(chars, 0, len, false);</span>
+                }
+<span class="fc" id="L1292">            }</span>
+<span class="nc" id="L1293">        } catch (Exception ex) {</span>
+<span class="nc" id="L1294">            throw new JSONException(&quot;read string from reader error&quot;, ex);</span>
+<span class="fc" id="L1295">        }</span>
+
+<span class="fc" id="L1297">        writeRaw(quote);</span>
+<span class="fc" id="L1298">    }</span>
+
+    public abstract void writeString(String str);
+
+    /**
+     * write short value as String
+     * @param value value
+     * @since 2.0.49
+     */
+    public abstract void writeString(boolean value);
+
+    /**
+     * write short value as String
+     * @param value value
+     * @since 2.0.49
+     */
+    public abstract void writeString(byte value);
+
+    /**
+     * write short value as String
+     * @param value value
+     * @since 2.0.49
+     */
+    public abstract void writeString(short value);
+
+    /**
+     * write boolean array value as String
+     * @param value value
+     * @since 2.0.49
+     */
+    public void writeString(boolean[] value) {
+<span class="pc bpc" id="L1329" title="1 of 2 branches missed.">        if (value == null) {</span>
+<span class="nc" id="L1330">            writeArrayNull();</span>
+<span class="nc" id="L1331">            return;</span>
+        }
+<span class="fc" id="L1333">        startArray();</span>
+<span class="fc bfc" id="L1334" title="All 2 branches covered.">        for (int i = 0; i &lt; value.length; i++) {</span>
+<span class="pc bpc" id="L1335" title="1 of 2 branches missed.">            if (i != 0) {</span>
+<span class="nc" id="L1336">                writeComma();</span>
+            }
+<span class="fc" id="L1338">            writeString(value[i]);</span>
+        }
+<span class="fc" id="L1340">        endArray();</span>
+<span class="fc" id="L1341">    }</span>
+
+    /**
+     * write byte array value as String
+     * @param value value
+     * @since 2.0.49
+     */
+    public void writeString(byte[] value) {
+<span class="pc bpc" id="L1349" title="1 of 2 branches missed.">        if (value == null) {</span>
+<span class="nc" id="L1350">            writeArrayNull();</span>
+<span class="nc" id="L1351">            return;</span>
+        }
+<span class="fc" id="L1353">        startArray();</span>
+<span class="fc bfc" id="L1354" title="All 2 branches covered.">        for (int i = 0; i &lt; value.length; i++) {</span>
+<span class="pc bpc" id="L1355" title="1 of 2 branches missed.">            if (i != 0) {</span>
+<span class="nc" id="L1356">                writeComma();</span>
+            }
+<span class="fc" id="L1358">            writeString(value[i]);</span>
+        }
+<span class="fc" id="L1360">        endArray();</span>
+<span class="fc" id="L1361">    }</span>
+
+    /**
+     * write short array value as String
+     * @param value value
+     * @since 2.0.49
+     */
+    public void writeString(short[] value) {
+<span class="pc bpc" id="L1369" title="1 of 2 branches missed.">        if (value == null) {</span>
+<span class="nc" id="L1370">            writeArrayNull();</span>
+<span class="nc" id="L1371">            return;</span>
+        }
+<span class="fc" id="L1373">        startArray();</span>
+<span class="fc bfc" id="L1374" title="All 2 branches covered.">        for (int i = 0; i &lt; value.length; i++) {</span>
+<span class="pc bpc" id="L1375" title="1 of 2 branches missed.">            if (i != 0) {</span>
+<span class="nc" id="L1376">                writeComma();</span>
+            }
+<span class="fc" id="L1378">            writeString(value[i]);</span>
+        }
+<span class="fc" id="L1380">        endArray();</span>
+<span class="fc" id="L1381">    }</span>
+
+    /**
+     * write int array value as String
+     * @param value value
+     * @since 2.0.49
+     */
+    public void writeString(int[] value) {
+<span class="pc bpc" id="L1389" title="1 of 2 branches missed.">        if (value == null) {</span>
+<span class="nc" id="L1390">            writeArrayNull();</span>
+<span class="nc" id="L1391">            return;</span>
+        }
+<span class="fc" id="L1393">        startArray();</span>
+<span class="fc bfc" id="L1394" title="All 2 branches covered.">        for (int i = 0; i &lt; value.length; i++) {</span>
+<span class="pc bpc" id="L1395" title="1 of 2 branches missed.">            if (i != 0) {</span>
+<span class="nc" id="L1396">                writeComma();</span>
+            }
+<span class="fc" id="L1398">            writeString(value[i]);</span>
+        }
+<span class="fc" id="L1400">        endArray();</span>
+<span class="fc" id="L1401">    }</span>
+
+    /**
+     * write long array value as String
+     * @param value value
+     * @since 2.0.49
+     */
+    public void writeString(long[] value) {
+<span class="pc bpc" id="L1409" title="1 of 2 branches missed.">        if (value == null) {</span>
+<span class="nc" id="L1410">            writeArrayNull();</span>
+<span class="nc" id="L1411">            return;</span>
+        }
+<span class="fc" id="L1413">        startArray();</span>
+<span class="fc bfc" id="L1414" title="All 2 branches covered.">        for (int i = 0; i &lt; value.length; i++) {</span>
+<span class="pc bpc" id="L1415" title="1 of 2 branches missed.">            if (i != 0) {</span>
+<span class="nc" id="L1416">                writeComma();</span>
+            }
+<span class="fc" id="L1418">            writeString(value[i]);</span>
+        }
+<span class="fc" id="L1420">        endArray();</span>
+<span class="fc" id="L1421">    }</span>
+
+    /**
+     * write float array value as String
+     * @param value value
+     * @since 2.0.49
+     */
+    public void writeString(float[] value) {
+<span class="pc bpc" id="L1429" title="1 of 2 branches missed.">        if (value == null) {</span>
+<span class="nc" id="L1430">            writeArrayNull();</span>
+<span class="nc" id="L1431">            return;</span>
+        }
+<span class="fc" id="L1433">        startArray();</span>
+<span class="fc bfc" id="L1434" title="All 2 branches covered.">        for (int i = 0; i &lt; value.length; i++) {</span>
+<span class="pc bpc" id="L1435" title="1 of 2 branches missed.">            if (i != 0) {</span>
+<span class="nc" id="L1436">                writeComma();</span>
+            }
+<span class="fc" id="L1438">            writeString(value[i]);</span>
+        }
+<span class="fc" id="L1440">        endArray();</span>
+<span class="fc" id="L1441">    }</span>
+
+    /**
+     * write double array value as String
+     * @param value value
+     * @since 2.0.49
+     */
+    public void writeString(double[] value) {
+<span class="pc bpc" id="L1449" title="1 of 2 branches missed.">        if (value == null) {</span>
+<span class="nc" id="L1450">            writeArrayNull();</span>
+<span class="nc" id="L1451">            return;</span>
+        }
+<span class="fc" id="L1453">        startArray();</span>
+<span class="fc bfc" id="L1454" title="All 2 branches covered.">        for (int i = 0; i &lt; value.length; i++) {</span>
+<span class="pc bpc" id="L1455" title="1 of 2 branches missed.">            if (i != 0) {</span>
+<span class="nc" id="L1456">                writeComma();</span>
+            }
+<span class="fc" id="L1458">            writeString(value[i]);</span>
+        }
+<span class="fc" id="L1460">        endArray();</span>
+<span class="fc" id="L1461">    }</span>
+
+    /**
+     * write int value as String
+     * @param value value
+     * @since 2.0.49
+     */
+    public abstract void writeString(int value);
+
+    /**
+     * write float value as String
+     * @param value value
+     * @since 2.0.49
+     */
+    public void writeString(float value) {
+<span class="fc" id="L1476">        writeString(Float.toString(value));</span>
+<span class="fc" id="L1477">    }</span>
+
+    /**
+     * write double value as String
+     * @param value value
+     * @since 2.0.49
+     */
+    public void writeString(double value) {
+<span class="fc" id="L1485">        writeString(Double.toString(value));</span>
+<span class="fc" id="L1486">    }</span>
+
+    /**
+     * write long value as String
+     * @param value value
+     * @since 2.0.49
+     */
+    public abstract void writeString(long value);
+
+    public abstract void writeStringLatin1(byte[] value);
+
+    public abstract void writeStringUTF16(byte[] value);
+
+    public void writeString(List&lt;String&gt; list) {
+<span class="nc" id="L1500">        startArray();</span>
+<span class="nc bnc" id="L1501" title="All 2 branches missed.">        for (int i = 0, size = list.size(); i &lt; size; i++) {</span>
+<span class="nc bnc" id="L1502" title="All 2 branches missed.">            if (i != 0) {</span>
+<span class="nc" id="L1503">                writeComma();</span>
+            }
+
+<span class="nc" id="L1506">            String str = list.get(i);</span>
+<span class="nc" id="L1507">            writeString(str);</span>
+        }
+<span class="nc" id="L1509">        endArray();</span>
+<span class="nc" id="L1510">    }</span>
+
+    public abstract void writeString(String[] strings);
+
+    public void writeSymbol(String string) {
+<span class="fc" id="L1515">        writeString(string);</span>
+<span class="fc" id="L1516">    }</span>
+
+    public abstract void writeString(char[] chars);
+
+    public abstract void writeString(char[] chars, int off, int len);
+
+    public abstract void writeString(char[] chars, int off, int len, boolean quote);
+
+    public abstract void writeLocalDate(LocalDate date);
+
+    protected final boolean writeLocalDateWithFormat(LocalDate date) {
+<span class="fc" id="L1527">        Context context = this.context;</span>
+<span class="fc bfc" id="L1528" title="All 4 branches covered.">        if (context.dateFormatUnixTime || context.dateFormatMillis) {</span>
+<span class="fc" id="L1529">            LocalDateTime dateTime = LocalDateTime.of(date, LocalTime.MIN);</span>
+<span class="fc" id="L1530">            long millis = dateTime.atZone(context.getZoneId())</span>
+<span class="fc" id="L1531">                    .toInstant()</span>
+<span class="fc" id="L1532">                    .toEpochMilli();</span>
+<span class="fc bfc" id="L1533" title="All 2 branches covered.">            writeInt64(context.dateFormatMillis ? millis : millis / 1000);</span>
+<span class="fc" id="L1534">            return true;</span>
+        }
+
+<span class="fc" id="L1537">        DateTimeFormatter formatter = context.getDateFormatter();</span>
+<span class="fc bfc" id="L1538" title="All 2 branches covered.">        if (formatter != null) {</span>
+            String str;
+<span class="fc bfc" id="L1540" title="All 2 branches covered.">            if (context.isDateFormatHasHour()) {</span>
+<span class="fc" id="L1541">                str = formatter.format(LocalDateTime.of(date, LocalTime.MIN));</span>
+            } else {
+<span class="fc" id="L1543">                str = formatter.format(date);</span>
+            }
+<span class="fc" id="L1545">            writeString(str);</span>
+<span class="fc" id="L1546">            return true;</span>
+        }
+<span class="fc" id="L1548">        return false;</span>
+    }
+
+    public abstract void writeLocalDateTime(LocalDateTime dateTime);
+
+    public abstract void writeLocalTime(LocalTime time);
+
+    public abstract void writeZonedDateTime(ZonedDateTime dateTime);
+
+    public abstract void writeOffsetDateTime(OffsetDateTime dateTime);
+
+    public abstract void writeOffsetTime(OffsetTime dateTime);
+
+    public void writeInstant(Instant instant) {
+<span class="fc bfc" id="L1562" title="All 2 branches covered.">        if (instant == null) {</span>
+<span class="fc" id="L1563">            writeNull();</span>
+<span class="fc" id="L1564">            return;</span>
+        }
+
+<span class="fc" id="L1567">        String str = DateTimeFormatter.ISO_INSTANT.format(instant);</span>
+<span class="fc" id="L1568">        writeString(str);</span>
+<span class="fc" id="L1569">    }</span>
+
+    public abstract void writeDateTime14(
+            int year,
+            int month,
+            int dayOfMonth,
+            int hour,
+            int minute,
+            int second);
+
+    public abstract void writeDateTime19(
+            int year,
+            int month,
+            int dayOfMonth,
+            int hour,
+            int minute,
+            int second);
+
+    public abstract void writeDateTimeISO8601(
+            int year,
+            int month,
+            int dayOfMonth,
+            int hour,
+            int minute,
+            int second,
+            int millis,
+            int offsetSeconds,
+            boolean timeZone
+    );
+
+    public abstract void writeDateYYYMMDD8(int year, int month, int dayOfMonth);
+
+    public abstract void writeDateYYYMMDD10(int year, int month, int dayOfMonth);
+
+    public abstract void writeTimeHHMMSS8(int hour, int minute, int second);
+
+    public abstract void write(List array);
+
+    public void write(Map map) {
+<span class="pc bpc" id="L1608" title="1 of 2 branches missed.">        if (map == null) {</span>
+<span class="nc" id="L1609">            this.writeNull();</span>
+<span class="nc" id="L1610">            return;</span>
+        }
+
+<span class="fc" id="L1613">        final long NONE_DIRECT_FEATURES = ReferenceDetection.mask</span>
+                | PrettyFormat.mask
+                | NotWriteEmptyArray.mask
+                | NotWriteDefaultValue.mask;
+
+<span class="fc bfc" id="L1618" title="All 2 branches covered.">        if ((context.features &amp; NONE_DIRECT_FEATURES) != 0) {</span>
+<span class="fc" id="L1619">            ObjectWriter objectWriter = context.getObjectWriter(map.getClass());</span>
+<span class="fc" id="L1620">            objectWriter.write(this, map, null, null, 0);</span>
+<span class="fc" id="L1621">            return;</span>
+        }
+
+<span class="fc" id="L1624">        write0('{');</span>
+<span class="fc" id="L1625">        boolean first = true;</span>
+<span class="fc bfc" id="L1626" title="All 2 branches covered.">        for (Map.Entry o : (Iterable&lt;Map.Entry&gt;) map.entrySet()) {</span>
+<span class="fc bfc" id="L1627" title="All 2 branches covered.">            if (!first) {</span>
+<span class="fc" id="L1628">                write0(',');</span>
+            }
+
+<span class="fc" id="L1631">            writeAny(</span>
+<span class="fc" id="L1632">                    o.getKey());</span>
+<span class="fc" id="L1633">            write0(':');</span>
+<span class="fc" id="L1634">            writeAny(</span>
+<span class="fc" id="L1635">                    o.getValue());</span>
+
+<span class="fc" id="L1637">            first = false;</span>
+<span class="fc" id="L1638">        }</span>
+<span class="fc" id="L1639">        write0('}');</span>
+<span class="fc" id="L1640">    }</span>
+
+    public abstract void write(JSONObject map);
+
+    public void writeAny(Object value) {
+<span class="fc bfc" id="L1645" title="All 2 branches covered.">        if (value == null) {</span>
+<span class="fc" id="L1646">            writeNull();</span>
+<span class="fc" id="L1647">            return;</span>
+        }
+
+<span class="fc" id="L1650">        Class&lt;?&gt; valueClass = value.getClass();</span>
+<span class="fc" id="L1651">        ObjectWriter objectWriter = context.getObjectWriter(valueClass, valueClass);</span>
+<span class="fc" id="L1652">        objectWriter.write(this, value, null, null, 0);</span>
+<span class="fc" id="L1653">    }</span>
+
+    /**
+     * @since 2.0.43
+     */
+    public final void writeAs(Object value, Class type) {
+<span class="fc bfc" id="L1659" title="All 2 branches covered.">        if (value == null) {</span>
+<span class="fc" id="L1660">            writeNull();</span>
+<span class="fc" id="L1661">            return;</span>
+        }
+
+<span class="fc" id="L1664">        ObjectWriter objectWriter = context.getObjectWriter(type);</span>
+<span class="fc" id="L1665">        objectWriter.write(this, value, null, null, 0);</span>
+<span class="fc" id="L1666">    }</span>
+
+    public abstract void writeReference(String path);
+
+    @Override
+    public abstract void close();
+
+    public abstract int size();
+
+    public abstract byte[] getBytes();
+
+    public abstract byte[] getBytes(Charset charset);
+
+    public void flushTo(java.io.Writer to) {
+        try {
+<span class="fc" id="L1681">            String json = this.toString();</span>
+<span class="fc" id="L1682">            to.write(json);</span>
+<span class="fc" id="L1683">            off = 0;</span>
+<span class="nc" id="L1684">        } catch (IOException e) {</span>
+<span class="nc" id="L1685">            throw new JSONException(&quot;flushTo error&quot;, e);</span>
+<span class="fc" id="L1686">        }</span>
+<span class="fc" id="L1687">    }</span>
+
+    public abstract int flushTo(OutputStream to) throws IOException;
+
+    public abstract int flushTo(OutputStream out, Charset charset) throws IOException;
+
+    public static final class Context {
+<span class="fc" id="L1694">        static final ZoneId DEFAULT_ZONE_ID = ZoneId.systemDefault();</span>
+
+        public final ObjectWriterProvider provider;
+        DateTimeFormatter dateFormatter;
+        String dateFormat;
+        Locale locale;
+        boolean dateFormatMillis;
+        boolean dateFormatISO8601;
+        boolean dateFormatUnixTime;
+        boolean formatyyyyMMddhhmmss19;
+        boolean formatHasDay;
+        boolean formatHasHour;
+        long features;
+        ZoneId zoneId;
+<span class="fc" id="L1708">        int maxLevel = 2048;</span>
+        boolean hasFilter;
+        PropertyPreFilter propertyPreFilter;
+        PropertyFilter propertyFilter;
+        NameFilter nameFilter;
+        ValueFilter valueFilter;
+        BeforeFilter beforeFilter;
+        AfterFilter afterFilter;
+        LabelFilter labelFilter;
+        ContextValueFilter contextValueFilter;
+        ContextNameFilter contextNameFilter;
+
+<span class="fc" id="L1720">        public Context(ObjectWriterProvider provider) {</span>
+<span class="pc bpc" id="L1721" title="1 of 2 branches missed.">            if (provider == null) {</span>
+<span class="nc" id="L1722">                throw new IllegalArgumentException(&quot;objectWriterProvider must not null&quot;);</span>
+            }
+
+<span class="fc" id="L1725">            this.features = defaultWriterFeatures;</span>
+<span class="fc" id="L1726">            this.provider = provider;</span>
+<span class="fc" id="L1727">            this.zoneId = defaultWriterZoneId;</span>
+
+<span class="fc" id="L1729">            String format = defaultWriterFormat;</span>
+<span class="fc bfc" id="L1730" title="All 2 branches covered.">            if (format != null) {</span>
+<span class="fc" id="L1731">                setDateFormat(format);</span>
+            }
+<span class="fc" id="L1733">        }</span>
+
+<span class="fc" id="L1735">        public Context(Feature... features) {</span>
+<span class="fc" id="L1736">            this.features = defaultWriterFeatures;</span>
+<span class="fc" id="L1737">            this.provider = getDefaultObjectWriterProvider();</span>
+<span class="fc" id="L1738">            this.zoneId = defaultWriterZoneId;</span>
+
+<span class="fc" id="L1740">            String format = defaultWriterFormat;</span>
+<span class="pc bpc" id="L1741" title="1 of 2 branches missed.">            if (format != null) {</span>
+<span class="nc" id="L1742">                setDateFormat(format);</span>
+            }
+
+<span class="fc bfc" id="L1745" title="All 2 branches covered.">            for (int i = 0; i &lt; features.length; i++) {</span>
+<span class="fc" id="L1746">                this.features |= features[i].mask;</span>
+            }
+<span class="fc" id="L1748">        }</span>
+
+<span class="fc" id="L1750">        public Context(String format, Feature... features) {</span>
+<span class="fc" id="L1751">            this.features = defaultWriterFeatures;</span>
+<span class="fc" id="L1752">            this.provider = getDefaultObjectWriterProvider();</span>
+<span class="fc" id="L1753">            this.zoneId = defaultWriterZoneId;</span>
+
+<span class="pc bpc" id="L1755" title="1 of 2 branches missed.">            for (int i = 0; i &lt; features.length; i++) {</span>
+<span class="nc" id="L1756">                this.features |= features[i].mask;</span>
+            }
+
+<span class="pc bpc" id="L1759" title="1 of 2 branches missed.">            if (format == null) {</span>
+<span class="nc" id="L1760">                format = defaultWriterFormat;</span>
+            }
+<span class="pc bpc" id="L1762" title="1 of 2 branches missed.">            if (format != null) {</span>
+<span class="fc" id="L1763">                setDateFormat(format);</span>
+            }
+<span class="fc" id="L1765">        }</span>
+
+<span class="fc" id="L1767">        public Context(ObjectWriterProvider provider, Feature... features) {</span>
+<span class="pc bpc" id="L1768" title="1 of 2 branches missed.">            if (provider == null) {</span>
+<span class="nc" id="L1769">                throw new IllegalArgumentException(&quot;objectWriterProvider must not null&quot;);</span>
+            }
+
+<span class="fc" id="L1772">            this.features = defaultWriterFeatures;</span>
+<span class="fc" id="L1773">            this.provider = provider;</span>
+<span class="fc" id="L1774">            this.zoneId = defaultWriterZoneId;</span>
+
+<span class="fc bfc" id="L1776" title="All 2 branches covered.">            for (int i = 0; i &lt; features.length; i++) {</span>
+<span class="fc" id="L1777">                this.features |= features[i].mask;</span>
+            }
+
+<span class="fc" id="L1780">            String format = defaultWriterFormat;</span>
+<span class="pc bpc" id="L1781" title="1 of 2 branches missed.">            if (format != null) {</span>
+<span class="nc" id="L1782">                setDateFormat(format);</span>
+            }
+<span class="fc" id="L1784">        }</span>
+
+        public long getFeatures() {
+<span class="fc" id="L1787">            return features;</span>
+        }
+
+        /**
+         * @since 2.0.51
+         */
+        public void setFeatures(long features) {
+<span class="fc" id="L1794">            this.features = features;</span>
+<span class="fc" id="L1795">        }</span>
+
+        public boolean isEnabled(Feature feature) {
+<span class="fc bfc" id="L1798" title="All 2 branches covered.">            return (this.features &amp; feature.mask) != 0;</span>
+        }
+
+        public boolean isEnabled(long feature) {
+<span class="fc bfc" id="L1802" title="All 2 branches covered.">            return (this.features &amp; feature) != 0;</span>
+        }
+
+        public void config(Feature... features) {
+<span class="fc bfc" id="L1806" title="All 2 branches covered.">            for (int i = 0; i &lt; features.length; i++) {</span>
+<span class="fc" id="L1807">                this.features |= features[i].mask;</span>
+            }
+<span class="fc" id="L1809">        }</span>
+
+        public void config(Feature feature, boolean state) {
+<span class="fc bfc" id="L1812" title="All 2 branches covered.">            if (state) {</span>
+<span class="fc" id="L1813">                features |= feature.mask;</span>
+            } else {
+<span class="fc" id="L1815">                features &amp;= ~feature.mask;</span>
+            }
+<span class="fc" id="L1817">        }</span>
+
+        public void configFilter(Filter... filters) {
+<span class="fc bfc" id="L1820" title="All 2 branches covered.">            for (int i = 0; i &lt; filters.length; i++) {</span>
+<span class="fc" id="L1821">                Filter filter = filters[i];</span>
+<span class="fc bfc" id="L1822" title="All 2 branches covered.">                if (filter instanceof NameFilter) {</span>
+<span class="fc bfc" id="L1823" title="All 2 branches covered.">                    if (this.nameFilter == null) {</span>
+<span class="fc" id="L1824">                        this.nameFilter = (NameFilter) filter;</span>
+                    } else {
+<span class="fc" id="L1826">                        this.nameFilter = NameFilter.compose(this.nameFilter, (NameFilter) filter);</span>
+                    }
+                }
+
+<span class="fc bfc" id="L1830" title="All 2 branches covered.">                if (filter instanceof ValueFilter) {</span>
+<span class="fc bfc" id="L1831" title="All 2 branches covered.">                    if (this.valueFilter == null) {</span>
+<span class="fc" id="L1832">                        this.valueFilter = (ValueFilter) filter;</span>
+                    } else {
+<span class="fc" id="L1834">                        this.valueFilter = ValueFilter.compose(this.valueFilter, (ValueFilter) filter);</span>
+                    }
+                }
+
+<span class="fc bfc" id="L1838" title="All 2 branches covered.">                if (filter instanceof PropertyFilter) {</span>
+<span class="fc" id="L1839">                    this.propertyFilter = (PropertyFilter) filter;</span>
+                }
+
+<span class="fc bfc" id="L1842" title="All 2 branches covered.">                if (filter instanceof PropertyPreFilter) {</span>
+<span class="fc" id="L1843">                    this.propertyPreFilter = (PropertyPreFilter) filter;</span>
+                }
+
+<span class="fc bfc" id="L1846" title="All 2 branches covered.">                if (filter instanceof BeforeFilter) {</span>
+<span class="fc" id="L1847">                    this.beforeFilter = (BeforeFilter) filter;</span>
+                }
+
+<span class="fc bfc" id="L1850" title="All 2 branches covered.">                if (filter instanceof AfterFilter) {</span>
+<span class="fc" id="L1851">                    this.afterFilter = (AfterFilter) filter;</span>
+                }
+
+<span class="fc bfc" id="L1854" title="All 2 branches covered.">                if (filter instanceof LabelFilter) {</span>
+<span class="fc" id="L1855">                    this.labelFilter = (LabelFilter) filter;</span>
+                }
+
+<span class="fc bfc" id="L1858" title="All 2 branches covered.">                if (filter instanceof ContextValueFilter) {</span>
+<span class="fc" id="L1859">                    this.contextValueFilter = (ContextValueFilter) filter;</span>
+                }
+
+<span class="fc bfc" id="L1862" title="All 2 branches covered.">                if (filter instanceof ContextNameFilter) {</span>
+<span class="fc" id="L1863">                    this.contextNameFilter = (ContextNameFilter) filter;</span>
+                }
+            }
+
+<span class="fc bfc" id="L1867" title="All 18 branches covered.">            hasFilter = propertyPreFilter != null</span>
+                    || propertyFilter != null
+                    || nameFilter != null
+                    || valueFilter != null
+                    || beforeFilter != null
+                    || afterFilter != null
+                    || labelFilter != null
+                    || contextValueFilter != null
+                    || contextNameFilter != null;
+<span class="fc" id="L1876">        }</span>
+
+        public &lt;T&gt; ObjectWriter&lt;T&gt; getObjectWriter(Class&lt;T&gt; objectType) {
+<span class="fc bfc" id="L1879" title="All 2 branches covered.">            boolean fieldBased = (features &amp; FieldBased.mask) != 0;</span>
+<span class="fc" id="L1880">            return provider.getObjectWriter(objectType, objectType, fieldBased);</span>
+        }
+
+        public &lt;T&gt; ObjectWriter&lt;T&gt; getObjectWriter(Type objectType, Class&lt;T&gt; objectClass) {
+<span class="fc bfc" id="L1884" title="All 2 branches covered.">            boolean fieldBased = (features &amp; FieldBased.mask) != 0;</span>
+<span class="fc" id="L1885">            return provider.getObjectWriter(objectType, objectClass, fieldBased);</span>
+        }
+
+        public ObjectWriterProvider getProvider() {
+<span class="fc" id="L1889">            return provider;</span>
+        }
+
+        public ZoneId getZoneId() {
+<span class="fc bfc" id="L1893" title="All 2 branches covered.">            if (zoneId == null) {</span>
+<span class="fc" id="L1894">                zoneId = DEFAULT_ZONE_ID;</span>
+            }
+<span class="fc" id="L1896">            return zoneId;</span>
+        }
+
+        public void setZoneId(ZoneId zoneId) {
+<span class="fc" id="L1900">            this.zoneId = zoneId;</span>
+<span class="fc" id="L1901">        }</span>
+
+        public String getDateFormat() {
+<span class="fc" id="L1904">            return dateFormat;</span>
+        }
+
+        public boolean isDateFormatMillis() {
+<span class="fc" id="L1908">            return dateFormatMillis;</span>
+        }
+
+        public boolean isDateFormatUnixTime() {
+<span class="fc" id="L1912">            return dateFormatUnixTime;</span>
+        }
+
+        public boolean isDateFormatISO8601() {
+<span class="fc" id="L1916">            return dateFormatISO8601;</span>
+        }
+
+        public boolean isDateFormatHasDay() {
+<span class="fc" id="L1920">            return formatHasDay;</span>
+        }
+
+        public boolean isDateFormatHasHour() {
+<span class="fc" id="L1924">            return formatHasHour;</span>
+        }
+
+        public boolean isFormatyyyyMMddhhmmss19() {
+<span class="fc" id="L1928">            return formatyyyyMMddhhmmss19;</span>
+        }
+
+        public DateTimeFormatter getDateFormatter() {
+<span class="pc bpc" id="L1932" title="2 of 10 branches missed.">            if (dateFormatter == null &amp;&amp; dateFormat != null &amp;&amp; !dateFormatMillis &amp;&amp; !dateFormatISO8601 &amp;&amp; !dateFormatUnixTime) {</span>
+<span class="pc bpc" id="L1933" title="1 of 2 branches missed.">                dateFormatter = locale == null</span>
+<span class="pc" id="L1934">                        ? DateTimeFormatter.ofPattern(dateFormat)</span>
+<span class="pc" id="L1935">                        : DateTimeFormatter.ofPattern(dateFormat, locale);</span>
+            }
+<span class="fc" id="L1937">            return dateFormatter;</span>
+        }
+
+        public void setDateFormat(String dateFormat) {
+<span class="pc bpc" id="L1941" title="2 of 4 branches missed.">            if (dateFormat == null || !dateFormat.equals(this.dateFormat)) {</span>
+<span class="fc" id="L1942">                dateFormatter = null;</span>
+            }
+
+<span class="pc bpc" id="L1945" title="2 of 4 branches missed.">            if (dateFormat != null &amp;&amp; !dateFormat.isEmpty()) {</span>
+<span class="fc" id="L1946">                boolean dateFormatMillis = false, dateFormatISO8601 = false, dateFormatUnixTime = false, formatHasDay = false, formatHasHour = false, formatyyyyMMddhhmmss19 = false;</span>
+<span class="fc bfc" id="L1947" title="All 6 branches covered.">                switch (dateFormat) {</span>
+                    case &quot;millis&quot;:
+<span class="fc" id="L1949">                        dateFormatMillis = true;</span>
+<span class="fc" id="L1950">                        break;</span>
+                    case &quot;iso8601&quot;:
+<span class="fc" id="L1952">                        dateFormatMillis = false;</span>
+<span class="fc" id="L1953">                        dateFormatISO8601 = true;</span>
+<span class="fc" id="L1954">                        break;</span>
+                    case &quot;unixtime&quot;:
+<span class="fc" id="L1956">                        dateFormatMillis = false;</span>
+<span class="fc" id="L1957">                        dateFormatUnixTime = true;</span>
+<span class="fc" id="L1958">                        break;</span>
+                    case &quot;yyyy-MM-ddTHH:mm:ss&quot;:
+<span class="fc" id="L1960">                        dateFormat = &quot;yyyy-MM-dd'T'HH:mm:ss&quot;;</span>
+<span class="fc" id="L1961">                        formatHasDay = true;</span>
+<span class="fc" id="L1962">                        formatHasHour = true;</span>
+<span class="fc" id="L1963">                        break;</span>
+                    case &quot;yyyy-MM-dd HH:mm:ss&quot;:
+<span class="fc" id="L1965">                        formatyyyyMMddhhmmss19 = true;</span>
+<span class="fc" id="L1966">                        formatHasDay = true;</span>
+<span class="fc" id="L1967">                        formatHasHour = true;</span>
+<span class="fc" id="L1968">                        break;</span>
+                    default:
+<span class="fc" id="L1970">                        dateFormatMillis = false;</span>
+<span class="fc" id="L1971">                        formatHasDay = dateFormat.contains(&quot;d&quot;);</span>
+<span class="fc" id="L1972">                        formatHasHour = dateFormat.contains(&quot;H&quot;);</span>
+                        break;
+                }
+<span class="fc" id="L1975">                this.dateFormatMillis = dateFormatMillis;</span>
+<span class="fc" id="L1976">                this.dateFormatISO8601 = dateFormatISO8601;</span>
+<span class="fc" id="L1977">                this.dateFormatUnixTime = dateFormatUnixTime;</span>
+<span class="fc" id="L1978">                this.formatHasDay = formatHasDay;</span>
+<span class="fc" id="L1979">                this.formatHasHour = formatHasHour;</span>
+<span class="fc" id="L1980">                this.formatyyyyMMddhhmmss19 = formatyyyyMMddhhmmss19;</span>
+            }
+
+<span class="fc" id="L1983">            this.dateFormat = dateFormat;</span>
+<span class="fc" id="L1984">        }</span>
+
+        public PropertyPreFilter getPropertyPreFilter() {
+<span class="fc" id="L1987">            return propertyPreFilter;</span>
+        }
+
+        public void setPropertyPreFilter(PropertyPreFilter propertyPreFilter) {
+<span class="fc" id="L1991">            this.propertyPreFilter = propertyPreFilter;</span>
+<span class="pc bpc" id="L1992" title="1 of 2 branches missed.">            if (propertyPreFilter != null) {</span>
+<span class="nc" id="L1993">                hasFilter = true;</span>
+            }
+<span class="fc" id="L1995">        }</span>
+
+        public NameFilter getNameFilter() {
+<span class="fc" id="L1998">            return nameFilter;</span>
+        }
+
+        public void setNameFilter(NameFilter nameFilter) {
+<span class="fc" id="L2002">            this.nameFilter = nameFilter;</span>
+<span class="pc bpc" id="L2003" title="1 of 2 branches missed.">            if (nameFilter != null) {</span>
+<span class="nc" id="L2004">                hasFilter = true;</span>
+            }
+<span class="fc" id="L2006">        }</span>
+
+        public ValueFilter getValueFilter() {
+<span class="fc" id="L2009">            return valueFilter;</span>
+        }
+
+        public void setValueFilter(ValueFilter valueFilter) {
+<span class="fc" id="L2013">            this.valueFilter = valueFilter;</span>
+<span class="pc bpc" id="L2014" title="1 of 2 branches missed.">            if (valueFilter != null) {</span>
+<span class="nc" id="L2015">                hasFilter = true;</span>
+            }
+<span class="fc" id="L2017">        }</span>
+
+        public ContextValueFilter getContextValueFilter() {
+<span class="fc" id="L2020">            return contextValueFilter;</span>
+        }
+
+        public void setContextValueFilter(ContextValueFilter contextValueFilter) {
+<span class="fc" id="L2024">            this.contextValueFilter = contextValueFilter;</span>
+<span class="pc bpc" id="L2025" title="1 of 2 branches missed.">            if (contextValueFilter != null) {</span>
+<span class="nc" id="L2026">                hasFilter = true;</span>
+            }
+<span class="fc" id="L2028">        }</span>
+
+        public ContextNameFilter getContextNameFilter() {
+<span class="fc" id="L2031">            return contextNameFilter;</span>
+        }
+
+        public void setContextNameFilter(ContextNameFilter contextNameFilter) {
+<span class="fc" id="L2035">            this.contextNameFilter = contextNameFilter;</span>
+<span class="pc bpc" id="L2036" title="1 of 2 branches missed.">            if (contextNameFilter != null) {</span>
+<span class="nc" id="L2037">                hasFilter = true;</span>
+            }
+<span class="fc" id="L2039">        }</span>
+
+        public PropertyFilter getPropertyFilter() {
+<span class="fc" id="L2042">            return propertyFilter;</span>
+        }
+
+        public void setPropertyFilter(PropertyFilter propertyFilter) {
+<span class="fc" id="L2046">            this.propertyFilter = propertyFilter;</span>
+<span class="fc bfc" id="L2047" title="All 2 branches covered.">            if (propertyFilter != null) {</span>
+<span class="fc" id="L2048">                hasFilter = true;</span>
+            }
+<span class="fc" id="L2050">        }</span>
+
+        public AfterFilter getAfterFilter() {
+<span class="fc" id="L2053">            return afterFilter;</span>
+        }
+
+        public void setAfterFilter(AfterFilter afterFilter) {
+<span class="fc" id="L2057">            this.afterFilter = afterFilter;</span>
+<span class="pc bpc" id="L2058" title="1 of 2 branches missed.">            if (afterFilter != null) {</span>
+<span class="nc" id="L2059">                hasFilter = true;</span>
+            }
+<span class="fc" id="L2061">        }</span>
+
+        public BeforeFilter getBeforeFilter() {
+<span class="fc" id="L2064">            return beforeFilter;</span>
+        }
+
+        public void setBeforeFilter(BeforeFilter beforeFilter) {
+<span class="fc" id="L2068">            this.beforeFilter = beforeFilter;</span>
+<span class="pc bpc" id="L2069" title="1 of 2 branches missed.">            if (beforeFilter != null) {</span>
+<span class="nc" id="L2070">                hasFilter = true;</span>
+            }
+<span class="fc" id="L2072">        }</span>
+
+        public LabelFilter getLabelFilter() {
+<span class="fc" id="L2075">            return labelFilter;</span>
+        }
+
+        public void setLabelFilter(LabelFilter labelFilter) {
+<span class="fc" id="L2079">            this.labelFilter = labelFilter;</span>
+<span class="pc bpc" id="L2080" title="1 of 2 branches missed.">            if (labelFilter != null) {</span>
+<span class="nc" id="L2081">                hasFilter = true;</span>
+            }
+<span class="fc" id="L2083">        }</span>
+    }
+
+<span class="fc" id="L2086">    public enum Feature {</span>
+<span class="fc" id="L2087">        FieldBased(1),</span>
+<span class="fc" id="L2088">        IgnoreNoneSerializable(1 &lt;&lt; 1),</span>
+<span class="fc" id="L2089">        ErrorOnNoneSerializable(1 &lt;&lt; 2),</span>
+<span class="fc" id="L2090">        BeanToArray(1 &lt;&lt; 3),</span>
+<span class="fc" id="L2091">        WriteNulls(1 &lt;&lt; 4),</span>
+<span class="fc" id="L2092">        WriteMapNullValue(1 &lt;&lt; 4),</span>
+<span class="fc" id="L2093">        BrowserCompatible(1 &lt;&lt; 5),</span>
+<span class="fc" id="L2094">        NullAsDefaultValue(1 &lt;&lt; 6),</span>
+<span class="fc" id="L2095">        WriteBooleanAsNumber(1 &lt;&lt; 7),</span>
+<span class="fc" id="L2096">        WriteNonStringValueAsString(1 &lt;&lt; 8),</span>
+<span class="fc" id="L2097">        WriteClassName(1 &lt;&lt; 9),</span>
+<span class="fc" id="L2098">        NotWriteRootClassName(1 &lt;&lt; 10),</span>
+<span class="fc" id="L2099">        NotWriteHashMapArrayListClassName(1 &lt;&lt; 11),</span>
+<span class="fc" id="L2100">        NotWriteDefaultValue(1 &lt;&lt; 12),</span>
+<span class="fc" id="L2101">        WriteEnumsUsingName(1 &lt;&lt; 13),</span>
+<span class="fc" id="L2102">        WriteEnumUsingToString(1 &lt;&lt; 14),</span>
+<span class="fc" id="L2103">        IgnoreErrorGetter(1 &lt;&lt; 15),</span>
+<span class="fc" id="L2104">        PrettyFormat(1 &lt;&lt; 16),</span>
+<span class="fc" id="L2105">        ReferenceDetection(1 &lt;&lt; 17),</span>
+<span class="fc" id="L2106">        WriteNameAsSymbol(1 &lt;&lt; 18),</span>
+<span class="fc" id="L2107">        WriteBigDecimalAsPlain(1 &lt;&lt; 19),</span>
+<span class="fc" id="L2108">        UseSingleQuotes(1 &lt;&lt; 20),</span>
+
+        /**
+         * The serialized Map will first be sorted according to Key,
+         * and is used in some scenarios where serialized content needs to be signed.
+         * SortedMap and derived classes do not need to do this.
+         * This Feature does not work for LinkedHashMap.
+         * @deprecated Use {@link Feature#SortMapEntriesByKeys} instead.
+         */
+<span class="fc" id="L2117">        MapSortField(1 &lt;&lt; 21),</span>
+<span class="fc" id="L2118">        WriteNullListAsEmpty(1 &lt;&lt; 22),</span>
+        /**
+         * @since 1.1
+         */
+<span class="fc" id="L2122">        WriteNullStringAsEmpty(1 &lt;&lt; 23),</span>
+        /**
+         * @since 1.1
+         */
+<span class="fc" id="L2126">        WriteNullNumberAsZero(1 &lt;&lt; 24),</span>
+        /**
+         * @since 1.1
+         */
+<span class="fc" id="L2130">        WriteNullBooleanAsFalse(1 &lt;&lt; 25),</span>
+
+        /**
+         * @since 2.0.7
+         * @deprecated use IgnoreEmpty
+         */
+<span class="fc" id="L2136">        NotWriteEmptyArray(1 &lt;&lt; 26),</span>
+
+        /**
+         * @since 2.0.51
+         */
+<span class="fc" id="L2141">        IgnoreEmpty(1L &lt;&lt; 26),</span>
+
+<span class="fc" id="L2143">        WriteNonStringKeyAsString(1 &lt;&lt; 27),</span>
+        /**
+         * @since 2.0.11
+         */
+<span class="fc" id="L2147">        WritePairAsJavaBean(1L &lt;&lt; 28),</span>
+
+        /**
+         * @since 2.0.12
+         */
+<span class="fc" id="L2152">        OptimizedForAscii(1L &lt;&lt; 29),</span>
+
+        /**
+         * @since 2.0.12
+         * Feature that specifies that all characters beyond 7-bit ASCII range (i.e. code points of 128 and above) need to be output using format-specific escapes (for JSON, backslash escapes),
+         * if format uses escaping mechanisms (which is generally true for textual formats but not for binary formats).
+         * Feature is disabled by default.
+         */
+<span class="fc" id="L2160">        EscapeNoneAscii(1L &lt;&lt; 30),</span>
+        /**
+         * @since 2.0.13
+         */
+<span class="fc" id="L2164">        WriteByteArrayAsBase64(1L &lt;&lt; 31),</span>
+
+        /**
+         * @since 2.0.13
+         */
+<span class="fc" id="L2169">        IgnoreNonFieldGetter(1L &lt;&lt; 32),</span>
+
+        /**
+         * @since 2.0.16
+         */
+<span class="fc" id="L2174">        LargeObject(1L &lt;&lt; 33),</span>
+
+        /**
+         * @since 2.0.17
+         */
+<span class="fc" id="L2179">        WriteLongAsString(1L &lt;&lt; 34),</span>
+
+        /**
+         * @since 2.0.20
+         */
+<span class="fc" id="L2184">        BrowserSecure(1L &lt;&lt; 35),</span>
+<span class="fc" id="L2185">        WriteEnumUsingOrdinal(1L &lt;&lt; 36),</span>
+
+        /**
+         * @since 2.0.30
+         */
+<span class="fc" id="L2190">        WriteThrowableClassName(1L &lt;&lt; 37),</span>
+
+        /**
+         * @since 2.0.33
+         */
+<span class="fc" id="L2195">        UnquoteFieldName(1L &lt;&lt; 38),</span>
+
+        /**
+         * @since 2.0.34
+         */
+<span class="fc" id="L2200">        NotWriteSetClassName(1L &lt;&lt; 39),</span>
+
+        /**
+         * @since 2.0.34
+         */
+<span class="fc" id="L2205">        NotWriteNumberClassName(1L &lt;&lt; 40),</span>
+
+        /**
+         * The serialized Map will first be sorted according to Key,
+         * and is used in some scenarios where serialized content needs to be signed.
+         * SortedMap and derived classes do not need to do this.
+         * @since 2.0.48
+         */
+<span class="fc" id="L2213">        SortMapEntriesByKeys(1L &lt;&lt; 41);</span>
+
+        public final long mask;
+
+<span class="fc" id="L2217">        Feature(long mask) {</span>
+<span class="fc" id="L2218">            this.mask = mask;</span>
+<span class="fc" id="L2219">        }</span>
+
+        public boolean isEnabled(long features) {
+<span class="pc bpc" id="L2222" title="1 of 2 branches missed.">            return (features &amp; mask) != 0;</span>
+        }
+    }
+
+    public static final class Path {
+<span class="fc" id="L2227">        public static final Path ROOT = new Path(null, &quot;$&quot;);</span>
+<span class="fc" id="L2228">        public static final Path MANGER_REFERNCE = new Path(null, &quot;#&quot;);</span>
+
+        public final Path parent;
+        final String name;
+        final int index;
+        String fullPath;
+
+        Path child0;
+        Path child1;
+
+<span class="fc" id="L2238">        public Path(Path parent, String name) {</span>
+<span class="fc" id="L2239">            this.parent = parent;</span>
+<span class="fc" id="L2240">            this.name = name;</span>
+<span class="fc" id="L2241">            this.index = -1;</span>
+<span class="fc" id="L2242">        }</span>
+
+<span class="fc" id="L2244">        public Path(Path parent, int index) {</span>
+<span class="fc" id="L2245">            this.parent = parent;</span>
+<span class="fc" id="L2246">            this.name = null;</span>
+<span class="fc" id="L2247">            this.index = index;</span>
+<span class="fc" id="L2248">        }</span>
+
+        @Override
+        public boolean equals(Object o) {
+<span class="pc bpc" id="L2252" title="1 of 2 branches missed.">            if (this == o) {</span>
+<span class="nc" id="L2253">                return true;</span>
+            }
+
+<span class="pc bpc" id="L2256" title="1 of 4 branches missed.">            if (o == null || getClass() != o.getClass()) {</span>
+<span class="fc" id="L2257">                return false;</span>
+            }
+
+<span class="nc" id="L2260">            Path path = (Path) o;</span>
+<span class="nc bnc" id="L2261" title="All 6 branches missed.">            return index == path.index &amp;&amp; Objects.equals(parent, path.parent) &amp;&amp; Objects.equals(name, path.name);</span>
+        }
+
+        @Override
+        public int hashCode() {
+<span class="fc" id="L2266">            return Objects.hash(parent, name, index);</span>
+        }
+
+        @Override
+        public String toString() {
+<span class="fc bfc" id="L2271" title="All 2 branches covered.">            if (fullPath != null) {</span>
+<span class="fc" id="L2272">                return fullPath;</span>
+            }
+
+<span class="fc" id="L2275">            byte[] buf = new byte[16];</span>
+<span class="fc" id="L2276">            int off = 0;</span>
+
+<span class="fc" id="L2278">            int level = 0;</span>
+<span class="fc" id="L2279">            Path[] items = new Path[4];</span>
+<span class="fc bfc" id="L2280" title="All 2 branches covered.">            for (Path p = this; p != null; p = p.parent) {</span>
+<span class="fc bfc" id="L2281" title="All 2 branches covered.">                if (items.length == level) {</span>
+<span class="fc" id="L2282">                    items = Arrays.copyOf(items, items.length + 4);</span>
+                }
+<span class="fc" id="L2284">                items[level] = p;</span>
+<span class="fc" id="L2285">                level++;</span>
+            }
+
+<span class="fc" id="L2288">            boolean ascii = true;</span>
+
+<span class="fc bfc" id="L2290" title="All 2 branches covered.">            for (int i = level - 1; i &gt;= 0; i--) {</span>
+<span class="fc" id="L2291">                Path item = items[i];</span>
+<span class="fc" id="L2292">                String name = item.name;</span>
+<span class="fc bfc" id="L2293" title="All 2 branches covered.">                if (name == null) {</span>
+<span class="fc" id="L2294">                    int intValue = item.index;</span>
+<span class="fc" id="L2295">                    int intValueSize = IOUtils.stringSize(intValue);</span>
+<span class="pc bpc" id="L2296" title="1 of 2 branches missed.">                    while (off + intValueSize + 2 &gt;= buf.length) {</span>
+<span class="nc" id="L2297">                        int newCapacity = buf.length + (buf.length &gt;&gt; 1);</span>
+<span class="nc" id="L2298">                        buf = Arrays.copyOf(buf, newCapacity);</span>
+<span class="nc" id="L2299">                    }</span>
+
+<span class="fc" id="L2301">                    buf[off++] = '[';</span>
+<span class="fc" id="L2302">                    IOUtils.getChars(intValue, off + intValueSize, buf);</span>
+<span class="fc" id="L2303">                    off += intValueSize;</span>
+<span class="fc" id="L2304">                    buf[off++] = ']';</span>
+<span class="fc" id="L2305">                } else {</span>
+<span class="fc bfc" id="L2306" title="All 2 branches covered.">                    if (off + 1 &gt;= buf.length) {</span>
+<span class="fc" id="L2307">                        int newCapacity = buf.length + (buf.length &gt;&gt; 1);</span>
+<span class="fc" id="L2308">                        buf = Arrays.copyOf(buf, newCapacity);</span>
+                    }
+
+<span class="fc bfc" id="L2311" title="All 2 branches covered.">                    if (i != level - 1) {</span>
+<span class="fc" id="L2312">                        buf[off++] = '.';</span>
+                    }
+
+<span class="pc bpc" id="L2315" title="1 of 2 branches missed.">                    if (JVM_VERSION == 8) {</span>
+<span class="fc" id="L2316">                        char[] chars = getCharArray(name);</span>
+<span class="fc bfc" id="L2317" title="All 2 branches covered.">                        for (int j = 0; j &lt; chars.length; j++) {</span>
+<span class="fc" id="L2318">                            char ch = chars[j];</span>
+<span class="fc bfc" id="L2319" title="All 2 branches covered.">                            switch (ch) {</span>
+                                case '/':
+                                case ':':
+                                case ';':
+                                case '`':
+                                case '.':
+                                case '~':
+                                case '!':
+                                case '@':
+                                case '#':
+                                case '%':
+                                case '^':
+                                case '&amp;':
+                                case '*':
+                                case '[':
+                                case ']':
+                                case '&lt;':
+                                case '&gt;':
+                                case '?':
+                                case '(':
+                                case ')':
+                                case '-':
+                                case '+':
+                                case '=':
+                                case '\\':
+                                case '&quot;':
+                                case '\'':
+                                case ',':
+<span class="fc bfc" id="L2347" title="All 2 branches covered.">                                    if (off + 1 &gt;= buf.length) {</span>
+<span class="fc" id="L2348">                                        int newCapacity = buf.length + (buf.length &gt;&gt; 1);</span>
+<span class="fc" id="L2349">                                        buf = Arrays.copyOf(buf, newCapacity);</span>
+                                    }
+<span class="fc" id="L2351">                                    buf[off] = '\\';</span>
+<span class="fc" id="L2352">                                    buf[off + 1] = (byte) ch;</span>
+<span class="fc" id="L2353">                                    off += 2;</span>
+<span class="fc" id="L2354">                                    break;</span>
+                                default:
+<span class="pc bpc" id="L2356" title="1 of 4 branches missed.">                                    if ((ch &gt;= 0x0001) &amp;&amp; (ch &lt;= 0x007F)) {</span>
+<span class="fc bfc" id="L2357" title="All 2 branches covered.">                                        if (off == buf.length) {</span>
+<span class="fc" id="L2358">                                            int newCapacity = buf.length + (buf.length &gt;&gt; 1);</span>
+<span class="fc" id="L2359">                                            buf = Arrays.copyOf(buf, newCapacity);</span>
+                                        }
+<span class="fc" id="L2361">                                        buf[off++] = (byte) ch;</span>
+<span class="pc bpc" id="L2362" title="1 of 4 branches missed.">                                    } else if (ch &gt;= '\uD800' &amp;&amp; ch &lt; ('\uDFFF' + 1)) { //  //Character.isSurrogate(c)</span>
+<span class="fc" id="L2363">                                        ascii = false;</span>
+                                        final int uc;
+<span class="fc bfc" id="L2365" title="All 2 branches covered.">                                        if (ch &lt; '\uDBFF' + 1) { // Character.isHighSurrogate(c)</span>
+<span class="pc bpc" id="L2366" title="1 of 2 branches missed.">                                            if (name.length() - i &lt; 2) {</span>
+<span class="nc" id="L2367">                                                uc = -1;</span>
+                                            } else {
+<span class="fc" id="L2369">                                                char d = name.charAt(i + 1);</span>
+                                                // d &gt;= '\uDC00' &amp;&amp; d &lt; ('\uDFFF' + 1)
+<span class="pc bpc" id="L2371" title="2 of 4 branches missed.">                                                if (d &gt;= '\uDC00' &amp;&amp; d &lt; ('\uDFFF' + 1)) { // Character.isLowSurrogate(d)</span>
+<span class="fc" id="L2372">                                                    uc = ((ch &lt;&lt; 10) + d) + (0x010000 - ('\uD800' &lt;&lt; 10) - '\uDC00'); // Character.toCodePoint(c, d)</span>
+                                                } else {
+//                            throw new JSONException(&quot;encodeUTF8 error&quot;, new MalformedInputException(1));
+<span class="nc" id="L2375">                                                    buf[off++] = (byte) '?';</span>
+<span class="nc" id="L2376">                                                    continue;</span>
+                                                }
+<span class="fc" id="L2378">                                            }</span>
+                                        } else {
+                                            //
+                                            // Character.isLowSurrogate(c)
+<span class="fc" id="L2382">                                            buf[off++] = (byte) '?';</span>
+<span class="fc" id="L2383">                                            continue;</span>
+//                        throw new JSONException(&quot;encodeUTF8 error&quot;, new MalformedInputException(1));
+                                        }
+
+<span class="pc bpc" id="L2387" title="1 of 2 branches missed.">                                        if (uc &lt; 0) {</span>
+<span class="nc bnc" id="L2388" title="All 2 branches missed.">                                            if (off == buf.length) {</span>
+<span class="nc" id="L2389">                                                int newCapacity = buf.length + (buf.length &gt;&gt; 1);</span>
+<span class="nc" id="L2390">                                                buf = Arrays.copyOf(buf, newCapacity);</span>
+                                            }
+<span class="nc" id="L2392">                                            buf[off++] = (byte) '?';</span>
+                                        } else {
+<span class="fc bfc" id="L2394" title="All 2 branches covered.">                                            if (off + 3 &gt;= buf.length) {</span>
+<span class="fc" id="L2395">                                                int newCapacity = buf.length + (buf.length &gt;&gt; 1);</span>
+<span class="fc" id="L2396">                                                buf = Arrays.copyOf(buf, newCapacity);</span>
+                                            }
+<span class="fc" id="L2398">                                            buf[off] = (byte) (0xf0 | ((uc &gt;&gt; 18)));</span>
+<span class="fc" id="L2399">                                            buf[off + 1] = (byte) (0x80 | ((uc &gt;&gt; 12) &amp; 0x3f));</span>
+<span class="fc" id="L2400">                                            buf[off + 2] = (byte) (0x80 | ((uc &gt;&gt; 6) &amp; 0x3f));</span>
+<span class="fc" id="L2401">                                            buf[off + 3] = (byte) (0x80 | (uc &amp; 0x3f));</span>
+<span class="fc" id="L2402">                                            off += 4;</span>
+<span class="fc" id="L2403">                                            j++; // 2 chars</span>
+                                        }
+<span class="fc bfc" id="L2405" title="All 2 branches covered.">                                    } else if (ch &gt; 0x07FF) {</span>
+<span class="fc bfc" id="L2406" title="All 2 branches covered.">                                        if (off + 2 &gt;= buf.length) {</span>
+<span class="fc" id="L2407">                                            int newCapacity = buf.length + (buf.length &gt;&gt; 1);</span>
+<span class="fc" id="L2408">                                            buf = Arrays.copyOf(buf, newCapacity);</span>
+                                        }
+<span class="fc" id="L2410">                                        ascii = false;</span>
+
+<span class="fc" id="L2412">                                        buf[off] = (byte) (0xE0 | ((ch &gt;&gt; 12) &amp; 0x0F));</span>
+<span class="fc" id="L2413">                                        buf[off + 1] = (byte) (0x80 | ((ch &gt;&gt; 6) &amp; 0x3F));</span>
+<span class="fc" id="L2414">                                        buf[off + 2] = (byte) (0x80 | ((ch) &amp; 0x3F));</span>
+<span class="fc" id="L2415">                                        off += 3;</span>
+                                    } else {
+<span class="fc bfc" id="L2417" title="All 2 branches covered.">                                        if (off + 1 &gt;= buf.length) {</span>
+<span class="fc" id="L2418">                                            int newCapacity = buf.length + (buf.length &gt;&gt; 1);</span>
+<span class="fc" id="L2419">                                            buf = Arrays.copyOf(buf, newCapacity);</span>
+                                        }
+<span class="fc" id="L2421">                                        ascii = false;</span>
+
+<span class="fc" id="L2423">                                        buf[off] = (byte) (0xC0 | ((ch &gt;&gt; 6) &amp; 0x1F));</span>
+<span class="fc" id="L2424">                                        buf[off + 1] = (byte) (0x80 | ((ch) &amp; 0x3F));</span>
+<span class="fc" id="L2425">                                        off += 2;</span>
+                                    }
+                                    break;
+                            }
+                        }
+<span class="fc" id="L2430">                    } else {</span>
+<span class="nc bnc" id="L2431" title="All 2 branches missed.">                        for (int j = 0; j &lt; name.length(); j++) {</span>
+<span class="nc" id="L2432">                            char ch = name.charAt(j);</span>
+<span class="nc bnc" id="L2433" title="All 2 branches missed.">                            switch (ch) {</span>
+                                case '/':
+                                case ':':
+                                case ';':
+                                case '`':
+                                case '.':
+                                case '~':
+                                case '!':
+                                case '@':
+                                case '#':
+                                case '%':
+                                case '^':
+                                case '&amp;':
+                                case '*':
+                                case '[':
+                                case ']':
+                                case '&lt;':
+                                case '&gt;':
+                                case '?':
+                                case '(':
+                                case ')':
+                                case '-':
+                                case '+':
+                                case '=':
+                                case '\\':
+                                case '&quot;':
+                                case '\'':
+                                case ',':
+<span class="nc bnc" id="L2461" title="All 2 branches missed.">                                    if (off + 1 &gt;= buf.length) {</span>
+<span class="nc" id="L2462">                                        int newCapacity = buf.length + (buf.length &gt;&gt; 1);</span>
+<span class="nc" id="L2463">                                        buf = Arrays.copyOf(buf, newCapacity);</span>
+                                    }
+<span class="nc" id="L2465">                                    buf[off] = '\\';</span>
+<span class="nc" id="L2466">                                    buf[off + 1] = (byte) ch;</span>
+<span class="nc" id="L2467">                                    off += 2;</span>
+<span class="nc" id="L2468">                                    break;</span>
+                                default:
+<span class="nc bnc" id="L2470" title="All 4 branches missed.">                                    if ((ch &gt;= 0x0001) &amp;&amp; (ch &lt;= 0x007F)) {</span>
+<span class="nc bnc" id="L2471" title="All 2 branches missed.">                                        if (off == buf.length) {</span>
+<span class="nc" id="L2472">                                            int newCapacity = buf.length + (buf.length &gt;&gt; 1);</span>
+<span class="nc" id="L2473">                                            buf = Arrays.copyOf(buf, newCapacity);</span>
+                                        }
+<span class="nc" id="L2475">                                        buf[off++] = (byte) ch;</span>
+<span class="nc bnc" id="L2476" title="All 4 branches missed.">                                    } else if (ch &gt;= '\uD800' &amp;&amp; ch &lt; ('\uDFFF' + 1)) { //  //Character.isSurrogate(c)</span>
+<span class="nc" id="L2477">                                        ascii = false;</span>
+                                        final int uc;
+<span class="nc bnc" id="L2479" title="All 2 branches missed.">                                        if (ch &lt; '\uDBFF' + 1) { // Character.isHighSurrogate(c)</span>
+<span class="nc bnc" id="L2480" title="All 2 branches missed.">                                            if (name.length() - i &lt; 2) {</span>
+<span class="nc" id="L2481">                                                uc = -1;</span>
+                                            } else {
+<span class="nc" id="L2483">                                                char d = name.charAt(i + 1);</span>
+                                                // d &gt;= '\uDC00' &amp;&amp; d &lt; ('\uDFFF' + 1)
+<span class="nc bnc" id="L2485" title="All 4 branches missed.">                                                if (d &gt;= '\uDC00' &amp;&amp; d &lt; ('\uDFFF' + 1)) { // Character.isLowSurrogate(d)</span>
+<span class="nc" id="L2486">                                                    uc = ((ch &lt;&lt; 10) + d) + (0x010000 - ('\uD800' &lt;&lt; 10) - '\uDC00'); // Character.toCodePoint(c, d)</span>
+                                                } else {
+//                            throw new JSONException(&quot;encodeUTF8 error&quot;, new MalformedInputException(1));
+<span class="nc" id="L2489">                                                    buf[off++] = (byte) '?';</span>
+<span class="nc" id="L2490">                                                    continue;</span>
+                                                }
+<span class="nc" id="L2492">                                            }</span>
+                                        } else {
+                                            //
+                                            // Character.isLowSurrogate(c)
+<span class="nc" id="L2496">                                            buf[off++] = (byte) '?';</span>
+<span class="nc" id="L2497">                                            continue;</span>
+//                        throw new JSONException(&quot;encodeUTF8 error&quot;, new MalformedInputException(1));
+                                        }
+
+<span class="nc bnc" id="L2501" title="All 2 branches missed.">                                        if (uc &lt; 0) {</span>
+<span class="nc bnc" id="L2502" title="All 2 branches missed.">                                            if (off == buf.length) {</span>
+<span class="nc" id="L2503">                                                int newCapacity = buf.length + (buf.length &gt;&gt; 1);</span>
+<span class="nc" id="L2504">                                                buf = Arrays.copyOf(buf, newCapacity);</span>
+                                            }
+
+<span class="nc" id="L2507">                                            buf[off++] = (byte) '?';</span>
+                                        } else {
+<span class="nc bnc" id="L2509" title="All 2 branches missed.">                                            if (off + 4 &gt;= buf.length) {</span>
+<span class="nc" id="L2510">                                                int newCapacity = buf.length + (buf.length &gt;&gt; 1);</span>
+<span class="nc" id="L2511">                                                buf = Arrays.copyOf(buf, newCapacity);</span>
+                                            }
+
+<span class="nc" id="L2514">                                            buf[off] = (byte) (0xf0 | ((uc &gt;&gt; 18)));</span>
+<span class="nc" id="L2515">                                            buf[off + 1] = (byte) (0x80 | ((uc &gt;&gt; 12) &amp; 0x3f));</span>
+<span class="nc" id="L2516">                                            buf[off + 2] = (byte) (0x80 | ((uc &gt;&gt; 6) &amp; 0x3f));</span>
+<span class="nc" id="L2517">                                            buf[off + 3] = (byte) (0x80 | (uc &amp; 0x3f));</span>
+<span class="nc" id="L2518">                                            off += 4;</span>
+<span class="nc" id="L2519">                                            j++; // 2 chars</span>
+                                        }
+<span class="nc bnc" id="L2521" title="All 2 branches missed.">                                    } else if (ch &gt; 0x07FF) {</span>
+<span class="nc bnc" id="L2522" title="All 2 branches missed.">                                        if (off + 2 &gt;= buf.length) {</span>
+<span class="nc" id="L2523">                                            int newCapacity = buf.length + (buf.length &gt;&gt; 1);</span>
+<span class="nc" id="L2524">                                            buf = Arrays.copyOf(buf, newCapacity);</span>
+                                        }
+<span class="nc" id="L2526">                                        ascii = false;</span>
+
+<span class="nc" id="L2528">                                        buf[off] = (byte) (0xE0 | ((ch &gt;&gt; 12) &amp; 0x0F));</span>
+<span class="nc" id="L2529">                                        buf[off + 1] = (byte) (0x80 | ((ch &gt;&gt; 6) &amp; 0x3F));</span>
+<span class="nc" id="L2530">                                        buf[off + 2] = (byte) (0x80 | ((ch) &amp; 0x3F));</span>
+<span class="nc" id="L2531">                                        off += 3;</span>
+                                    } else {
+<span class="nc bnc" id="L2533" title="All 2 branches missed.">                                        if (off + 1 &gt;= buf.length) {</span>
+<span class="nc" id="L2534">                                            int newCapacity = buf.length + (buf.length &gt;&gt; 1);</span>
+<span class="nc" id="L2535">                                            buf = Arrays.copyOf(buf, newCapacity);</span>
+                                        }
+<span class="nc" id="L2537">                                        ascii = false;</span>
+
+<span class="nc" id="L2539">                                        buf[off] = (byte) (0xC0 | ((ch &gt;&gt; 6) &amp; 0x1F));</span>
+<span class="nc" id="L2540">                                        buf[off + 1] = (byte) (0x80 | ((ch) &amp; 0x3F));</span>
+<span class="nc" id="L2541">                                        off += 2;</span>
+                                    }
+                                    break;
+                            }
+                        }
+                    }
+                }
+            }
+
+<span class="fc bfc" id="L2550" title="All 2 branches covered.">            if (ascii) {</span>
+<span class="pc bpc" id="L2551" title="1 of 2 branches missed.">                if (STRING_CREATOR_JDK11 != null) {</span>
+                    byte[] bytes;
+<span class="nc bnc" id="L2553" title="All 2 branches missed.">                    if (off == buf.length) {</span>
+<span class="nc" id="L2554">                        bytes = buf;</span>
+                    } else {
+<span class="nc" id="L2556">                        bytes = new byte[off];</span>
+<span class="nc" id="L2557">                        System.arraycopy(buf, 0, bytes, 0, off);</span>
+                    }
+<span class="nc" id="L2559">                    return fullPath = STRING_CREATOR_JDK11.apply(bytes, LATIN1);</span>
+                }
+
+<span class="pc bpc" id="L2562" title="1 of 2 branches missed.">                if (STRING_CREATOR_JDK8 != null) {</span>
+<span class="fc" id="L2563">                    char[] chars = new char[off];</span>
+<span class="fc bfc" id="L2564" title="All 2 branches covered.">                    for (int i = 0; i &lt; off; i++) {</span>
+<span class="fc" id="L2565">                        chars[i] = (char) buf[i];</span>
+                    }
+<span class="fc" id="L2567">                    return fullPath = STRING_CREATOR_JDK8.apply(chars, Boolean.TRUE);</span>
+                }
+            }
+
+<span class="pc bpc" id="L2571" title="1 of 2 branches missed.">            return fullPath = new String(buf, 0, off, ascii ? StandardCharsets.ISO_8859_1 : StandardCharsets.UTF_8);</span>
+        }
+    }
+
+    protected static IllegalArgumentException illegalYear(int year) {
+<span class="nc" id="L2576">        return new IllegalArgumentException(&quot;Only 4 digits numbers are supported. Provided: &quot; + year);</span>
+    }
+
+    /**
+     * @deprecated
+     */
+    public final void incrementIndent() {
+<span class="nc" id="L2583">        indent++;</span>
+<span class="nc" id="L2584">    }</span>
+
+    /**
+     * @deprecated
+     */
+    public final void decrementIdent() {
+<span class="nc" id="L2590">        indent--;</span>
+<span class="nc" id="L2591">    }</span>
+
+    /**
+     * @deprecated
+     */
+    public void println() {
+<span class="nc" id="L2597">        writeChar('\n');</span>
+<span class="nc bnc" id="L2598" title="All 2 branches missed.">        for (int i = 0; i &lt; indent; ++i) {</span>
+<span class="nc" id="L2599">            writeChar('\t');</span>
+        }
+<span class="nc" id="L2601">    }</span>
+
+    /**
+     * @deprecated
+     * @param object
+     */
+    public final void writeReference(Object object) {
+<span class="nc bnc" id="L2608" title="All 2 branches missed.">        if (refs == null) {</span>
+<span class="nc" id="L2609">            return;</span>
+        }
+
+<span class="nc" id="L2612">        Path path = refs.get(object);</span>
+<span class="nc bnc" id="L2613" title="All 2 branches missed.">        if (path != null) {</span>
+<span class="nc" id="L2614">            writeReference(path.toString());</span>
+        }
+<span class="nc" id="L2616">    }</span>
+
+    public Object getAttachment() {
+<span class="nc" id="L2619">        return attachment;</span>
+    }
+
+    public void setAttachment(Object attachment) {
+<span class="nc" id="L2623">        this.attachment = attachment;</span>
+<span class="nc" id="L2624">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.8.202204050719</span></div></body></html>

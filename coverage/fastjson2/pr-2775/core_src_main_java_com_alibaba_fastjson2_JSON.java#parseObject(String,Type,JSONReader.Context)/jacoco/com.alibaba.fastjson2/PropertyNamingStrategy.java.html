@@ -1,0 +1,165 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>PropertyNamingStrategy.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">fastjson2</a> &gt; <a href="index.source.html" class="el_package">com.alibaba.fastjson2</a> &gt; <span class="el_source">PropertyNamingStrategy.java</span></div><h1>PropertyNamingStrategy.java</h1><pre class="source lang-java linenums">package com.alibaba.fastjson2;
+
+import com.alibaba.fastjson2.util.BeanUtils;
+
+/**
+ * An enumeration that defines a few standard naming conventions for JSON field names.
+ * @since 1.2.15
+ */
+<span class="fc" id="L9">public enum PropertyNamingStrategy {</span>
+<span class="fc" id="L10">    CamelCase,</span>
+    /**
+     * for fastjson 1.x compatible
+     */
+<span class="fc" id="L14">    CamelCase1x,</span>
+    /**
+     * Using this naming policy with FASTJSON will ensure that the first &quot;letter&quot; of the Java field name is capitalized when serialized to its JSON form.
+     * Here are a few examples of the form &quot;Java Field Name&quot; ---&amp;gt; &quot;JSON Field Name&quot;:
+     * someFieldName ---&amp;gt; SomeFieldName
+     * _someFieldName ---&amp;gt; _SomeFieldName
+     */
+<span class="fc" id="L21">    PascalCase,</span>
+<span class="fc" id="L22">    SnakeCase,</span>
+<span class="fc" id="L23">    UpperCase,</span>
+    /**
+     * Using this naming policy with FASTJSON will ensure that the first &quot;letter&quot; of the Java field name is capitalized when serialized to its JSON form and the words will be separated by a space.
+     * Here are a few examples of the form &quot;Java Field Name&quot; ---&amp;gt; &quot;JSON Field Name&quot;:
+     * someFieldName ---&amp;gt; Some Field Name
+     * _someFieldName ---&amp;gt; _Some Field Name
+     * @since 2.0.7
+     */
+<span class="fc" id="L31">    UpperCamelCaseWithSpaces,</span>
+    /**
+     * Using this naming policy with FASTJSON will ensure that the first &quot;letter&quot; of the Java field name is capitalized when serialized to its JSON form and the words will be separated by an underscore (_).
+     * Here are a few examples of the form &quot;Java Field Name&quot; ---&amp;gt; &quot;JSON Field Name&quot;:
+     * someFieldName ---&amp;gt; Some_Field_Name
+     * _someFieldName ---&amp;gt; _Some_Field_Name
+     * @since 2.0.7
+     */
+<span class="fc" id="L39">    UpperCamelCaseWithUnderScores,</span>
+    /**
+     * Using this naming policy with FASTJSON will ensure that the first &quot;letter&quot; of the Java field name is capitalized when serialized to its JSON form and the words will be separated by a dash (-).
+     * Here are a few examples of the form &quot;Java Field Name&quot; ---&amp;gt; &quot;JSON Field Name&quot;:
+     * someFieldName ---&amp;gt; Some-Field-Name
+     * _someFieldName ---&amp;gt; _Some-Field-Name
+     * @since 2.0.7
+     */
+<span class="fc" id="L47">    UpperCamelCaseWithDashes,</span>
+    /**
+     * Using this naming policy with FASTJSON will ensure that the first &quot;letter&quot; of the Java field name is capitalized when serialized to its JSON form and the words will be separated by a dash (-).
+     * Here are a few examples of the form &quot;Java Field Name&quot; ---&amp;gt; &quot;JSON Field Name&quot;:
+     * someFieldName ---&amp;gt; Some-Field-Name
+     * _someFieldName ---&amp;gt; _Some-Field-Name
+     * @since 2.0.7
+     */
+<span class="fc" id="L55">    UpperCamelCaseWithDots,</span>
+    /**
+     * Using this naming policy with FASTJSON will modify the Java Field name from its camel cased form to a lower case field name where each word is separated by a dash (-).
+     * Here are a few examples of the form &quot;Java Field Name&quot; ---&amp;gt; &quot;JSON Field Name&quot;:
+     * someFieldName ---&amp;gt; some-field-name
+     * _someFieldName ---&amp;gt; _some-field-name
+     * aStringField ---&amp;gt; a-string-field
+     * aURL ---&amp;gt; a-u-r-l
+     * Using dashes in JavaScript is not recommended since dash is also used for a minus sign in expressions. This requires that a field named with dashes is always accessed as a quoted property like myobject['my-field']. Accessing it as an object field myobject.my-field will result in an unintended javascript expression.
+     */
+<span class="fc" id="L65">    KebabCase,</span>
+    /**
+     * Using this naming policy with FASTJSON will modify the Java Field name from its camel cased form to an upper case field name where each word is separated by an underscore (_).
+     * Here are a few examples of the form &quot;Java Field Name&quot; ---&amp;gt; &quot;JSON Field Name&quot;:
+     * someFieldName ---&amp;gt; SOME_FIELD_NAME
+     * _someFieldName ---&amp;gt; _SOME_FIELD_NAME
+     * aStringField ---&amp;gt; A_STRING_FIELD
+     * aURL ---&amp;gt; A_U_R_L
+     * @since 2.0.7
+     */
+<span class="fc" id="L75">    UpperCaseWithUnderScores,</span>
+    /**
+     * Using this naming policy with FASTJSON will modify the Java Field name from its camel cased form to an upper case field name where each word is separated by a dash (-).
+     * Here are a few examples of the form &quot;Java Field Name&quot; ---&amp;gt; &quot;JSON Field Name&quot;:
+     * someFieldName ---&amp;gt; SOME-FIELD-NAME
+     * _someFieldName ---&amp;gt; _SOME-FIELD-NAME
+     * aStringField ---&amp;gt; A-STRING-FIELD
+     * aURL ---&amp;gt; A-U-R-L
+     * @since 2.0.8
+     */
+<span class="fc" id="L85">    UpperCaseWithDashes,</span>
+    /**
+     * Using this naming policy with FASTJSON will modify the Java Field name from its camel cased form to an upper case field name where each word is separated by a dot (.).
+     * Here are a few examples of the form &quot;Java Field Name&quot; ---&amp;gt; &quot;JSON Field Name&quot;:
+     * someFieldName ---&amp;gt; SOME.FIELD.NAME
+     * _someFieldName ---&amp;gt; _SOME.FIELD.NAME
+     * aStringField ---&amp;gt; A.STRING.FIELD
+     * aURL ---&amp;gt; A.U.R.L
+     * @since 2.0.8
+     */
+<span class="fc" id="L95">    UpperCaseWithDots,</span>
+<span class="fc" id="L96">    LowerCase,</span>
+    /**
+     * Using this naming policy with FASTJSON will modify the Java Field name from its camel cased form to a lower case field name where each word is separated by an underscore (_).
+     * Here are a few examples of the form &quot;Java Field Name&quot; ---&amp;gt; &quot;JSON Field Name&quot;:
+     * someFieldName ---&amp;gt; some_field_name
+     * _someFieldName ---&amp;gt; _some_field_name
+     * aStringField ---&amp;gt; a_string_field
+     * aURL ---&amp;gt; a_u_r_l
+     * @since 2.0.7
+     */
+<span class="fc" id="L106">    LowerCaseWithUnderScores,</span>
+    /**
+     * Using this naming policy with FASTJSON will modify the Java Field name from its camel cased form to a lower case field name where each word is separated by a dash (-).
+     * Here are a few examples of the form &quot;Java Field Name&quot; ---&amp;gt; &quot;JSON Field Name&quot;:
+     * someFieldName ---&amp;gt; some-field-name
+     * _someFieldName ---&amp;gt; _some-field-name
+     * aStringField ---&amp;gt; a-string-field
+     * aURL ---&amp;gt; a-u-r-l
+     * Using dashes in JavaScript is not recommended since dash is also used for a minus sign in expressions. This requires that a field named with dashes is always accessed as a quoted property like myobject['my-field']. Accessing it as an object field myobject.my-field will result in an unintended javascript expression.
+     * @since 2.0.7
+     */
+<span class="fc" id="L117">    LowerCaseWithDashes,</span>
+    /**
+     * Using this naming policy with FASTJSON will modify the Java Field name from its camel cased form to a lower case field name where each word is separated by a dot (.).
+     * Here are a few examples of the form &quot;Java Field Name&quot; ---&amp;gt; &quot;JSON Field Name&quot;:
+     * someFieldName ---&amp;gt; some.field.name
+     * _someFieldName ---&amp;gt; _some.field.name
+     * aStringField ---&amp;gt; a.string.field
+     * aURL ---&amp;gt; a.u.r.l
+     * Using dots in JavaScript is not recommended since dot is also used for a member sign in expressions. This requires that a field named with dots is always accessed as a quoted property like myobject['my.field']. Accessing it as an object field myobject.my.field will result in an unintended javascript expression.
+     * @since 2.0.7
+     */
+<span class="fc" id="L128">    LowerCaseWithDots,</span>
+<span class="fc" id="L129">    NeverUseThisValueExceptDefaultValue;</span>
+
+    public String fieldName(String name) {
+<span class="fc" id="L132">        return BeanUtils.fieldName(name, this.name());</span>
+    }
+
+    public static String snakeToCamel(String name) {
+<span class="pc bpc" id="L136" title="1 of 4 branches missed.">        if (name == null || name.indexOf('_') == -1) {</span>
+<span class="fc" id="L137">            return name;</span>
+        }
+
+<span class="fc" id="L140">        int underscoreCount = 0;</span>
+<span class="fc bfc" id="L141" title="All 2 branches covered.">        for (int i = 0; i &lt; name.length(); i++) {</span>
+<span class="fc" id="L142">            char ch = name.charAt(i);</span>
+<span class="fc bfc" id="L143" title="All 2 branches covered.">            if (ch == '_') {</span>
+<span class="fc" id="L144">                underscoreCount++;</span>
+            }
+        }
+
+<span class="fc" id="L148">        char[] chars = new char[name.length() - underscoreCount];</span>
+<span class="fc bfc" id="L149" title="All 2 branches covered.">        for (int i = 0, j = 0; i &lt; name.length(); i++) {</span>
+<span class="fc" id="L150">            char ch = name.charAt(i);</span>
+<span class="fc bfc" id="L151" title="All 2 branches covered.">            if (ch == '_') {</span>
+<span class="fc" id="L152">                continue;</span>
+            }
+<span class="fc bfc" id="L154" title="All 4 branches covered.">            if (i &gt; 0 &amp;&amp; name.charAt(i - 1) == '_') {</span>
+<span class="pc bpc" id="L155" title="2 of 4 branches missed.">                if (ch &gt;= 'a' &amp;&amp; ch &lt;= 'z') {</span>
+<span class="fc" id="L156">                    ch -= 32;</span>
+                }
+            }
+<span class="fc" id="L159">            chars[j++] = ch;</span>
+        }
+
+<span class="fc" id="L162">        return new String(chars);</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.8.202204050719</span></div></body></html>

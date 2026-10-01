@@ -1,0 +1,121 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>BeanInfo.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">fastjson2</a> &gt; <a href="index.source.html" class="el_package">com.alibaba.fastjson2.codec</a> &gt; <span class="el_source">BeanInfo.java</span></div><h1>BeanInfo.java</h1><pre class="source lang-java linenums">package com.alibaba.fastjson2.codec;
+
+import com.alibaba.fastjson2.*;
+import com.alibaba.fastjson2.filter.Filter;
+import com.alibaba.fastjson2.reader.ObjectReaderProvider;
+import com.alibaba.fastjson2.writer.ObjectWriterProvider;
+
+import java.lang.reflect.Constructor;
+import java.lang.reflect.Method;
+import java.util.Locale;
+
+public class BeanInfo {
+    public String typeKey;
+    public String typeName;
+    public Class builder;
+    public Method buildMethod;
+    public String builderWithPrefix;
+    public Class[] seeAlso;
+    public String[] seeAlsoNames;
+    public Class seeAlsoDefault;
+    public Constructor creatorConstructor;
+    public Constructor markerConstructor;
+    public Method createMethod;
+    public String[] createParameterNames;
+
+    public long readerFeatures;
+    public long writerFeatures;
+
+    public boolean writeEnumAsJavaBean;
+
+    public String namingStrategy;
+    public String[] ignores;
+    public String[] orders;
+    public String[] includes;
+
+    public boolean mixIn;
+    public boolean kotlin;
+
+    public Class serializer;
+    public Class deserializer;
+    public Class&lt;? extends Filter&gt;[] serializeFilters;
+    public String schema;
+    public String format;
+    public Locale locale;
+<span class="pc" id="L45">    public boolean alphabetic = true;</span>
+    public String objectWriterFieldName;
+    public String objectReaderFieldName;
+    public Class&lt;? extends JSONReader.AutoTypeBeforeHandler&gt; autoTypeBeforeHandler;
+
+<span class="nc" id="L50">    public BeanInfo() {</span>
+<span class="nc bnc" id="L51" title="All 2 branches missed.">        if (JSONFactory.isDisableAutoType()) {</span>
+<span class="nc" id="L52">            writerFeatures |= FieldInfo.DISABLE_AUTO_TYPE;</span>
+<span class="nc" id="L53">            readerFeatures |= FieldInfo.DISABLE_AUTO_TYPE;</span>
+        }
+<span class="nc bnc" id="L55" title="All 2 branches missed.">        if (JSONFactory.isDisableReferenceDetect()) {</span>
+<span class="nc" id="L56">            writerFeatures |= FieldInfo.DISABLE_REFERENCE_DETECT;</span>
+<span class="nc" id="L57">            readerFeatures |= FieldInfo.DISABLE_REFERENCE_DETECT;</span>
+        }
+<span class="nc bnc" id="L59" title="All 2 branches missed.">        if (JSONFactory.isDisableJSONB()) {</span>
+<span class="nc" id="L60">            writerFeatures |= FieldInfo.DISABLE_JSONB;</span>
+<span class="nc" id="L61">            readerFeatures |= FieldInfo.DISABLE_JSONB;</span>
+        }
+<span class="nc bnc" id="L63" title="All 2 branches missed.">        if (JSONFactory.isDisableArrayMapping()) {</span>
+<span class="nc" id="L64">            writerFeatures |= FieldInfo.DISABLE_ARRAY_MAPPING;</span>
+<span class="nc" id="L65">            readerFeatures |= FieldInfo.DISABLE_ARRAY_MAPPING;</span>
+        }
+<span class="nc bnc" id="L67" title="All 2 branches missed.">        if (JSONFactory.isDisableSmartMatch()) {</span>
+<span class="nc" id="L68">            readerFeatures |= FieldInfo.DISABLE_SMART_MATCH;</span>
+        }
+<span class="nc" id="L70">    }</span>
+
+<span class="fc" id="L72">    public BeanInfo(ObjectReaderProvider provider) {</span>
+<span class="fc bfc" id="L73" title="All 2 branches covered.">        if (provider.isDisableAutoType()) {</span>
+<span class="fc" id="L74">            readerFeatures |= FieldInfo.DISABLE_AUTO_TYPE;</span>
+        }
+<span class="fc bfc" id="L76" title="All 2 branches covered.">        if (provider.isDisableReferenceDetect()) {</span>
+<span class="fc" id="L77">            readerFeatures |= FieldInfo.DISABLE_REFERENCE_DETECT;</span>
+        }
+<span class="fc bfc" id="L79" title="All 2 branches covered.">        if (provider.isDisableJSONB()) {</span>
+<span class="fc" id="L80">            readerFeatures |= FieldInfo.DISABLE_JSONB;</span>
+        }
+<span class="fc bfc" id="L82" title="All 2 branches covered.">        if (provider.isDisableArrayMapping()) {</span>
+<span class="fc" id="L83">            readerFeatures |= FieldInfo.DISABLE_ARRAY_MAPPING;</span>
+        }
+<span class="fc bfc" id="L85" title="All 2 branches covered.">        if (provider.isDisableSmartMatch()) {</span>
+<span class="fc" id="L86">            readerFeatures |= FieldInfo.DISABLE_SMART_MATCH;</span>
+        }
+<span class="fc" id="L88">        PropertyNamingStrategy naming = provider.getNamingStrategy();</span>
+<span class="fc bfc" id="L89" title="All 2 branches covered.">        if (naming != null) {</span>
+<span class="fc" id="L90">            namingStrategy = naming.name();</span>
+        }
+<span class="fc" id="L92">    }</span>
+
+<span class="fc" id="L94">    public BeanInfo(ObjectWriterProvider provider) {</span>
+<span class="fc bfc" id="L95" title="All 2 branches covered.">        if (provider.isDisableAutoType()) {</span>
+<span class="fc" id="L96">            writerFeatures |= FieldInfo.DISABLE_AUTO_TYPE;</span>
+        }
+<span class="fc bfc" id="L98" title="All 2 branches covered.">        if (provider.isDisableReferenceDetect()) {</span>
+<span class="fc" id="L99">            writerFeatures |= FieldInfo.DISABLE_REFERENCE_DETECT;</span>
+        }
+<span class="fc bfc" id="L101" title="All 2 branches covered.">        if (provider.isDisableJSONB()) {</span>
+<span class="fc" id="L102">            writerFeatures |= FieldInfo.DISABLE_JSONB;</span>
+        }
+<span class="fc bfc" id="L104" title="All 2 branches covered.">        if (provider.isDisableArrayMapping()) {</span>
+<span class="fc" id="L105">            writerFeatures |= FieldInfo.DISABLE_ARRAY_MAPPING;</span>
+        }
+<span class="fc" id="L107">        alphabetic = provider.isAlphabetic();</span>
+<span class="fc" id="L108">    }</span>
+
+    public void required(String fieldName) {
+<span class="fc bfc" id="L111" title="All 2 branches covered.">        if (schema == null) {</span>
+<span class="fc" id="L112">            schema = JSONObject.of(&quot;required&quot;, JSONArray.of(fieldName)).toString();</span>
+        } else {
+<span class="fc" id="L114">            JSONObject object = JSONObject.parseObject(schema);</span>
+<span class="fc" id="L115">            JSONArray array = object.getJSONArray(&quot;required&quot;);</span>
+<span class="fc" id="L116">            array.add(fieldName);</span>
+<span class="fc" id="L117">            schema = object.toString();</span>
+        }
+<span class="fc" id="L119">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.8.202204050719</span></div></body></html>

@@ -1,0 +1,709 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ObjectReaderImplList.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">fastjson2</a> &gt; <a href="index.source.html" class="el_package">com.alibaba.fastjson2.reader</a> &gt; <span class="el_source">ObjectReaderImplList.java</span></div><h1>ObjectReaderImplList.java</h1><pre class="source lang-java linenums">package com.alibaba.fastjson2.reader;
+
+import com.alibaba.fastjson2.*;
+import com.alibaba.fastjson2.util.BeanUtils;
+import com.alibaba.fastjson2.util.Fnv;
+import com.alibaba.fastjson2.util.GuavaSupport;
+import com.alibaba.fastjson2.util.TypeUtils;
+
+import java.lang.reflect.*;
+import java.util.*;
+import java.util.function.Function;
+
+import static com.alibaba.fastjson2.util.JDKUtils.JVM_VERSION;
+import static com.alibaba.fastjson2.util.TypeUtils.CLASS_JSON_OBJECT_1x;
+
+public final class ObjectReaderImplList
+        implements ObjectReader {
+<span class="fc" id="L18">    static final Class CLASS_EMPTY_SET = Collections.emptySet().getClass();</span>
+<span class="fc" id="L19">    static final Class CLASS_EMPTY_LIST = Collections.emptyList().getClass();</span>
+<span class="fc" id="L20">    static final Class CLASS_SINGLETON = Collections.singleton(0).getClass();</span>
+<span class="fc" id="L21">    static final Class CLASS_SINGLETON_LIST = Collections.singletonList(0).getClass();</span>
+<span class="fc" id="L22">    static final Class CLASS_ARRAYS_LIST = Arrays.asList(0).getClass();</span>
+
+<span class="fc" id="L24">    static final Class CLASS_UNMODIFIABLE_COLLECTION = Collections.unmodifiableCollection(Collections.emptyList()).getClass();</span>
+<span class="fc" id="L25">    static final Class CLASS_UNMODIFIABLE_LIST = Collections.unmodifiableList(Collections.emptyList()).getClass();</span>
+<span class="fc" id="L26">    static final Class CLASS_UNMODIFIABLE_SET = Collections.unmodifiableSet(Collections.emptySet()).getClass();</span>
+<span class="fc" id="L27">    static final Class CLASS_UNMODIFIABLE_SORTED_SET = Collections.unmodifiableSortedSet(Collections.emptySortedSet()).getClass();</span>
+<span class="fc" id="L28">    static final Class CLASS_UNMODIFIABLE_NAVIGABLE_SET = Collections.unmodifiableNavigableSet(Collections.emptyNavigableSet()).getClass();</span>
+
+<span class="fc" id="L30">    public static ObjectReaderImplList INSTANCE = new ObjectReaderImplList(ArrayList.class, ArrayList.class, ArrayList.class, Object.class, null);</span>
+    static List kotlinEmptyList;
+    static Set kotlinEmptySet;
+
+    final Type listType;
+    final Class listClass;
+    final Class instanceType;
+    final long instanceTypeHash;
+    final Type itemType;
+    final Class itemClass;
+    final String itemClassName;
+    final long itemClassNameHash;
+    final Function builder;
+    Object listSingleton;
+    ObjectReader itemObjectReader;
+    volatile boolean instanceError;
+    volatile Constructor constructor;
+
+    public static ObjectReader of(Type type, Class listClass, long features) {
+<span class="fc bfc" id="L49" title="All 4 branches covered.">        if (listClass == type &amp;&amp; &quot;&quot;.equals(listClass.getSimpleName())) {</span>
+<span class="fc" id="L50">            type = listClass.getGenericSuperclass();</span>
+<span class="fc" id="L51">            listClass = listClass.getSuperclass();</span>
+        }
+
+<span class="fc" id="L54">        Type itemType = Object.class;</span>
+        Type rawType;
+<span class="fc bfc" id="L56" title="All 2 branches covered.">        if (type instanceof ParameterizedType) {</span>
+<span class="fc" id="L57">            ParameterizedType parameterizedType = (ParameterizedType) type;</span>
+<span class="fc" id="L58">            rawType = parameterizedType.getRawType();</span>
+<span class="fc" id="L59">            Type[] actualTypeArguments = parameterizedType.getActualTypeArguments();</span>
+<span class="pc bpc" id="L60" title="1 of 2 branches missed.">            if (actualTypeArguments.length == 1) {</span>
+<span class="fc" id="L61">                itemType = actualTypeArguments[0];</span>
+            }
+<span class="fc" id="L63">        } else {</span>
+<span class="fc" id="L64">            rawType = type;</span>
+<span class="fc bfc" id="L65" title="All 2 branches covered.">            if (listClass != null) {</span>
+<span class="fc" id="L66">                Type superType = listClass.getGenericSuperclass();</span>
+<span class="fc bfc" id="L67" title="All 2 branches covered.">                if (superType instanceof ParameterizedType) {</span>
+<span class="fc" id="L68">                    ParameterizedType parameterizedType = (ParameterizedType) superType;</span>
+<span class="fc" id="L69">                    rawType = parameterizedType.getRawType();</span>
+<span class="fc" id="L70">                    Type[] actualTypeArguments = parameterizedType.getActualTypeArguments();</span>
+<span class="fc bfc" id="L71" title="All 2 branches covered.">                    if (actualTypeArguments.length == 1) {</span>
+<span class="fc" id="L72">                        itemType = actualTypeArguments[0];</span>
+                    }
+                }
+            }
+        }
+
+<span class="fc bfc" id="L78" title="All 2 branches covered.">        if (listClass == null) {</span>
+<span class="fc" id="L79">            listClass = TypeUtils.getClass(rawType);</span>
+        }
+
+<span class="fc" id="L82">        Function builder = null;</span>
+        Class instanceClass;
+
+<span class="fc bfc" id="L85" title="All 10 branches covered.">        if (listClass == Iterable.class</span>
+                || listClass == Collection.class
+                || listClass == List.class
+                || listClass == AbstractCollection.class
+                || listClass == AbstractList.class
+        ) {
+<span class="fc" id="L91">            instanceClass = ArrayList.class;</span>
+<span class="fc bfc" id="L92" title="All 6 branches covered.">        } else if (listClass == Queue.class</span>
+                || listClass == Deque.class
+                || listClass == AbstractSequentialList.class) {
+<span class="fc" id="L95">            instanceClass = LinkedList.class;</span>
+<span class="fc bfc" id="L96" title="All 4 branches covered.">        } else if (listClass == Set.class || listClass == AbstractSet.class) {</span>
+<span class="fc" id="L97">            instanceClass = HashSet.class;</span>
+<span class="fc bfc" id="L98" title="All 2 branches covered.">        } else if (listClass == EnumSet.class) {</span>
+<span class="fc" id="L99">            instanceClass = HashSet.class;</span>
+<span class="fc" id="L100">            Type finalItemType = itemType;</span>
+<span class="fc" id="L101">            builder = (o) -&gt; {</span>
+<span class="fc" id="L102">                Collection collection = (Collection) o;</span>
+<span class="pc bpc" id="L103" title="1 of 4 branches missed.">                if (collection.isEmpty() &amp;&amp; finalItemType instanceof Class) {</span>
+<span class="fc" id="L104">                    return EnumSet.noneOf((Class) finalItemType);</span>
+                } else {
+<span class="fc" id="L106">                    return EnumSet.copyOf(collection);</span>
+                }
+            };
+<span class="fc bfc" id="L109" title="All 4 branches covered.">        } else if (listClass == NavigableSet.class || listClass == SortedSet.class) {</span>
+<span class="fc" id="L110">            instanceClass = TreeSet.class;</span>
+<span class="fc bfc" id="L111" title="All 2 branches covered.">        } else if (listClass == CLASS_SINGLETON) {</span>
+<span class="fc" id="L112">            instanceClass = ArrayList.class;</span>
+<span class="fc" id="L113">            builder = (Object obj) -&gt; Collections.singleton(((List) obj).get(0));</span>
+<span class="fc bfc" id="L114" title="All 2 branches covered.">        } else if (listClass == CLASS_SINGLETON_LIST) {</span>
+<span class="fc" id="L115">            instanceClass = ArrayList.class;</span>
+<span class="fc" id="L116">            builder = (Object obj) -&gt; Collections.singletonList(((List) obj).get(0));</span>
+<span class="fc bfc" id="L117" title="All 2 branches covered.">        } else if (listClass == CLASS_ARRAYS_LIST) {</span>
+<span class="fc" id="L118">            instanceClass = CLASS_ARRAYS_LIST;</span>
+<span class="pc" id="L119">            builder = (Object obj) -&gt; Arrays.asList(((List) obj).toArray());</span>
+<span class="fc bfc" id="L120" title="All 2 branches covered.">        } else if (listClass == CLASS_UNMODIFIABLE_COLLECTION) {</span>
+<span class="fc" id="L121">            instanceClass = ArrayList.class;</span>
+<span class="fc" id="L122">            builder = (Object obj) -&gt; Collections.unmodifiableCollection((Collection) obj);</span>
+<span class="fc bfc" id="L123" title="All 2 branches covered.">        } else if (listClass == CLASS_UNMODIFIABLE_LIST) {</span>
+<span class="fc" id="L124">            instanceClass = ArrayList.class;</span>
+<span class="fc" id="L125">            builder = (Object obj) -&gt; Collections.unmodifiableList((List) obj);</span>
+<span class="fc bfc" id="L126" title="All 2 branches covered.">        } else if (listClass == CLASS_UNMODIFIABLE_SET) {</span>
+<span class="fc" id="L127">            instanceClass = LinkedHashSet.class;</span>
+<span class="fc" id="L128">            builder = (Object obj) -&gt; Collections.unmodifiableSet((Set) obj);</span>
+<span class="fc bfc" id="L129" title="All 2 branches covered.">        } else if (listClass == CLASS_UNMODIFIABLE_SORTED_SET) {</span>
+<span class="fc" id="L130">            instanceClass = TreeSet.class;</span>
+<span class="fc" id="L131">            builder = (Object obj) -&gt; Collections.unmodifiableSortedSet((SortedSet) obj);</span>
+<span class="fc bfc" id="L132" title="All 2 branches covered.">        } else if (listClass == CLASS_UNMODIFIABLE_NAVIGABLE_SET) {</span>
+<span class="fc" id="L133">            instanceClass = TreeSet.class;</span>
+<span class="fc" id="L134">            builder = (Object obj) -&gt; Collections.unmodifiableNavigableSet((NavigableSet) obj);</span>
+        } else {
+<span class="fc" id="L136">            String typeName = listClass.getTypeName();</span>
+<span class="pc bpc" id="L137" title="1 of 10 branches missed.">            switch (typeName) {</span>
+                case &quot;com.google.common.collect.ImmutableList&quot;:
+                case &quot;com.google.common.collect.SingletonImmutableList&quot;:
+                case &quot;com.google.common.collect.RegularImmutableList&quot;:
+                case &quot;com.google.common.collect.AbstractMapBasedMultimap$RandomAccessWrappedList&quot;:
+<span class="fc" id="L142">                    instanceClass = ArrayList.class;</span>
+<span class="fc" id="L143">                    builder = GuavaSupport.immutableListConverter();</span>
+<span class="fc" id="L144">                    break;</span>
+                case &quot;com.google.common.collect.ImmutableSet&quot;:
+                case &quot;com.google.common.collect.SingletonImmutableSet&quot;:
+                case &quot;com.google.common.collect.RegularImmutableSet&quot;:
+<span class="fc" id="L148">                    instanceClass = ArrayList.class;</span>
+<span class="fc" id="L149">                    builder = GuavaSupport.immutableSetConverter();</span>
+<span class="fc" id="L150">                    break;</span>
+                case &quot;com.google.common.collect.Lists$TransformingRandomAccessList&quot;:
+<span class="fc" id="L152">                    instanceClass = ArrayList.class;</span>
+<span class="fc" id="L153">                    break;</span>
+                case &quot;com.google.common.collect.Lists.TransformingSequentialList&quot;:
+<span class="nc" id="L155">                    instanceClass = LinkedList.class;</span>
+<span class="nc" id="L156">                    break;</span>
+                case &quot;java.util.Collections$SynchronizedRandomAccessList&quot;:
+<span class="fc" id="L158">                    instanceClass = ArrayList.class;</span>
+<span class="fc" id="L159">                    builder = (Function&lt;List, List&gt;) Collections::synchronizedList;</span>
+<span class="fc" id="L160">                    break;</span>
+                case &quot;java.util.Collections$SynchronizedCollection&quot;:
+<span class="fc" id="L162">                    instanceClass = ArrayList.class;</span>
+<span class="fc" id="L163">                    builder = (Function&lt;Collection, Collection&gt;) Collections::synchronizedCollection;</span>
+<span class="fc" id="L164">                    break;</span>
+                case &quot;java.util.Collections$SynchronizedSet&quot;:
+<span class="fc" id="L166">                    instanceClass = HashSet.class;</span>
+<span class="fc" id="L167">                    builder = (Function&lt;Set, Set&gt;) Collections::synchronizedSet;</span>
+<span class="fc" id="L168">                    break;</span>
+                case &quot;java.util.Collections$SynchronizedSortedSet&quot;:
+<span class="fc" id="L170">                    instanceClass = TreeSet.class;</span>
+<span class="fc" id="L171">                    builder = (Function&lt;SortedSet, SortedSet&gt;) Collections::synchronizedSortedSet;</span>
+<span class="fc" id="L172">                    break;</span>
+                case &quot;java.util.Collections$SynchronizedNavigableSet&quot;:
+<span class="fc" id="L174">                    instanceClass = TreeSet.class;</span>
+<span class="fc" id="L175">                    builder = (Function&lt;NavigableSet, NavigableSet&gt;) Collections::synchronizedNavigableSet;</span>
+<span class="fc" id="L176">                    break;</span>
+                default:
+<span class="fc" id="L178">                    instanceClass = listClass;</span>
+            }
+        }
+
+<span class="fc bfc" id="L182" title="All 5 branches covered.">        switch (type.getTypeName()) {</span>
+            case &quot;kotlin.collections.EmptySet&quot;: {
+<span class="fc" id="L184">                Class&lt;?&gt; clazz = (Class&lt;?&gt;) type;</span>
+<span class="fc" id="L185">                return new ObjectReaderImplList(clazz, getKotlinEmptySet(clazz));</span>
+            }
+            case &quot;kotlin.collections.EmptyList&quot;: {
+<span class="fc" id="L188">                Class&lt;?&gt; clazz = (Class&lt;?&gt;) type;</span>
+<span class="fc" id="L189">                return new ObjectReaderImplList(clazz, getKotlinEmptyList(clazz));</span>
+            }
+            case &quot;java.util.Collections$EmptySet&quot;: {
+<span class="fc" id="L192">                return new ObjectReaderImplList((Class) type, Collections.emptySet());</span>
+            }
+            case &quot;java.util.Collections$EmptyList&quot;: {
+<span class="fc" id="L195">                return new ObjectReaderImplList((Class) type, Collections.emptyList());</span>
+            }
+        }
+
+<span class="fc bfc" id="L199" title="All 4 branches covered.">        if (itemType == String.class &amp;&amp; builder == null) {</span>
+<span class="fc" id="L200">            return new ObjectReaderImplListStr(listClass, instanceClass);</span>
+        }
+
+<span class="pc bpc" id="L203" title="1 of 4 branches missed.">        if (itemType == Long.class &amp;&amp; builder == null) {</span>
+<span class="fc" id="L204">            return new ObjectReaderImplListInt64(listClass, instanceClass);</span>
+        }
+
+<span class="fc" id="L207">        return new ObjectReaderImplList(type, listClass, instanceClass, itemType, builder);</span>
+    }
+
+    ObjectReaderImplList(Class listClass, Object listSingleton) {
+<span class="fc" id="L211">        this(listClass, listClass, listClass, Object.class, null);</span>
+<span class="fc" id="L212">        this.listSingleton = listSingleton;</span>
+<span class="fc" id="L213">    }</span>
+
+<span class="fc" id="L215">    public ObjectReaderImplList(Type listType, Class listClass, Class instanceType, Type itemType, Function builder) {</span>
+<span class="fc" id="L216">        this.listType = listType;</span>
+<span class="fc" id="L217">        this.listClass = listClass;</span>
+<span class="fc" id="L218">        this.instanceType = instanceType;</span>
+<span class="fc" id="L219">        this.instanceTypeHash = Fnv.hashCode64(TypeUtils.getTypeName(instanceType));</span>
+<span class="fc" id="L220">        this.itemType = itemType;</span>
+<span class="fc" id="L221">        this.itemClass = TypeUtils.getClass(itemType);</span>
+<span class="fc" id="L222">        this.builder = builder;</span>
+<span class="pc bpc" id="L223" title="1 of 2 branches missed.">        this.itemClassName = itemClass != null ? TypeUtils.getTypeName(itemClass) : null;</span>
+<span class="pc bpc" id="L224" title="1 of 2 branches missed.">        this.itemClassNameHash = itemClassName != null ? Fnv.hashCode64(itemClassName) : 0;</span>
+<span class="fc" id="L225">    }</span>
+
+    static Set getKotlinEmptySet(Class clazz) {
+<span class="fc" id="L228">        Set empty = kotlinEmptySet;</span>
+<span class="fc bfc" id="L229" title="All 2 branches covered.">        if (empty == null) {</span>
+            try {
+<span class="fc" id="L231">                Field field = clazz.getField(&quot;INSTANCE&quot;);</span>
+<span class="pc bpc" id="L232" title="1 of 2 branches missed.">                if (!field.isAccessible()) {</span>
+<span class="fc" id="L233">                    field.setAccessible(true);</span>
+                }
+<span class="fc" id="L235">                kotlinEmptySet = empty = (Set) field.get(null);</span>
+<span class="nc" id="L236">            } catch (NoSuchFieldException | IllegalAccessException e) {</span>
+<span class="nc" id="L237">                throw new IllegalStateException(&quot;Failed to get singleton of &quot; + clazz, e);</span>
+<span class="fc" id="L238">            }</span>
+        }
+<span class="fc" id="L240">        return empty;</span>
+    }
+
+    static List getKotlinEmptyList(Class clazz) {
+<span class="fc" id="L244">        List empty = kotlinEmptyList;</span>
+<span class="fc bfc" id="L245" title="All 2 branches covered.">        if (empty == null) {</span>
+            try {
+<span class="fc" id="L247">                Field field = clazz.getField(&quot;INSTANCE&quot;);</span>
+<span class="pc bpc" id="L248" title="1 of 2 branches missed.">                if (!field.isAccessible()) {</span>
+<span class="fc" id="L249">                    field.setAccessible(true);</span>
+                }
+<span class="fc" id="L251">                kotlinEmptyList = empty = (List) field.get(null);</span>
+<span class="nc" id="L252">            } catch (NoSuchFieldException | IllegalAccessException e) {</span>
+<span class="nc" id="L253">                throw new IllegalStateException(&quot;Failed to get singleton of &quot; + clazz, e);</span>
+<span class="fc" id="L254">            }</span>
+        }
+<span class="fc" id="L256">        return empty;</span>
+    }
+
+    @Override
+    public Class getObjectClass() {
+<span class="fc" id="L261">        return listClass;</span>
+    }
+
+    @Override
+    public Function getBuildFunction() {
+<span class="fc" id="L266">        return builder;</span>
+    }
+
+    @Override
+    public Object createInstance(Collection collection, long features) {
+<span class="fc" id="L271">        int size = collection.size();</span>
+
+<span class="fc bfc" id="L273" title="All 4 branches covered.">        if (size == 0 &amp;&amp; (listClass == List.class)) {</span>
+<span class="fc" id="L274">            Collection list = new ArrayList();</span>
+<span class="pc bpc" id="L275" title="1 of 2 branches missed.">            if (builder != null) {</span>
+<span class="nc" id="L276">                return builder.apply(list);</span>
+            }
+<span class="fc" id="L278">            return list;</span>
+        }
+
+<span class="fc" id="L281">        ObjectReaderProvider provider = JSONFactory.getDefaultObjectReaderProvider();</span>
+
+        Collection list;
+<span class="fc bfc" id="L284" title="All 2 branches covered.">        if (instanceType == ArrayList.class) {</span>
+<span class="fc" id="L285">            list = new ArrayList(collection.size());</span>
+        } else {
+<span class="fc" id="L287">            list = (Collection) createInstance(0L);</span>
+        }
+
+<span class="fc bfc" id="L290" title="All 2 branches covered.">        for (Object item : collection) {</span>
+<span class="fc bfc" id="L291" title="All 2 branches covered.">            if (item == null) {</span>
+<span class="fc" id="L292">                list.add(null);</span>
+<span class="fc" id="L293">                continue;</span>
+            }
+
+<span class="fc" id="L296">            Object value = item;</span>
+<span class="fc" id="L297">            Class&lt;?&gt; valueClass = value.getClass();</span>
+<span class="pc bpc" id="L298" title="1 of 6 branches missed.">            if ((valueClass == JSONObject.class || valueClass == CLASS_JSON_OBJECT_1x) &amp;&amp; this.itemClass != valueClass) {</span>
+<span class="fc bfc" id="L299" title="All 2 branches covered.">                if (itemObjectReader == null) {</span>
+<span class="fc" id="L300">                    itemObjectReader = provider.getObjectReader(itemType);</span>
+                }
+<span class="fc" id="L302">                value = itemObjectReader.createInstance((Map) value, features);</span>
+<span class="fc bfc" id="L303" title="All 2 branches covered.">            } else if (valueClass != itemType) {</span>
+<span class="fc" id="L304">                Function typeConvert = provider.getTypeConvert(valueClass, itemType);</span>
+<span class="fc bfc" id="L305" title="All 2 branches covered.">                if (typeConvert != null) {</span>
+<span class="fc" id="L306">                    value = typeConvert.apply(value);</span>
+<span class="fc bfc" id="L307" title="All 2 branches covered.">                } else if (item instanceof Map) {</span>
+<span class="fc" id="L308">                    Map map = (Map) item;</span>
+<span class="fc bfc" id="L309" title="All 2 branches covered.">                    if (itemObjectReader == null) {</span>
+<span class="fc" id="L310">                        itemObjectReader = provider.getObjectReader(itemType);</span>
+                    }
+<span class="fc" id="L312">                    value = itemObjectReader.createInstance(map, 0L);</span>
+<span class="pc bpc" id="L313" title="1 of 2 branches missed.">                } else if (value instanceof Collection) {</span>
+<span class="nc bnc" id="L314" title="All 2 branches missed.">                    if (itemObjectReader == null) {</span>
+<span class="nc" id="L315">                        itemObjectReader = provider.getObjectReader(itemType);</span>
+                    }
+<span class="nc" id="L317">                    value = itemObjectReader.createInstance((Collection) value, features);</span>
+<span class="fc bfc" id="L318" title="All 2 branches covered.">                } else if (itemClass.isInstance(value)) {</span>
+                    // skip
+<span class="pc bpc" id="L320" title="1 of 2 branches missed.">                } else if (Enum.class.isAssignableFrom(itemClass)) {</span>
+<span class="fc bfc" id="L321" title="All 2 branches covered.">                    if (itemObjectReader == null) {</span>
+<span class="fc" id="L322">                        itemObjectReader = provider.getObjectReader(itemType);</span>
+                    }
+
+<span class="pc bpc" id="L325" title="1 of 2 branches missed.">                    if (itemObjectReader instanceof ObjectReaderImplEnum) {</span>
+<span class="fc" id="L326">                        value = ((ObjectReaderImplEnum) itemObjectReader).getEnum((String) value);</span>
+                    } else {
+<span class="nc" id="L328">                        throw new JSONException(&quot;can not convert from &quot; + valueClass + &quot; to &quot; + itemType);</span>
+                    }
+                } else {
+<span class="nc" id="L331">                    throw new JSONException(&quot;can not convert from &quot; + valueClass + &quot; to &quot; + itemType);</span>
+                }
+            }
+<span class="fc" id="L334">            list.add(value);</span>
+<span class="fc" id="L335">        }</span>
+
+<span class="pc bpc" id="L337" title="1 of 2 branches missed.">        if (builder != null) {</span>
+<span class="nc" id="L338">            return builder.apply(list);</span>
+        }
+
+<span class="fc" id="L341">        return list;</span>
+    }
+
+    @Override
+    public Object createInstance(long features) {
+<span class="fc bfc" id="L346" title="All 2 branches covered.">        if (instanceType == ArrayList.class) {</span>
+<span class="pc bpc" id="L347" title="1 of 2 branches missed.">            return JVM_VERSION == 8 ? new ArrayList(10) : new ArrayList();</span>
+        }
+
+<span class="fc bfc" id="L350" title="All 2 branches covered.">        if (instanceType == LinkedList.class) {</span>
+<span class="fc" id="L351">            return new LinkedList();</span>
+        }
+
+<span class="fc bfc" id="L354" title="All 2 branches covered.">        if (instanceType == HashSet.class) {</span>
+<span class="fc" id="L355">            return new HashSet();</span>
+        }
+
+<span class="fc bfc" id="L358" title="All 2 branches covered.">        if (instanceType == LinkedHashSet.class) {</span>
+<span class="fc" id="L359">            return new LinkedHashSet();</span>
+        }
+
+<span class="fc bfc" id="L362" title="All 2 branches covered.">        if (instanceType == TreeSet.class) {</span>
+<span class="fc" id="L363">            return new TreeSet();</span>
+        }
+
+<span class="fc bfc" id="L366" title="All 2 branches covered.">        if (listSingleton != null) {</span>
+<span class="fc" id="L367">            return listSingleton;</span>
+        }
+
+<span class="pc bpc" id="L370" title="1 of 2 branches missed.">        if (instanceType != null) {</span>
+<span class="fc" id="L371">            JSONException error = null;</span>
+<span class="pc bpc" id="L372" title="1 of 4 branches missed.">            if (constructor == null &amp;&amp; !BeanUtils.hasPublicDefaultConstructor(instanceType)) {</span>
+<span class="fc" id="L373">                constructor = BeanUtils.getDefaultConstructor(instanceType, false);</span>
+<span class="fc" id="L374">                constructor.setAccessible(true);</span>
+            }
+<span class="pc bpc" id="L376" title="1 of 2 branches missed.">            if (!instanceError) {</span>
+                try {
+<span class="fc bfc" id="L378" title="All 2 branches covered.">                    if (constructor != null) {</span>
+<span class="fc" id="L379">                        return constructor.newInstance();</span>
+                    } else {
+<span class="fc" id="L381">                        return instanceType.newInstance();</span>
+                    }
+<span class="nc" id="L383">                } catch (InstantiationException | IllegalAccessException | InvocationTargetException |</span>
+                         RuntimeException e) {
+<span class="nc" id="L385">                    instanceError = true;</span>
+<span class="nc" id="L386">                    error = new JSONException(&quot;create list error, type &quot; + instanceType);</span>
+                }
+            }
+
+<span class="nc bnc" id="L390" title="All 4 branches missed.">            if (instanceError &amp;&amp; List.class.isAssignableFrom(instanceType.getSuperclass())) {</span>
+                try {
+<span class="nc" id="L392">                    return instanceType.getSuperclass().newInstance();</span>
+<span class="nc" id="L393">                } catch (InstantiationException | IllegalAccessException e) {</span>
+<span class="nc" id="L394">                    instanceError = true;</span>
+<span class="nc" id="L395">                    error = new JSONException(&quot;create list error, type &quot; + instanceType);</span>
+                }
+            }
+
+<span class="nc bnc" id="L399" title="All 2 branches missed.">            if (error != null) {</span>
+<span class="nc" id="L400">                throw error;</span>
+            }
+        }
+
+<span class="nc" id="L404">        return new ArrayList();</span>
+    }
+
+    @Override
+    public Object readJSONBObject(JSONReader jsonReader, Type fieldType, Object fieldName, long features) {
+<span class="fc bfc" id="L409" title="All 2 branches covered.">        if (jsonReader.nextIfNull()) {</span>
+<span class="fc" id="L410">            return null;</span>
+        }
+
+<span class="fc" id="L413">        ObjectReader objectReader = jsonReader.checkAutoType(this.listClass, 0, features);</span>
+<span class="fc" id="L414">        Function builder = this.builder;</span>
+<span class="fc" id="L415">        Class listType = this.instanceType;</span>
+<span class="fc bfc" id="L416" title="All 2 branches covered.">        if (objectReader != null) {</span>
+<span class="pc bpc" id="L417" title="1 of 2 branches missed.">            if (objectReader instanceof ObjectReaderImplList) {</span>
+<span class="fc" id="L418">                listType = ((ObjectReaderImplList) objectReader).instanceType;</span>
+<span class="fc" id="L419">                builder = ((ObjectReaderImplList) objectReader).builder;</span>
+            } else {
+<span class="nc" id="L421">                listType = objectReader.getObjectClass();</span>
+            }
+
+<span class="pc bpc" id="L424" title="1 of 2 branches missed.">            if (listType == CLASS_UNMODIFIABLE_COLLECTION) {</span>
+<span class="nc" id="L425">                listType = ArrayList.class;</span>
+<span class="nc" id="L426">                builder = (Function&lt;Collection, Collection&gt;) Collections::unmodifiableCollection;</span>
+<span class="pc bpc" id="L427" title="1 of 2 branches missed.">            } else if (listType == CLASS_UNMODIFIABLE_LIST) {</span>
+<span class="nc" id="L428">                listType = ArrayList.class;</span>
+<span class="nc" id="L429">                builder = (Function&lt;List, List&gt;) Collections::unmodifiableList;</span>
+<span class="pc bpc" id="L430" title="1 of 2 branches missed.">            } else if (listType == CLASS_UNMODIFIABLE_SET) {</span>
+<span class="nc" id="L431">                listType = LinkedHashSet.class;</span>
+<span class="nc" id="L432">                builder = (Function&lt;Set, Set&gt;) Collections::unmodifiableSet;</span>
+<span class="pc bpc" id="L433" title="1 of 2 branches missed.">            } else if (listType == CLASS_UNMODIFIABLE_SORTED_SET) {</span>
+<span class="nc" id="L434">                listType = TreeSet.class;</span>
+<span class="nc" id="L435">                builder = (Function&lt;SortedSet, SortedSet&gt;) Collections::unmodifiableSortedSet;</span>
+<span class="pc bpc" id="L436" title="1 of 2 branches missed.">            } else if (listType == CLASS_UNMODIFIABLE_NAVIGABLE_SET) {</span>
+<span class="nc" id="L437">                listType = TreeSet.class;</span>
+<span class="nc" id="L438">                builder = (Function&lt;NavigableSet, NavigableSet&gt;) Collections::unmodifiableNavigableSet;</span>
+<span class="pc bpc" id="L439" title="1 of 2 branches missed.">            } else if (listType == CLASS_SINGLETON) {</span>
+<span class="nc" id="L440">                listType = ArrayList.class;</span>
+<span class="nc" id="L441">                builder = (Function&lt;Collection, Collection&gt;) ((Collection list) -&gt; Collections.singleton(list.iterator().next()));</span>
+<span class="pc bpc" id="L442" title="1 of 2 branches missed.">            } else if (listType == CLASS_SINGLETON_LIST) {</span>
+<span class="nc" id="L443">                listType = ArrayList.class;</span>
+<span class="nc" id="L444">                builder = (Function&lt;List, List&gt;) ((List list) -&gt; Collections.singletonList(list.get(0)));</span>
+            } else {
+<span class="fc bfc" id="L446" title="All 2 branches covered.">                switch (listType.getTypeName()) {</span>
+                    case &quot;kotlin.collections.EmptySet&quot;:
+                    case &quot;kotlin.collections.EmptyList&quot;: {
+<span class="fc" id="L449">                        return objectReader.readObject(jsonReader, fieldType, fieldName, features);</span>
+                    }
+                    default:
+                        break;
+                }
+            }
+        }
+
+<span class="fc" id="L457">        int entryCnt = jsonReader.startArray();</span>
+
+<span class="fc bfc" id="L459" title="All 4 branches covered.">        if (entryCnt &gt; 0 &amp;&amp; itemObjectReader == null) {</span>
+<span class="fc" id="L460">            itemObjectReader = jsonReader</span>
+<span class="fc" id="L461">                    .getContext()</span>
+<span class="fc" id="L462">                    .getObjectReader(itemType);</span>
+        }
+
+<span class="fc bfc" id="L465" title="All 2 branches covered.">        if (listType == CLASS_ARRAYS_LIST) {</span>
+<span class="fc" id="L466">            Object[] array = new Object[entryCnt];</span>
+<span class="fc" id="L467">            List list = Arrays.asList(array);</span>
+<span class="fc bfc" id="L468" title="All 2 branches covered.">            for (int i = 0; i &lt; entryCnt; ++i) {</span>
+                Object item;
+
+<span class="pc bpc" id="L471" title="1 of 2 branches missed.">                if (jsonReader.isReference()) {</span>
+<span class="nc" id="L472">                    String reference = jsonReader.readReference();</span>
+<span class="nc bnc" id="L473" title="All 2 branches missed.">                    if (&quot;..&quot;.equals(reference)) {</span>
+<span class="nc" id="L474">                        item = list;</span>
+                    } else {
+<span class="nc" id="L476">                        item = null;</span>
+<span class="nc" id="L477">                        jsonReader.addResolveTask(list, i, JSONPath.of(reference));</span>
+                    }
+<span class="nc" id="L479">                } else {</span>
+<span class="fc" id="L480">                    item = itemObjectReader.readJSONBObject(jsonReader, itemType, i, features);</span>
+                }
+
+<span class="fc" id="L483">                array[i] = item;</span>
+            }
+<span class="fc" id="L485">            return list;</span>
+        }
+
+        Collection list;
+<span class="fc bfc" id="L489" title="All 2 branches covered.">        if (listType == ArrayList.class) {</span>
+<span class="fc bfc" id="L490" title="All 2 branches covered.">            list = entryCnt &gt; 0 ? new ArrayList(entryCnt) : new ArrayList();</span>
+<span class="fc bfc" id="L491" title="All 2 branches covered.">        } else if (listType == JSONArray.class) {</span>
+<span class="fc bfc" id="L492" title="All 2 branches covered.">            list = entryCnt &gt; 0 ? new JSONArray(entryCnt) : new JSONArray();</span>
+<span class="fc bfc" id="L493" title="All 2 branches covered.">        } else if (listType == HashSet.class) {</span>
+<span class="fc" id="L494">            list = new HashSet();</span>
+<span class="fc bfc" id="L495" title="All 2 branches covered.">        } else if (listType == LinkedHashSet.class) {</span>
+<span class="fc" id="L496">            list = new LinkedHashSet();</span>
+<span class="fc bfc" id="L497" title="All 2 branches covered.">        } else if (listType == TreeSet.class) {</span>
+<span class="fc" id="L498">            list = new TreeSet();</span>
+<span class="fc bfc" id="L499" title="All 2 branches covered.">        } else if (listType == CLASS_EMPTY_SET) {</span>
+<span class="fc" id="L500">            list = Collections.emptySet();</span>
+<span class="fc bfc" id="L501" title="All 2 branches covered.">        } else if (listType == CLASS_EMPTY_LIST) {</span>
+<span class="fc" id="L502">            list = Collections.emptyList();</span>
+<span class="pc bpc" id="L503" title="1 of 2 branches missed.">        } else if (listType == CLASS_SINGLETON_LIST) {</span>
+<span class="nc" id="L504">            list = new ArrayList();</span>
+<span class="nc" id="L505">            builder = (Function&lt;Collection, Collection&gt;) ((Collection items) -&gt; Collections.singletonList(items.iterator().next()));</span>
+<span class="pc bpc" id="L506" title="1 of 2 branches missed.">        } else if (listType == CLASS_UNMODIFIABLE_LIST) {</span>
+<span class="nc" id="L507">            list = new ArrayList();</span>
+<span class="nc" id="L508">            builder = (Function&lt;List, List&gt;) (Collections::unmodifiableList);</span>
+<span class="pc bpc" id="L509" title="1 of 4 branches missed.">        } else if (listType != null &amp;&amp; EnumSet.class.isAssignableFrom(listType)) {</span>
+            // maybe listType is java.util.RegularEnumSet or java.util.JumboEnumSet
+<span class="fc" id="L511">            list = new HashSet();</span>
+<span class="fc" id="L512">            builder = (o) -&gt; {</span>
+<span class="fc" id="L513">                Collection collection = (Collection) o;</span>
+<span class="pc bpc" id="L514" title="3 of 4 branches missed.">                if (collection.isEmpty() &amp;&amp; itemType instanceof Class) {</span>
+<span class="nc" id="L515">                    return EnumSet.noneOf((Class) itemType);</span>
+                } else {
+<span class="fc" id="L517">                    return EnumSet.copyOf(collection);</span>
+                }
+            };
+<span class="pc bpc" id="L520" title="1 of 4 branches missed.">        } else if (listType != null &amp;&amp; listType != this.listType) {</span>
+<span class="pc bpc" id="L521" title="1 of 3 branches missed.">            switch (listType.getName()) {</span>
+                case &quot;kotlin.collections.EmptySet&quot;:
+<span class="nc" id="L523">                    list = (Collection) getKotlinEmptySet(listType);</span>
+<span class="nc" id="L524">                    break;</span>
+                case &quot;kotlin.collections.EmptyList&quot;:
+<span class="fc" id="L526">                    list = (Collection) getKotlinEmptyList(listType);</span>
+<span class="fc" id="L527">                    break;</span>
+                default:
+                    try {
+<span class="fc" id="L530">                        list = (Collection) listType.newInstance();</span>
+<span class="nc" id="L531">                    } catch (InstantiationException | IllegalAccessException e) {</span>
+<span class="nc" id="L532">                        throw new JSONException(jsonReader.info(&quot;create instance error &quot; + listType), e);</span>
+<span class="fc" id="L533">                    }</span>
+<span class="fc" id="L534">                    break;</span>
+            }
+        } else {
+<span class="fc" id="L537">            list = (Collection) createInstance(jsonReader.getContext().getFeatures() | features);</span>
+        }
+
+<span class="fc" id="L540">        ObjectReader itemObjectReader = this.itemObjectReader;</span>
+<span class="fc" id="L541">        Type itemType = this.itemType;</span>
+<span class="fc bfc" id="L542" title="All 2 branches covered.">        if (fieldType instanceof ParameterizedType) {</span>
+<span class="fc" id="L543">            Type[] actualTypeArguments = ((ParameterizedType) fieldType).getActualTypeArguments();</span>
+<span class="fc bfc" id="L544" title="All 2 branches covered.">            if (actualTypeArguments.length == 1) {</span>
+<span class="fc" id="L545">                itemType = actualTypeArguments[0];</span>
+<span class="fc bfc" id="L546" title="All 2 branches covered.">                if (itemType != this.itemType) {</span>
+<span class="fc" id="L547">                    itemObjectReader = jsonReader.getObjectReader(itemType);</span>
+                }
+            }
+        }
+
+<span class="fc bfc" id="L552" title="All 2 branches covered.">        for (int i = 0; i &lt; entryCnt; ++i) {</span>
+            Object item;
+
+<span class="fc bfc" id="L555" title="All 2 branches covered.">            if (jsonReader.isReference()) {</span>
+<span class="fc" id="L556">                String reference = jsonReader.readReference();</span>
+<span class="pc bpc" id="L557" title="1 of 2 branches missed.">                if (&quot;..&quot;.equals(reference)) {</span>
+<span class="nc" id="L558">                    item = list;</span>
+                } else {
+<span class="fc" id="L560">                    jsonReader.addResolveTask(list, i, JSONPath.of(reference));</span>
+<span class="pc bpc" id="L561" title="1 of 2 branches missed.">                    if (list instanceof List) {</span>
+<span class="fc" id="L562">                        item = null;</span>
+                    } else {
+                        continue;
+                    }
+                }
+<span class="fc" id="L567">            } else {</span>
+<span class="fc" id="L568">                ObjectReader autoTypeReader = jsonReader.checkAutoType(itemClass, itemClassNameHash, features);</span>
+<span class="fc bfc" id="L569" title="All 2 branches covered.">                if (autoTypeReader != null) {</span>
+<span class="fc" id="L570">                    item = autoTypeReader.readJSONBObject(jsonReader, itemType, i, features);</span>
+                } else {
+<span class="fc" id="L572">                    item = itemObjectReader.readJSONBObject(jsonReader, itemType, i, features);</span>
+                }
+            }
+
+<span class="fc" id="L576">            list.add(item);</span>
+        }
+
+<span class="fc bfc" id="L579" title="All 2 branches covered.">        if (builder != null) {</span>
+<span class="fc" id="L580">            return builder.apply(list);</span>
+        }
+
+<span class="fc" id="L583">        return list;</span>
+    }
+
+    @Override
+    public Object readObject(JSONReader jsonReader, Type fieldType, Object fieldName, long features) {
+<span class="fc" id="L588">        JSONReader.Context context = jsonReader.getContext();</span>
+<span class="fc bfc" id="L589" title="All 2 branches covered.">        if (itemObjectReader == null) {</span>
+<span class="fc" id="L590">            itemObjectReader = context</span>
+<span class="fc" id="L591">                    .getObjectReader(itemType);</span>
+        }
+
+<span class="fc bfc" id="L594" title="All 2 branches covered.">        if (jsonReader.jsonb) {</span>
+<span class="fc" id="L595">            return readJSONBObject(jsonReader, fieldType, fieldName, 0);</span>
+        }
+
+<span class="fc bfc" id="L598" title="All 2 branches covered.">        if (jsonReader.readIfNull()) {</span>
+<span class="fc" id="L599">            return null;</span>
+        }
+
+        Collection list;
+<span class="fc bfc" id="L603" title="All 2 branches covered.">        if (jsonReader.nextIfSet()) {</span>
+<span class="fc" id="L604">            list = new HashSet();</span>
+        } else {
+<span class="fc" id="L606">            list = (Collection) createInstance(context.getFeatures() | features);</span>
+        }
+<span class="fc" id="L608">        char ch = jsonReader.current();</span>
+<span class="fc bfc" id="L609" title="All 2 branches covered.">        if (ch == '&quot;') {</span>
+<span class="fc" id="L610">            String str = jsonReader.readString();</span>
+<span class="pc bpc" id="L611" title="1 of 2 branches missed.">            if (itemClass == String.class) {</span>
+<span class="nc" id="L612">                jsonReader.nextIfComma();</span>
+<span class="nc" id="L613">                list.add(str);</span>
+<span class="nc" id="L614">                return list;</span>
+            }
+
+<span class="pc bpc" id="L617" title="1 of 2 branches missed.">            if (str.isEmpty()) {</span>
+<span class="nc" id="L618">                jsonReader.nextIfComma();</span>
+<span class="nc" id="L619">                return null;</span>
+            }
+
+<span class="fc" id="L622">            ObjectReaderProvider provider = context.getProvider();</span>
+<span class="fc bfc" id="L623" title="All 2 branches covered.">            if (itemClass.isEnum()) {</span>
+<span class="fc" id="L624">                ObjectReader enumReader = provider.getObjectReader(itemClass);</span>
+<span class="pc bpc" id="L625" title="1 of 2 branches missed.">                if (enumReader instanceof ObjectReaderImplEnum) {</span>
+<span class="fc" id="L626">                    Enum e = ((ObjectReaderImplEnum) enumReader).getEnum(str);</span>
+<span class="pc bpc" id="L627" title="1 of 2 branches missed.">                    if (e == null) {</span>
+<span class="nc bnc" id="L628" title="All 2 branches missed.">                        if (JSONReader.Feature.ErrorOnEnumNotMatch.isEnabled(jsonReader.features(features))) {</span>
+<span class="nc" id="L629">                            throw new JSONException(jsonReader.info(&quot;enum not match : &quot; + str));</span>
+                        }
+<span class="nc" id="L631">                        return null;</span>
+                    }
+<span class="fc" id="L633">                    list.add(e);</span>
+<span class="fc" id="L634">                    return list;</span>
+                }
+            }
+
+<span class="fc" id="L638">            Function typeConvert = provider.getTypeConvert(String.class, itemType);</span>
+<span class="pc bpc" id="L639" title="1 of 2 branches missed.">            if (typeConvert != null) {</span>
+<span class="fc" id="L640">                Object converted = typeConvert.apply(str);</span>
+<span class="fc" id="L641">                jsonReader.nextIfComma();</span>
+<span class="fc" id="L642">                list.add(converted);</span>
+<span class="fc" id="L643">                return list;</span>
+            }
+<span class="nc" id="L645">            throw new JSONException(jsonReader.info());</span>
+<span class="fc bfc" id="L646" title="All 2 branches covered.">        } else if (ch == '[') {</span>
+<span class="fc" id="L647">            jsonReader.next();</span>
+        } else {
+<span class="pc bpc" id="L649" title="3 of 8 branches missed.">            if ((itemClass != Object.class &amp;&amp; itemObjectReader != null) || (itemClass == Object.class &amp;&amp; jsonReader.isObject())) {</span>
+<span class="fc" id="L650">                Object item = itemObjectReader.readObject(jsonReader, itemType, 0, 0);</span>
+<span class="fc" id="L651">                list.add(item);</span>
+<span class="pc bpc" id="L652" title="1 of 2 branches missed.">                if (builder != null) {</span>
+<span class="nc" id="L653">                    list = (Collection) builder.apply(list);</span>
+                }
+<span class="fc" id="L655">                return list;</span>
+            }
+
+<span class="nc" id="L658">            throw new JSONException(jsonReader.info());</span>
+        }
+
+<span class="fc" id="L661">        ObjectReader itemObjectReader = this.itemObjectReader;</span>
+<span class="fc" id="L662">        Type itemType = this.itemType;</span>
+<span class="fc bfc" id="L663" title="All 4 branches covered.">        if ((fieldType != listType) &amp;&amp; (fieldType instanceof ParameterizedType)) {</span>
+<span class="fc" id="L664">            Type[] actualTypeArguments = ((ParameterizedType) fieldType).getActualTypeArguments();</span>
+<span class="fc bfc" id="L665" title="All 2 branches covered.">            if (actualTypeArguments.length == 1) {</span>
+<span class="fc" id="L666">                itemType = actualTypeArguments[0];</span>
+<span class="fc bfc" id="L667" title="All 2 branches covered.">                if (itemType != this.itemType) {</span>
+<span class="fc" id="L668">                    itemObjectReader = jsonReader.getObjectReader(itemType);</span>
+                }
+            }
+        }
+
+<span class="fc" id="L673">        for (int i = 0; ; ++i) {</span>
+<span class="fc bfc" id="L674" title="All 2 branches covered.">            if (jsonReader.nextIfArrayEnd()) {</span>
+<span class="fc" id="L675">                break;</span>
+            }
+
+            Object item;
+<span class="fc bfc" id="L679" title="All 2 branches covered.">            if (itemType == String.class) {</span>
+<span class="fc" id="L680">                item = jsonReader.readString();</span>
+<span class="pc bpc" id="L681" title="1 of 2 branches missed.">            } else if (itemObjectReader != null) {</span>
+<span class="fc bfc" id="L682" title="All 2 branches covered.">                if (jsonReader.isReference()) {</span>
+<span class="fc" id="L683">                    String reference = jsonReader.readReference();</span>
+<span class="pc bpc" id="L684" title="1 of 2 branches missed.">                    if (&quot;..&quot;.equals(reference)) {</span>
+<span class="nc" id="L685">                        item = this;</span>
+                    } else {
+<span class="fc" id="L687">                        jsonReader.addResolveTask(list, i, JSONPath.of(reference));</span>
+<span class="fc" id="L688">                        continue;</span>
+                    }
+<span class="nc" id="L690">                } else {</span>
+<span class="fc" id="L691">                    item = itemObjectReader.readObject(jsonReader, itemType, i, 0);</span>
+                }
+            } else {
+<span class="nc" id="L694">                throw new JSONException(jsonReader.info(&quot;TODO : &quot; + itemType));</span>
+            }
+
+<span class="fc" id="L697">            list.add(item);</span>
+        }
+
+<span class="fc" id="L700">        jsonReader.nextIfComma();</span>
+
+<span class="fc bfc" id="L702" title="All 2 branches covered.">        if (builder != null) {</span>
+<span class="fc" id="L703">            return builder.apply(list);</span>
+        }
+
+<span class="fc" id="L706">        return list;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.8.202204050719</span></div></body></html>

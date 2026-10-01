@@ -1,0 +1,689 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ObjectWriterAdapter.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">fastjson2</a> &gt; <a href="index.source.html" class="el_package">com.alibaba.fastjson2.writer</a> &gt; <span class="el_source">ObjectWriterAdapter.java</span></div><h1>ObjectWriterAdapter.java</h1><pre class="source lang-java linenums">package com.alibaba.fastjson2.writer;
+
+import com.alibaba.fastjson2.*;
+import com.alibaba.fastjson2.codec.FieldInfo;
+import com.alibaba.fastjson2.filter.*;
+import com.alibaba.fastjson2.util.BeanUtils;
+import com.alibaba.fastjson2.util.DateUtils;
+import com.alibaba.fastjson2.util.Fnv;
+import com.alibaba.fastjson2.util.TypeUtils;
+
+import java.lang.reflect.Field;
+import java.lang.reflect.Type;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.util.*;
+
+import static com.alibaba.fastjson2.JSONB.Constants.BC_TYPED_ANY;
+import static com.alibaba.fastjson2.JSONWriter.Feature.*;
+
+public class ObjectWriterAdapter&lt;T&gt;
+        implements ObjectWriter&lt;T&gt; {
+    boolean hasFilter;
+    PropertyPreFilter propertyPreFilter;
+    PropertyFilter propertyFilter;
+    NameFilter nameFilter;
+    ValueFilter valueFilter;
+
+    static final String TYPE = &quot;@type&quot;;
+
+    final Class objectClass;
+    final List&lt;FieldWriter&gt; fieldWriters;
+    protected final FieldWriter[] fieldWriterArray;
+
+    final String typeKey;
+    byte[] typeKeyJSONB;
+    protected final String typeName;
+    protected final long typeNameHash;
+    protected long typeNameSymbolCache;
+    protected final byte[] typeNameJSONB;
+
+    byte[] nameWithColonUTF8;
+    char[] nameWithColonUTF16;
+
+    final long features;
+
+    final long[] hashCodes;
+    final short[] mapping;
+
+    final boolean hasValueField;
+    final boolean serializable;
+    final boolean containsNoneFieldGetter;
+    final boolean googleCollection;
+
+    public ObjectWriterAdapter(Class&lt;T&gt; objectClass, List&lt;FieldWriter&gt; fieldWriters) {
+<span class="fc" id="L55">        this(objectClass, null, null, 0, fieldWriters);</span>
+<span class="fc" id="L56">    }</span>
+
+    public ObjectWriterAdapter(
+            Class&lt;T&gt; objectClass,
+            String typeKey,
+            String typeName,
+            long features,
+            List&lt;FieldWriter&gt; fieldWriters
+<span class="fc" id="L64">    ) {</span>
+<span class="fc bfc" id="L65" title="All 4 branches covered.">        if (typeName == null &amp;&amp; objectClass != null) {</span>
+<span class="pc bpc" id="L66" title="1 of 4 branches missed.">            if (Enum.class.isAssignableFrom(objectClass) &amp;&amp; !objectClass.isEnum()) {</span>
+<span class="nc" id="L67">                typeName = objectClass.getSuperclass().getName();</span>
+            } else {
+<span class="fc" id="L69">                typeName = TypeUtils.getTypeName(objectClass);</span>
+            }
+        }
+
+<span class="fc" id="L73">        this.objectClass = objectClass;</span>
+<span class="pc bpc" id="L74" title="1 of 4 branches missed.">        this.typeKey = typeKey == null || typeKey.isEmpty() ? TYPE : typeKey;</span>
+<span class="fc" id="L75">        this.typeName = typeName;</span>
+<span class="fc bfc" id="L76" title="All 2 branches covered.">        this.typeNameHash = typeName != null ? Fnv.hashCode64(typeName) : 0;</span>
+<span class="fc" id="L77">        this.typeNameJSONB = JSONB.toBytes(typeName);</span>
+<span class="fc" id="L78">        this.features = features;</span>
+<span class="fc" id="L79">        this.fieldWriters = fieldWriters;</span>
+<span class="fc bfc" id="L80" title="All 4 branches covered.">        this.serializable = objectClass == null || java.io.Serializable.class.isAssignableFrom(objectClass);</span>
+<span class="fc" id="L81">        this.googleCollection =</span>
+<span class="pc bpc" id="L82" title="1 of 2 branches missed.">                &quot;com.google.common.collect.AbstractMapBasedMultimap$RandomAccessWrappedList&quot;.equals(typeName)</span>
+<span class="fc bfc" id="L83" title="All 2 branches covered.">                || &quot;com.google.common.collect.AbstractMapBasedMultimap$WrappedSet&quot;.equals(typeName);</span>
+
+<span class="fc" id="L85">        this.fieldWriterArray = new FieldWriter[fieldWriters.size()];</span>
+<span class="fc" id="L86">        fieldWriters.toArray(fieldWriterArray);</span>
+
+<span class="fc bfc" id="L88" title="All 4 branches covered.">        this.hasValueField = fieldWriterArray.length == 1 &amp;&amp; (fieldWriterArray[0].features &amp; FieldInfo.VALUE_MASK) != 0;</span>
+
+<span class="fc" id="L90">        boolean containsNoneFieldGetter = false;</span>
+<span class="fc" id="L91">        long[] hashCodes = new long[fieldWriterArray.length];</span>
+<span class="fc bfc" id="L92" title="All 2 branches covered.">        for (int i = 0; i &lt; fieldWriterArray.length; i++) {</span>
+<span class="fc" id="L93">            FieldWriter fieldWriter = fieldWriterArray[i];</span>
+<span class="fc" id="L94">            long hashCode = Fnv.hashCode64(fieldWriter.fieldName);</span>
+<span class="fc" id="L95">            hashCodes[i] = hashCode;</span>
+
+<span class="fc bfc" id="L97" title="All 4 branches covered.">            if (fieldWriter.method != null &amp;&amp; (fieldWriter.features &amp; FieldInfo.FIELD_MASK) == 0) {</span>
+<span class="fc" id="L98">                containsNoneFieldGetter = true;</span>
+            }
+        }
+<span class="fc" id="L101">        this.containsNoneFieldGetter = containsNoneFieldGetter;</span>
+
+<span class="fc" id="L103">        this.hashCodes = Arrays.copyOf(hashCodes, hashCodes.length);</span>
+<span class="fc" id="L104">        Arrays.sort(this.hashCodes);</span>
+
+<span class="fc" id="L106">        mapping = new short[this.hashCodes.length];</span>
+<span class="fc bfc" id="L107" title="All 2 branches covered.">        for (int i = 0; i &lt; hashCodes.length; i++) {</span>
+<span class="fc" id="L108">            long hashCode = hashCodes[i];</span>
+<span class="fc" id="L109">            int index = Arrays.binarySearch(this.hashCodes, hashCode);</span>
+<span class="fc" id="L110">            mapping[index] = (short) i;</span>
+        }
+<span class="fc" id="L112">    }</span>
+
+    @Override
+    public long getFeatures() {
+<span class="fc" id="L116">        return features;</span>
+    }
+
+    @Override
+    public FieldWriter getFieldWriter(long hashCode) {
+<span class="fc" id="L121">        int m = Arrays.binarySearch(hashCodes, hashCode);</span>
+<span class="fc bfc" id="L122" title="All 2 branches covered.">        if (m &lt; 0) {</span>
+<span class="fc" id="L123">            return null;</span>
+        }
+
+<span class="fc" id="L126">        int index = this.mapping[m];</span>
+<span class="fc" id="L127">        return fieldWriterArray[index];</span>
+    }
+
+    @Override
+    public final boolean hasFilter(JSONWriter jsonWriter) {
+<span class="fc bfc" id="L132" title="All 4 branches covered.">        return hasFilter || jsonWriter.hasFilter(containsNoneFieldGetter);</span>
+    }
+
+    public void setPropertyFilter(PropertyFilter propertyFilter) {
+<span class="fc" id="L136">        this.propertyFilter = propertyFilter;</span>
+<span class="pc bpc" id="L137" title="1 of 2 branches missed.">        if (propertyFilter != null) {</span>
+<span class="nc" id="L138">            hasFilter = true;</span>
+        }
+<span class="fc" id="L140">    }</span>
+
+    public void setValueFilter(ValueFilter valueFilter) {
+<span class="fc" id="L143">        this.valueFilter = valueFilter;</span>
+<span class="pc bpc" id="L144" title="1 of 2 branches missed.">        if (valueFilter != null) {</span>
+<span class="fc" id="L145">            hasFilter = true;</span>
+        }
+<span class="fc" id="L147">    }</span>
+
+    public void setNameFilter(NameFilter nameFilter) {
+<span class="fc" id="L150">        this.nameFilter = nameFilter;</span>
+<span class="pc bpc" id="L151" title="1 of 2 branches missed.">        if (nameFilter != null) {</span>
+<span class="fc" id="L152">            hasFilter = true;</span>
+        }
+<span class="fc" id="L154">    }</span>
+
+    public void setPropertyPreFilter(PropertyPreFilter propertyPreFilter) {
+<span class="fc" id="L157">        this.propertyPreFilter = propertyPreFilter;</span>
+<span class="pc bpc" id="L158" title="1 of 2 branches missed.">        if (propertyPreFilter != null) {</span>
+<span class="nc" id="L159">            hasFilter = true;</span>
+        }
+<span class="fc" id="L161">    }</span>
+
+    @Override
+    public void writeArrayMappingJSONB(JSONWriter jsonWriter, Object object, Object fieldName, Type fieldType, long features) {
+<span class="fc bfc" id="L165" title="All 2 branches covered.">        if (jsonWriter.isWriteTypeInfo(object, fieldType, features)) {</span>
+<span class="fc" id="L166">            writeClassInfo(jsonWriter);</span>
+        }
+
+<span class="fc" id="L169">        int size = fieldWriters.size();</span>
+<span class="fc" id="L170">        jsonWriter.startArray(size);</span>
+<span class="fc bfc" id="L171" title="All 2 branches covered.">        for (int i = 0; i &lt; size; ++i) {</span>
+<span class="fc" id="L172">            FieldWriter fieldWriter = fieldWriters.get(i);</span>
+<span class="fc" id="L173">            fieldWriter.writeValue(jsonWriter, object);</span>
+        }
+<span class="fc" id="L175">    }</span>
+
+    @Override
+    public void writeJSONB(JSONWriter jsonWriter, Object object, Object fieldName, Type fieldType, long features) {
+<span class="fc" id="L179">        long featuresAll = features | this.features | jsonWriter.getFeatures();</span>
+
+<span class="fc bfc" id="L181" title="All 2 branches covered.">        if (!serializable) {</span>
+<span class="fc bfc" id="L182" title="All 2 branches covered.">            if ((featuresAll &amp; JSONWriter.Feature.ErrorOnNoneSerializable.mask) != 0) {</span>
+<span class="nc" id="L183">                errorOnNoneSerializable();</span>
+<span class="nc" id="L184">                return;</span>
+            }
+
+<span class="pc bpc" id="L187" title="1 of 2 branches missed.">            if ((featuresAll &amp; JSONWriter.Feature.IgnoreNoneSerializable.mask) != 0) {</span>
+<span class="nc" id="L188">                jsonWriter.writeNull();</span>
+<span class="nc" id="L189">                return;</span>
+            }
+        }
+
+<span class="pc bpc" id="L193" title="1 of 2 branches missed.">        if ((featuresAll &amp; JSONWriter.Feature.IgnoreNoneSerializable.mask) != 0) {</span>
+<span class="nc" id="L194">            writeWithFilter(jsonWriter, object, fieldName, fieldType, features);</span>
+<span class="nc" id="L195">            return;</span>
+        }
+
+<span class="fc" id="L198">        int size = fieldWriterArray.length;</span>
+<span class="fc bfc" id="L199" title="All 2 branches covered.">        if (jsonWriter.isWriteTypeInfo(object, fieldType, features)) {</span>
+<span class="fc" id="L200">            writeClassInfo(jsonWriter);</span>
+        }
+<span class="fc" id="L202">        jsonWriter.startObject();</span>
+<span class="fc bfc" id="L203" title="All 2 branches covered.">        for (int i = 0; i &lt; size; ++i) {</span>
+<span class="fc" id="L204">            fieldWriters.get(i)</span>
+<span class="fc" id="L205">                    .write(jsonWriter, object);</span>
+        }
+<span class="fc" id="L207">        jsonWriter.endObject();</span>
+<span class="fc" id="L208">    }</span>
+
+    protected final void writeClassInfo(JSONWriter jsonWriter) {
+<span class="fc" id="L211">        SymbolTable symbolTable = jsonWriter.symbolTable;</span>
+<span class="fc bfc" id="L212" title="All 2 branches covered.">        if (symbolTable != null) {</span>
+<span class="pc bpc" id="L213" title="1 of 2 branches missed.">            if (writeClassInfoSymbol(jsonWriter, symbolTable)) {</span>
+<span class="nc" id="L214">                return;</span>
+            }
+        }
+
+<span class="fc" id="L218">        jsonWriter.writeTypeName(typeNameJSONB, typeNameHash);</span>
+<span class="fc" id="L219">    }</span>
+
+    private boolean writeClassInfoSymbol(JSONWriter jsonWriter, SymbolTable symbolTable) {
+<span class="fc" id="L222">        int symbolTableIdentity = System.identityHashCode(symbolTable);</span>
+
+        int symbol;
+<span class="pc bpc" id="L225" title="1 of 2 branches missed.">        if (typeNameSymbolCache == 0) {</span>
+<span class="fc" id="L226">            symbol = symbolTable.getOrdinalByHashCode(typeNameHash);</span>
+<span class="pc bpc" id="L227" title="1 of 2 branches missed.">            if (symbol != -1) {</span>
+<span class="nc" id="L228">                typeNameSymbolCache = ((long) symbol &lt;&lt; 32) | symbolTableIdentity;</span>
+            }
+        } else {
+<span class="nc" id="L231">            int identity = (int) typeNameSymbolCache;</span>
+<span class="nc bnc" id="L232" title="All 2 branches missed.">            if (identity == symbolTableIdentity) {</span>
+<span class="nc" id="L233">                symbol = (int) (typeNameSymbolCache &gt;&gt; 32);</span>
+            } else {
+<span class="nc" id="L235">                symbol = symbolTable.getOrdinalByHashCode(typeNameHash);</span>
+<span class="nc bnc" id="L236" title="All 2 branches missed.">                if (symbol != -1) {</span>
+<span class="nc" id="L237">                    typeNameSymbolCache = ((long) symbol &lt;&lt; 32) | symbolTableIdentity;</span>
+                }
+            }
+        }
+
+<span class="pc bpc" id="L242" title="1 of 2 branches missed.">        if (symbol != -1) {</span>
+<span class="nc" id="L243">            jsonWriter.writeRaw(BC_TYPED_ANY);</span>
+<span class="nc" id="L244">            jsonWriter.writeInt32(-symbol);</span>
+<span class="nc" id="L245">            return true;</span>
+        }
+<span class="fc" id="L247">        return false;</span>
+    }
+
+    @Override
+    public void write(JSONWriter jsonWriter, Object object, Object fieldName, Type fieldType, long features) {
+<span class="fc bfc" id="L252" title="All 2 branches covered.">        if (hasValueField) {</span>
+<span class="fc" id="L253">            FieldWriter fieldWriter = fieldWriterArray[0];</span>
+<span class="fc" id="L254">            fieldWriter.writeValue(jsonWriter, object);</span>
+<span class="fc" id="L255">            return;</span>
+        }
+
+<span class="fc" id="L258">        long featuresAll = features | this.features | jsonWriter.getFeatures();</span>
+<span class="fc bfc" id="L259" title="All 2 branches covered.">        boolean beanToArray = (featuresAll &amp; BeanToArray.mask) != 0;</span>
+
+<span class="fc bfc" id="L261" title="All 2 branches covered.">        if (jsonWriter.jsonb) {</span>
+<span class="pc bpc" id="L262" title="1 of 2 branches missed.">            if (beanToArray) {</span>
+<span class="nc" id="L263">                writeArrayMappingJSONB(jsonWriter, object, fieldName, fieldType, features);</span>
+<span class="nc" id="L264">                return;</span>
+            }
+
+<span class="fc" id="L267">            writeJSONB(jsonWriter, object, fieldName, fieldType, features);</span>
+<span class="fc" id="L268">            return;</span>
+        }
+
+<span class="fc bfc" id="L271" title="All 2 branches covered.">        if (googleCollection) {</span>
+<span class="fc" id="L272">            Collection collection = (Collection) object;</span>
+<span class="fc" id="L273">            ObjectWriterImplCollection.INSTANCE.write(jsonWriter, collection, fieldName, fieldType, features);</span>
+<span class="fc" id="L274">            return;</span>
+        }
+
+<span class="fc bfc" id="L277" title="All 2 branches covered.">        if (beanToArray) {</span>
+<span class="fc" id="L278">            writeArrayMapping(jsonWriter, object, fieldName, fieldType, features);</span>
+<span class="fc" id="L279">            return;</span>
+        }
+
+<span class="fc bfc" id="L282" title="All 2 branches covered.">        if (!serializable) {</span>
+<span class="pc bpc" id="L283" title="1 of 2 branches missed.">            if ((featuresAll &amp; JSONWriter.Feature.ErrorOnNoneSerializable.mask) != 0) {</span>
+<span class="nc" id="L284">                errorOnNoneSerializable();</span>
+<span class="nc" id="L285">                return;</span>
+            }
+
+<span class="pc bpc" id="L288" title="1 of 2 branches missed.">            if ((featuresAll &amp; JSONWriter.Feature.IgnoreNoneSerializable.mask) != 0) {</span>
+<span class="nc" id="L289">                jsonWriter.writeNull();</span>
+<span class="nc" id="L290">                return;</span>
+            }
+        }
+
+<span class="fc bfc" id="L294" title="All 2 branches covered.">        if (hasFilter(jsonWriter)) {</span>
+<span class="fc" id="L295">            writeWithFilter(jsonWriter, object, fieldName, fieldType, features);</span>
+<span class="fc" id="L296">            return;</span>
+        }
+
+<span class="fc" id="L299">        jsonWriter.startObject();</span>
+
+<span class="pc bpc" id="L301" title="1 of 4 branches missed.">        if (((features | this.features) &amp; WriteClassName.mask) != 0 || jsonWriter.isWriteTypeInfo(object, features)) {</span>
+<span class="fc" id="L302">            writeTypeInfo(jsonWriter);</span>
+        }
+
+<span class="fc" id="L305">        final int size = fieldWriters.size();</span>
+<span class="fc bfc" id="L306" title="All 2 branches covered.">        for (int i = 0; i &lt; size; i++) {</span>
+<span class="fc" id="L307">            FieldWriter fieldWriter = fieldWriters.get(i);</span>
+<span class="fc" id="L308">            fieldWriter.write(jsonWriter, object);</span>
+        }
+
+<span class="fc" id="L311">        jsonWriter.endObject();</span>
+<span class="fc" id="L312">    }</span>
+
+    public Map&lt;String, Object&gt; toMap(Object object) {
+<span class="fc" id="L315">        final int size = fieldWriters.size();</span>
+<span class="fc" id="L316">        JSONObject map = new JSONObject(size, 1F);</span>
+<span class="fc bfc" id="L317" title="All 2 branches covered.">        for (int i = 0; i &lt; size; i++) {</span>
+<span class="fc" id="L318">            FieldWriter fieldWriter = fieldWriters.get(i);</span>
+<span class="fc" id="L319">            map.put(</span>
+                    fieldWriter.fieldName,
+<span class="fc" id="L321">                    fieldWriter.getFieldValue(object)</span>
+            );
+        }
+<span class="fc" id="L324">        return map;</span>
+    }
+
+    @Override
+    public List&lt;FieldWriter&gt; getFieldWriters() {
+<span class="fc" id="L329">        return fieldWriters;</span>
+    }
+
+    byte[] jsonbClassInfo;
+
+    @Override
+    public boolean writeTypeInfo(JSONWriter jsonWriter) {
+<span class="fc bfc" id="L336" title="All 2 branches covered.">        if (jsonWriter.utf8) {</span>
+<span class="fc bfc" id="L337" title="All 2 branches covered.">            if (nameWithColonUTF8 == null) {</span>
+<span class="fc" id="L338">                int typeKeyLength = typeKey.length();</span>
+<span class="fc" id="L339">                int typeNameLength = typeName.length();</span>
+<span class="fc" id="L340">                byte[] chars = new byte[typeKeyLength + typeNameLength + 5];</span>
+<span class="fc" id="L341">                chars[0] = '&quot;';</span>
+<span class="fc" id="L342">                typeKey.getBytes(0, typeKeyLength, chars, 1);</span>
+<span class="fc" id="L343">                chars[typeKeyLength + 1] = '&quot;';</span>
+<span class="fc" id="L344">                chars[typeKeyLength + 2] = ':';</span>
+<span class="fc" id="L345">                chars[typeKeyLength + 3] = '&quot;';</span>
+<span class="fc" id="L346">                typeName.getBytes(0, typeNameLength, chars, typeKeyLength + 4);</span>
+<span class="fc" id="L347">                chars[typeKeyLength + typeNameLength + 4] = '&quot;';</span>
+
+<span class="fc" id="L349">                nameWithColonUTF8 = chars;</span>
+            }
+<span class="fc" id="L351">            jsonWriter.writeNameRaw(nameWithColonUTF8);</span>
+<span class="fc" id="L352">            return true;</span>
+<span class="pc bpc" id="L353" title="1 of 2 branches missed.">        } else if (jsonWriter.utf16) {</span>
+<span class="fc bfc" id="L354" title="All 2 branches covered.">            if (nameWithColonUTF16 == null) {</span>
+<span class="fc" id="L355">                int typeKeyLength = typeKey.length();</span>
+<span class="fc" id="L356">                int typeNameLength = typeName.length();</span>
+<span class="fc" id="L357">                char[] chars = new char[typeKeyLength + typeNameLength + 5];</span>
+<span class="fc" id="L358">                chars[0] = '&quot;';</span>
+<span class="fc" id="L359">                typeKey.getChars(0, typeKeyLength, chars, 1);</span>
+<span class="fc" id="L360">                chars[typeKeyLength + 1] = '&quot;';</span>
+<span class="fc" id="L361">                chars[typeKeyLength + 2] = ':';</span>
+<span class="fc" id="L362">                chars[typeKeyLength + 3] = '&quot;';</span>
+<span class="fc" id="L363">                typeName.getChars(0, typeNameLength, chars, typeKeyLength + 4);</span>
+<span class="fc" id="L364">                chars[typeKeyLength + typeNameLength + 4] = '&quot;';</span>
+
+<span class="fc" id="L366">                nameWithColonUTF16 = chars;</span>
+            }
+<span class="fc" id="L368">            jsonWriter.writeNameRaw(nameWithColonUTF16);</span>
+<span class="fc" id="L369">            return true;</span>
+<span class="nc bnc" id="L370" title="All 2 branches missed.">        } else if (jsonWriter.jsonb) {</span>
+<span class="nc bnc" id="L371" title="All 2 branches missed.">            if (typeKeyJSONB == null) {</span>
+<span class="nc" id="L372">                typeKeyJSONB = JSONB.toBytes(typeKey);</span>
+            }
+<span class="nc" id="L374">            jsonWriter.writeRaw(typeKeyJSONB);</span>
+<span class="nc" id="L375">            jsonWriter.writeRaw(typeNameJSONB);</span>
+<span class="nc" id="L376">            return true;</span>
+        }
+
+<span class="nc" id="L379">        jsonWriter.writeString(typeKey);</span>
+<span class="nc" id="L380">        jsonWriter.writeColon();</span>
+<span class="nc" id="L381">        jsonWriter.writeString(typeName);</span>
+<span class="nc" id="L382">        return true;</span>
+    }
+
+    @Override
+    public void writeWithFilter(JSONWriter jsonWriter, Object object, Object fieldName, Type fieldType, long features) {
+<span class="fc bfc" id="L387" title="All 2 branches covered.">        if (object == null) {</span>
+<span class="fc" id="L388">            jsonWriter.writeNull();</span>
+<span class="fc" id="L389">            return;</span>
+        }
+
+<span class="fc bfc" id="L392" title="All 2 branches covered.">        if (jsonWriter.isWriteTypeInfo(object, fieldType, features)) {</span>
+<span class="pc bpc" id="L393" title="1 of 2 branches missed.">            if (jsonWriter.jsonb) {</span>
+<span class="nc" id="L394">                writeClassInfo(jsonWriter);</span>
+<span class="nc" id="L395">                jsonWriter.startObject();</span>
+            } else {
+<span class="fc" id="L397">                jsonWriter.startObject();</span>
+<span class="fc" id="L398">                writeTypeInfo(jsonWriter);</span>
+            }
+        } else {
+<span class="fc" id="L401">            jsonWriter.startObject();</span>
+        }
+
+<span class="fc" id="L404">        JSONWriter.Context context = jsonWriter.context;</span>
+<span class="fc" id="L405">        long features2 = context.getFeatures() | features;</span>
+<span class="fc bfc" id="L406" title="All 2 branches covered.">        boolean refDetect = (features2 &amp; ReferenceDetection.mask) != 0;</span>
+<span class="fc bfc" id="L407" title="All 2 branches covered.">        boolean ignoreNonFieldGetter = (features2 &amp; IgnoreNonFieldGetter.mask) != 0;</span>
+
+<span class="fc" id="L409">        BeforeFilter beforeFilter = context.getBeforeFilter();</span>
+<span class="fc bfc" id="L410" title="All 2 branches covered.">        if (beforeFilter != null) {</span>
+<span class="fc" id="L411">            beforeFilter.writeBefore(jsonWriter, object);</span>
+        }
+
+<span class="fc" id="L414">        PropertyPreFilter propertyPreFilter = context.getPropertyPreFilter();</span>
+<span class="fc bfc" id="L415" title="All 2 branches covered.">        if (propertyPreFilter == null) {</span>
+<span class="fc" id="L416">            propertyPreFilter = this.propertyPreFilter;</span>
+        }
+
+<span class="fc" id="L419">        NameFilter nameFilter = context.getNameFilter();</span>
+<span class="fc bfc" id="L420" title="All 2 branches covered.">        if (nameFilter == null) {</span>
+<span class="fc" id="L421">            nameFilter = this.nameFilter;</span>
+        } else {
+<span class="pc bpc" id="L423" title="1 of 2 branches missed.">            if (this.nameFilter != null) {</span>
+<span class="nc" id="L424">                nameFilter = NameFilter.compose(this.nameFilter, nameFilter);</span>
+            }
+        }
+
+<span class="fc" id="L428">        ContextNameFilter contextNameFilter = context.getContextNameFilter();</span>
+
+<span class="fc" id="L430">        ValueFilter valueFilter = context.getValueFilter();</span>
+<span class="fc bfc" id="L431" title="All 2 branches covered.">        if (valueFilter == null) {</span>
+<span class="fc" id="L432">            valueFilter = this.valueFilter;</span>
+        } else {
+<span class="pc bpc" id="L434" title="1 of 2 branches missed.">            if (this.valueFilter != null) {</span>
+<span class="nc" id="L435">                valueFilter = ValueFilter.compose(this.valueFilter, valueFilter);</span>
+            }
+        }
+
+<span class="fc" id="L439">        ContextValueFilter contextValueFilter = context.getContextValueFilter();</span>
+
+<span class="fc" id="L441">        PropertyFilter propertyFilter = context.getPropertyFilter();</span>
+<span class="fc bfc" id="L442" title="All 2 branches covered.">        if (propertyFilter == null) {</span>
+<span class="fc" id="L443">            propertyFilter = this.propertyFilter;</span>
+        }
+
+<span class="fc" id="L446">        LabelFilter labelFilter = context.getLabelFilter();</span>
+
+<span class="fc bfc" id="L448" title="All 2 branches covered.">        for (int i = 0; i &lt; fieldWriters.size(); i++) {</span>
+<span class="fc" id="L449">            FieldWriter fieldWriter = fieldWriters.get(i);</span>
+<span class="fc" id="L450">            Field field = fieldWriter.field;</span>
+
+<span class="pc bpc" id="L452" title="2 of 6 branches missed.">            if (ignoreNonFieldGetter</span>
+                    &amp;&amp; fieldWriter.method != null
+                    &amp;&amp; (fieldWriter.features &amp; FieldInfo.FIELD_MASK) == 0) {
+<span class="fc" id="L455">                continue;</span>
+            }
+
+            // pre property filter
+<span class="fc" id="L459">            final String fieldWriterFieldName = fieldWriter.fieldName;</span>
+<span class="fc bfc" id="L460" title="All 2 branches covered.">            if (propertyPreFilter != null</span>
+<span class="fc bfc" id="L461" title="All 2 branches covered.">                    &amp;&amp; !propertyPreFilter.process(jsonWriter, object, fieldWriterFieldName)) {</span>
+<span class="fc" id="L462">                continue;</span>
+            }
+
+<span class="fc bfc" id="L465" title="All 2 branches covered.">            if (labelFilter != null) {</span>
+<span class="fc" id="L466">                String label = fieldWriter.label;</span>
+<span class="pc bpc" id="L467" title="1 of 4 branches missed.">                if (label != null &amp;&amp; !label.isEmpty()) {</span>
+<span class="fc bfc" id="L468" title="All 2 branches covered.">                    if (!labelFilter.apply(label)) {</span>
+<span class="fc" id="L469">                        continue;</span>
+                    }
+                }
+            }
+
+            // fast return
+<span class="fc bfc" id="L475" title="All 10 branches covered.">            if (nameFilter == null</span>
+                    &amp;&amp; propertyFilter == null
+                    &amp;&amp; contextValueFilter == null
+                    &amp;&amp; contextNameFilter == null
+                    &amp;&amp; valueFilter == null
+            ) {
+<span class="fc" id="L481">                fieldWriter.write(jsonWriter, object);</span>
+<span class="fc" id="L482">                continue;</span>
+            }
+
+            Object fieldValue;
+            try {
+<span class="fc" id="L487">                fieldValue = fieldWriter.getFieldValue(object);</span>
+<span class="fc" id="L488">            } catch (Throwable e) {</span>
+<span class="pc bpc" id="L489" title="1 of 2 branches missed.">                if ((context.getFeatures() &amp; JSONWriter.Feature.IgnoreErrorGetter.mask) != 0) {</span>
+<span class="fc" id="L490">                    continue;</span>
+                }
+<span class="nc" id="L492">                throw e;</span>
+<span class="fc" id="L493">            }</span>
+
+<span class="fc bfc" id="L495" title="All 4 branches covered.">            if (fieldValue == null &amp;&amp; !jsonWriter.isWriteNulls()) {</span>
+<span class="fc" id="L496">                continue;</span>
+            }
+
+<span class="pc bpc" id="L499" title="1 of 8 branches missed.">            if (!refDetect &amp;&amp; (&quot;this$0&quot;.equals(fieldWriterFieldName) || &quot;this$1&quot;.equals(fieldWriterFieldName) || &quot;this$2&quot;.equals(fieldWriterFieldName))) {</span>
+<span class="nc" id="L500">                continue;</span>
+            }
+
+<span class="fc" id="L503">            BeanContext beanContext = null;</span>
+
+            // name filter
+<span class="fc" id="L506">            String filteredName = fieldWriterFieldName;</span>
+<span class="fc bfc" id="L507" title="All 2 branches covered.">            if (nameFilter != null) {</span>
+<span class="fc" id="L508">                filteredName = nameFilter.process(object, filteredName, fieldValue);</span>
+            }
+
+<span class="fc bfc" id="L511" title="All 2 branches covered.">            if (contextNameFilter != null) {</span>
+<span class="pc bpc" id="L512" title="1 of 2 branches missed.">                if (beanContext == null) {</span>
+<span class="pc bpc" id="L513" title="3 of 4 branches missed.">                    if (field == null &amp;&amp; fieldWriter.method != null) {</span>
+<span class="nc" id="L514">                        field = BeanUtils.getDeclaredField(objectClass, fieldWriter.fieldName);</span>
+                    }
+
+<span class="fc" id="L517">                    beanContext = new BeanContext(</span>
+                            objectClass,
+                            fieldWriter.method,
+                            field,
+                            fieldWriter.fieldName,
+                            fieldWriter.label,
+                            fieldWriter.fieldClass,
+                            fieldWriter.fieldType,
+                            fieldWriter.features,
+                            fieldWriter.format
+                    );
+<span class="fc" id="L528">                    filteredName = contextNameFilter.process(beanContext, object, filteredName, fieldValue);</span>
+                }
+            }
+
+            // property filter
+<span class="fc bfc" id="L533" title="All 2 branches covered.">            if (propertyFilter != null</span>
+<span class="fc bfc" id="L534" title="All 2 branches covered.">                    &amp;&amp; !propertyFilter.apply(object, fieldWriterFieldName, fieldValue)) {</span>
+<span class="fc" id="L535">                continue;</span>
+            }
+
+<span class="pc bpc" id="L538" title="1 of 4 branches missed.">            boolean nameChanged = filteredName != null &amp;&amp; filteredName != fieldWriterFieldName;</span>
+
+<span class="fc" id="L540">            Object filteredValue = fieldValue;</span>
+<span class="fc bfc" id="L541" title="All 2 branches covered.">            if (valueFilter != null) {</span>
+<span class="fc" id="L542">                filteredValue = valueFilter.apply(object, fieldWriterFieldName, fieldValue);</span>
+            }
+<span class="fc bfc" id="L544" title="All 2 branches covered.">            if (contextValueFilter != null) {</span>
+<span class="fc bfc" id="L545" title="All 2 branches covered.">                if (beanContext == null) {</span>
+<span class="pc bpc" id="L546" title="3 of 4 branches missed.">                    if (field == null &amp;&amp; fieldWriter.method != null) {</span>
+<span class="nc" id="L547">                        field = BeanUtils.getDeclaredField(objectClass, fieldWriter.fieldName);</span>
+                    }
+
+<span class="fc" id="L550">                    beanContext = new BeanContext(</span>
+                            objectClass,
+                            fieldWriter.method,
+                            field,
+                            fieldWriter.fieldName,
+                            fieldWriter.label,
+                            fieldWriter.fieldClass,
+                            fieldWriter.fieldType,
+                            fieldWriter.features,
+                            fieldWriter.format
+                    );
+                }
+<span class="fc" id="L562">                filteredValue = contextValueFilter.process(beanContext, object, filteredName, filteredValue);</span>
+            }
+
+<span class="fc bfc" id="L565" title="All 2 branches covered.">            if (filteredValue != fieldValue) {</span>
+<span class="pc bpc" id="L566" title="1 of 2 branches missed.">                if (nameChanged) {</span>
+<span class="nc" id="L567">                    jsonWriter.writeName(filteredName);</span>
+<span class="nc" id="L568">                    jsonWriter.writeColon();</span>
+                } else {
+<span class="fc" id="L570">                    fieldWriter.writeFieldName(jsonWriter);</span>
+                }
+
+<span class="pc bpc" id="L573" title="1 of 2 branches missed.">                if (filteredValue == null) {</span>
+<span class="nc" id="L574">                    jsonWriter.writeNull();</span>
+                } else {
+<span class="fc" id="L576">                    ObjectWriter fieldValueWriter = fieldWriter.getObjectWriter(jsonWriter, filteredValue.getClass());</span>
+<span class="fc" id="L577">                    fieldValueWriter.write(jsonWriter, filteredValue, fieldName, fieldType, features);</span>
+<span class="fc" id="L578">                }</span>
+            } else {
+<span class="fc bfc" id="L580" title="All 2 branches covered.">                if (!nameChanged) {</span>
+<span class="fc" id="L581">                    fieldWriter.write(jsonWriter, object);</span>
+                } else {
+<span class="fc" id="L583">                    jsonWriter.writeName(filteredName);</span>
+<span class="fc" id="L584">                    jsonWriter.writeColon();</span>
+
+<span class="fc bfc" id="L586" title="All 2 branches covered.">                    if (fieldValue == null) {</span>
+<span class="fc" id="L587">                        ObjectWriter fieldValueWriter = fieldWriter.getObjectWriter(jsonWriter, fieldWriter.fieldClass);</span>
+<span class="fc" id="L588">                        fieldValueWriter.write(jsonWriter, null, fieldName, fieldType, features);</span>
+<span class="fc" id="L589">                    } else {</span>
+<span class="fc" id="L590">                        ObjectWriter fieldValueWriter = fieldWriter.getObjectWriter(jsonWriter, fieldValue.getClass());</span>
+<span class="fc" id="L591">                        fieldValueWriter.write(jsonWriter, fieldValue, fieldName, fieldType, features);</span>
+                    }
+                }
+            }
+        }
+
+<span class="fc" id="L597">        AfterFilter afterFilter = context.getAfterFilter();</span>
+<span class="fc bfc" id="L598" title="All 2 branches covered.">        if (afterFilter != null) {</span>
+<span class="fc" id="L599">            afterFilter.writeAfter(jsonWriter, object);</span>
+        }
+
+<span class="fc" id="L602">        jsonWriter.endObject();</span>
+<span class="fc" id="L603">    }</span>
+
+    public JSONObject toJSONObject(T object) {
+<span class="fc" id="L606">        return toJSONObject(object, 0);</span>
+    }
+
+    public JSONObject toJSONObject(T object, long features) {
+<span class="fc" id="L610">        JSONObject jsonObject = new JSONObject();</span>
+
+<span class="fc bfc" id="L612" title="All 2 branches covered.">        for (int i = 0, size = fieldWriters.size(); i &lt; size; i++) {</span>
+<span class="fc" id="L613">            FieldWriter fieldWriter = fieldWriters.get(i);</span>
+<span class="fc" id="L614">            Object fieldValue = fieldWriter.getFieldValue(object);</span>
+<span class="fc" id="L615">            String format = fieldWriter.format;</span>
+<span class="fc" id="L616">            Class fieldClass = fieldWriter.fieldClass;</span>
+<span class="fc bfc" id="L617" title="All 2 branches covered.">            if (format != null) {</span>
+<span class="pc bpc" id="L618" title="1 of 2 branches missed.">                if (fieldClass == Date.class) {</span>
+<span class="nc bnc" id="L619" title="All 2 branches missed.">                    if (&quot;millis&quot;.equals(format)) {</span>
+<span class="nc" id="L620">                        fieldValue = ((Date) fieldValue).getTime();</span>
+                    } else {
+<span class="nc" id="L622">                        fieldValue = DateUtils.format((Date) fieldValue, format);</span>
+                    }
+<span class="pc bpc" id="L624" title="1 of 2 branches missed.">                } else if (fieldClass == LocalDate.class) {</span>
+<span class="nc" id="L625">                    fieldValue = DateUtils.format((LocalDate) fieldValue, format);</span>
+<span class="pc bpc" id="L626" title="1 of 2 branches missed.">                } else if (fieldClass == LocalDateTime.class) {</span>
+<span class="fc" id="L627">                    fieldValue = DateUtils.format((LocalDateTime) fieldValue, format);</span>
+                }
+            }
+
+<span class="fc" id="L631">            long fieldFeatures = fieldWriter.features;</span>
+<span class="fc bfc" id="L632" title="All 2 branches covered.">            if ((fieldFeatures &amp; FieldInfo.UNWRAPPED_MASK) != 0) {</span>
+<span class="fc bfc" id="L633" title="All 2 branches covered.">                if (fieldValue instanceof Map) {</span>
+<span class="fc" id="L634">                    jsonObject.putAll((Map) fieldValue);</span>
+<span class="fc" id="L635">                    continue;</span>
+                }
+
+<span class="fc" id="L638">                ObjectWriter fieldObjectWriter = fieldWriter.getInitWriter();</span>
+<span class="pc bpc" id="L639" title="1 of 2 branches missed.">                if (fieldObjectWriter == null) {</span>
+<span class="fc" id="L640">                    fieldObjectWriter = JSONFactory.getDefaultObjectWriterProvider().getObjectWriter(fieldClass);</span>
+                }
+<span class="fc" id="L642">                List&lt;FieldWriter&gt; unwrappedFieldWriters = fieldObjectWriter.getFieldWriters();</span>
+<span class="fc bfc" id="L643" title="All 2 branches covered.">                for (int j = 0, unwrappedSize = unwrappedFieldWriters.size(); j &lt; unwrappedSize; j++) {</span>
+<span class="fc" id="L644">                    FieldWriter unwrappedFieldWriter = unwrappedFieldWriters.get(j);</span>
+<span class="fc" id="L645">                    Object unwrappedFieldValue = unwrappedFieldWriter.getFieldValue(fieldValue);</span>
+<span class="fc" id="L646">                    jsonObject.put(unwrappedFieldWriter.fieldName, unwrappedFieldValue);</span>
+                }
+<span class="fc" id="L648">                continue;</span>
+            }
+
+<span class="fc bfc" id="L651" title="All 2 branches covered.">            if (fieldValue != null) {</span>
+<span class="fc" id="L652">                String fieldValueClassName = fieldValue.getClass().getName();</span>
+<span class="fc bfc" id="L653" title="All 2 branches covered.">                if (Collection.class.isAssignableFrom(fieldClass)</span>
+<span class="pc bpc" id="L654" title="1 of 2 branches missed.">                        &amp;&amp; fieldValue.getClass() != JSONObject.class</span>
+<span class="pc bpc" id="L655" title="1 of 2 branches missed.">                        &amp;&amp; !fieldValueClassName.equals(&quot;com.alibaba.fastjson.JSONObject&quot;)</span>
+                ) {
+<span class="fc" id="L657">                    Collection collection = (Collection) fieldValue;</span>
+<span class="fc" id="L658">                    JSONArray array = new JSONArray(collection.size());</span>
+<span class="fc bfc" id="L659" title="All 2 branches covered.">                    for (Object item : collection) {</span>
+<span class="fc bfc" id="L660" title="All 2 branches covered.">                        Object itemJSON = item == object ? jsonObject : JSON.toJSON(item);</span>
+<span class="fc" id="L661">                        array.add(itemJSON);</span>
+<span class="fc" id="L662">                    }</span>
+<span class="fc" id="L663">                    fieldValue = array;</span>
+                }
+            }
+
+<span class="pc bpc" id="L667" title="1 of 4 branches missed.">            if (fieldValue == null &amp;&amp; ((this.features | features) &amp; WriteNulls.mask) == 0) {</span>
+<span class="fc" id="L668">                continue;</span>
+            }
+
+<span class="fc bfc" id="L671" title="All 2 branches covered.">            if (fieldValue == object) {</span>
+<span class="fc" id="L672">                fieldValue = jsonObject;</span>
+            }
+<span class="fc" id="L674">            jsonObject.put(fieldWriter.fieldName, fieldValue);</span>
+        }
+
+<span class="fc" id="L677">        return jsonObject;</span>
+    }
+
+    @Override
+    public String toString() {
+<span class="fc" id="L682">        return objectClass.getName();</span>
+    }
+
+    protected void errorOnNoneSerializable() {
+<span class="fc" id="L686">        throw new JSONException(&quot;not support none serializable class &quot; + objectClass.getName());</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.8.202204050719</span></div></body></html>

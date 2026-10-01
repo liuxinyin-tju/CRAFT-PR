@@ -1,0 +1,93 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>FieldWriterFloatMethod.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">fastjson2</a> &gt; <a href="index.source.html" class="el_package">com.alibaba.fastjson2.writer</a> &gt; <span class="el_source">FieldWriterFloatMethod.java</span></div><h1>FieldWriterFloatMethod.java</h1><pre class="source lang-java linenums">package com.alibaba.fastjson2.writer;
+
+import com.alibaba.fastjson2.JSONException;
+import com.alibaba.fastjson2.JSONWriter;
+
+import java.lang.reflect.Field;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
+import java.lang.reflect.Type;
+
+import static com.alibaba.fastjson2.JSONWriter.Feature.WriteNonStringValueAsString;
+
+class FieldWriterFloatMethod&lt;T&gt;
+        extends FieldWriter&lt;T&gt; {
+    protected FieldWriterFloatMethod(
+            String name,
+            int ordinal,
+            long features,
+            String format,
+            String label,
+            Type fieldType,
+            Class fieldClass,
+            Field field,
+            Method method
+    ) {
+<span class="fc" id="L26">        super(name, ordinal, features, format, null, label, fieldType, fieldClass, field, method);</span>
+<span class="fc" id="L27">    }</span>
+
+    @Override
+    public Object getFieldValue(Object object) {
+        try {
+<span class="fc" id="L32">            return method.invoke(object);</span>
+<span class="fc" id="L33">        } catch (IllegalArgumentException | IllegalAccessException | InvocationTargetException e) {</span>
+<span class="fc" id="L34">            throw new JSONException(&quot;invoke getter method error, &quot; + fieldName, e);</span>
+        }
+    }
+
+    @Override
+    public boolean write(JSONWriter jsonWriter, T object) {
+        Float value;
+        try {
+<span class="fc" id="L42">            value = (Float) getFieldValue(object);</span>
+<span class="fc" id="L43">        } catch (RuntimeException error) {</span>
+<span class="pc bpc" id="L44" title="1 of 2 branches missed.">            if (jsonWriter.isIgnoreErrorGetter()) {</span>
+<span class="fc" id="L45">                return false;</span>
+            }
+<span class="nc" id="L47">            throw error;</span>
+<span class="fc" id="L48">        }</span>
+
+<span class="pc bpc" id="L50" title="1 of 2 branches missed.">        if (value == null) {</span>
+<span class="nc" id="L51">            long features = jsonWriter.getFeatures(this.features);</span>
+<span class="nc bnc" id="L52" title="All 4 branches missed.">            if ((features &amp; JSONWriter.Feature.WriteNulls.mask) != 0</span>
+                    &amp;&amp; (features &amp; JSONWriter.Feature.NotWriteDefaultValue.mask) == 0
+            ) {
+<span class="nc" id="L55">                writeFieldName(jsonWriter);</span>
+<span class="nc" id="L56">                jsonWriter.writeNumberNull();</span>
+<span class="nc" id="L57">                return true;</span>
+            }
+<span class="nc" id="L59">            return false;</span>
+        }
+
+<span class="fc" id="L62">        writeFieldName(jsonWriter);</span>
+
+<span class="fc" id="L64">        float floatValue = value;</span>
+<span class="pc bpc" id="L65" title="1 of 2 branches missed.">        if (decimalFormat != null) {</span>
+<span class="nc" id="L66">            jsonWriter.writeFloat(floatValue, decimalFormat);</span>
+        } else {
+<span class="pc bpc" id="L68" title="1 of 2 branches missed.">            if ((features &amp; WriteNonStringValueAsString.mask) != 0) {</span>
+<span class="fc" id="L69">                jsonWriter.writeString(floatValue);</span>
+            } else {
+<span class="nc" id="L71">                jsonWriter.writeFloat(floatValue);</span>
+            }
+        }
+
+<span class="fc" id="L75">        return true;</span>
+    }
+
+    @Override
+    public void writeValue(JSONWriter jsonWriter, T object) {
+<span class="nc" id="L80">        Float value = (Float) getFieldValue(object);</span>
+<span class="nc bnc" id="L81" title="All 2 branches missed.">        if (value == null) {</span>
+<span class="nc" id="L82">            jsonWriter.writeNumberNull();</span>
+        } else {
+<span class="nc" id="L84">            float floatValue = value;</span>
+<span class="nc bnc" id="L85" title="All 2 branches missed.">            if (decimalFormat != null) {</span>
+<span class="nc" id="L86">                jsonWriter.writeFloat(floatValue, decimalFormat);</span>
+            } else {
+<span class="nc" id="L88">                jsonWriter.writeFloat(floatValue);</span>
+            }
+        }
+<span class="nc" id="L91">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.8.202204050719</span></div></body></html>

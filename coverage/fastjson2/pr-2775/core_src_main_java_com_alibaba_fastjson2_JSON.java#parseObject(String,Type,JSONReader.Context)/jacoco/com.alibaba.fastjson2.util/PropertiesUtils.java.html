@@ -1,0 +1,173 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>PropertiesUtils.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">fastjson2</a> &gt; <a href="index.source.html" class="el_package">com.alibaba.fastjson2.util</a> &gt; <span class="el_source">PropertiesUtils.java</span></div><h1>PropertiesUtils.java</h1><pre class="source lang-java linenums">package com.alibaba.fastjson2.util;
+
+import com.alibaba.fastjson2.*;
+import com.alibaba.fastjson2.reader.FieldReader;
+import com.alibaba.fastjson2.reader.ObjectReader;
+import com.alibaba.fastjson2.reader.ObjectReaderProvider;
+import com.alibaba.fastjson2.writer.ObjectWriter;
+import com.alibaba.fastjson2.writer.ObjectWriterAdapter;
+import com.alibaba.fastjson2.writer.ObjectWriterProvider;
+
+import java.lang.reflect.Array;
+import java.util.*;
+
+<span class="nc" id="L14">public class PropertiesUtils {</span>
+    public static &lt;T&gt; T toJavaObject(Properties properties, Class&lt;T&gt; clazz) {
+<span class="fc" id="L16">        return toJavaObject(properties, JSONFactory.getDefaultObjectReaderProvider(), clazz);</span>
+    }
+
+    public static &lt;T&gt; T toJavaObject(
+            Properties properties,
+            ObjectReaderProvider provider,
+            Class&lt;T&gt; clazz,
+            JSONReader.Feature... features
+    ) {
+<span class="fc" id="L25">        ObjectReader&lt;T&gt; reader = provider.getObjectReader(clazz);</span>
+<span class="fc" id="L26">        T instance = reader.createInstance(JSONReader.Feature.of(features));</span>
+
+<span class="fc bfc" id="L28" title="All 2 branches covered.">        for (Map.Entry&lt;Object, Object&gt; entry : properties.entrySet()) {</span>
+<span class="fc" id="L29">            String key = (String) entry.getKey();</span>
+<span class="fc" id="L30">            String value = (String) entry.getValue();</span>
+
+<span class="fc" id="L32">            int dotIndex = key.lastIndexOf(&quot;.&quot;);</span>
+<span class="fc bfc" id="L33" title="All 2 branches covered.">            if (dotIndex == -1) {</span>
+<span class="fc" id="L34">                FieldReader&lt;T&gt; fieldReader = reader.getFieldReader(key);</span>
+<span class="pc bpc" id="L35" title="1 of 2 branches missed.">                if (fieldReader == null) {</span>
+<span class="nc" id="L36">                    continue;</span>
+                }
+<span class="fc" id="L38">                Object fieldValue = TypeUtils.cast(value, fieldReader.fieldType);</span>
+<span class="fc" id="L39">                fieldReader.accept(instance, fieldValue);</span>
+<span class="fc" id="L40">            } else {</span>
+<span class="fc" id="L41">                JSONPath.set(instance, key, value);</span>
+            }
+<span class="fc" id="L43">        }</span>
+
+<span class="fc" id="L45">        return instance;</span>
+    }
+
+    public static Properties toProperties(Object object) {
+<span class="fc" id="L49">        return toProperties(JSONFactory.getDefaultObjectWriterProvider(), object);</span>
+    }
+
+    public static Properties toProperties(ObjectWriterProvider provider, Object object, JSONWriter.Feature... features) {
+<span class="fc" id="L53">        Map&lt;Object, String&gt; values = new IdentityHashMap&lt;&gt;();</span>
+<span class="fc" id="L54">        Properties properties = new Properties();</span>
+
+<span class="fc" id="L56">        paths(provider, values, properties, null, object);</span>
+<span class="fc" id="L57">        return properties;</span>
+    }
+
+    static void paths(ObjectWriterProvider provider, Map&lt;Object, String&gt; values, Map paths, String parent, Object javaObject) {
+<span class="pc bpc" id="L61" title="1 of 2 branches missed.">        if (javaObject == null) {</span>
+<span class="nc" id="L62">            return;</span>
+        }
+
+<span class="fc" id="L65">        String p = values.put(javaObject, parent);</span>
+<span class="pc bpc" id="L66" title="1 of 2 branches missed.">        if (p != null) {</span>
+<span class="nc" id="L67">            Class&lt;?&gt; type = javaObject.getClass();</span>
+<span class="nc bnc" id="L68" title="All 14 branches missed.">            boolean basicType = type == String.class</span>
+                    || type == Boolean.class
+                    || type == Character.class
+                    || type == UUID.class
+                    || javaObject instanceof Enum
+                    || javaObject instanceof Number
+                    || javaObject instanceof Date;
+
+<span class="nc bnc" id="L76" title="All 2 branches missed.">            if (!basicType) {</span>
+<span class="nc" id="L77">                return;</span>
+            }
+        }
+
+<span class="pc bpc" id="L81" title="1 of 2 branches missed.">        if (javaObject instanceof Map) {</span>
+<span class="nc" id="L82">            Map map = (Map) javaObject;</span>
+
+<span class="nc bnc" id="L84" title="All 2 branches missed.">            for (Object entryObj : map.entrySet()) {</span>
+<span class="nc" id="L85">                Map.Entry entry = (Map.Entry) entryObj;</span>
+<span class="nc" id="L86">                Object key = entry.getKey();</span>
+
+                String path;
+<span class="nc bnc" id="L89" title="All 2 branches missed.">                if (key instanceof String) {</span>
+<span class="nc" id="L90">                    String strKey = (String) key;</span>
+<span class="nc" id="L91">                    boolean escape = strKey.isEmpty();</span>
+<span class="nc bnc" id="L92" title="All 2 branches missed.">                    if (!escape) {</span>
+<span class="nc" id="L93">                        char c0 = strKey.charAt(0);</span>
+<span class="nc bnc" id="L94" title="All 10 branches missed.">                        escape = !((c0 &gt;= 'a' &amp;&amp; c0 &lt;= 'z') || (c0 &gt;= 'A' &amp;&amp; c0 &lt;= 'Z') || c0 == '_');</span>
+<span class="nc bnc" id="L95" title="All 2 branches missed.">                        if (!escape) {</span>
+<span class="nc bnc" id="L96" title="All 2 branches missed.">                            for (int i = 1; i &lt; strKey.length(); i++) {</span>
+<span class="nc" id="L97">                                char ch = strKey.charAt(i);</span>
+<span class="nc bnc" id="L98" title="All 14 branches missed.">                                escape = !((ch &gt;= 'a' &amp;&amp; ch &lt;= 'z')</span>
+                                        || (ch &gt;= 'A' &amp;&amp; ch &lt;= 'Z')
+                                        || (ch &gt;= '0' &amp;&amp; ch &lt;= '9')
+                                        || ch == '_');
+<span class="nc bnc" id="L102" title="All 2 branches missed.">                                if (escape) {</span>
+<span class="nc" id="L103">                                    break;</span>
+                                }
+                            }
+                        }
+                    }
+<span class="nc bnc" id="L108" title="All 2 branches missed.">                    if (escape) {</span>
+<span class="nc" id="L109">                        path = parent + '[' + JSON.toJSONString(strKey, JSONWriter.Feature.UseSingleQuotes) + ']';</span>
+                    } else {
+<span class="nc bnc" id="L111" title="All 2 branches missed.">                        path = parent != null ? (parent + &quot;.&quot; + strKey) : strKey;</span>
+                    }
+<span class="nc" id="L113">                    paths(provider, values, paths, path, entry.getValue());</span>
+                }
+<span class="nc" id="L115">            }</span>
+<span class="nc" id="L116">            return;</span>
+        }
+
+<span class="fc bfc" id="L119" title="All 2 branches covered.">        if (javaObject instanceof Collection) {</span>
+<span class="fc" id="L120">            Collection collection = (Collection) javaObject;</span>
+
+<span class="fc" id="L122">            int i = 0;</span>
+<span class="fc bfc" id="L123" title="All 2 branches covered.">            for (Object item : collection) {</span>
+<span class="fc" id="L124">                String path = parent + &quot;[&quot; + i + &quot;]&quot;;</span>
+<span class="fc" id="L125">                paths(provider, values, paths, path, item);</span>
+<span class="fc" id="L126">                ++i;</span>
+<span class="fc" id="L127">            }</span>
+
+<span class="fc" id="L129">            return;</span>
+        }
+
+<span class="fc" id="L132">        Class&lt;?&gt; clazz = javaObject.getClass();</span>
+
+<span class="pc bpc" id="L134" title="1 of 2 branches missed.">        if (clazz.isArray()) {</span>
+<span class="nc" id="L135">            int len = Array.getLength(javaObject);</span>
+
+<span class="nc bnc" id="L137" title="All 2 branches missed.">            for (int i = 0; i &lt; len; ++i) {</span>
+<span class="nc" id="L138">                Object item = Array.get(javaObject, i);</span>
+
+<span class="nc" id="L140">                String path = parent + &quot;[&quot; + i + &quot;]&quot;;</span>
+<span class="nc" id="L141">                paths(provider, values, paths, path, item);</span>
+            }
+
+<span class="nc" id="L144">            return;</span>
+        }
+
+<span class="fc bfc" id="L147" title="All 2 branches covered.">        if (ObjectWriterProvider.isPrimitiveOrEnum(clazz)) {</span>
+<span class="pc bpc" id="L148" title="1 of 2 branches missed.">            String propertyValue = javaObject == null ? &quot;&quot; : javaObject.toString();</span>
+<span class="fc" id="L149">            paths.put(parent, propertyValue);</span>
+<span class="fc" id="L150">            return;</span>
+        }
+
+<span class="fc" id="L153">        ObjectWriter serializer = provider.getObjectWriter(clazz);</span>
+<span class="pc bpc" id="L154" title="1 of 2 branches missed.">        if (serializer instanceof ObjectWriterAdapter) {</span>
+<span class="fc" id="L155">            ObjectWriterAdapter javaBeanSerializer = (ObjectWriterAdapter) serializer;</span>
+
+            try {
+<span class="fc" id="L158">                Map&lt;String, Object&gt; fieldValues = javaBeanSerializer.toMap(javaObject);</span>
+<span class="fc bfc" id="L159" title="All 2 branches covered.">                for (Map.Entry&lt;String, Object&gt; entry : fieldValues.entrySet()) {</span>
+<span class="fc" id="L160">                    String key = entry.getKey();</span>
+
+<span class="pc bpc" id="L162" title="1 of 2 branches missed.">                    if (key != null) {</span>
+<span class="fc bfc" id="L163" title="All 2 branches covered.">                        String path = parent != null ? (parent + &quot;.&quot; + key) : key;</span>
+<span class="fc" id="L164">                        paths(provider, values, paths, path, entry.getValue());</span>
+                    }
+<span class="fc" id="L166">                }</span>
+<span class="nc" id="L167">            } catch (Exception e) {</span>
+<span class="nc" id="L168">                throw new JSONException(&quot;toJSON error&quot;, e);</span>
+<span class="fc" id="L169">            }</span>
+        }
+<span class="fc" id="L171">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.8.202204050719</span></div></body></html>

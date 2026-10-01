@@ -1,0 +1,1723 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>JSONPathFilter.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">fastjson2</a> &gt; <a href="index.source.html" class="el_package">com.alibaba.fastjson2</a> &gt; <span class="el_source">JSONPathFilter.java</span></div><h1>JSONPathFilter.java</h1><pre class="source lang-java linenums">package com.alibaba.fastjson2;
+
+import com.alibaba.fastjson2.util.Fnv;
+import com.alibaba.fastjson2.util.IOUtils;
+import com.alibaba.fastjson2.util.TypeUtils;
+import com.alibaba.fastjson2.writer.FieldWriter;
+import com.alibaba.fastjson2.writer.ObjectWriter;
+import com.alibaba.fastjson2.writer.ObjectWriterAdapter;
+
+import java.math.BigDecimal;
+import java.math.BigInteger;
+import java.util.*;
+import java.util.function.BiFunction;
+import java.util.function.Function;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import java.util.stream.Collectors;
+
+<span class="fc" id="L19">abstract class JSONPathFilter</span>
+        extends JSONPathSegment
+        implements JSONPathSegment.EvalSegment {
+<span class="fc" id="L22">    private boolean and = true;</span>
+
+    public boolean isAnd() {
+<span class="fc" id="L25">        return and;</span>
+    }
+
+    public JSONPathFilter setAnd(boolean and) {
+<span class="fc" id="L29">        this.and = and;</span>
+<span class="fc" id="L30">        return this;</span>
+    }
+
+    abstract boolean apply(JSONPath.Context context, Object object);
+
+<span class="fc" id="L35">    enum Operator {</span>
+<span class="fc" id="L36">        EQ,</span>
+<span class="fc" id="L37">        NE,</span>
+<span class="fc" id="L38">        GT,</span>
+<span class="fc" id="L39">        GE,</span>
+<span class="fc" id="L40">        LT,</span>
+<span class="fc" id="L41">        LE,</span>
+<span class="fc" id="L42">        LIKE,</span>
+<span class="fc" id="L43">        NOT_LIKE,</span>
+<span class="fc" id="L44">        RLIKE,</span>
+<span class="fc" id="L45">        NOT_RLIKE,</span>
+<span class="fc" id="L46">        IN,</span>
+<span class="fc" id="L47">        NOT_IN,</span>
+<span class="fc" id="L48">        BETWEEN,</span>
+<span class="fc" id="L49">        NOT_BETWEEN,</span>
+<span class="fc" id="L50">        AND,</span>
+<span class="fc" id="L51">        OR,</span>
+<span class="fc" id="L52">        REG_MATCH,</span>
+<span class="fc" id="L53">        STARTS_WITH,</span>
+<span class="fc" id="L54">        ENDS_WITH,</span>
+<span class="fc" id="L55">        CONTAINS,</span>
+<span class="fc" id="L56">        NOT_CONTAINS;</span>
+
+        public String toString() {
+<span class="pc bpc" id="L59" title="18 of 19 branches missed.">            switch (this) {</span>
+                case EQ:
+<span class="fc" id="L61">                    return &quot;==&quot;;</span>
+                case NE:
+<span class="nc" id="L63">                    return &quot;!=&quot;;</span>
+                case GT:
+<span class="nc" id="L65">                    return &quot;&gt;&quot;;</span>
+                case GE:
+<span class="nc" id="L67">                    return &quot;&gt;=&quot;;</span>
+                case LT:
+<span class="nc" id="L69">                    return &quot;&lt;&quot;;</span>
+                case LE:
+<span class="nc" id="L71">                    return &quot;&lt;=&quot;;</span>
+                case LIKE:
+<span class="nc" id="L73">                    return &quot;like&quot;;</span>
+                case NOT_LIKE:
+<span class="nc" id="L75">                    return &quot;not like&quot;;</span>
+                case RLIKE:
+<span class="nc" id="L77">                    return &quot;rlike&quot;;</span>
+                case NOT_RLIKE:
+<span class="nc" id="L79">                    return &quot;not rlike&quot;;</span>
+                case BETWEEN:
+<span class="nc" id="L81">                    return &quot;between&quot;;</span>
+                case NOT_BETWEEN:
+<span class="nc" id="L83">                    return &quot;not between&quot;;</span>
+                case AND:
+<span class="nc" id="L85">                    return &quot;and&quot;;</span>
+                case OR:
+<span class="nc" id="L87">                    return &quot;or&quot;;</span>
+                case STARTS_WITH:
+<span class="nc" id="L89">                    return &quot;starts with&quot;;</span>
+                case ENDS_WITH:
+<span class="nc" id="L91">                    return &quot;ends with&quot;;</span>
+                case CONTAINS:
+<span class="nc" id="L93">                    return &quot;contains&quot;;</span>
+                case NOT_CONTAINS:
+<span class="nc" id="L95">                    return &quot;not contains&quot;;</span>
+                default:
+<span class="nc" id="L97">                    return name();</span>
+            }
+        }
+    }
+
+    static final class NameIsNull
+            extends NameFilter {
+        public NameIsNull(
+                String fieldName,
+                long fieldNameNameHash,
+                String[] fieldName2,
+                long[] fieldNameNameHash2,
+                Function function
+        ) {
+<span class="fc" id="L111">            super(fieldName, fieldNameNameHash, fieldName2, fieldNameNameHash2, function);</span>
+<span class="fc" id="L112">        }</span>
+
+        protected boolean applyNull() {
+<span class="fc" id="L115">            return true;</span>
+        }
+
+        @Override
+        boolean apply(Object fieldValue) {
+<span class="pc bpc" id="L120" title="1 of 2 branches missed.">            if (function != null) {</span>
+<span class="nc" id="L121">                fieldValue = function.apply(fieldValue);</span>
+            }
+<span class="pc bpc" id="L123" title="1 of 2 branches missed.">            return fieldValue == null;</span>
+        }
+    }
+
+    static final class NameIntOpSegment
+            extends NameFilter {
+        final Operator operator;
+        final long value;
+
+        public NameIntOpSegment(
+                String name,
+                long nameHashCode,
+                String[] fieldName2,
+                long[] fieldNameNameHash2,
+                Function expr,
+                Operator operator,
+                long value) {
+<span class="fc" id="L140">            super(name, nameHashCode, fieldName2, fieldNameNameHash2, expr);</span>
+<span class="fc" id="L141">            this.operator = operator;</span>
+<span class="fc" id="L142">            this.value = value;</span>
+<span class="fc" id="L143">        }</span>
+
+        @Override
+        protected boolean applyNull() {
+<span class="pc bpc" id="L147" title="1 of 2 branches missed.">            return operator == Operator.NE;</span>
+        }
+
+        @Override
+        public boolean apply(Object fieldValue) {
+<span class="pc bpc" id="L152" title="3 of 10 branches missed.">            boolean objInt = fieldValue instanceof Boolean</span>
+                    || fieldValue instanceof Byte
+                    || fieldValue instanceof Short
+                    || fieldValue instanceof Integer
+                    || fieldValue instanceof Long;
+<span class="fc bfc" id="L157" title="All 2 branches covered.">            if (objInt) {</span>
+                long fieldValueInt;
+<span class="fc bfc" id="L159" title="All 2 branches covered.">                if (fieldValue instanceof Boolean) {</span>
+<span class="fc bfc" id="L160" title="All 2 branches covered.">                    fieldValueInt = (Boolean) fieldValue ? 1 : 0;</span>
+                } else {
+<span class="fc" id="L162">                    fieldValueInt = ((Number) fieldValue).longValue();</span>
+                }
+
+<span class="pc bpc" id="L165" title="1 of 7 branches missed.">                switch (operator) {</span>
+                    case LT:
+<span class="fc bfc" id="L167" title="All 2 branches covered.">                        return fieldValueInt &lt; this.value;</span>
+                    case LE:
+<span class="fc bfc" id="L169" title="All 2 branches covered.">                        return fieldValueInt &lt;= this.value;</span>
+                    case EQ:
+<span class="fc bfc" id="L171" title="All 2 branches covered.">                        return fieldValueInt == this.value;</span>
+                    case NE:
+<span class="fc bfc" id="L173" title="All 2 branches covered.">                        return fieldValueInt != this.value;</span>
+                    case GT:
+<span class="fc bfc" id="L175" title="All 2 branches covered.">                        return fieldValueInt &gt; this.value;</span>
+                    case GE:
+<span class="fc bfc" id="L177" title="All 2 branches covered.">                        return fieldValueInt &gt;= this.value;</span>
+                    default:
+<span class="nc" id="L179">                        throw new UnsupportedOperationException();</span>
+                }
+            }
+
+            int cmp;
+<span class="fc bfc" id="L184" title="All 2 branches covered.">            if (fieldValue instanceof BigDecimal) {</span>
+<span class="fc" id="L185">                cmp = ((BigDecimal) fieldValue)</span>
+<span class="fc" id="L186">                        .compareTo(</span>
+<span class="fc" id="L187">                                BigDecimal.valueOf(value));</span>
+<span class="fc bfc" id="L188" title="All 2 branches covered.">            } else if (fieldValue instanceof BigInteger) {</span>
+<span class="fc" id="L189">                cmp = ((BigInteger) fieldValue)</span>
+<span class="fc" id="L190">                        .compareTo(</span>
+<span class="fc" id="L191">                                BigInteger.valueOf(value));</span>
+<span class="fc bfc" id="L192" title="All 2 branches covered.">            } else if (fieldValue instanceof Float) {</span>
+<span class="fc" id="L193">                cmp = ((Float) fieldValue)</span>
+<span class="fc" id="L194">                        .compareTo(</span>
+<span class="fc" id="L195">                                (float) value);</span>
+<span class="fc bfc" id="L196" title="All 2 branches covered.">            } else if (fieldValue instanceof Double) {</span>
+<span class="fc" id="L197">                cmp = ((Double) fieldValue)</span>
+<span class="fc" id="L198">                        .compareTo(</span>
+<span class="fc" id="L199">                                (double) value);</span>
+<span class="pc bpc" id="L200" title="1 of 2 branches missed.">            } else if (fieldValue instanceof String) {</span>
+<span class="fc" id="L201">                String fieldValueStr = (String) fieldValue;</span>
+<span class="pc bpc" id="L202" title="1 of 2 branches missed.">                if (IOUtils.isNumber(fieldValueStr)) {</span>
+                    try {
+<span class="nc" id="L204">                        cmp = Long.compare(Long.parseLong(fieldValueStr), value);</span>
+<span class="nc" id="L205">                    } catch (Exception ignored) {</span>
+<span class="nc" id="L206">                        cmp = fieldValueStr.compareTo(Long.toString(value));</span>
+<span class="nc" id="L207">                    }</span>
+                } else {
+<span class="fc" id="L209">                    cmp = fieldValueStr.compareTo(Long.toString(value));</span>
+                }
+<span class="fc" id="L211">            } else {</span>
+<span class="nc" id="L212">                throw new UnsupportedOperationException();</span>
+            }
+
+<span class="pc bpc" id="L215" title="2 of 7 branches missed.">            switch (operator) {</span>
+                case LT:
+<span class="fc bfc" id="L217" title="All 2 branches covered.">                    return cmp &lt; 0;</span>
+                case LE:
+<span class="fc bfc" id="L219" title="All 2 branches covered.">                    return cmp &lt;= 0;</span>
+                case EQ:
+<span class="pc bpc" id="L221" title="1 of 2 branches missed.">                    return cmp == 0;</span>
+                case NE:
+<span class="nc bnc" id="L223" title="All 2 branches missed.">                    return cmp != 0;</span>
+                case GT:
+<span class="fc bfc" id="L225" title="All 2 branches covered.">                    return cmp &gt; 0;</span>
+                case GE:
+<span class="fc bfc" id="L227" title="All 2 branches covered.">                    return cmp &gt;= 0;</span>
+                default:
+<span class="nc" id="L229">                    throw new UnsupportedOperationException();</span>
+            }
+        }
+
+        @Override
+        public void set(JSONPath.Context context, Object value) {
+<span class="nc bnc" id="L235" title="All 2 branches missed.">            Object object = context.parent == null</span>
+                    ? context.root
+                    : context.parent.value;
+
+<span class="nc bnc" id="L239" title="All 2 branches missed.">            if (object instanceof List) {</span>
+<span class="nc" id="L240">                List list = (List) object;</span>
+<span class="nc bnc" id="L241" title="All 2 branches missed.">                for (int i = 0; i &lt; list.size(); i++) {</span>
+<span class="nc" id="L242">                    Object item = list.get(i);</span>
+<span class="nc bnc" id="L243" title="All 2 branches missed.">                    if (apply(context, item)) {</span>
+<span class="nc" id="L244">                        list.set(i, value);</span>
+                    }
+                }
+<span class="nc" id="L247">                return;</span>
+            }
+
+<span class="nc" id="L250">            throw new JSONException(&quot;UnsupportedOperation &quot;);</span>
+        }
+
+        public void setCallback(JSONPath.Context context, BiFunction callback) {
+<span class="pc bpc" id="L254" title="1 of 2 branches missed.">            Object object = context.parent == null</span>
+                    ? context.root
+                    : context.parent.value;
+
+<span class="pc bpc" id="L258" title="1 of 2 branches missed.">            if (object instanceof List) {</span>
+<span class="fc" id="L259">                List list = (List) object;</span>
+<span class="fc bfc" id="L260" title="All 2 branches covered.">                for (int i = 0; i &lt; list.size(); i++) {</span>
+<span class="fc" id="L261">                    Object item = list.get(i);</span>
+<span class="fc bfc" id="L262" title="All 2 branches covered.">                    if (apply(context, item)) {</span>
+<span class="fc" id="L263">                        Object value = callback.apply(list, item);</span>
+<span class="fc bfc" id="L264" title="All 2 branches covered.">                        if (value != item) {</span>
+<span class="fc" id="L265">                            list.set(i, value);</span>
+                        }
+                    }
+                }
+<span class="fc" id="L269">                return;</span>
+            }
+
+<span class="nc" id="L272">            throw new JSONException(&quot;UnsupportedOperation &quot;);</span>
+        }
+
+        @Override
+        public String toString() {
+<span class="pc bpc" id="L277" title="1 of 2 branches missed.">            return &quot;[?(&quot;</span>
+                    + (fieldName2 == null ? &quot;@&quot; : fieldName2)
+                    + '.'
+                    + fieldName + ' ' + operator + ' ' + value
+                    + &quot;)]&quot;;
+        }
+    }
+
+    static final class NameDecimalOpSegment
+            extends NameFilter {
+        final Operator operator;
+        final BigDecimal value;
+
+        public NameDecimalOpSegment(String name, long nameHashCode, Operator operator, BigDecimal value) {
+<span class="fc" id="L291">            super(name, nameHashCode);</span>
+<span class="fc" id="L292">            this.operator = operator;</span>
+<span class="fc" id="L293">            this.value = value;</span>
+<span class="fc" id="L294">        }</span>
+
+        protected boolean applyNull() {
+<span class="pc bpc" id="L297" title="1 of 2 branches missed.">            return operator == Operator.NE;</span>
+        }
+
+        @Override
+        public boolean apply(Object fieldValue) {
+<span class="pc bpc" id="L302" title="1 of 2 branches missed.">            if (fieldValue == null) {</span>
+<span class="nc" id="L303">                return false;</span>
+            }
+
+            BigDecimal fieldValueDecimal;
+
+<span class="pc bpc" id="L308" title="1 of 2 branches missed.">            if (fieldValue instanceof Boolean) {</span>
+<span class="nc bnc" id="L309" title="All 2 branches missed.">                fieldValueDecimal = (Boolean) fieldValue ? BigDecimal.ONE : BigDecimal.ZERO;</span>
+<span class="pc bpc" id="L310" title="3 of 8 branches missed.">            } else if (fieldValue instanceof Byte</span>
+                    || fieldValue instanceof Short
+                    || fieldValue instanceof Integer
+                    || fieldValue instanceof Long) {
+<span class="fc" id="L314">                fieldValueDecimal = BigDecimal.valueOf(</span>
+<span class="fc" id="L315">                        ((Number) fieldValue).longValue()</span>
+                );
+<span class="pc bpc" id="L317" title="1 of 2 branches missed.">            } else if (fieldValue instanceof BigDecimal) {</span>
+<span class="fc" id="L318">                fieldValueDecimal = ((BigDecimal) fieldValue);</span>
+<span class="nc bnc" id="L319" title="All 2 branches missed.">            } else if (fieldValue instanceof BigInteger) {</span>
+<span class="nc" id="L320">                fieldValueDecimal = new BigDecimal((BigInteger) fieldValue);</span>
+            } else {
+<span class="nc" id="L322">                throw new UnsupportedOperationException();</span>
+            }
+
+<span class="fc" id="L325">            int cmp = fieldValueDecimal.compareTo(value);</span>
+<span class="pc bpc" id="L326" title="3 of 7 branches missed.">            switch (operator) {</span>
+                case LT:
+<span class="fc bfc" id="L328" title="All 2 branches covered.">                    return cmp &lt; 0;</span>
+                case LE:
+<span class="fc bfc" id="L330" title="All 2 branches covered.">                    return cmp &lt;= 0;</span>
+                case EQ:
+<span class="fc bfc" id="L332" title="All 2 branches covered.">                    return cmp == 0;</span>
+                case NE:
+<span class="pc bpc" id="L334" title="1 of 2 branches missed.">                    return cmp != 0;</span>
+                case GT:
+<span class="nc bnc" id="L336" title="All 2 branches missed.">                    return cmp &gt; 0;</span>
+                case GE:
+<span class="nc bnc" id="L338" title="All 2 branches missed.">                    return cmp &gt;= 0;</span>
+                default:
+<span class="nc" id="L340">                    throw new UnsupportedOperationException();</span>
+            }
+        }
+    }
+
+    static final class NameDoubleOpSegment
+            extends NameFilter {
+        final Operator operator;
+        final double value;
+
+        public NameDoubleOpSegment(String name, long nameHashCode, Operator operator, Double value) {
+<span class="fc" id="L351">            super(name, nameHashCode);</span>
+<span class="fc" id="L352">            this.operator = operator;</span>
+<span class="fc" id="L353">            this.value = value;</span>
+<span class="fc" id="L354">        }</span>
+
+        protected boolean applyNull() {
+<span class="nc bnc" id="L357" title="All 2 branches missed.">            return operator == Operator.NE;</span>
+        }
+
+        @Override
+        public boolean apply(Object fieldValue) {
+<span class="pc bpc" id="L362" title="1 of 2 branches missed.">            if (fieldValue == null) {</span>
+<span class="nc" id="L363">                return false;</span>
+            }
+
+            Double fieldValueDouble;
+
+<span class="pc bpc" id="L368" title="1 of 2 branches missed.">            if (fieldValue instanceof Boolean) {</span>
+<span class="nc bnc" id="L369" title="All 2 branches missed.">                fieldValueDouble = (Boolean) fieldValue ? 1D : 0D;</span>
+<span class="pc bpc" id="L370" title="1 of 2 branches missed.">            } else if (fieldValue instanceof Number) {</span>
+<span class="fc" id="L371">                fieldValueDouble = ((Number) fieldValue).doubleValue();</span>
+            } else {
+<span class="nc" id="L373">                throw new UnsupportedOperationException();</span>
+            }
+
+<span class="fc" id="L376">            int cmp = fieldValueDouble.compareTo(value);</span>
+<span class="pc bpc" id="L377" title="6 of 7 branches missed.">            switch (operator) {</span>
+                case LT:
+<span class="nc bnc" id="L379" title="All 2 branches missed.">                    return cmp &lt; 0;</span>
+                case LE:
+<span class="nc bnc" id="L381" title="All 2 branches missed.">                    return cmp &lt;= 0;</span>
+                case EQ:
+<span class="fc bfc" id="L383" title="All 2 branches covered.">                    return cmp == 0;</span>
+                case NE:
+<span class="nc bnc" id="L385" title="All 2 branches missed.">                    return cmp != 0;</span>
+                case GT:
+<span class="nc bnc" id="L387" title="All 2 branches missed.">                    return cmp &gt; 0;</span>
+                case GE:
+<span class="nc bnc" id="L389" title="All 2 branches missed.">                    return cmp &gt;= 0;</span>
+                default:
+<span class="nc" id="L391">                    throw new UnsupportedOperationException();</span>
+            }
+        }
+    }
+
+    static final class NameRLikeSegment
+            extends NameFilter {
+        final Pattern pattern;
+        final boolean not;
+
+        public NameRLikeSegment(String fieldName, long fieldNameNameHash, Pattern pattern, boolean not) {
+<span class="fc" id="L402">            super(fieldName, fieldNameNameHash);</span>
+<span class="fc" id="L403">            this.pattern = pattern;</span>
+<span class="fc" id="L404">            this.not = not;</span>
+<span class="fc" id="L405">        }</span>
+
+        @Override
+        boolean apply(Object fieldValue) {
+<span class="fc" id="L409">            String strPropertyValue = fieldValue.toString();</span>
+<span class="fc" id="L410">            Matcher m = pattern.matcher(strPropertyValue);</span>
+<span class="fc" id="L411">            boolean match = m.matches();</span>
+
+<span class="pc bpc" id="L413" title="1 of 2 branches missed.">            if (not) {</span>
+<span class="nc bnc" id="L414" title="All 2 branches missed.">                match = !match;</span>
+            }
+
+<span class="fc" id="L417">            return match;</span>
+        }
+    }
+
+    static final class StartsWithSegment
+            extends NameFilter {
+        final String prefix;
+
+        public StartsWithSegment(String fieldName, long fieldNameNameHash, String prefix) {
+<span class="fc" id="L426">            super(fieldName, fieldNameNameHash);</span>
+<span class="fc" id="L427">            this.prefix = prefix;</span>
+<span class="fc" id="L428">        }</span>
+
+        @Override
+        boolean apply(Object fieldValue) {
+<span class="fc" id="L432">            String propertyValue = fieldValue.toString();</span>
+<span class="pc bpc" id="L433" title="1 of 4 branches missed.">            return propertyValue != null &amp;&amp; propertyValue.startsWith(prefix);</span>
+        }
+    }
+
+    static final class EndsWithSegment
+            extends NameFilter {
+        final String prefix;
+
+        public EndsWithSegment(String fieldName, long fieldNameNameHash, String prefix) {
+<span class="fc" id="L442">            super(fieldName, fieldNameNameHash);</span>
+<span class="fc" id="L443">            this.prefix = prefix;</span>
+<span class="fc" id="L444">        }</span>
+
+        @Override
+        boolean apply(Object fieldValue) {
+<span class="fc" id="L448">            String propertyValue = fieldValue.toString();</span>
+<span class="pc bpc" id="L449" title="1 of 4 branches missed.">            return propertyValue != null &amp;&amp; propertyValue.endsWith(prefix);</span>
+        }
+    }
+
+    static final class GroupFilter
+            extends JSONPathSegment
+            implements EvalSegment {
+        final List&lt;JSONPathFilter&gt; filters;
+
+<span class="fc" id="L458">        public GroupFilter(List&lt;JSONPathFilter&gt; filters) {</span>
+<span class="fc" id="L459">            this.filters = filters;</span>
+<span class="fc" id="L460">        }</span>
+
+        @Override
+        public void accept(JSONReader jsonReader, JSONPath.Context context) {
+<span class="nc bnc" id="L464" title="All 2 branches missed.">            if (context.parent == null) {</span>
+<span class="nc" id="L465">                context.root = jsonReader.readAny();</span>
+            }
+<span class="nc" id="L467">            eval(context);</span>
+<span class="nc" id="L468">        }</span>
+
+        @Override
+        public void eval(JSONPath.Context context) {
+<span class="fc bfc" id="L472" title="All 2 branches covered.">            Object object = context.parent == null</span>
+                    ? context.root
+                    : context.parent.value;
+
+<span class="fc" id="L476">            List&lt;JSONPathFilter&gt; orderedFilters = new ArrayList&lt;&gt;();</span>
+<span class="pc bpc" id="L477" title="1 of 2 branches missed.">            if (this.filters != null) {</span>
+<span class="fc" id="L478">                orderedFilters = this.filters.stream().sorted(Comparator.comparing(JSONPathFilter::isAnd)).collect(Collectors.toList());</span>
+            }
+<span class="fc bfc" id="L480" title="All 2 branches covered.">            if (object instanceof List) {</span>
+<span class="fc" id="L481">                List list = (List) object;</span>
+<span class="fc" id="L482">                JSONArray array = new JSONArray(list.size());</span>
+<span class="fc bfc" id="L483" title="All 2 branches covered.">                for (int i = 0; i &lt; list.size(); i++) {</span>
+<span class="fc" id="L484">                    Object item = list.get(i);</span>
+<span class="fc" id="L485">                    boolean match = false;</span>
+<span class="fc bfc" id="L486" title="All 2 branches covered.">                    for (JSONPathFilter filter : orderedFilters) {</span>
+<span class="fc" id="L487">                        boolean and = filter.isAnd();</span>
+<span class="fc" id="L488">                        match = and;</span>
+<span class="fc" id="L489">                        boolean result = filter.apply(context, item);</span>
+<span class="fc bfc" id="L490" title="All 2 branches covered.">                        if (and) {</span>
+<span class="fc bfc" id="L491" title="All 2 branches covered.">                            if (!result) {</span>
+<span class="fc" id="L492">                                match = false;</span>
+<span class="fc" id="L493">                                break;</span>
+                            }
+                        } else {
+<span class="fc bfc" id="L496" title="All 2 branches covered.">                            if (result) {</span>
+<span class="fc" id="L497">                                match = true;</span>
+<span class="fc" id="L498">                                break;</span>
+                            }
+                        }
+<span class="fc" id="L501">                    }</span>
+<span class="fc bfc" id="L502" title="All 2 branches covered.">                    if (match) {</span>
+<span class="fc" id="L503">                        array.add(item);</span>
+                    }
+                }
+<span class="fc" id="L506">                context.value = array;</span>
+<span class="fc" id="L507">                context.eval = true;</span>
+<span class="fc" id="L508">                return;</span>
+            }
+
+<span class="fc" id="L511">            boolean match = false;</span>
+<span class="fc bfc" id="L512" title="All 2 branches covered.">            for (JSONPathFilter filter : orderedFilters) {</span>
+<span class="fc" id="L513">                boolean and = filter.isAnd();</span>
+<span class="fc" id="L514">                match = and;</span>
+<span class="fc" id="L515">                boolean result = filter.apply(context, object);</span>
+<span class="fc bfc" id="L516" title="All 2 branches covered.">                if (and) {</span>
+<span class="pc bpc" id="L517" title="1 of 2 branches missed.">                    if (!result) {</span>
+<span class="nc" id="L518">                        match = false;</span>
+<span class="nc" id="L519">                        break;</span>
+                    }
+                } else {
+<span class="pc bpc" id="L522" title="1 of 2 branches missed.">                    if (result) {</span>
+<span class="nc" id="L523">                        match = true;</span>
+<span class="nc" id="L524">                        break;</span>
+                    }
+                }
+<span class="fc" id="L527">            }</span>
+<span class="pc bpc" id="L528" title="1 of 2 branches missed.">            if (match) {</span>
+<span class="fc" id="L529">                context.value = object;</span>
+            }
+<span class="fc" id="L531">            context.eval = true;</span>
+<span class="fc" id="L532">        }</span>
+    }
+
+    abstract static class NameFilter
+            extends JSONPathFilter {
+        final String fieldName;
+        final long fieldNameNameHash;
+
+        final String[] fieldName2;
+        final long[] fieldNameNameHash2;
+
+        final Function function;
+
+<span class="fc" id="L545">        boolean includeArray = true;</span>
+
+<span class="fc" id="L547">        public NameFilter(String fieldName, long fieldNameNameHash) {</span>
+<span class="fc" id="L548">            this.fieldName = fieldName;</span>
+<span class="fc" id="L549">            this.fieldNameNameHash = fieldNameNameHash;</span>
+<span class="fc" id="L550">            this.fieldName2 = null;</span>
+<span class="fc" id="L551">            this.fieldNameNameHash2 = null;</span>
+<span class="fc" id="L552">            this.function = null;</span>
+<span class="fc" id="L553">        }</span>
+
+        public NameFilter(
+                String fieldName,
+                long fieldNameNameHash,
+                String[] fieldName2,
+                long[] fieldNameNameHash2,
+                Function function
+<span class="fc" id="L561">        ) {</span>
+<span class="fc" id="L562">            this.fieldName = fieldName;</span>
+<span class="fc" id="L563">            this.fieldNameNameHash = fieldNameNameHash;</span>
+<span class="fc" id="L564">            this.fieldName2 = fieldName2;</span>
+<span class="fc" id="L565">            this.fieldNameNameHash2 = fieldNameNameHash2;</span>
+<span class="fc" id="L566">            this.function = function;</span>
+<span class="fc" id="L567">        }</span>
+
+        abstract boolean apply(Object fieldValue);
+
+        @Override
+        public final void accept(JSONReader jsonReader, JSONPath.Context context) {
+<span class="nc bnc" id="L573" title="All 2 branches missed.">            if (context.parent == null) {</span>
+<span class="nc" id="L574">                context.root = jsonReader.readAny();</span>
+            }
+<span class="nc" id="L576">            eval(context);</span>
+<span class="nc" id="L577">        }</span>
+
+        @Override
+        public boolean remove(JSONPath.Context context) {
+<span class="pc bpc" id="L581" title="1 of 2 branches missed.">            Object object = context.parent == null</span>
+                    ? context.root
+                    : context.parent.value;
+
+<span class="pc bpc" id="L585" title="1 of 2 branches missed.">            if (object instanceof List) {</span>
+<span class="fc" id="L586">                List list = (List) object;</span>
+<span class="fc bfc" id="L587" title="All 2 branches covered.">                for (int i = list.size() - 1; i &gt;= 0; i--) {</span>
+<span class="fc" id="L588">                    Object item = list.get(i);</span>
+<span class="pc bpc" id="L589" title="1 of 2 branches missed.">                    if (apply(context, item)) {</span>
+<span class="fc" id="L590">                        list.remove(i);</span>
+                    }
+                }
+<span class="fc" id="L593">                return true;</span>
+            }
+
+<span class="nc" id="L596">            throw new JSONException(&quot;UnsupportedOperation &quot; + getClass());</span>
+        }
+
+        @Override
+        public final void eval(JSONPath.Context context) {
+<span class="fc bfc" id="L601" title="All 2 branches covered.">            Object object = context.parent == null</span>
+                    ? context.root
+                    : context.parent.value;
+
+<span class="fc bfc" id="L605" title="All 2 branches covered.">            if (object instanceof List) {</span>
+<span class="fc" id="L606">                List list = (List) object;</span>
+<span class="fc" id="L607">                JSONArray array = new JSONArray(list.size());</span>
+<span class="fc bfc" id="L608" title="All 2 branches covered.">                for (int i = 0; i &lt; list.size(); i++) {</span>
+<span class="fc" id="L609">                    Object item = list.get(i);</span>
+<span class="fc bfc" id="L610" title="All 2 branches covered.">                    if (apply(context, item)) {</span>
+<span class="fc" id="L611">                        array.add(item);</span>
+                    }
+                }
+<span class="fc" id="L614">                context.value = array;</span>
+<span class="fc" id="L615">                context.eval = true;</span>
+<span class="fc" id="L616">                return;</span>
+            }
+
+<span class="fc bfc" id="L619" title="All 2 branches covered.">            if (object instanceof Object[]) {</span>
+<span class="fc" id="L620">                Object[] list = (Object[]) object;</span>
+<span class="fc" id="L621">                JSONArray array = new JSONArray(list.length);</span>
+<span class="fc bfc" id="L622" title="All 2 branches covered.">                for (Object item : list) {</span>
+<span class="fc bfc" id="L623" title="All 2 branches covered.">                    if (apply(context, item)) {</span>
+<span class="fc" id="L624">                        array.add(item);</span>
+                    }
+                }
+<span class="fc" id="L627">                context.value = array;</span>
+<span class="fc" id="L628">                context.eval = true;</span>
+<span class="fc" id="L629">                return;</span>
+            }
+
+<span class="fc bfc" id="L632" title="All 2 branches covered.">            if (object instanceof JSONPath.Sequence) {</span>
+<span class="fc" id="L633">                JSONPath.Sequence sequence = (JSONPath.Sequence) object;</span>
+<span class="fc" id="L634">                JSONArray array = new JSONArray();</span>
+<span class="fc bfc" id="L635" title="All 2 branches covered.">                for (Object value : sequence.values) {</span>
+<span class="fc bfc" id="L636" title="All 4 branches covered.">                    if (includeArray &amp;&amp; value instanceof Collection) {</span>
+<span class="fc bfc" id="L637" title="All 2 branches covered.">                        for (Object valueItem : ((Collection&lt;?&gt;) value)) {</span>
+<span class="fc bfc" id="L638" title="All 2 branches covered.">                            if (apply(context, valueItem)) {</span>
+<span class="fc" id="L639">                                array.add(valueItem);</span>
+                            }
+<span class="fc" id="L641">                        }</span>
+                    } else {
+<span class="fc bfc" id="L643" title="All 2 branches covered.">                        if (apply(context, value)) {</span>
+<span class="fc" id="L644">                            array.add(value);</span>
+                        }
+                    }
+<span class="fc" id="L647">                }</span>
+<span class="fc" id="L648">                context.value = array;</span>
+<span class="fc" id="L649">                context.eval = true;</span>
+<span class="fc" id="L650">                return;</span>
+            }
+
+<span class="fc bfc" id="L653" title="All 2 branches covered.">            if (apply(context, object)) {</span>
+<span class="fc" id="L654">                context.value = object;</span>
+<span class="fc" id="L655">                context.eval = true;</span>
+            }
+<span class="fc" id="L657">        }</span>
+
+        protected boolean applyNull() {
+<span class="fc" id="L660">            return false;</span>
+        }
+
+        @Override
+        public boolean apply(JSONPath.Context context, Object object) {
+<span class="fc bfc" id="L665" title="All 2 branches covered.">            if (object == null) {</span>
+<span class="fc" id="L666">                return false;</span>
+            }
+
+<span class="fc" id="L669">            JSONWriter.Context writerContext = context.path.getWriterContext();</span>
+
+<span class="fc bfc" id="L671" title="All 2 branches covered.">            if (object instanceof Map) {</span>
+<span class="fc bfc" id="L672" title="All 2 branches covered.">                Object fieldValue = fieldName == null ? object : ((Map&lt;?, ?&gt;) object).get(fieldName);</span>
+<span class="fc bfc" id="L673" title="All 2 branches covered.">                if (fieldValue == null) {</span>
+<span class="fc" id="L674">                    return applyNull();</span>
+                }
+
+<span class="fc bfc" id="L677" title="All 2 branches covered.">                if (fieldName2 != null) {</span>
+<span class="fc bfc" id="L678" title="All 2 branches covered.">                    for (int i = 0; i &lt; fieldName2.length; i++) {</span>
+<span class="fc" id="L679">                        String name = fieldName2[i];</span>
+<span class="pc bpc" id="L680" title="1 of 2 branches missed.">                        if (fieldValue instanceof Map) {</span>
+<span class="fc" id="L681">                            fieldValue = ((Map) fieldValue).get(name);</span>
+                        } else {
+<span class="nc" id="L683">                            ObjectWriter objectWriter2 = writerContext.getObjectWriter(fieldValue.getClass());</span>
+<span class="nc bnc" id="L684" title="All 2 branches missed.">                            if (objectWriter2 instanceof ObjectWriterAdapter) {</span>
+<span class="nc" id="L685">                                FieldWriter fieldWriter2 = objectWriter2.getFieldWriter(fieldNameNameHash2[i]);</span>
+<span class="nc bnc" id="L686" title="All 2 branches missed.">                                if (fieldWriter2 == null) {</span>
+<span class="nc" id="L687">                                    return false;</span>
+                                }
+<span class="nc" id="L689">                                fieldValue = fieldWriter2.getFieldValue(fieldValue);</span>
+<span class="nc" id="L690">                            } else {</span>
+<span class="nc" id="L691">                                return false;</span>
+                            }
+                        }
+
+<span class="pc bpc" id="L695" title="1 of 2 branches missed.">                        if (fieldValue == null) {</span>
+<span class="nc" id="L696">                            return this instanceof NameIsNull;</span>
+                        }
+                    }
+                }
+
+<span class="fc bfc" id="L701" title="All 2 branches covered.">                if (function != null) {</span>
+<span class="fc" id="L702">                    fieldValue = function.apply(fieldValue);</span>
+                }
+
+<span class="fc" id="L705">                return apply(fieldValue);</span>
+            }
+
+<span class="fc" id="L708">            ObjectWriter objectWriter = writerContext.getObjectWriter(object.getClass());</span>
+<span class="fc bfc" id="L709" title="All 2 branches covered.">            if (objectWriter instanceof ObjectWriterAdapter) {</span>
+<span class="fc" id="L710">                FieldWriter fieldWriter = objectWriter.getFieldWriter(fieldNameNameHash);</span>
+<span class="fc" id="L711">                Object fieldValue = fieldWriter.getFieldValue(object);</span>
+
+<span class="pc bpc" id="L713" title="1 of 2 branches missed.">                if (fieldValue == null) {</span>
+<span class="nc" id="L714">                    return false;</span>
+                }
+
+<span class="fc bfc" id="L717" title="All 2 branches covered.">                if (fieldName2 != null) {</span>
+<span class="fc bfc" id="L718" title="All 2 branches covered.">                    for (int i = 0; i &lt; fieldName2.length; i++) {</span>
+<span class="fc" id="L719">                        String name = fieldName2[i];</span>
+<span class="pc bpc" id="L720" title="1 of 2 branches missed.">                        if (fieldValue instanceof Map) {</span>
+<span class="nc" id="L721">                            fieldValue = ((Map) fieldValue).get(name);</span>
+                        } else {
+<span class="fc" id="L723">                            ObjectWriter objectWriter2 = writerContext.getObjectWriter(fieldValue.getClass());</span>
+<span class="pc bpc" id="L724" title="1 of 2 branches missed.">                            if (objectWriter2 instanceof ObjectWriterAdapter) {</span>
+<span class="fc" id="L725">                                FieldWriter fieldWriter2 = objectWriter2.getFieldWriter(fieldNameNameHash2[i]);</span>
+<span class="pc bpc" id="L726" title="1 of 2 branches missed.">                                if (fieldWriter2 == null) {</span>
+<span class="nc" id="L727">                                    return false;</span>
+                                }
+<span class="fc" id="L729">                                fieldValue = fieldWriter2.getFieldValue(fieldValue);</span>
+<span class="fc" id="L730">                            } else {</span>
+<span class="nc" id="L731">                                return false;</span>
+                            }
+                        }
+
+<span class="pc bpc" id="L735" title="1 of 2 branches missed.">                        if (fieldValue == null) {</span>
+<span class="nc" id="L736">                            return false;</span>
+                        }
+                    }
+                }
+
+<span class="pc bpc" id="L741" title="1 of 2 branches missed.">                if (function != null) {</span>
+<span class="nc" id="L742">                    fieldValue = function.apply(fieldValue);</span>
+                }
+
+<span class="fc" id="L745">                return apply(fieldValue);</span>
+            }
+
+<span class="fc bfc" id="L748" title="All 2 branches covered.">            if (function != null) {</span>
+<span class="fc" id="L749">                Object fieldValue = function.apply(object);</span>
+<span class="fc" id="L750">                return apply(fieldValue);</span>
+            }
+
+<span class="fc bfc" id="L753" title="All 2 branches covered.">            if (fieldName == null) {</span>
+<span class="fc" id="L754">                return apply(object);</span>
+            }
+
+<span class="fc" id="L757">            return false;</span>
+        }
+
+        protected void excludeArray() {
+<span class="fc" id="L761">            this.includeArray = false;</span>
+<span class="fc" id="L762">        }</span>
+    }
+
+    static final class NameStringOpSegment
+            extends NameFilter {
+        final Operator operator;
+        final String value;
+
+        public NameStringOpSegment(
+                String fieldName,
+                long fieldNameNameHash,
+                String[] fieldName2,
+                long[] fieldNameNameHash2,
+                Function expr,
+                Operator operator,
+                String value
+        ) {
+<span class="fc" id="L779">            super(fieldName, fieldNameNameHash, fieldName2, fieldNameNameHash2, expr);</span>
+<span class="fc" id="L780">            this.operator = operator;</span>
+<span class="fc" id="L781">            this.value = value;</span>
+<span class="fc" id="L782">        }</span>
+
+        protected boolean applyNull() {
+<span class="fc bfc" id="L785" title="All 2 branches covered.">            return operator == Operator.NE;</span>
+        }
+
+        @Override
+        public boolean apply(Object fieldValue) {
+<span class="fc bfc" id="L790" title="All 2 branches covered.">            if (!(fieldValue instanceof String)) {</span>
+<span class="fc" id="L791">                return false;</span>
+            }
+
+<span class="fc" id="L794">            String fieldValueStr = ((String) fieldValue);</span>
+<span class="fc bfc" id="L795" title="All 2 branches covered.">            if (operator == Operator.STARTS_WITH) {</span>
+<span class="fc" id="L796">                return fieldValueStr.startsWith(value);</span>
+            }
+<span class="fc bfc" id="L798" title="All 2 branches covered.">            if (operator == Operator.ENDS_WITH) {</span>
+<span class="fc" id="L799">                return fieldValueStr.endsWith(value);</span>
+            }
+
+<span class="fc" id="L802">            int cmp = fieldValueStr.compareTo(this.value);</span>
+
+<span class="pc bpc" id="L804" title="1 of 7 branches missed.">            switch (operator) {</span>
+                case LT:
+<span class="fc bfc" id="L806" title="All 2 branches covered.">                    return cmp &lt; 0;</span>
+                case LE:
+<span class="fc bfc" id="L808" title="All 2 branches covered.">                    return cmp &lt;= 0;</span>
+                case EQ:
+<span class="fc bfc" id="L810" title="All 2 branches covered.">                    return cmp == 0;</span>
+                case NE:
+<span class="fc bfc" id="L812" title="All 2 branches covered.">                    return cmp != 0;</span>
+                case GT:
+<span class="fc bfc" id="L814" title="All 2 branches covered.">                    return cmp &gt; 0;</span>
+                case GE:
+<span class="pc bpc" id="L816" title="1 of 2 branches missed.">                    return cmp &gt;= 0;</span>
+                default:
+<span class="nc" id="L818">                    throw new UnsupportedOperationException();</span>
+            }
+        }
+    }
+
+    static final class NameArrayOpSegment
+            extends NameFilter {
+        final Operator operator;
+        final JSONArray array;
+
+        public NameArrayOpSegment(
+                String fieldName,
+                long fieldNameNameHash,
+                String[] fieldName2,
+                long[] fieldNameNameHash2,
+                Function function,
+                Operator operator,
+                JSONArray array
+        ) {
+<span class="fc" id="L837">            super(fieldName, fieldNameNameHash, fieldName2, fieldNameNameHash2, function);</span>
+<span class="fc" id="L838">            this.operator = operator;</span>
+<span class="fc" id="L839">            this.array = array;</span>
+<span class="fc" id="L840">        }</span>
+
+        @Override
+        boolean apply(Object fieldValue) {
+<span class="pc bpc" id="L844" title="1 of 2 branches missed.">            if (Objects.requireNonNull(operator) == Operator.EQ) {</span>
+<span class="fc" id="L845">                return array.equals(fieldValue);</span>
+            }
+<span class="nc" id="L847">            throw new JSONException(&quot;not support operator : &quot; + operator);</span>
+        }
+    }
+
+    static final class NameObjectOpSegment
+            extends NameFilter {
+        final Operator operator;
+        final JSONObject object;
+
+        public NameObjectOpSegment(
+                String fieldName,
+                long fieldNameNameHash,
+                String[] fieldName2,
+                long[] fieldNameNameHash2,
+                Function function,
+                Operator operator,
+                JSONObject object) {
+<span class="fc" id="L864">            super(fieldName, fieldNameNameHash, fieldName2, fieldNameNameHash2, function);</span>
+<span class="fc" id="L865">            this.operator = operator;</span>
+<span class="fc" id="L866">            this.object = object;</span>
+<span class="fc" id="L867">        }</span>
+
+        @Override
+        boolean apply(Object fieldValue) {
+<span class="pc bpc" id="L871" title="1 of 2 branches missed.">            if (Objects.requireNonNull(operator) == Operator.EQ) {</span>
+<span class="fc" id="L872">                return object.equals(fieldValue);</span>
+            }
+<span class="nc" id="L874">            throw new JSONException(&quot;not support operator : &quot; + operator);</span>
+        }
+    }
+
+    static final class NameStringInSegment
+            extends NameFilter {
+        private final String[] values;
+        private final boolean not;
+
+        public NameStringInSegment(String fieldName, long fieldNameNameHash, String[] values, boolean not) {
+<span class="fc" id="L884">            super(fieldName, fieldNameNameHash);</span>
+<span class="fc" id="L885">            this.values = values;</span>
+<span class="fc" id="L886">            this.not = not;</span>
+<span class="fc" id="L887">        }</span>
+
+        protected boolean applyNull() {
+<span class="fc" id="L890">            return not;</span>
+        }
+
+        @Override
+        public boolean apply(Object fieldValue) {
+<span class="fc bfc" id="L895" title="All 2 branches covered.">            for (String value : values) {</span>
+<span class="fc bfc" id="L896" title="All 2 branches covered.">                if (value == fieldValue) {</span>
+<span class="pc bpc" id="L897" title="1 of 2 branches missed.">                    return !not;</span>
+<span class="pc bpc" id="L898" title="1 of 4 branches missed.">                } else if (value != null &amp;&amp; value.equals(fieldValue)) {</span>
+<span class="fc bfc" id="L899" title="All 2 branches covered.">                    return !not;</span>
+                }
+            }
+
+<span class="fc" id="L903">            return not;</span>
+        }
+    }
+
+    static final class NameStringContainsSegment
+            extends NameFilter {
+        private final String[] values;
+        private final boolean not;
+
+        public NameStringContainsSegment(
+                String fieldName,
+                long fieldNameNameHash,
+                String[] fieldName2,
+                long[] fieldNameNameHash2,
+                String[] values, boolean not) {
+<span class="fc" id="L918">            super(fieldName, fieldNameNameHash, fieldName2, fieldNameNameHash2, null);</span>
+<span class="fc" id="L919">            this.values = values;</span>
+<span class="fc" id="L920">            this.not = not;</span>
+<span class="fc" id="L921">        }</span>
+
+        @Override
+        public boolean apply(Object fieldValue) {
+<span class="pc bpc" id="L925" title="1 of 2 branches missed.">            if (fieldValue instanceof Collection) {</span>
+<span class="fc" id="L926">                Collection collection = (Collection) fieldValue;</span>
+
+<span class="fc" id="L928">                boolean containsAll = true;</span>
+<span class="fc bfc" id="L929" title="All 2 branches covered.">                for (String value : values) {</span>
+<span class="fc bfc" id="L930" title="All 2 branches covered.">                    if (!collection.contains(value)) {</span>
+<span class="fc" id="L931">                        containsAll = false;</span>
+<span class="fc" id="L932">                        break;</span>
+                    }
+                }
+
+<span class="fc bfc" id="L936" title="All 2 branches covered.">                if (containsAll) {</span>
+<span class="pc bpc" id="L937" title="1 of 2 branches missed.">                    return !not;</span>
+                }
+            }
+
+<span class="fc" id="L941">            return not;</span>
+        }
+    }
+
+    static final class NameMatchFilter
+            extends NameFilter {
+        final String startsWithValue;
+        final String endsWithValue;
+        final String[] containsValues;
+        final int minLength;
+        final boolean not;
+
+        public NameMatchFilter(
+                String fieldName,
+                long fieldNameNameHash,
+                String startsWithValue,
+                String endsWithValue,
+                String[] containsValues,
+                boolean not) {
+<span class="fc" id="L960">            super(fieldName, fieldNameNameHash);</span>
+<span class="fc" id="L961">            this.startsWithValue = startsWithValue;</span>
+<span class="fc" id="L962">            this.endsWithValue = endsWithValue;</span>
+<span class="fc" id="L963">            this.containsValues = containsValues;</span>
+<span class="fc" id="L964">            this.not = not;</span>
+
+<span class="fc" id="L966">            int len = 0;</span>
+<span class="fc bfc" id="L967" title="All 2 branches covered.">            if (startsWithValue != null) {</span>
+<span class="fc" id="L968">                len += startsWithValue.length();</span>
+            }
+
+<span class="fc bfc" id="L971" title="All 2 branches covered.">            if (endsWithValue != null) {</span>
+<span class="fc" id="L972">                len += endsWithValue.length();</span>
+            }
+
+<span class="pc bpc" id="L975" title="1 of 2 branches missed.">            if (containsValues != null) {</span>
+<span class="nc bnc" id="L976" title="All 2 branches missed.">                for (String item : containsValues) {</span>
+<span class="nc" id="L977">                    len += item.length();</span>
+                }
+            }
+
+<span class="fc" id="L981">            this.minLength = len;</span>
+<span class="fc" id="L982">        }</span>
+
+        @Override
+        boolean apply(Object arg) {
+<span class="pc bpc" id="L986" title="1 of 2 branches missed.">            if (!(arg instanceof String)) {</span>
+<span class="nc" id="L987">                return false;</span>
+            }
+
+<span class="fc" id="L990">            String fieldValue = (String) arg;</span>
+<span class="fc bfc" id="L991" title="All 2 branches covered.">            if (fieldValue.length() &lt; minLength) {</span>
+<span class="fc" id="L992">                return not;</span>
+            }
+
+<span class="fc" id="L995">            int start = 0;</span>
+<span class="fc bfc" id="L996" title="All 2 branches covered.">            if (startsWithValue != null) {</span>
+<span class="fc bfc" id="L997" title="All 2 branches covered.">                if (!fieldValue.startsWith(startsWithValue)) {</span>
+<span class="fc" id="L998">                    return not;</span>
+                }
+<span class="fc" id="L1000">                start += startsWithValue.length();</span>
+            }
+
+<span class="pc bpc" id="L1003" title="1 of 2 branches missed.">            if (containsValues != null) {</span>
+<span class="nc bnc" id="L1004" title="All 2 branches missed.">                for (String containsValue : containsValues) {</span>
+<span class="nc" id="L1005">                    int index = fieldValue.indexOf(containsValue, start);</span>
+<span class="nc bnc" id="L1006" title="All 2 branches missed.">                    if (index == -1) {</span>
+<span class="nc" id="L1007">                        return not;</span>
+                    }
+<span class="nc" id="L1009">                    start = index + containsValue.length();</span>
+                }
+            }
+
+<span class="fc bfc" id="L1013" title="All 2 branches covered.">            if (endsWithValue != null) {</span>
+<span class="fc bfc" id="L1014" title="All 2 branches covered.">                if (!fieldValue.endsWith(endsWithValue)) {</span>
+<span class="fc" id="L1015">                    return not;</span>
+                }
+            }
+
+<span class="fc bfc" id="L1019" title="All 2 branches covered.">            return !not;</span>
+        }
+    }
+
+    static final class NameExistsFilter
+            extends JSONPathFilter {
+        final String name;
+        final long nameHashCode;
+
+<span class="fc" id="L1028">        public NameExistsFilter(String name, long nameHashCode) {</span>
+<span class="fc" id="L1029">            this.name = name;</span>
+<span class="fc" id="L1030">            this.nameHashCode = nameHashCode;</span>
+<span class="fc" id="L1031">        }</span>
+
+        @Override
+        public void eval(JSONPath.Context context) {
+<span class="fc bfc" id="L1035" title="All 2 branches covered.">            Object object = context.parent == null</span>
+                    ? context.root
+                    : context.parent.value;
+
+<span class="fc" id="L1039">            JSONArray array = new JSONArray();</span>
+<span class="fc bfc" id="L1040" title="All 2 branches covered.">            if (object instanceof List) {</span>
+<span class="fc" id="L1041">                List list = (List) object;</span>
+<span class="fc bfc" id="L1042" title="All 2 branches covered.">                for (int i = 0; i &lt; list.size(); i++) {</span>
+<span class="fc" id="L1043">                    Object item = list.get(i);</span>
+<span class="pc bpc" id="L1044" title="1 of 2 branches missed.">                    if (item instanceof Map) {</span>
+<span class="fc bfc" id="L1045" title="All 2 branches covered.">                        if (((Map) item).containsKey(name)) {</span>
+<span class="fc" id="L1046">                            array.add(item);</span>
+                        }
+                    }
+                }
+<span class="fc" id="L1050">                context.value = array;</span>
+<span class="fc" id="L1051">                return;</span>
+            }
+
+<span class="fc bfc" id="L1054" title="All 2 branches covered.">            if (object instanceof Map) {</span>
+<span class="fc" id="L1055">                Map map = (Map) object;</span>
+<span class="fc" id="L1056">                Object value = map.get(name);</span>
+<span class="pc bpc" id="L1057" title="1 of 2 branches missed.">                context.value = value != null ? object : null;</span>
+<span class="fc" id="L1058">                return;</span>
+            }
+
+<span class="pc bpc" id="L1061" title="1 of 2 branches missed.">            if (object instanceof JSONPath.Sequence) {</span>
+<span class="fc" id="L1062">                List list = ((JSONPath.Sequence) object).values;</span>
+<span class="fc bfc" id="L1063" title="All 2 branches covered.">                for (int i = 0; i &lt; list.size(); i++) {</span>
+<span class="fc" id="L1064">                    Object item = list.get(i);</span>
+<span class="pc bpc" id="L1065" title="1 of 2 branches missed.">                    if (item instanceof Map) {</span>
+<span class="fc bfc" id="L1066" title="All 2 branches covered.">                        if (((Map) item).containsKey(name)) {</span>
+<span class="fc" id="L1067">                            array.add(item);</span>
+                        }
+                    }
+                }
+<span class="fc bfc" id="L1071" title="All 2 branches covered.">                if (context.next != null) {</span>
+<span class="fc" id="L1072">                    context.value = new JSONPath.Sequence(array);</span>
+                } else {
+<span class="fc" id="L1074">                    context.value = array;</span>
+                }
+<span class="fc" id="L1076">                return;</span>
+            }
+
+<span class="nc" id="L1079">            throw new UnsupportedOperationException();</span>
+        }
+
+        @Override
+        public void accept(JSONReader jsonReader, JSONPath.Context context) {
+<span class="nc" id="L1084">            eval(context);</span>
+<span class="nc" id="L1085">        }</span>
+
+        @Override
+        public String toString() {
+<span class="fc" id="L1089">            return '?' + name;</span>
+        }
+
+        @Override
+        public boolean apply(JSONPath.Context context, Object object) {
+<span class="pc bpc" id="L1094" title="1 of 2 branches missed.">            if (object instanceof Map) {</span>
+<span class="fc" id="L1095">                return ((Map) object).containsKey(name);</span>
+            }
+<span class="nc" id="L1097">            throw new UnsupportedOperationException();</span>
+        }
+    }
+
+    static final class NamesExistsFilter
+            extends JSONPathFilter {
+        final String[] names;
+        final long[] nameHashCodes;
+
+<span class="fc" id="L1106">        public NamesExistsFilter(List&lt;String&gt; names) {</span>
+<span class="fc" id="L1107">            this.names = names.toArray(new String[0]);</span>
+<span class="fc" id="L1108">            long[] nameHashCodes = new long[this.names.length];</span>
+<span class="fc bfc" id="L1109" title="All 2 branches covered.">            for (int i = 0; i &lt; nameHashCodes.length; i++) {</span>
+<span class="fc" id="L1110">                nameHashCodes[i] = Fnv.hashCode64(this.names[i]);</span>
+            }
+<span class="fc" id="L1112">            this.nameHashCodes = nameHashCodes;</span>
+<span class="fc" id="L1113">        }</span>
+
+        @Override
+        public void eval(JSONPath.Context context) {
+<span class="pc bpc" id="L1117" title="1 of 2 branches missed.">            Object first = context.parent == null</span>
+                    ? context.root
+                    : context.parent.value;
+
+<span class="fc" id="L1121">            Object object = first;</span>
+<span class="pc bpc" id="L1122" title="1 of 2 branches missed.">            for (int i = 0; i &lt; names.length; i++) {</span>
+<span class="fc" id="L1123">                String name = names[i];</span>
+<span class="pc bpc" id="L1124" title="1 of 2 branches missed.">                if (object instanceof Map) {</span>
+<span class="fc" id="L1125">                    Map map = (Map) object;</span>
+<span class="fc" id="L1126">                    Object value = map.get(name);</span>
+<span class="fc bfc" id="L1127" title="All 4 branches covered.">                    if (i == names.length - 1 || value == null) {</span>
+<span class="fc bfc" id="L1128" title="All 2 branches covered.">                        context.value = value != null ? first : null;</span>
+<span class="fc" id="L1129">                        return;</span>
+                    }
+<span class="fc" id="L1131">                    object = value;</span>
+                }
+            }
+<span class="nc" id="L1134">        }</span>
+
+        @Override
+        public void accept(JSONReader jsonReader, JSONPath.Context context) {
+<span class="nc" id="L1138">            eval(context);</span>
+<span class="nc" id="L1139">        }</span>
+
+        @Override
+        public String toString() {
+<span class="fc" id="L1143">            StringBuilder buf = new StringBuilder(&quot;exists(@&quot;);</span>
+<span class="fc bfc" id="L1144" title="All 2 branches covered.">            for (int i = 0; i &lt; names.length; i++) {</span>
+<span class="fc" id="L1145">                buf.append('.');</span>
+<span class="fc" id="L1146">                buf.append(names[i]);</span>
+            }
+<span class="fc" id="L1148">            buf.append(')');</span>
+<span class="fc" id="L1149">            return buf.toString();</span>
+        }
+
+        @Override
+        public boolean apply(JSONPath.Context context, Object object) {
+<span class="nc" id="L1154">            throw new UnsupportedOperationException();</span>
+        }
+    }
+
+    static final class NameIntBetweenSegment
+            extends NameFilter {
+        private final long begin;
+        private final long end;
+        private final boolean not;
+
+        public NameIntBetweenSegment(String fieldName, long fieldNameNameHash, long begin, long end, boolean not) {
+<span class="fc" id="L1165">            super(fieldName, fieldNameNameHash);</span>
+<span class="fc" id="L1166">            this.begin = begin;</span>
+<span class="fc" id="L1167">            this.end = end;</span>
+<span class="fc" id="L1168">            this.not = not;</span>
+<span class="fc" id="L1169">        }</span>
+
+        protected boolean applyNull() {
+<span class="fc" id="L1172">            return not;</span>
+        }
+
+        @Override
+        public boolean apply(Object fieldValue) {
+<span class="pc bpc" id="L1177" title="3 of 8 branches missed.">            if (fieldValue instanceof Byte</span>
+                    || fieldValue instanceof Short
+                    || fieldValue instanceof Integer
+                    || fieldValue instanceof Long
+            ) {
+<span class="fc" id="L1182">                long fieldValueLong = ((Number) fieldValue).longValue();</span>
+
+<span class="pc bpc" id="L1184" title="1 of 4 branches missed.">                if (fieldValueLong &gt;= begin &amp;&amp; fieldValueLong &lt;= end) {</span>
+<span class="fc bfc" id="L1185" title="All 2 branches covered.">                    return !not;</span>
+                }
+
+<span class="fc" id="L1188">                return not;</span>
+            }
+
+<span class="pc bpc" id="L1191" title="1 of 4 branches missed.">            if (fieldValue instanceof Float</span>
+                    || fieldValue instanceof Double
+            ) {
+<span class="fc" id="L1194">                double fieldValueDouble = ((Number) fieldValue).doubleValue();</span>
+
+<span class="pc bpc" id="L1196" title="1 of 4 branches missed.">                if (fieldValueDouble &gt;= begin &amp;&amp; fieldValueDouble &lt;= end) {</span>
+<span class="fc bfc" id="L1197" title="All 2 branches covered.">                    return !not;</span>
+                }
+
+<span class="fc" id="L1200">                return not;</span>
+            }
+
+<span class="fc bfc" id="L1203" title="All 2 branches covered.">            if (fieldValue instanceof BigDecimal) {</span>
+<span class="fc" id="L1204">                BigDecimal decimal = (BigDecimal) fieldValue;</span>
+<span class="fc" id="L1205">                int cmpBegin = decimal.compareTo(BigDecimal.valueOf(begin));</span>
+<span class="fc" id="L1206">                int cmpEnd = decimal.compareTo(BigDecimal.valueOf(end));</span>
+
+<span class="pc bpc" id="L1208" title="1 of 4 branches missed.">                if (cmpBegin &gt;= 0 &amp;&amp; cmpEnd &lt;= 0) {</span>
+<span class="pc bpc" id="L1209" title="1 of 2 branches missed.">                    return !not;</span>
+                }
+
+<span class="fc" id="L1212">                return not;</span>
+            }
+
+<span class="pc bpc" id="L1215" title="1 of 2 branches missed.">            if (fieldValue instanceof BigInteger) {</span>
+<span class="fc" id="L1216">                BigInteger bigInt = (BigInteger) fieldValue;</span>
+<span class="fc" id="L1217">                int cmpBegin = bigInt.compareTo(BigInteger.valueOf(begin));</span>
+<span class="fc" id="L1218">                int cmpEnd = bigInt.compareTo(BigInteger.valueOf(end));</span>
+
+<span class="pc bpc" id="L1220" title="1 of 4 branches missed.">                if (cmpBegin &gt;= 0 &amp;&amp; cmpEnd &lt;= 0) {</span>
+<span class="pc bpc" id="L1221" title="1 of 2 branches missed.">                    return !not;</span>
+                }
+
+<span class="fc" id="L1224">                return not;</span>
+            }
+
+<span class="nc" id="L1227">            return not;</span>
+        }
+    }
+
+    static final class NameLongContainsSegment
+            extends NameFilter {
+        private final long[] values;
+        private final boolean not;
+
+        public NameLongContainsSegment(
+                String fieldName,
+                long fieldNameNameHash,
+                String[] fieldName2,
+                long[] fieldNameNameHash2,
+                long[] values, boolean not) {
+<span class="fc" id="L1242">            super(fieldName, fieldNameNameHash, fieldName2, fieldNameNameHash2, null);</span>
+<span class="fc" id="L1243">            this.values = values;</span>
+<span class="fc" id="L1244">            this.not = not;</span>
+<span class="fc" id="L1245">        }</span>
+
+        @Override
+        public boolean apply(Object fieldValue) {
+<span class="pc bpc" id="L1249" title="1 of 2 branches missed.">            if (fieldValue instanceof Collection) {</span>
+<span class="fc" id="L1250">                Collection collection = (Collection) fieldValue;</span>
+
+<span class="fc" id="L1252">                boolean containsAll = true;</span>
+<span class="fc bfc" id="L1253" title="All 2 branches covered.">                for (long value : values) {</span>
+<span class="fc" id="L1254">                    boolean containsItem = false;</span>
+<span class="fc bfc" id="L1255" title="All 2 branches covered.">                    for (Object item : collection) {</span>
+                        long longItem;
+<span class="pc bpc" id="L1257" title="3 of 8 branches missed.">                        if (item instanceof Byte</span>
+                                || item instanceof Short
+                                || item instanceof Integer
+                                || item instanceof Long) {
+<span class="fc" id="L1261">                            longItem = ((Number) item).longValue();</span>
+<span class="fc bfc" id="L1262" title="All 2 branches covered.">                            if (longItem == value) {</span>
+<span class="fc" id="L1263">                                containsItem = true;</span>
+<span class="fc" id="L1264">                                break;</span>
+                            }
+                        }
+
+<span class="fc bfc" id="L1268" title="All 2 branches covered.">                        if (item instanceof Float) {</span>
+<span class="fc bfc" id="L1269" title="All 2 branches covered.">                            if (value == (Float) item) {</span>
+<span class="fc" id="L1270">                                containsItem = true;</span>
+<span class="fc" id="L1271">                                break;</span>
+                            }
+                        }
+
+<span class="fc bfc" id="L1275" title="All 2 branches covered.">                        if (item instanceof Double) {</span>
+<span class="fc bfc" id="L1276" title="All 2 branches covered.">                            if (value == (Double) item) {</span>
+<span class="fc" id="L1277">                                containsItem = true;</span>
+<span class="fc" id="L1278">                                break;</span>
+                            }
+                        }
+
+<span class="fc bfc" id="L1282" title="All 2 branches covered.">                        if (item instanceof BigDecimal) {</span>
+<span class="fc" id="L1283">                            BigDecimal decimal = (BigDecimal) item;</span>
+<span class="fc" id="L1284">                            long longValue = decimal.longValue();</span>
+<span class="pc bpc" id="L1285" title="1 of 4 branches missed.">                            if (value == longValue &amp;&amp; decimal.compareTo(BigDecimal.valueOf(value)) == 0) {</span>
+<span class="fc" id="L1286">                                containsItem = true;</span>
+<span class="fc" id="L1287">                                break;</span>
+                            }
+                        }
+
+<span class="fc bfc" id="L1291" title="All 2 branches covered.">                        if (item instanceof BigInteger) {</span>
+<span class="fc" id="L1292">                            BigInteger bigiInt = (BigInteger) item;</span>
+<span class="fc" id="L1293">                            long longValue = bigiInt.longValue();</span>
+<span class="pc bpc" id="L1294" title="1 of 4 branches missed.">                            if (value == longValue &amp;&amp; bigiInt.equals(BigInteger.valueOf(value))) {</span>
+<span class="fc" id="L1295">                                containsItem = true;</span>
+<span class="fc" id="L1296">                                break;</span>
+                            }
+                        }
+<span class="fc" id="L1299">                    }</span>
+
+<span class="fc bfc" id="L1301" title="All 2 branches covered.">                    if (!containsItem) {</span>
+<span class="fc" id="L1302">                        containsAll = false;</span>
+<span class="fc" id="L1303">                        break;</span>
+                    }
+                }
+
+<span class="fc bfc" id="L1307" title="All 2 branches covered.">                if (containsAll) {</span>
+<span class="pc bpc" id="L1308" title="1 of 2 branches missed.">                    return !not;</span>
+                }
+            }
+
+<span class="fc" id="L1312">            return not;</span>
+        }
+    }
+
+    static final class NameIntInSegment
+            extends NameFilter {
+        private final long[] values;
+        private final boolean not;
+
+        public NameIntInSegment(
+                String fieldName,
+                long fieldNameNameHash,
+                String[] fieldName2,
+                long[] fieldNameNameHash2,
+                Function expr,
+                long[] values,
+                boolean not) {
+<span class="fc" id="L1329">            super(fieldName, fieldNameNameHash, fieldName2, fieldNameNameHash2, expr);</span>
+<span class="fc" id="L1330">            this.values = values;</span>
+<span class="fc" id="L1331">            this.not = not;</span>
+<span class="fc" id="L1332">        }</span>
+
+        protected boolean applyNull() {
+<span class="fc" id="L1335">            return not;</span>
+        }
+
+        @Override
+        public boolean apply(Object fieldValue) {
+<span class="pc bpc" id="L1340" title="3 of 8 branches missed.">            if (fieldValue instanceof Byte</span>
+                    || fieldValue instanceof Short
+                    || fieldValue instanceof Integer
+                    || fieldValue instanceof Long
+            ) {
+<span class="fc" id="L1345">                long fieldValueLong = ((Number) fieldValue).longValue();</span>
+
+<span class="fc bfc" id="L1347" title="All 2 branches covered.">                for (long value : values) {</span>
+<span class="fc bfc" id="L1348" title="All 2 branches covered.">                    if (value == fieldValueLong) {</span>
+<span class="fc bfc" id="L1349" title="All 2 branches covered.">                        return !not;</span>
+                    }
+                }
+
+<span class="fc" id="L1353">                return not;</span>
+            }
+
+<span class="pc bpc" id="L1356" title="1 of 4 branches missed.">            if (fieldValue instanceof Float</span>
+                    || fieldValue instanceof Double
+            ) {
+<span class="fc" id="L1359">                double fieldValueDouble = ((Number) fieldValue).doubleValue();</span>
+
+<span class="fc bfc" id="L1361" title="All 2 branches covered.">                for (long value : values) {</span>
+<span class="fc bfc" id="L1362" title="All 2 branches covered.">                    if (value == fieldValueDouble) {</span>
+<span class="fc bfc" id="L1363" title="All 2 branches covered.">                        return !not;</span>
+                    }
+                }
+
+<span class="fc" id="L1367">                return not;</span>
+            }
+
+<span class="fc bfc" id="L1370" title="All 2 branches covered.">            if (fieldValue instanceof BigDecimal) {</span>
+<span class="fc" id="L1371">                BigDecimal decimal = (BigDecimal) fieldValue;</span>
+<span class="fc" id="L1372">                long longValue = decimal.longValue();</span>
+<span class="fc bfc" id="L1373" title="All 2 branches covered.">                for (long value : values) {</span>
+<span class="pc bpc" id="L1374" title="1 of 4 branches missed.">                    if (value == longValue &amp;&amp; decimal.compareTo(BigDecimal.valueOf(value)) == 0) {</span>
+<span class="fc bfc" id="L1375" title="All 2 branches covered.">                        return !not;</span>
+                    }
+                }
+
+<span class="fc" id="L1379">                return not;</span>
+            }
+
+<span class="pc bpc" id="L1382" title="1 of 2 branches missed.">            if (fieldValue instanceof BigInteger) {</span>
+<span class="fc" id="L1383">                BigInteger bigiInt = (BigInteger) fieldValue;</span>
+<span class="fc" id="L1384">                long longValue = bigiInt.longValue();</span>
+<span class="fc bfc" id="L1385" title="All 2 branches covered.">                for (long value : values) {</span>
+<span class="pc bpc" id="L1386" title="1 of 4 branches missed.">                    if (value == longValue &amp;&amp; bigiInt.equals(BigInteger.valueOf(value))) {</span>
+<span class="fc bfc" id="L1387" title="All 2 branches covered.">                        return !not;</span>
+                    }
+                }
+
+<span class="fc" id="L1391">                return not;</span>
+            }
+
+<span class="nc" id="L1394">            return not;</span>
+        }
+    }
+
+    static final class NameName
+            extends NameFilter {
+        final String fieldName1;
+        final long fieldNameName1Hash;
+
+        public NameName(
+                String fieldName,
+                long fieldNameNameHash,
+                String fieldName1,
+                long fieldNameName1Hash
+        ) {
+<span class="fc" id="L1409">            super(fieldName, fieldNameNameHash);</span>
+<span class="fc" id="L1410">            this.fieldName1 = fieldName1;</span>
+<span class="fc" id="L1411">            this.fieldNameName1Hash = fieldNameName1Hash;</span>
+<span class="fc" id="L1412">        }</span>
+
+        @Override
+        public boolean apply(JSONPath.Context context, Object object) {
+<span class="pc bpc" id="L1416" title="1 of 2 branches missed.">            if (object == null) {</span>
+<span class="nc" id="L1417">                return false;</span>
+            }
+
+<span class="fc" id="L1420">            JSONWriter.Context writerContext = context.path.getWriterContext();</span>
+
+            Object fieldValue, fieldValue1;
+<span class="pc bpc" id="L1423" title="1 of 2 branches missed.">            if (object instanceof Map) {</span>
+<span class="fc" id="L1424">                Map map = (Map) object;</span>
+<span class="fc" id="L1425">                fieldValue = map.get(fieldName);</span>
+<span class="fc" id="L1426">                fieldValue1 = map.get(fieldName1);</span>
+<span class="fc" id="L1427">            } else {</span>
+<span class="nc" id="L1428">                ObjectWriter objectWriter = writerContext.getObjectWriter(object.getClass());</span>
+<span class="nc bnc" id="L1429" title="All 2 branches missed.">                if (objectWriter instanceof ObjectWriterAdapter) {</span>
+<span class="nc" id="L1430">                    FieldWriter fieldWriter = objectWriter.getFieldWriter(fieldNameNameHash);</span>
+<span class="nc bnc" id="L1431" title="All 2 branches missed.">                    if (fieldWriter == null) {</span>
+<span class="nc" id="L1432">                        return false;</span>
+                    }
+<span class="nc" id="L1434">                    fieldValue = fieldWriter.getFieldValue(object);</span>
+
+<span class="nc" id="L1436">                    FieldWriter fieldWriter1 = objectWriter.getFieldWriter(fieldNameNameHash);</span>
+<span class="nc bnc" id="L1437" title="All 2 branches missed.">                    if (fieldWriter1 == null) {</span>
+<span class="nc" id="L1438">                        return false;</span>
+                    }
+<span class="nc" id="L1440">                    fieldValue1 = fieldWriter1.getFieldValue(object);</span>
+<span class="nc" id="L1441">                } else {</span>
+<span class="nc" id="L1442">                    return false;</span>
+                }
+            }
+
+<span class="fc" id="L1446">            return Objects.equals(fieldValue, fieldValue1);</span>
+        }
+
+        @Override
+        boolean apply(Object fieldValue) {
+<span class="nc" id="L1451">            throw new JSONException(&quot;TODO&quot;);</span>
+        }
+    }
+
+    static final class SegmentFilter
+            extends JSONPathFilter {
+        final JSONPathSegment expr;
+        final Operator operator;
+        final Object value;
+
+<span class="fc" id="L1461">        public SegmentFilter(JSONPathSegment expr, Operator operator, Object value) {</span>
+<span class="fc" id="L1462">            this.expr = expr;</span>
+<span class="fc" id="L1463">            this.operator = operator;</span>
+<span class="fc" id="L1464">            this.value = value;</span>
+<span class="fc" id="L1465">        }</span>
+
+        @Override
+        boolean apply(JSONPath.Context context, Object object) {
+<span class="pc bpc" id="L1469" title="1 of 2 branches missed.">            if (object == null) {</span>
+<span class="nc" id="L1470">                return false;</span>
+            }
+<span class="fc" id="L1472">            JSONPath.Context context0 = new JSONPath.Context(null, null, expr, null, 0);</span>
+<span class="fc" id="L1473">            context0.root = object;</span>
+<span class="fc" id="L1474">            expr.eval(context0);</span>
+<span class="fc" id="L1475">            Object result = context0.value;</span>
+<span class="fc" id="L1476">            int cmp = TypeUtils.compare(result, value);</span>
+<span class="pc bpc" id="L1477" title="2 of 7 branches missed.">            switch (operator) {</span>
+                case LT:
+<span class="fc bfc" id="L1479" title="All 2 branches covered.">                    return cmp &lt; 0;</span>
+                case LE:
+<span class="fc bfc" id="L1481" title="All 2 branches covered.">                    return cmp &lt;= 0;</span>
+                case EQ:
+<span class="fc bfc" id="L1483" title="All 2 branches covered.">                    return cmp == 0;</span>
+                case NE:
+<span class="nc bnc" id="L1485" title="All 2 branches missed.">                    return cmp != 0;</span>
+                case GT:
+<span class="fc bfc" id="L1487" title="All 2 branches covered.">                    return cmp &gt; 0;</span>
+                case GE:
+<span class="fc bfc" id="L1489" title="All 2 branches covered.">                    return cmp &gt;= 0;</span>
+                default:
+<span class="nc" id="L1491">                    throw new UnsupportedOperationException();</span>
+            }
+        }
+
+        @Override
+        public void accept(JSONReader jsonReader, JSONPath.Context context) {
+<span class="nc" id="L1497">            throw new JSONException(&quot;UnsupportedOperation &quot; + getClass());</span>
+        }
+
+        @Override
+        public void eval(JSONPath.Context context) {
+<span class="pc bpc" id="L1502" title="1 of 2 branches missed.">            Object object = context.parent == null</span>
+                    ? context.root
+                    : context.parent.value;
+
+<span class="pc bpc" id="L1506" title="1 of 2 branches missed.">            if (object instanceof List) {</span>
+<span class="fc" id="L1507">                List list = (List) object;</span>
+<span class="fc" id="L1508">                JSONArray array = new JSONArray(list.size());</span>
+<span class="fc bfc" id="L1509" title="All 2 branches covered.">                for (int i = 0; i &lt; list.size(); i++) {</span>
+<span class="fc" id="L1510">                    Object item = list.get(i);</span>
+<span class="fc bfc" id="L1511" title="All 2 branches covered.">                    if (apply(context, item)) {</span>
+<span class="fc" id="L1512">                        array.add(item);</span>
+                    }
+                }
+<span class="fc" id="L1515">                context.value = array;</span>
+<span class="fc" id="L1516">                context.eval = true;</span>
+<span class="fc" id="L1517">                return;</span>
+            }
+
+<span class="nc" id="L1520">            throw new JSONException(&quot;UnsupportedOperation &quot; + object.getClass());</span>
+        }
+
+        @Override
+        public boolean remove(JSONPath.Context context) {
+<span class="pc bpc" id="L1525" title="1 of 2 branches missed.">            Object object = context.parent == null</span>
+                    ? context.root
+                    : context.parent.value;
+
+<span class="pc bpc" id="L1529" title="1 of 2 branches missed.">            if (object instanceof List) {</span>
+<span class="fc" id="L1530">                List list = (List) object;</span>
+<span class="fc bfc" id="L1531" title="All 2 branches covered.">                for (int i = list.size() - 1; i &gt;= 0; i--) {</span>
+<span class="fc" id="L1532">                    Object item = list.get(i);</span>
+<span class="fc bfc" id="L1533" title="All 2 branches covered.">                    if (apply(context, item)) {</span>
+<span class="fc" id="L1534">                        list.remove(i);</span>
+                    }
+                }
+<span class="fc" id="L1537">                return true;</span>
+            }
+
+<span class="nc" id="L1540">            throw new JSONException(&quot;UnsupportedOperation &quot; + getClass());</span>
+        }
+
+        @Override
+        public void set(JSONPath.Context context, Object value) {
+<span class="pc bpc" id="L1545" title="1 of 2 branches missed.">            Object object = context.parent == null</span>
+                    ? context.root
+                    : context.parent.value;
+
+<span class="pc bpc" id="L1549" title="1 of 2 branches missed.">            if (object instanceof List) {</span>
+<span class="fc" id="L1550">                List list = (List) object;</span>
+<span class="fc bfc" id="L1551" title="All 2 branches covered.">                for (int i = 0; i &lt; list.size(); i++) {</span>
+<span class="fc" id="L1552">                    Object item = list.get(i);</span>
+<span class="fc bfc" id="L1553" title="All 2 branches covered.">                    if (apply(context, item)) {</span>
+<span class="fc" id="L1554">                        list.set(i, value);</span>
+                    }
+                }
+<span class="fc" id="L1557">                return;</span>
+            }
+
+<span class="nc" id="L1560">            throw new JSONException(&quot;UnsupportedOperation &quot;);</span>
+        }
+    }
+
+    static final class RangeIndexSegmentFilter
+            extends JSONPathFilter {
+        final RangeIndexSegment expr;
+        final Operator operator;
+        final Object value;
+
+<span class="fc" id="L1570">        public RangeIndexSegmentFilter(RangeIndexSegment expr, Operator operator, Object value) {</span>
+<span class="fc" id="L1571">            this.expr = expr;</span>
+<span class="fc" id="L1572">            this.operator = operator;</span>
+<span class="fc" id="L1573">            this.value = value;</span>
+<span class="fc" id="L1574">        }</span>
+
+        @Override
+        boolean apply(JSONPath.Context context, Object object) {
+<span class="pc bpc" id="L1578" title="1 of 2 branches missed.">            if (object == null) {</span>
+<span class="nc" id="L1579">                return false;</span>
+            }
+<span class="fc" id="L1581">            JSONPath.Context context0 = new JSONPath.Context(null, null, expr, null, 0);</span>
+<span class="fc" id="L1582">            context0.root = object;</span>
+<span class="fc" id="L1583">            expr.eval(context0);</span>
+<span class="fc" id="L1584">            List result = (List) context0.value;</span>
+<span class="fc bfc" id="L1585" title="All 2 branches covered.">            for (int i = 0; i &lt; result.size(); i++) {</span>
+<span class="fc" id="L1586">                Object item = result.get(i);</span>
+<span class="fc" id="L1587">                int cmp = TypeUtils.compare(item, value);</span>
+                boolean itemResult;
+<span class="pc bpc" id="L1589" title="6 of 7 branches missed.">                switch (operator) {</span>
+                    case LT:
+<span class="nc bnc" id="L1591" title="All 2 branches missed.">                        itemResult = cmp &lt; 0;</span>
+<span class="nc" id="L1592">                        break;</span>
+                    case LE:
+<span class="nc bnc" id="L1594" title="All 2 branches missed.">                        itemResult = cmp &lt;= 0;</span>
+<span class="nc" id="L1595">                        break;</span>
+                    case EQ:
+<span class="fc bfc" id="L1597" title="All 2 branches covered.">                        itemResult = cmp == 0;</span>
+<span class="fc" id="L1598">                        break;</span>
+                    case NE:
+<span class="nc bnc" id="L1600" title="All 2 branches missed.">                        itemResult = cmp != 0;</span>
+<span class="nc" id="L1601">                        break;</span>
+                    case GT:
+<span class="nc bnc" id="L1603" title="All 2 branches missed.">                        itemResult = cmp &gt; 0;</span>
+<span class="nc" id="L1604">                        break;</span>
+                    case GE:
+<span class="nc bnc" id="L1606" title="All 2 branches missed.">                        itemResult = cmp &gt;= 0;</span>
+<span class="nc" id="L1607">                        break;</span>
+                    default:
+<span class="nc" id="L1609">                        throw new UnsupportedOperationException();</span>
+                }
+<span class="fc bfc" id="L1611" title="All 2 branches covered.">                if (!itemResult) {</span>
+<span class="fc" id="L1612">                    return false;</span>
+                }
+            }
+<span class="fc" id="L1615">            return true;</span>
+        }
+
+        @Override
+        public void accept(JSONReader jsonReader, JSONPath.Context context) {
+<span class="nc" id="L1620">            throw new JSONException(&quot;UnsupportedOperation &quot; + getClass());</span>
+        }
+
+        @Override
+        public void eval(JSONPath.Context context) {
+<span class="pc bpc" id="L1625" title="1 of 2 branches missed.">            Object object = context.parent == null</span>
+                    ? context.root
+                    : context.parent.value;
+
+<span class="pc bpc" id="L1629" title="1 of 2 branches missed.">            if (object instanceof List) {</span>
+<span class="fc" id="L1630">                List list = (List) object;</span>
+<span class="fc" id="L1631">                JSONArray array = new JSONArray(list.size());</span>
+<span class="fc bfc" id="L1632" title="All 2 branches covered.">                for (int i = 0; i &lt; list.size(); i++) {</span>
+<span class="fc" id="L1633">                    Object item = list.get(i);</span>
+<span class="fc bfc" id="L1634" title="All 2 branches covered.">                    if (apply(context, item)) {</span>
+<span class="fc" id="L1635">                        array.add(item);</span>
+                    }
+                }
+<span class="fc" id="L1638">                context.value = array;</span>
+<span class="fc" id="L1639">                context.eval = true;</span>
+<span class="fc" id="L1640">                return;</span>
+            }
+
+<span class="nc" id="L1643">            throw new JSONException(&quot;UnsupportedOperation &quot; + object.getClass());</span>
+        }
+    }
+
+    static final class Segment2Filter
+            extends JSONPathFilter {
+        final JSONPathSegment left;
+        final Operator operator;
+        final JSONPathSegment right;
+
+<span class="fc" id="L1653">        public Segment2Filter(JSONPathSegment left, Operator operator, JSONPathSegment right) {</span>
+<span class="fc" id="L1654">            this.left = left;</span>
+<span class="fc" id="L1655">            this.operator = operator;</span>
+<span class="fc" id="L1656">            this.right = right;</span>
+<span class="fc" id="L1657">        }</span>
+
+        @Override
+        boolean apply(JSONPath.Context context, Object object) {
+<span class="pc bpc" id="L1661" title="1 of 2 branches missed.">            if (object == null) {</span>
+<span class="nc" id="L1662">                return false;</span>
+            }
+
+<span class="fc" id="L1665">            JSONPath.Context context0 = new JSONPath.Context(null, null, left, null, 0);</span>
+<span class="fc" id="L1666">            context0.root = object;</span>
+<span class="fc" id="L1667">            left.eval(context0);</span>
+<span class="fc" id="L1668">            Object result0 = context0.value;</span>
+
+<span class="fc" id="L1670">            JSONPath.Context context1 = new JSONPath.Context(null, null, right, null, 0);</span>
+<span class="fc" id="L1671">            context1.root = object;</span>
+<span class="fc" id="L1672">            right.eval(context1);</span>
+<span class="fc" id="L1673">            Object result1 = context1.value;</span>
+
+<span class="fc" id="L1675">            int cmp = TypeUtils.compare(result0, result1);</span>
+<span class="pc bpc" id="L1676" title="4 of 7 branches missed.">            switch (operator) {</span>
+                case LT:
+<span class="fc bfc" id="L1678" title="All 2 branches covered.">                    return cmp &lt; 0;</span>
+                case LE:
+<span class="nc bnc" id="L1680" title="All 2 branches missed.">                    return cmp &lt;= 0;</span>
+                case EQ:
+<span class="fc bfc" id="L1682" title="All 2 branches covered.">                    return cmp == 0;</span>
+                case NE:
+<span class="nc bnc" id="L1684" title="All 2 branches missed.">                    return cmp != 0;</span>
+                case GT:
+<span class="fc bfc" id="L1686" title="All 2 branches covered.">                    return cmp &gt; 0;</span>
+                case GE:
+<span class="nc bnc" id="L1688" title="All 2 branches missed.">                    return cmp &gt;= 0;</span>
+                default:
+<span class="nc" id="L1690">                    throw new UnsupportedOperationException();</span>
+            }
+        }
+
+        @Override
+        public void accept(JSONReader jsonReader, JSONPath.Context context) {
+<span class="nc" id="L1696">            throw new JSONException(&quot;UnsupportedOperation &quot; + getClass());</span>
+        }
+
+        @Override
+        public void eval(JSONPath.Context context) {
+<span class="pc bpc" id="L1701" title="1 of 2 branches missed.">            Object object = context.parent == null</span>
+                    ? context.root
+                    : context.parent.value;
+
+<span class="pc bpc" id="L1705" title="1 of 2 branches missed.">            if (object instanceof List) {</span>
+<span class="fc" id="L1706">                List list = (List) object;</span>
+<span class="fc" id="L1707">                JSONArray array = new JSONArray(list.size());</span>
+<span class="fc bfc" id="L1708" title="All 2 branches covered.">                for (int i = 0; i &lt; list.size(); i++) {</span>
+<span class="fc" id="L1709">                    Object item = list.get(i);</span>
+<span class="fc bfc" id="L1710" title="All 2 branches covered.">                    if (apply(context, item)) {</span>
+<span class="fc" id="L1711">                        array.add(item);</span>
+                    }
+                }
+<span class="fc" id="L1714">                context.value = array;</span>
+<span class="fc" id="L1715">                context.eval = true;</span>
+<span class="fc" id="L1716">                return;</span>
+            }
+
+<span class="nc" id="L1719">            throw new JSONException(&quot;UnsupportedOperation &quot; + object.getClass());</span>
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.8.202204050719</span></div></body></html>

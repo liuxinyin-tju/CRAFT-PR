@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>JSONValidator.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">fastjson2</a> &gt; <a href="index.source.html" class="el_package">com.alibaba.fastjson2</a> &gt; <span class="el_source">JSONValidator.java</span></div><h1>JSONValidator.java</h1><pre class="source lang-java linenums">package com.alibaba.fastjson2;
+
+public class JSONValidator {
+<span class="fc" id="L4">    public enum Type {</span>
+<span class="fc" id="L5">        Object, Array, Value</span>
+    }
+
+    private final JSONReader jsonReader;
+    private Boolean validateResult;
+    private Type type;
+
+<span class="fc" id="L12">    protected JSONValidator(JSONReader jsonReader) {</span>
+<span class="fc" id="L13">        this.jsonReader = jsonReader;</span>
+<span class="fc" id="L14">    }</span>
+
+    public static JSONValidator fromUtf8(byte[] jsonBytes) {
+<span class="fc" id="L17">        return new JSONValidator(JSONReader.of(jsonBytes));</span>
+    }
+
+    public static JSONValidator from(String jsonStr) {
+<span class="fc" id="L21">        return new JSONValidator(JSONReader.of(jsonStr));</span>
+    }
+
+    public static JSONValidator from(JSONReader jsonReader) {
+<span class="fc" id="L25">        return new JSONValidator(jsonReader);</span>
+    }
+
+    public boolean validate() {
+<span class="fc bfc" id="L29" title="All 2 branches covered.">        if (validateResult != null) {</span>
+<span class="fc" id="L30">            return validateResult;</span>
+        }
+
+        char firstChar;
+        try {
+<span class="fc" id="L35">            firstChar = jsonReader.current();</span>
+<span class="fc" id="L36">            jsonReader.skipValue();</span>
+<span class="fc" id="L37">        } catch (JSONException | ArrayIndexOutOfBoundsException error) {</span>
+<span class="fc" id="L38">            return validateResult = false;</span>
+        } finally {
+<span class="fc" id="L40">            jsonReader.close();</span>
+        }
+
+<span class="fc bfc" id="L43" title="All 2 branches covered.">        if (firstChar == '{') {</span>
+<span class="fc" id="L44">            type = Type.Object;</span>
+<span class="fc bfc" id="L45" title="All 2 branches covered.">        } else if (firstChar == '[') {</span>
+<span class="fc" id="L46">            type = Type.Array;</span>
+        } else {
+<span class="fc" id="L48">            type = Type.Value;</span>
+        }
+
+<span class="fc" id="L51">        return validateResult = jsonReader.isEnd();</span>
+    }
+
+    public Type getType() {
+<span class="pc bpc" id="L55" title="1 of 2 branches missed.">        if (type == null) {</span>
+<span class="fc" id="L56">            validate();</span>
+        }
+
+<span class="fc" id="L59">        return type;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.8.202204050719</span></div></body></html>

@@ -1,0 +1,658 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ObjectWriterProvider.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">fastjson2</a> &gt; <a href="index.source.html" class="el_package">com.alibaba.fastjson2.writer</a> &gt; <span class="el_source">ObjectWriterProvider.java</span></div><h1>ObjectWriterProvider.java</h1><pre class="source lang-java linenums">package com.alibaba.fastjson2.writer;
+
+import com.alibaba.fastjson2.JSONFactory;
+import com.alibaba.fastjson2.JSONWriter;
+import com.alibaba.fastjson2.PropertyNamingStrategy;
+import com.alibaba.fastjson2.codec.BeanInfo;
+import com.alibaba.fastjson2.codec.FieldInfo;
+import com.alibaba.fastjson2.modules.ObjectCodecProvider;
+import com.alibaba.fastjson2.modules.ObjectWriterAnnotationProcessor;
+import com.alibaba.fastjson2.modules.ObjectWriterModule;
+import com.alibaba.fastjson2.util.BeanUtils;
+import com.alibaba.fastjson2.util.GuavaSupport;
+import com.alibaba.fastjson2.util.JDKUtils;
+import com.alibaba.fastjson2.util.TypeUtils;
+
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
+import java.lang.reflect.Type;
+import java.math.BigDecimal;
+import java.math.BigInteger;
+import java.text.DecimalFormat;
+import java.time.*;
+import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
+
+public class ObjectWriterProvider
+        implements ObjectCodecProvider {
+    static final int TYPE_INT32_MASK = 1 &lt;&lt; 1;
+    static final int TYPE_INT64_MASK = 1 &lt;&lt; 2;
+    static final int TYPE_DECIMAL_MASK = 1 &lt;&lt; 3;
+    static final int TYPE_DATE_MASK = 1 &lt;&lt; 4;
+    static final int TYPE_ENUM_MASK = 1 &lt;&lt; 5;
+    static final int NAME_COMPATIBLE_WITH_FILED = 1 &lt;&lt; 6; // compatibleWithFieldName 1.x
+
+<span class="fc" id="L38">    final ConcurrentMap&lt;Type, ObjectWriter&gt; cache = new ConcurrentHashMap&lt;&gt;();</span>
+<span class="fc" id="L39">    final ConcurrentMap&lt;Type, ObjectWriter&gt; cacheFieldBased = new ConcurrentHashMap&lt;&gt;();</span>
+<span class="fc" id="L40">    final ConcurrentMap&lt;Class, Class&gt; mixInCache = new ConcurrentHashMap&lt;&gt;();</span>
+    final ObjectWriterCreator creator;
+<span class="fc" id="L42">    final List&lt;ObjectWriterModule&gt; modules = new ArrayList&lt;&gt;();</span>
+    PropertyNamingStrategy namingStrategy;
+
+<span class="fc" id="L45">    boolean disableReferenceDetect = JSONFactory.isDisableReferenceDetect();</span>
+<span class="fc" id="L46">    boolean disableArrayMapping = JSONFactory.isDisableArrayMapping();</span>
+<span class="fc" id="L47">    boolean disableJSONB = JSONFactory.isDisableJSONB();</span>
+<span class="fc" id="L48">    boolean disableAutoType = JSONFactory.isDisableAutoType();</span>
+
+    volatile long userDefineMask;
+<span class="fc" id="L51">    boolean alphabetic = JSONFactory.isDefaultWriterAlphabetic();</span>
+
+    public ObjectWriterProvider() {
+<span class="fc" id="L54">        this((PropertyNamingStrategy) null);</span>
+<span class="fc" id="L55">    }</span>
+
+<span class="fc" id="L57">    public ObjectWriterProvider(PropertyNamingStrategy namingStrategy) {</span>
+<span class="fc" id="L58">        init();</span>
+
+<span class="fc" id="L60">        ObjectWriterCreator creator = null;</span>
+<span class="pc bpc" id="L61" title="1 of 2 branches missed.">        switch (JSONFactory.CREATOR) {</span>
+            case &quot;reflect&quot;:
+            case &quot;lambda&quot;:
+<span class="nc" id="L64">                creator = ObjectWriterCreator.INSTANCE;</span>
+<span class="nc" id="L65">                break;</span>
+            case &quot;asm&quot;:
+            default:
+                try {
+<span class="pc bpc" id="L69" title="2 of 4 branches missed.">                    if (!JDKUtils.ANDROID &amp;&amp; !JDKUtils.GRAAL) {</span>
+<span class="fc" id="L70">                        creator = ObjectWriterCreatorASM.INSTANCE;</span>
+                    }
+<span class="nc" id="L72">                } catch (Throwable ignored) {</span>
+                    // ignored
+<span class="fc" id="L74">                }</span>
+<span class="pc bpc" id="L75" title="1 of 2 branches missed.">                if (creator == null) {</span>
+<span class="nc" id="L76">                    creator = ObjectWriterCreator.INSTANCE;</span>
+                }
+                break;
+        }
+<span class="fc" id="L80">        this.creator = creator;</span>
+<span class="fc" id="L81">        this.namingStrategy = namingStrategy;</span>
+<span class="fc" id="L82">    }</span>
+
+<span class="fc" id="L84">    public ObjectWriterProvider(ObjectWriterCreator creator) {</span>
+<span class="fc" id="L85">        init();</span>
+<span class="fc" id="L86">        this.creator = creator;</span>
+<span class="fc" id="L87">    }</span>
+
+    public PropertyNamingStrategy getNamingStrategy() {
+<span class="fc" id="L90">        return namingStrategy;</span>
+    }
+
+    /**
+     * @deprecated only use compatible with fastjson 1.x
+     */
+    public void setCompatibleWithFieldName(boolean stat) {
+<span class="nc bnc" id="L97" title="All 2 branches missed.">        if (stat) {</span>
+<span class="nc" id="L98">            userDefineMask |= NAME_COMPATIBLE_WITH_FILED;</span>
+        } else {
+<span class="nc" id="L100">            userDefineMask &amp;= ~NAME_COMPATIBLE_WITH_FILED;</span>
+        }
+<span class="nc" id="L102">    }</span>
+
+    public void setNamingStrategy(PropertyNamingStrategy namingStrategy) {
+<span class="fc" id="L105">        this.namingStrategy = namingStrategy;</span>
+<span class="fc" id="L106">    }</span>
+
+    public void mixIn(Class target, Class mixinSource) {
+<span class="fc bfc" id="L109" title="All 2 branches covered.">        if (mixinSource == null) {</span>
+<span class="fc" id="L110">            mixInCache.remove(target);</span>
+        } else {
+<span class="fc" id="L112">            mixInCache.put(target, mixinSource);</span>
+        }
+<span class="fc" id="L114">        cache.remove(target);</span>
+<span class="fc" id="L115">    }</span>
+
+    public void cleanupMixIn() {
+<span class="nc" id="L118">        mixInCache.clear();</span>
+<span class="nc" id="L119">    }</span>
+
+    public ObjectWriterCreator getCreator() {
+<span class="fc" id="L122">        ObjectWriterCreator contextCreator = JSONFactory.getContextWriterCreator();</span>
+<span class="fc bfc" id="L123" title="All 2 branches covered.">        if (contextCreator != null) {</span>
+<span class="fc" id="L124">            return contextCreator;</span>
+        }
+<span class="fc" id="L126">        return creator;</span>
+    }
+
+    public ObjectWriter register(Type type, ObjectWriter objectWriter) {
+<span class="fc" id="L130">        return register(type, objectWriter, false);</span>
+    }
+
+    public ObjectWriter register(Type type, ObjectWriter objectWriter, boolean fieldBased) {
+<span class="pc bpc" id="L134" title="1 of 2 branches missed.">        if (type == Integer.class) {</span>
+<span class="nc bnc" id="L135" title="All 4 branches missed.">            if (objectWriter == null || objectWriter == ObjectWriterImplInt32.INSTANCE) {</span>
+<span class="nc" id="L136">                userDefineMask &amp;= ~TYPE_INT32_MASK;</span>
+            } else {
+<span class="nc" id="L138">                userDefineMask |= TYPE_INT32_MASK;</span>
+            }
+<span class="pc bpc" id="L140" title="1 of 4 branches missed.">        } else if (type == Long.class || type == long.class) {</span>
+<span class="pc bpc" id="L141" title="1 of 4 branches missed.">            if (objectWriter == null || objectWriter == ObjectWriterImplInt64.INSTANCE) {</span>
+<span class="fc" id="L142">                userDefineMask &amp;= ~TYPE_INT64_MASK;</span>
+            } else {
+<span class="fc" id="L144">                userDefineMask |= TYPE_INT64_MASK;</span>
+            }
+<span class="fc bfc" id="L146" title="All 2 branches covered.">        } else if (type == BigDecimal.class) {</span>
+<span class="pc bpc" id="L147" title="1 of 4 branches missed.">            if (objectWriter == null || objectWriter == ObjectWriterImplBigDecimal.INSTANCE) {</span>
+<span class="fc" id="L148">                userDefineMask &amp;= ~TYPE_DECIMAL_MASK;</span>
+            } else {
+<span class="fc" id="L150">                userDefineMask |= TYPE_DECIMAL_MASK;</span>
+            }
+<span class="fc bfc" id="L152" title="All 2 branches covered.">        } else if (type == Date.class) {</span>
+<span class="pc bpc" id="L153" title="1 of 4 branches missed.">            if (objectWriter == null || objectWriter == ObjectWriterImplDate.INSTANCE) {</span>
+<span class="fc" id="L154">                userDefineMask &amp;= ~TYPE_DATE_MASK;</span>
+            } else {
+<span class="fc" id="L156">                userDefineMask |= TYPE_DATE_MASK;</span>
+            }
+<span class="pc bpc" id="L158" title="1 of 2 branches missed.">        } else if (type == Enum.class) {</span>
+<span class="nc bnc" id="L159" title="All 2 branches missed.">            if (objectWriter == null) {</span>
+<span class="nc" id="L160">                userDefineMask &amp;= ~TYPE_ENUM_MASK;</span>
+            } else {
+<span class="nc" id="L162">                userDefineMask |= TYPE_ENUM_MASK;</span>
+            }
+        }
+
+<span class="fc bfc" id="L166" title="All 2 branches covered.">        ConcurrentMap&lt;Type, ObjectWriter&gt; cache = fieldBased ? this.cacheFieldBased : this.cache;</span>
+
+<span class="fc bfc" id="L168" title="All 2 branches covered.">        if (objectWriter == null) {</span>
+<span class="fc" id="L169">            return cache.remove(type);</span>
+        }
+
+<span class="fc" id="L172">        return cache.put(type, objectWriter);</span>
+    }
+
+    public ObjectWriter registerIfAbsent(Type type, ObjectWriter objectWriter) {
+<span class="fc" id="L176">        return registerIfAbsent(type, objectWriter, false);</span>
+    }
+
+    public ObjectWriter registerIfAbsent(Type type, ObjectWriter objectWriter, boolean fieldBased) {
+<span class="fc bfc" id="L180" title="All 2 branches covered.">        ConcurrentMap&lt;Type, ObjectWriter&gt; cache = fieldBased ? this.cacheFieldBased : this.cache;</span>
+<span class="fc" id="L181">        return cache.putIfAbsent(type, objectWriter);</span>
+    }
+
+    public ObjectWriter unregister(Type type) {
+<span class="fc" id="L185">        return unregister(type, false);</span>
+    }
+
+    public ObjectWriter unregister(Type type, boolean fieldBased) {
+<span class="pc bpc" id="L189" title="1 of 2 branches missed.">        ConcurrentMap&lt;Type, ObjectWriter&gt; cache = fieldBased ? this.cacheFieldBased : this.cache;</span>
+<span class="fc" id="L190">        return cache.remove(type);</span>
+    }
+
+    public boolean unregister(Type type, ObjectWriter objectWriter) {
+<span class="fc" id="L194">        return unregister(type, objectWriter, false);</span>
+    }
+
+    public boolean unregister(Type type, ObjectWriter objectWriter, boolean fieldBased) {
+<span class="fc bfc" id="L198" title="All 2 branches covered.">        ConcurrentMap&lt;Type, ObjectWriter&gt; cache = fieldBased ? this.cacheFieldBased : this.cache;</span>
+<span class="fc" id="L199">        return cache.remove(type, objectWriter);</span>
+    }
+
+    public boolean register(ObjectWriterModule module) {
+<span class="fc bfc" id="L203" title="All 2 branches covered.">        for (int i = modules.size() - 1; i &gt;= 0; i--) {</span>
+<span class="fc bfc" id="L204" title="All 2 branches covered.">            if (modules.get(i) == module) {</span>
+<span class="fc" id="L205">                return false;</span>
+            }
+        }
+
+<span class="fc" id="L209">        module.init(this);</span>
+
+<span class="fc" id="L211">        modules.add(0, module);</span>
+<span class="fc" id="L212">        return true;</span>
+    }
+
+    public boolean unregister(ObjectWriterModule module) {
+<span class="fc" id="L216">        return modules.remove(module);</span>
+    }
+
+    public Class getMixIn(Class target) {
+<span class="fc" id="L220">        return mixInCache.get(target);</span>
+    }
+
+    public void init() {
+<span class="fc" id="L224">        modules.add(new ObjectWriterBaseModule(this));</span>
+<span class="fc" id="L225">    }</span>
+
+    public List&lt;ObjectWriterModule&gt; getModules() {
+<span class="nc" id="L228">        return modules;</span>
+    }
+
+    public void getFieldInfo(BeanInfo beanInfo, FieldInfo fieldInfo, Class objectClass, Field field) {
+<span class="fc bfc" id="L232" title="All 2 branches covered.">        for (int i = 0; i &lt; modules.size(); i++) {</span>
+<span class="fc" id="L233">            ObjectWriterModule module = modules.get(i);</span>
+<span class="fc" id="L234">            ObjectWriterAnnotationProcessor annotationProcessor = module.getAnnotationProcessor();</span>
+<span class="pc bpc" id="L235" title="1 of 2 branches missed.">            if (annotationProcessor == null) {</span>
+<span class="nc" id="L236">                continue;</span>
+            }
+<span class="fc" id="L238">            annotationProcessor.getFieldInfo(beanInfo, fieldInfo, objectClass, field);</span>
+        }
+<span class="fc" id="L240">    }</span>
+
+    public void getFieldInfo(BeanInfo beanInfo, FieldInfo fieldInfo, Class objectClass, Method method) {
+<span class="fc bfc" id="L243" title="All 2 branches covered.">        for (int i = 0; i &lt; modules.size(); i++) {</span>
+<span class="fc" id="L244">            ObjectWriterModule module = modules.get(i);</span>
+<span class="fc" id="L245">            ObjectWriterAnnotationProcessor annotationProcessor = module.getAnnotationProcessor();</span>
+<span class="pc bpc" id="L246" title="1 of 2 branches missed.">            if (annotationProcessor == null) {</span>
+<span class="nc" id="L247">                continue;</span>
+            }
+<span class="fc" id="L249">            annotationProcessor.getFieldInfo(beanInfo, fieldInfo, objectClass, method);</span>
+        }
+<span class="fc" id="L251">    }</span>
+
+    public void getBeanInfo(BeanInfo beanInfo, Class objectClass) {
+<span class="pc bpc" id="L254" title="1 of 4 branches missed.">        if (namingStrategy != null &amp;&amp; namingStrategy != PropertyNamingStrategy.NeverUseThisValueExceptDefaultValue) {</span>
+<span class="fc" id="L255">            beanInfo.namingStrategy = namingStrategy.name();</span>
+        }
+
+<span class="fc bfc" id="L258" title="All 2 branches covered.">        for (int i = 0; i &lt; modules.size(); i++) {</span>
+<span class="fc" id="L259">            ObjectWriterModule module = modules.get(i);</span>
+<span class="fc" id="L260">            ObjectWriterAnnotationProcessor annotationProcessor = module.getAnnotationProcessor();</span>
+<span class="pc bpc" id="L261" title="1 of 2 branches missed.">            if (annotationProcessor == null) {</span>
+<span class="nc" id="L262">                continue;</span>
+            }
+<span class="fc" id="L264">            annotationProcessor.getBeanInfo(beanInfo, objectClass);</span>
+        }
+<span class="fc" id="L266">    }</span>
+
+    public ObjectWriter getObjectWriter(Type objectType, String format, Locale locale) {
+<span class="fc bfc" id="L269" title="All 2 branches covered.">        if (objectType == Double.class) {</span>
+<span class="fc" id="L270">            return new ObjectWriterImplDouble(new DecimalFormat(format));</span>
+        }
+
+<span class="fc bfc" id="L273" title="All 2 branches covered.">        if (objectType == Float.class) {</span>
+<span class="fc" id="L274">            return new ObjectWriterImplFloat(new DecimalFormat(format));</span>
+        }
+
+<span class="fc bfc" id="L277" title="All 2 branches covered.">        if (objectType == BigDecimal.class) {</span>
+<span class="fc" id="L278">            return new ObjectWriterImplBigDecimal(new DecimalFormat(format), null);</span>
+        }
+
+<span class="fc bfc" id="L281" title="All 2 branches covered.">        if (objectType == LocalDate.class) {</span>
+<span class="fc" id="L282">            return ObjectWriterImplLocalDate.of(format, null);</span>
+        }
+
+<span class="pc bpc" id="L285" title="1 of 2 branches missed.">        if (objectType == LocalDateTime.class) {</span>
+<span class="fc" id="L286">            return new ObjectWriterImplLocalDateTime(format, null);</span>
+        }
+
+<span class="nc bnc" id="L289" title="All 2 branches missed.">        if (objectType == LocalTime.class) {</span>
+<span class="nc" id="L290">            return new ObjectWriterImplLocalTime(format, null);</span>
+        }
+
+<span class="nc bnc" id="L293" title="All 2 branches missed.">        if (objectType == Date.class) {</span>
+<span class="nc" id="L294">            return new ObjectWriterImplDate(format, null);</span>
+        }
+
+<span class="nc bnc" id="L297" title="All 2 branches missed.">        if (objectType == OffsetDateTime.class) {</span>
+<span class="nc" id="L298">            return ObjectWriterImplOffsetDateTime.of(format, null);</span>
+        }
+
+<span class="nc bnc" id="L301" title="All 2 branches missed.">        if (objectType == ZonedDateTime.class) {</span>
+<span class="nc" id="L302">            return new ObjectWriterImplZonedDateTime(format, null);</span>
+        }
+
+<span class="nc" id="L305">        return getObjectWriter(objectType);</span>
+    }
+
+    public ObjectWriter getObjectWriter(Class objectClass) {
+<span class="fc" id="L309">        return getObjectWriter(objectClass, objectClass, false);</span>
+    }
+
+    public ObjectWriter getObjectWriter(Type objectType, Class objectClass) {
+<span class="fc" id="L313">        return getObjectWriter(objectType, objectClass, false);</span>
+    }
+
+    public ObjectWriter getObjectWriter(Type objectType) {
+<span class="fc" id="L317">        Class objectClass = TypeUtils.getClass(objectType);</span>
+<span class="fc" id="L318">        return getObjectWriter(objectType, objectClass, false);</span>
+    }
+
+    public ObjectWriter getObjectWriterFromCache(Type objectType, Class objectClass, boolean fieldBased) {
+<span class="fc bfc" id="L322" title="All 2 branches covered.">        return fieldBased</span>
+<span class="fc" id="L323">                ? cacheFieldBased.get(objectType)</span>
+<span class="fc" id="L324">                : cache.get(objectType);</span>
+    }
+
+    public ObjectWriter getObjectWriter(Type objectType, Class objectClass, String format, boolean fieldBased) {
+<span class="fc" id="L328">        ObjectWriter objectWriter = getObjectWriter(objectType, objectClass, fieldBased);</span>
+<span class="pc bpc" id="L329" title="1 of 2 branches missed.">        if (format != null) {</span>
+<span class="pc bpc" id="L330" title="2 of 4 branches missed.">            if (objectType == LocalDateTime.class &amp;&amp; objectWriter == ObjectWriterImplLocalDateTime.INSTANCE) {</span>
+<span class="fc" id="L331">                return ObjectWriterImplLocalDateTime.of(format, null);</span>
+            }
+        }
+<span class="nc" id="L334">        return objectWriter;</span>
+    }
+
+    public ObjectWriter getObjectWriter(Type objectType, Class objectClass, boolean fieldBased) {
+<span class="fc bfc" id="L338" title="All 2 branches covered.">        ObjectWriter objectWriter = fieldBased</span>
+<span class="fc" id="L339">                ? cacheFieldBased.get(objectType)</span>
+<span class="fc" id="L340">                : cache.get(objectType);</span>
+<span class="fc bfc" id="L341" title="All 2 branches covered.">        return objectWriter != null</span>
+                ? objectWriter
+<span class="fc" id="L343">                : getObjectWriterInternal(objectType, objectClass, fieldBased);</span>
+    }
+
+    private ObjectWriter getObjectWriterInternal(Type objectType, Class objectClass, boolean fieldBased) {
+<span class="fc" id="L347">        Class superclass = objectClass.getSuperclass();</span>
+<span class="fc bfc" id="L348" title="All 4 branches covered.">        if (!objectClass.isEnum()</span>
+                &amp;&amp; superclass != null
+<span class="fc bfc" id="L350" title="All 2 branches covered.">                &amp;&amp; superclass.isEnum()</span>
+        ) {
+<span class="fc" id="L352">            return getObjectWriter(superclass, superclass, fieldBased);</span>
+        }
+
+<span class="fc" id="L355">        final String className = objectClass.getName();</span>
+<span class="fc bfc" id="L356" title="All 2 branches covered.">        if (fieldBased) {</span>
+<span class="pc bpc" id="L357" title="1 of 4 branches missed.">            if (superclass != null</span>
+                    &amp;&amp; superclass != Object.class
+<span class="fc bfc" id="L359" title="All 2 branches covered.">                    &amp;&amp; &quot;com.google.protobuf.GeneratedMessageV3&quot;.equals(superclass.getName())) {</span>
+<span class="fc" id="L360">                fieldBased = false;</span>
+            } else {
+<span class="fc bfc" id="L362" title="All 2 branches covered.">                switch (className) {</span>
+                    case &quot;springfox.documentation.spring.web.json.Json&quot;:
+                    case &quot;cn.hutool.json.JSONArray&quot;:
+                    case &quot;cn.hutool.json.JSONObject&quot;:
+                    case &quot;cn.hutool.core.map.CaseInsensitiveMap&quot;:
+                    case &quot;cn.hutool.core.map.CaseInsensitiveLinkedMap&quot;:
+<span class="fc" id="L368">                        fieldBased = false;</span>
+<span class="fc" id="L369">                        break;</span>
+                    default:
+<span class="fc" id="L371">                        break;</span>
+                }
+            }
+        } else {
+<span class="fc bfc" id="L375" title="All 2 branches covered.">            switch (className) {</span>
+                case &quot;org.springframework.core.ResolvableType&quot;:
+<span class="fc" id="L377">                    fieldBased = true;</span>
+<span class="fc" id="L378">                    break;</span>
+                default:
+                    break;
+            }
+        }
+
+<span class="fc bfc" id="L384" title="All 2 branches covered.">        ObjectWriter objectWriter = fieldBased</span>
+<span class="fc" id="L385">                ? cacheFieldBased.get(objectType)</span>
+<span class="fc" id="L386">                : cache.get(objectType);</span>
+
+<span class="fc bfc" id="L388" title="All 2 branches covered.">        if (objectWriter != null) {</span>
+<span class="fc" id="L389">            return objectWriter;</span>
+        }
+
+<span class="fc bfc" id="L392" title="All 2 branches covered.">        if (TypeUtils.isProxy(objectClass)) {</span>
+<span class="pc bpc" id="L393" title="1 of 2 branches missed.">            if (objectClass == objectType) {</span>
+<span class="fc" id="L394">                objectType = superclass;</span>
+            }
+<span class="fc" id="L396">            objectClass = superclass;</span>
+<span class="fc bfc" id="L397" title="All 2 branches covered.">            if (fieldBased) {</span>
+<span class="fc" id="L398">                fieldBased = false;</span>
+<span class="fc" id="L399">                objectWriter = cacheFieldBased.get(objectType);</span>
+<span class="pc bpc" id="L400" title="1 of 2 branches missed.">                if (objectWriter != null) {</span>
+<span class="nc" id="L401">                    return objectWriter;</span>
+                }
+            }
+        }
+
+<span class="fc" id="L406">        boolean useModules = true;</span>
+<span class="fc bfc" id="L407" title="All 2 branches covered.">        if (fieldBased) {</span>
+<span class="fc bfc" id="L408" title="All 2 branches covered.">            if (Iterable.class.isAssignableFrom(objectClass)</span>
+<span class="pc bpc" id="L409" title="1 of 2 branches missed.">                    &amp;&amp; !Collection.class.isAssignableFrom(objectClass)) {</span>
+<span class="nc" id="L410">                useModules = false;</span>
+            }
+        }
+
+<span class="pc bpc" id="L414" title="1 of 2 branches missed.">        if (useModules) {</span>
+<span class="fc bfc" id="L415" title="All 2 branches covered.">            for (int i = 0; i &lt; modules.size(); i++) {</span>
+<span class="fc" id="L416">                ObjectWriterModule module = modules.get(i);</span>
+<span class="fc" id="L417">                objectWriter = module.getObjectWriter(objectType, objectClass);</span>
+<span class="fc bfc" id="L418" title="All 2 branches covered.">                if (objectWriter != null) {</span>
+<span class="fc bfc" id="L419" title="All 2 branches covered.">                    ObjectWriter previous = fieldBased</span>
+<span class="fc" id="L420">                            ? cacheFieldBased.putIfAbsent(objectType, objectWriter)</span>
+<span class="fc" id="L421">                            : cache.putIfAbsent(objectType, objectWriter);</span>
+
+<span class="pc bpc" id="L423" title="1 of 2 branches missed.">                    if (previous != null) {</span>
+<span class="nc" id="L424">                        objectWriter = previous;</span>
+                    }
+<span class="fc" id="L426">                    return objectWriter;</span>
+                }
+            }
+        }
+
+<span class="pc bpc" id="L431" title="2 of 5 branches missed.">        switch (className) {</span>
+            case &quot;com.google.common.collect.HashMultimap&quot;:
+            case &quot;com.google.common.collect.LinkedListMultimap&quot;:
+            case &quot;com.google.common.collect.LinkedHashMultimap&quot;:
+            case &quot;com.google.common.collect.ArrayListMultimap&quot;:
+            case &quot;com.google.common.collect.TreeMultimap&quot;:
+<span class="fc" id="L437">                objectWriter = GuavaSupport.createAsMapWriter(objectClass);</span>
+<span class="fc" id="L438">                break;</span>
+            case &quot;com.google.common.collect.AbstractMapBasedMultimap$RandomAccessWrappedList&quot;:
+<span class="fc" id="L440">                objectWriter = ObjectWriterImplList.INSTANCE;</span>
+<span class="fc" id="L441">                break;</span>
+            case &quot;com.alibaba.fastjson.JSONObject&quot;:
+<span class="nc" id="L443">                objectWriter = ObjectWriterImplMap.of(objectClass);</span>
+<span class="nc" id="L444">                break;</span>
+            case &quot;android.net.Uri$OpaqueUri&quot;:
+            case &quot;android.net.Uri$HierarchicalUri&quot;:
+            case &quot;android.net.Uri$StringUri&quot;:
+<span class="nc" id="L448">                objectWriter = ObjectWriterImplToString.INSTANCE;</span>
+<span class="nc" id="L449">                break;</span>
+            default:
+                break;
+        }
+
+<span class="fc bfc" id="L454" title="All 4 branches covered.">        if (objectWriter == null</span>
+                &amp;&amp; (!fieldBased)
+<span class="fc bfc" id="L456" title="All 2 branches covered.">                &amp;&amp; Map.class.isAssignableFrom(objectClass)</span>
+<span class="pc bpc" id="L457" title="1 of 2 branches missed.">                &amp;&amp; BeanUtils.isExtendedMap(objectClass)) {</span>
+<span class="fc" id="L458">            return ObjectWriterImplMap.of(objectClass);</span>
+        }
+
+<span class="fc bfc" id="L461" title="All 2 branches covered.">        if (objectWriter == null) {</span>
+<span class="fc" id="L462">            ObjectWriterCreator creator = getCreator();</span>
+<span class="fc bfc" id="L463" title="All 2 branches covered.">            objectWriter = creator.createObjectWriter(</span>
+                    objectClass,
+                    fieldBased ? JSONWriter.Feature.FieldBased.mask : 0,
+                    this
+            );
+<span class="fc bfc" id="L468" title="All 2 branches covered.">            ObjectWriter previous = fieldBased</span>
+<span class="fc" id="L469">                    ? cacheFieldBased.putIfAbsent(objectType, objectWriter)</span>
+<span class="fc" id="L470">                    : cache.putIfAbsent(objectType, objectWriter);</span>
+
+<span class="fc bfc" id="L472" title="All 2 branches covered.">            if (previous != null) {</span>
+<span class="fc" id="L473">                objectWriter = previous;</span>
+            }
+        }
+<span class="fc" id="L476">        return objectWriter;</span>
+    }
+
+    static final int ENUM = 0x00004000;
+    static final int[] PRIMITIVE_HASH_CODES;
+    static final int[] NOT_REFERENCES_TYPE_HASH_CODES;
+
+    static {
+<span class="fc" id="L484">        Class&lt;?&gt;[] classes = new Class[]{</span>
+                boolean.class,
+                Boolean.class,
+                Character.class,
+                char.class,
+                Byte.class,
+                byte.class,
+                Short.class,
+                short.class,
+                Integer.class,
+                int.class,
+                Long.class,
+                long.class,
+                Float.class,
+                float.class,
+                Double.class,
+                double.class,
+                BigInteger.class,
+                BigDecimal.class,
+                String.class,
+                java.util.Currency.class,
+                java.util.Date.class,
+                java.util.Calendar.class,
+                java.util.UUID.class,
+                java.util.Locale.class,
+                java.time.LocalTime.class,
+                java.time.LocalDate.class,
+                java.time.LocalDateTime.class,
+                java.time.Instant.class,
+                java.time.ZoneId.class,
+                java.time.ZonedDateTime.class,
+                java.time.OffsetDateTime.class,
+                java.time.OffsetTime.class,
+                AtomicInteger.class,
+                AtomicLong.class,
+                String.class,
+                StackTraceElement.class,
+<span class="fc" id="L521">                Collections.emptyList().getClass(),</span>
+<span class="fc" id="L522">                Collections.emptyMap().getClass(),</span>
+<span class="fc" id="L523">                Collections.emptySet().getClass()</span>
+        };
+
+<span class="fc" id="L526">        int[] codes = new int[classes.length];</span>
+<span class="fc bfc" id="L527" title="All 2 branches covered.">        for (int i = 0; i &lt; classes.length; i++) {</span>
+<span class="fc" id="L528">            codes[i] = System.identityHashCode(classes[i]);</span>
+        }
+<span class="fc" id="L530">        Arrays.sort(codes);</span>
+<span class="fc" id="L531">        PRIMITIVE_HASH_CODES = codes;</span>
+
+<span class="fc" id="L533">        int[] codes2 = Arrays.copyOf(codes, codes.length + 3);</span>
+<span class="fc" id="L534">        codes2[codes2.length - 1] = System.identityHashCode(Class.class);</span>
+<span class="fc" id="L535">        codes2[codes2.length - 2] = System.identityHashCode(int[].class);</span>
+<span class="fc" id="L536">        codes2[codes2.length - 3] = System.identityHashCode(long[].class);</span>
+<span class="fc" id="L537">        Arrays.sort(codes2);</span>
+<span class="fc" id="L538">        NOT_REFERENCES_TYPE_HASH_CODES = codes2;</span>
+<span class="fc" id="L539">    }</span>
+
+    public static boolean isPrimitiveOrEnum(final Class&lt;?&gt; clazz) {
+<span class="fc bfc" id="L542" title="All 2 branches covered.">        return Arrays.binarySearch(PRIMITIVE_HASH_CODES, System.identityHashCode(clazz)) &gt;= 0</span>
+<span class="fc bfc" id="L543" title="All 4 branches covered.">                || ((clazz.getModifiers() &amp; ENUM) != 0 &amp;&amp; clazz.getSuperclass() == Enum.class);</span>
+    }
+
+    public static boolean isNotReferenceDetect(final Class&lt;?&gt; clazz) {
+<span class="fc bfc" id="L547" title="All 2 branches covered.">        return Arrays.binarySearch(NOT_REFERENCES_TYPE_HASH_CODES, System.identityHashCode(clazz)) &gt;= 0</span>
+<span class="fc bfc" id="L548" title="All 4 branches covered.">                || ((clazz.getModifiers() &amp; ENUM) != 0 &amp;&amp; clazz.getSuperclass() == Enum.class);</span>
+    }
+
+    public void cleanup(Class objectClass) {
+<span class="fc" id="L552">        mixInCache.remove(objectClass);</span>
+<span class="fc" id="L553">        cache.remove(objectClass);</span>
+<span class="fc" id="L554">        cacheFieldBased.remove(objectClass);</span>
+
+<span class="fc" id="L556">        BeanUtils.cleanupCache(objectClass);</span>
+<span class="fc" id="L557">    }</span>
+
+    static boolean match(Type objectType, ObjectWriter objectWriter, ClassLoader classLoader, IdentityHashMap&lt;ObjectWriter, Object&gt; checkedMap) {
+<span class="fc" id="L560">        Class&lt;?&gt; objectClass = TypeUtils.getClass(objectType);</span>
+<span class="fc bfc" id="L561" title="All 4 branches covered.">        if (objectClass != null &amp;&amp; objectClass.getClassLoader() == classLoader) {</span>
+<span class="fc" id="L562">            return true;</span>
+        }
+
+<span class="fc bfc" id="L565" title="All 2 branches covered.">        if (checkedMap.containsKey(objectWriter)) {</span>
+<span class="fc" id="L566">            return false;</span>
+        }
+
+<span class="fc bfc" id="L569" title="All 2 branches covered.">        if (objectWriter instanceof ObjectWriterImplMap) {</span>
+<span class="fc" id="L570">            ObjectWriterImplMap mapTyped = (ObjectWriterImplMap) objectWriter;</span>
+<span class="fc" id="L571">            Class valueClass = TypeUtils.getClass(mapTyped.valueType);</span>
+<span class="fc bfc" id="L572" title="All 4 branches covered.">            if (valueClass != null &amp;&amp; valueClass.getClassLoader() == classLoader) {</span>
+<span class="fc" id="L573">                return true;</span>
+            }
+<span class="fc" id="L575">            Class keyClass = TypeUtils.getClass(mapTyped.keyType);</span>
+<span class="fc bfc" id="L576" title="All 4 branches covered.">            return keyClass != null &amp;&amp; keyClass.getClassLoader() == classLoader;</span>
+<span class="fc bfc" id="L577" title="All 2 branches covered.">        } else if (objectWriter instanceof ObjectWriterImplCollection) {</span>
+<span class="fc" id="L578">            Class itemClass = TypeUtils.getClass(((ObjectWriterImplCollection) objectWriter).itemType);</span>
+<span class="pc bpc" id="L579" title="3 of 4 branches missed.">            return itemClass != null &amp;&amp; itemClass.getClassLoader() == classLoader;</span>
+<span class="fc bfc" id="L580" title="All 2 branches covered.">        } else if (objectWriter instanceof ObjectWriterImplOptional) {</span>
+<span class="fc" id="L581">            Class itemClass = TypeUtils.getClass(((ObjectWriterImplOptional) objectWriter).valueType);</span>
+<span class="fc bfc" id="L582" title="All 4 branches covered.">            return itemClass != null &amp;&amp; itemClass.getClassLoader() == classLoader;</span>
+<span class="fc bfc" id="L583" title="All 2 branches covered.">        } else if (objectWriter instanceof ObjectWriterAdapter) {</span>
+<span class="fc" id="L584">            checkedMap.put(objectWriter, null);</span>
+<span class="fc" id="L585">            List&lt;FieldWriter&gt; fieldWriters = ((ObjectWriterAdapter&lt;?&gt;) objectWriter).fieldWriters;</span>
+<span class="fc bfc" id="L586" title="All 2 branches covered.">            for (int i = 0; i &lt; fieldWriters.size(); i++) {</span>
+<span class="fc" id="L587">                FieldWriter fieldWriter = fieldWriters.get(i);</span>
+<span class="fc bfc" id="L588" title="All 2 branches covered.">                if (fieldWriter instanceof FieldWriterObject) {</span>
+<span class="fc" id="L589">                    ObjectWriter initObjectWriter = ((FieldWriterObject&lt;?&gt;) fieldWriter).initObjectWriter;</span>
+<span class="pc bpc" id="L590" title="1 of 2 branches missed.">                    if (match(null, initObjectWriter, classLoader, checkedMap)) {</span>
+<span class="nc" id="L591">                        return true;</span>
+                    }
+                }
+            }
+        }
+
+<span class="fc" id="L597">        return false;</span>
+    }
+
+    public void cleanup(ClassLoader classLoader) {
+<span class="fc" id="L601">        mixInCache.entrySet().removeIf</span>
+<span class="pc bpc" id="L602" title="1 of 2 branches missed.">                (entry -&gt; entry.getKey().getClassLoader() == classLoader</span>
+                );
+
+<span class="fc" id="L605">        IdentityHashMap&lt;ObjectWriter, Object&gt; checkedMap = new IdentityHashMap();</span>
+
+<span class="fc" id="L607">        cache.entrySet().removeIf(</span>
+<span class="fc" id="L608">                entry -&gt; match(entry.getKey(), entry.getValue(), classLoader, checkedMap)</span>
+        );
+
+<span class="fc" id="L611">        cacheFieldBased.entrySet().removeIf(</span>
+<span class="fc" id="L612">                entry -&gt; match(entry.getKey(), entry.getValue(), classLoader, checkedMap)</span>
+        );
+
+<span class="fc" id="L615">        BeanUtils.cleanupCache(classLoader);</span>
+<span class="fc" id="L616">    }</span>
+
+    public boolean isDisableReferenceDetect() {
+<span class="fc" id="L619">        return disableReferenceDetect;</span>
+    }
+
+    public boolean isDisableAutoType() {
+<span class="fc" id="L623">        return disableAutoType;</span>
+    }
+
+    public boolean isDisableJSONB() {
+<span class="fc" id="L627">        return disableJSONB;</span>
+    }
+
+    public boolean isDisableArrayMapping() {
+<span class="fc" id="L631">        return disableArrayMapping;</span>
+    }
+
+    public void setDisableReferenceDetect(boolean disableReferenceDetect) {
+<span class="fc" id="L635">        this.disableReferenceDetect = disableReferenceDetect;</span>
+<span class="fc" id="L636">    }</span>
+
+    public void setDisableArrayMapping(boolean disableArrayMapping) {
+<span class="fc" id="L639">        this.disableArrayMapping = disableArrayMapping;</span>
+<span class="fc" id="L640">    }</span>
+
+    public void setDisableJSONB(boolean disableJSONB) {
+<span class="fc" id="L643">        this.disableJSONB = disableJSONB;</span>
+<span class="fc" id="L644">    }</span>
+
+    public void setDisableAutoType(boolean disableAutoType) {
+<span class="fc" id="L647">        this.disableAutoType = disableAutoType;</span>
+<span class="fc" id="L648">    }</span>
+
+    public boolean isAlphabetic() {
+<span class="fc" id="L651">        return alphabetic;</span>
+    }
+
+    protected BeanInfo createBeanInfo() {
+<span class="fc" id="L655">        return new BeanInfo(this);</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.8.202204050719</span></div></body></html>

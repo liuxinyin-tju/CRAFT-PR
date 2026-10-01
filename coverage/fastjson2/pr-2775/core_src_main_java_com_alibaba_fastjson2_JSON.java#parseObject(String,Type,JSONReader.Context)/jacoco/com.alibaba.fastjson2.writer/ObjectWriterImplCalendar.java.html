@@ -1,0 +1,107 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ObjectWriterImplCalendar.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">fastjson2</a> &gt; <a href="index.source.html" class="el_package">com.alibaba.fastjson2.writer</a> &gt; <span class="el_source">ObjectWriterImplCalendar.java</span></div><h1>ObjectWriterImplCalendar.java</h1><pre class="source lang-java linenums">package com.alibaba.fastjson2.writer;
+
+import com.alibaba.fastjson2.JSONWriter;
+import com.alibaba.fastjson2.codec.DateTimeCodec;
+
+import java.lang.reflect.Type;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.Calendar;
+import java.util.Locale;
+
+final class ObjectWriterImplCalendar
+        extends DateTimeCodec implements ObjectWriter {
+<span class="fc" id="L16">    static final ObjectWriterImplCalendar INSTANCE = new ObjectWriterImplCalendar(null, null);</span>
+
+    public ObjectWriterImplCalendar(String format, Locale locale) {
+<span class="fc" id="L19">        super(format, locale);</span>
+<span class="fc" id="L20">    }</span>
+
+    @Override
+    public void writeJSONB(JSONWriter jsonWriter, Object object, Object fieldName, Type fieldType, long features) {
+<span class="pc bpc" id="L24" title="1 of 2 branches missed.">        if (object == null) {</span>
+<span class="nc" id="L25">            jsonWriter.writeNull();</span>
+<span class="nc" id="L26">            return;</span>
+        }
+
+<span class="fc" id="L29">        long millis = ((Calendar) object).getTimeInMillis();</span>
+<span class="fc" id="L30">        jsonWriter.writeMillis(millis);</span>
+<span class="fc" id="L31">    }</span>
+
+    @Override
+    public void write(JSONWriter jsonWriter, Object object, Object fieldName, Type fieldType, long features) {
+<span class="pc bpc" id="L35" title="1 of 2 branches missed.">        if (object == null) {</span>
+<span class="nc" id="L36">            jsonWriter.writeNull();</span>
+<span class="nc" id="L37">            return;</span>
+        }
+
+<span class="fc" id="L40">        JSONWriter.Context ctx = jsonWriter.context;</span>
+
+<span class="fc" id="L42">        Calendar date = (Calendar) object;</span>
+<span class="fc" id="L43">        long millis = date.getTimeInMillis();</span>
+
+<span class="fc bfc" id="L45" title="All 6 branches covered.">        if (formatUnixTime || (format == null &amp;&amp; ctx.isDateFormatUnixTime())) {</span>
+<span class="fc" id="L46">            jsonWriter.writeInt64(millis / 1000L);</span>
+<span class="fc" id="L47">            return;</span>
+        }
+
+<span class="fc bfc" id="L50" title="All 4 branches covered.">        if (format == null &amp;&amp; ctx.isDateFormatMillis()) {</span>
+<span class="fc" id="L51">            jsonWriter.writeInt64(millis);</span>
+<span class="fc" id="L52">            return;</span>
+        }
+
+<span class="fc" id="L55">        ZoneId zoneId = ctx.getZoneId();</span>
+<span class="fc" id="L56">        Instant instant = Instant.ofEpochMilli(millis);</span>
+<span class="fc" id="L57">        ZonedDateTime zdt = ZonedDateTime.ofInstant(instant, zoneId);</span>
+<span class="fc" id="L58">        int offsetSeconds = zdt.getOffset().getTotalSeconds();</span>
+
+<span class="fc" id="L60">        final int year = zdt.getYear();</span>
+<span class="pc bpc" id="L61" title="2 of 4 branches missed.">        if (year &gt;= 0 &amp;&amp; year &lt;= 9999) {</span>
+<span class="fc bfc" id="L62" title="All 4 branches covered.">            if (format == null &amp;&amp; ctx.isDateFormatISO8601()) {</span>
+<span class="fc" id="L63">                int month = zdt.getMonthValue();</span>
+<span class="fc" id="L64">                int dayOfMonth = zdt.getDayOfMonth();</span>
+<span class="fc" id="L65">                int hour = zdt.getHour();</span>
+<span class="fc" id="L66">                int minute = zdt.getMinute();</span>
+<span class="fc" id="L67">                int second = zdt.getSecond();</span>
+<span class="fc" id="L68">                int nano = zdt.getNano() / (1000 * 1000);</span>
+<span class="fc" id="L69">                jsonWriter.writeDateTimeISO8601(year, month, dayOfMonth, hour, minute, second, nano, offsetSeconds, true);</span>
+<span class="fc" id="L70">                return;</span>
+            }
+
+<span class="fc bfc" id="L73" title="All 2 branches covered.">            String dateFormat = format == null ? ctx.getDateFormat() : format;</span>
+<span class="fc bfc" id="L74" title="All 2 branches covered.">            if (dateFormat == null) {</span>
+<span class="fc" id="L75">                int month = zdt.getMonthValue();</span>
+<span class="fc" id="L76">                int dayOfMonth = zdt.getDayOfMonth();</span>
+<span class="fc" id="L77">                int hour = zdt.getHour();</span>
+<span class="fc" id="L78">                int minute = zdt.getMinute();</span>
+<span class="fc" id="L79">                int second = zdt.getSecond();</span>
+
+<span class="fc" id="L81">                int nano = zdt.getNano();</span>
+<span class="fc bfc" id="L82" title="All 2 branches covered.">                if (nano == 0) {</span>
+<span class="fc" id="L83">                    jsonWriter.writeDateTime19(year, month, dayOfMonth, hour, minute, second);</span>
+                } else {
+<span class="fc" id="L85">                    jsonWriter.writeDateTimeISO8601(year, month, dayOfMonth, hour, minute, second, nano / 1000_000, offsetSeconds, false);</span>
+                }
+<span class="fc" id="L87">                return;</span>
+            }
+        }
+
+        DateTimeFormatter dateFormatter;
+<span class="fc bfc" id="L92" title="All 2 branches covered.">        if (format != null) {</span>
+<span class="fc" id="L93">            dateFormatter = getDateFormatter();</span>
+        } else {
+<span class="fc" id="L95">            dateFormatter = ctx.getDateFormatter();</span>
+        }
+
+<span class="pc bpc" id="L98" title="1 of 2 branches missed.">        if (dateFormatter == null) {</span>
+<span class="nc" id="L99">            jsonWriter.writeZonedDateTime(zdt);</span>
+<span class="nc" id="L100">            return;</span>
+        }
+
+<span class="fc" id="L103">        String str = dateFormatter.format(zdt);</span>
+<span class="fc" id="L104">        jsonWriter.writeString(str);</span>
+<span class="fc" id="L105">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.8.202204050719</span></div></body></html>

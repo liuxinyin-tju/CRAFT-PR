@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>FieldReaderInt16ValueFunc.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">fastjson2</a> &gt; <a href="index.source.html" class="el_package">com.alibaba.fastjson2.reader</a> &gt; <span class="el_source">FieldReaderInt16ValueFunc.java</span></div><h1>FieldReaderInt16ValueFunc.java</h1><pre class="source lang-java linenums">package com.alibaba.fastjson2.reader;
+
+import com.alibaba.fastjson2.JSONReader;
+import com.alibaba.fastjson2.function.ObjShortConsumer;
+import com.alibaba.fastjson2.schema.JSONSchema;
+import com.alibaba.fastjson2.util.TypeUtils;
+
+import java.lang.reflect.Method;
+import java.util.Locale;
+
+final class FieldReaderInt16ValueFunc&lt;T&gt;
+        extends FieldReader&lt;T&gt; {
+    final ObjShortConsumer&lt;T&gt; function;
+
+    public FieldReaderInt16ValueFunc(
+            String fieldName,
+            int ordinal,
+            long features,
+            String format,
+            Locale locale,
+            Short defaultValue,
+            JSONSchema schema,
+            Method method,
+            ObjShortConsumer&lt;T&gt; function
+    ) {
+<span class="fc" id="L26">        super(fieldName, short.class, short.class, ordinal, features, format, locale, defaultValue, schema, method, null);</span>
+<span class="fc" id="L27">        this.function = function;</span>
+<span class="fc" id="L28">    }</span>
+
+    @Override
+    public void accept(T object, short value) {
+<span class="pc bpc" id="L32" title="1 of 2 branches missed.">        if (schema != null) {</span>
+<span class="nc" id="L33">            schema.assertValidate(value);</span>
+        }
+
+<span class="nc" id="L36">        function.accept(object, value);</span>
+<span class="nc" id="L37">    }</span>
+
+    @Override
+    public void accept(T object, Object value) {
+<span class="fc" id="L41">        short shortValue = TypeUtils.toShortValue(value);</span>
+
+<span class="fc bfc" id="L43" title="All 2 branches covered.">        if (schema != null) {</span>
+<span class="fc" id="L44">            schema.assertValidate(shortValue);</span>
+        }
+
+<span class="fc" id="L47">        function.accept(object, shortValue);</span>
+<span class="fc" id="L48">    }</span>
+
+    @Override
+    public void readFieldValue(JSONReader jsonReader, T object) {
+<span class="fc" id="L52">        short fieldInt = (short) jsonReader.readInt32Value();</span>
+
+<span class="fc bfc" id="L54" title="All 2 branches covered.">        if (schema != null) {</span>
+<span class="fc" id="L55">            schema.assertValidate(fieldInt);</span>
+        }
+
+<span class="fc" id="L58">        function.accept(object, fieldInt);</span>
+<span class="fc" id="L59">    }</span>
+
+    @Override
+    public Object readFieldValue(JSONReader jsonReader) {
+<span class="fc" id="L63">        return (short) jsonReader.readInt32Value();</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.8.202204050719</span></div></body></html>

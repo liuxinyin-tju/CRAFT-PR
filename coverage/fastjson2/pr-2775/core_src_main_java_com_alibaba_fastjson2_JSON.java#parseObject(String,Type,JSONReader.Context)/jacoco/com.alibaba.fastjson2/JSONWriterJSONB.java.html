@@ -1,0 +1,2692 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>JSONWriterJSONB.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">fastjson2</a> &gt; <a href="index.source.html" class="el_package">com.alibaba.fastjson2</a> &gt; <span class="el_source">JSONWriterJSONB.java</span></div><h1>JSONWriterJSONB.java</h1><pre class="source lang-java linenums">package com.alibaba.fastjson2;
+
+import com.alibaba.fastjson2.internal.trove.map.hash.TLongIntHashMap;
+import com.alibaba.fastjson2.util.DateUtils;
+import com.alibaba.fastjson2.util.Fnv;
+import com.alibaba.fastjson2.util.IOUtils;
+import com.alibaba.fastjson2.util.JDKUtils;
+import com.alibaba.fastjson2.writer.ObjectWriter;
+
+import java.io.IOException;
+import java.io.OutputStream;
+import java.math.BigDecimal;
+import java.math.BigInteger;
+import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
+import java.text.DecimalFormat;
+import java.time.*;
+import java.util.*;
+
+import static com.alibaba.fastjson2.JSONB.Constants.*;
+import static com.alibaba.fastjson2.JSONFactory.*;
+import static com.alibaba.fastjson2.JSONWriter.Feature.*;
+import static com.alibaba.fastjson2.util.DateUtils.OFFSET_8_ZONE_ID_NAME;
+import static com.alibaba.fastjson2.util.DateUtils.SHANGHAI_ZONE_ID_NAME;
+import static com.alibaba.fastjson2.util.JDKUtils.*;
+import static com.alibaba.fastjson2.util.TypeUtils.*;
+
+final class JSONWriterJSONB
+        extends JSONWriter {
+    // optimize for write ZonedDateTime
+<span class="fc" id="L31">    static final byte[] SHANGHAI_ZONE_ID_NAME_BYTES = JSONB.toBytes(SHANGHAI_ZONE_ID_NAME);</span>
+<span class="fc" id="L32">    static final byte[] OFFSET_8_ZONE_ID_NAME_BYTES = JSONB.toBytes(OFFSET_8_ZONE_ID_NAME);</span>
+<span class="fc" id="L33">    static final long WRITE_ENUM_USING_STRING_MASK = WriteEnumUsingToString.mask | WriteEnumsUsingName.mask;</span>
+
+    private final CacheItem cacheItem;
+    private byte[] bytes;
+    private TLongIntHashMap symbols;
+    private int symbolIndex;
+
+    private long rootTypeNameHash;
+
+    JSONWriterJSONB(Context ctx, SymbolTable symbolTable) {
+<span class="fc" id="L43">        super(ctx, symbolTable, true, StandardCharsets.UTF_8);</span>
+<span class="fc" id="L44">        cacheItem = CACHE_ITEMS[System.identityHashCode(Thread.currentThread()) &amp; (CACHE_ITEMS.length - 1)];</span>
+<span class="fc" id="L45">        byte[] bytes = BYTES_UPDATER.getAndSet(cacheItem, null);</span>
+<span class="fc bfc" id="L46" title="All 2 branches covered.">        if (bytes == null) {</span>
+<span class="fc" id="L47">            bytes = new byte[8192];</span>
+        }
+<span class="fc" id="L49">        this.bytes = bytes;</span>
+<span class="fc" id="L50">    }</span>
+
+    @Override
+    public void close() {
+<span class="fc" id="L54">        final byte[] bytes = this.bytes;</span>
+<span class="fc bfc" id="L55" title="All 2 branches covered.">        if (bytes.length &lt; CACHE_THRESHOLD) {</span>
+<span class="fc" id="L56">            BYTES_UPDATER.lazySet(cacheItem, bytes);</span>
+        }
+<span class="fc" id="L58">    }</span>
+
+    @Override
+    public void writeAny(Object value) {
+<span class="fc bfc" id="L62" title="All 2 branches covered.">        if (value == null) {</span>
+<span class="fc" id="L63">            writeNull();</span>
+<span class="fc" id="L64">            return;</span>
+        }
+
+<span class="fc bfc" id="L67" title="All 2 branches covered.">        boolean fieldBased = (context.features &amp; Feature.FieldBased.mask) != 0;</span>
+
+<span class="fc" id="L69">        Class&lt;?&gt; valueClass = value.getClass();</span>
+<span class="fc" id="L70">        ObjectWriter objectWriter = context.provider.getObjectWriter(valueClass, valueClass, fieldBased);</span>
+
+<span class="fc bfc" id="L72" title="All 2 branches covered.">        if (isBeanToArray()) {</span>
+<span class="fc" id="L73">            objectWriter.writeArrayMappingJSONB(this, value, null, null, 0);</span>
+        } else {
+<span class="fc" id="L75">            objectWriter.writeJSONB(this, value, null, null, 0);</span>
+        }
+<span class="fc" id="L77">    }</span>
+
+    @Override
+    public void startObject() {
+<span class="pc bpc" id="L81" title="1 of 2 branches missed.">        if (level &gt;= context.maxLevel) {</span>
+<span class="nc" id="L82">            throw new JSONException(&quot;level too large : &quot; + level);</span>
+        }
+
+<span class="fc" id="L85">        level++;</span>
+<span class="fc" id="L86">        int off = this.off;</span>
+<span class="fc bfc" id="L87" title="All 2 branches covered.">        if (off == bytes.length) {</span>
+<span class="fc" id="L88">            ensureCapacity(off + 1);</span>
+        }
+<span class="fc" id="L90">        bytes[off] = BC_OBJECT;</span>
+<span class="fc" id="L91">        this.off = off + 1;</span>
+<span class="fc" id="L92">    }</span>
+
+    @Override
+    public void endObject() {
+<span class="fc" id="L96">        level--;</span>
+<span class="fc" id="L97">        int off = this.off;</span>
+<span class="fc bfc" id="L98" title="All 2 branches covered.">        if (off == bytes.length) {</span>
+<span class="fc" id="L99">            ensureCapacity(off + 1);</span>
+        }
+<span class="fc" id="L101">        bytes[off] = BC_OBJECT_END;</span>
+<span class="fc" id="L102">        this.off = off + 1;</span>
+<span class="fc" id="L103">    }</span>
+
+    @Override
+    public void startArray() {
+<span class="fc" id="L107">        throw new JSONException(&quot;unsupported operation&quot;);</span>
+    }
+
+    @Override
+    public void startArray(Object array, int size) {
+<span class="pc bpc" id="L112" title="1 of 2 branches missed.">        if (isWriteTypeInfo(array)) {</span>
+<span class="nc" id="L113">            writeTypeName(array.getClass().getName());</span>
+        }
+
+<span class="fc" id="L116">        int off = this.off;</span>
+<span class="fc bfc" id="L117" title="All 2 branches covered.">        if (off == bytes.length) {</span>
+<span class="fc" id="L118">            ensureCapacity(off + 1);</span>
+        }
+
+<span class="fc bfc" id="L121" title="All 2 branches covered.">        boolean tinyInt = size &lt;= ARRAY_FIX_LEN;</span>
+<span class="fc bfc" id="L122" title="All 2 branches covered.">        bytes[off] = tinyInt ? (byte) (BC_ARRAY_FIX_MIN + size) : BC_ARRAY;</span>
+<span class="fc" id="L123">        this.off = off + 1;</span>
+<span class="fc bfc" id="L124" title="All 2 branches covered.">        if (!tinyInt) {</span>
+<span class="fc" id="L125">            writeInt32(size);</span>
+        }
+<span class="fc" id="L127">    }</span>
+
+    @Override
+    public void startArray(int size) {
+<span class="fc" id="L131">        int off = this.off;</span>
+<span class="pc bpc" id="L132" title="1 of 2 branches missed.">        if (off + 1 &gt;= bytes.length) {</span>
+<span class="nc" id="L133">            ensureCapacity(off + 2);</span>
+        }
+
+<span class="fc bfc" id="L136" title="All 2 branches covered.">        boolean tinyInt = size &lt;= ARRAY_FIX_LEN;</span>
+<span class="fc bfc" id="L137" title="All 2 branches covered.">        bytes[off] = tinyInt ? (byte) (BC_ARRAY_FIX_MIN + size) : BC_ARRAY;</span>
+<span class="fc" id="L138">        this.off = off + 1;</span>
+<span class="fc bfc" id="L139" title="All 2 branches covered.">        if (!tinyInt) {</span>
+<span class="fc" id="L140">            writeInt32(size);</span>
+        }
+<span class="fc" id="L142">    }</span>
+
+    @Override
+    public void startArray0() {
+<span class="fc" id="L146">        int off = this.off;</span>
+<span class="pc bpc" id="L147" title="1 of 2 branches missed.">        if (off == bytes.length) {</span>
+<span class="nc" id="L148">            ensureCapacity(off + 1);</span>
+        }
+
+<span class="fc" id="L151">        bytes[off] = BC_ARRAY_FIX_MIN;</span>
+<span class="fc" id="L152">        this.off = off + 1;</span>
+<span class="fc" id="L153">    }</span>
+
+    @Override
+    public void startArray1() {
+<span class="fc" id="L157">        int off = this.off;</span>
+<span class="pc bpc" id="L158" title="1 of 2 branches missed.">        if (off == bytes.length) {</span>
+<span class="nc" id="L159">            ensureCapacity(off + 1);</span>
+        }
+
+<span class="fc" id="L162">        bytes[off] = (byte) (BC_ARRAY_FIX_MIN + 1);</span>
+<span class="fc" id="L163">        this.off = off + 1;</span>
+<span class="fc" id="L164">    }</span>
+
+    @Override
+    public void startArray2() {
+<span class="fc" id="L168">        int off = this.off;</span>
+<span class="pc bpc" id="L169" title="1 of 2 branches missed.">        if (off == bytes.length) {</span>
+<span class="nc" id="L170">            ensureCapacity(off + 1);</span>
+        }
+
+<span class="fc" id="L173">        bytes[off] = (byte) (BC_ARRAY_FIX_MIN + 2);</span>
+<span class="fc" id="L174">        this.off = off + 1;</span>
+<span class="fc" id="L175">    }</span>
+
+    @Override
+    public void startArray3() {
+<span class="fc" id="L179">        int off = this.off;</span>
+<span class="pc bpc" id="L180" title="1 of 2 branches missed.">        if (off == bytes.length) {</span>
+<span class="nc" id="L181">            ensureCapacity(off + 1);</span>
+        }
+
+<span class="fc" id="L184">        bytes[off] = (byte) (BC_ARRAY_FIX_MIN + 3);</span>
+<span class="fc" id="L185">        this.off = off + 1;</span>
+<span class="fc" id="L186">    }</span>
+
+    @Override
+    public void startArray4() {
+<span class="fc" id="L190">        int off = this.off;</span>
+<span class="pc bpc" id="L191" title="1 of 2 branches missed.">        if (off == bytes.length) {</span>
+<span class="nc" id="L192">            ensureCapacity(off + 1);</span>
+        }
+
+<span class="fc" id="L195">        bytes[off] = (byte) (BC_ARRAY_FIX_MIN + 4);</span>
+<span class="fc" id="L196">        this.off = off + 1;</span>
+<span class="fc" id="L197">    }</span>
+
+    @Override
+    public void startArray5() {
+<span class="fc" id="L201">        int off = this.off;</span>
+<span class="pc bpc" id="L202" title="1 of 2 branches missed.">        if (off == bytes.length) {</span>
+<span class="nc" id="L203">            ensureCapacity(off + 1);</span>
+        }
+
+<span class="fc" id="L206">        bytes[off] = (byte) (BC_ARRAY_FIX_MIN + 5);</span>
+<span class="fc" id="L207">        this.off = off + 1;</span>
+<span class="fc" id="L208">    }</span>
+
+    @Override
+    public void startArray6() {
+<span class="fc" id="L212">        int off = this.off;</span>
+<span class="pc bpc" id="L213" title="1 of 2 branches missed.">        if (off == bytes.length) {</span>
+<span class="nc" id="L214">            ensureCapacity(off + 1);</span>
+        }
+
+<span class="fc" id="L217">        bytes[off] = (byte) (BC_ARRAY_FIX_MIN + 6);</span>
+<span class="fc" id="L218">        this.off = off + 1;</span>
+<span class="fc" id="L219">    }</span>
+
+    @Override
+    public void startArray7() {
+<span class="fc" id="L223">        int off = this.off;</span>
+<span class="pc bpc" id="L224" title="1 of 2 branches missed.">        if (off == bytes.length) {</span>
+<span class="nc" id="L225">            ensureCapacity(off + 1);</span>
+        }
+
+<span class="fc" id="L228">        bytes[off] = (byte) (BC_ARRAY_FIX_MIN + 7);</span>
+<span class="fc" id="L229">        this.off = off + 1;</span>
+<span class="fc" id="L230">    }</span>
+
+    @Override
+    public void startArray8() {
+<span class="nc" id="L234">        int off = this.off;</span>
+<span class="nc bnc" id="L235" title="All 2 branches missed.">        if (off == bytes.length) {</span>
+<span class="nc" id="L236">            ensureCapacity(off + 1);</span>
+        }
+
+<span class="nc" id="L239">        bytes[off] = (byte) (BC_ARRAY_FIX_MIN + 8);</span>
+<span class="nc" id="L240">        this.off = off + 1;</span>
+<span class="nc" id="L241">    }</span>
+
+    @Override
+    public void startArray9() {
+<span class="nc" id="L245">        int off = this.off;</span>
+<span class="nc bnc" id="L246" title="All 2 branches missed.">        if (off == bytes.length) {</span>
+<span class="nc" id="L247">            ensureCapacity(off + 1);</span>
+        }
+
+<span class="nc" id="L250">        bytes[off] = (byte) (BC_ARRAY_FIX_MIN + 9);</span>
+<span class="nc" id="L251">        this.off = off + 1;</span>
+<span class="nc" id="L252">    }</span>
+
+    @Override
+    public void startArray10() {
+<span class="nc" id="L256">        int off = this.off;</span>
+<span class="nc bnc" id="L257" title="All 2 branches missed.">        if (off == bytes.length) {</span>
+<span class="nc" id="L258">            ensureCapacity(off + 1);</span>
+        }
+
+<span class="nc" id="L261">        bytes[off] = (byte) (BC_ARRAY_FIX_MIN + 10);</span>
+<span class="nc" id="L262">        this.off = off + 1;</span>
+<span class="nc" id="L263">    }</span>
+
+    @Override
+    public void startArray11() {
+<span class="fc" id="L267">        int off = this.off;</span>
+<span class="pc bpc" id="L268" title="1 of 2 branches missed.">        if (off == bytes.length) {</span>
+<span class="nc" id="L269">            ensureCapacity(off + 1);</span>
+        }
+
+<span class="fc" id="L272">        bytes[off] = (byte) (BC_ARRAY_FIX_MIN + 11);</span>
+<span class="fc" id="L273">        this.off = off + 1;</span>
+<span class="fc" id="L274">    }</span>
+
+    @Override
+    public void startArray12() {
+<span class="fc" id="L278">        int off = this.off;</span>
+<span class="fc bfc" id="L279" title="All 2 branches covered.">        if (off == bytes.length) {</span>
+<span class="fc" id="L280">            ensureCapacity(off + 1);</span>
+        }
+
+<span class="fc" id="L283">        bytes[off] = (byte) (BC_ARRAY_FIX_MIN + 12);</span>
+<span class="fc" id="L284">        this.off = off + 1;</span>
+<span class="fc" id="L285">    }</span>
+
+    @Override
+    public void startArray13() {
+<span class="nc" id="L289">        int off = this.off;</span>
+<span class="nc bnc" id="L290" title="All 2 branches missed.">        if (off == bytes.length) {</span>
+<span class="nc" id="L291">            ensureCapacity(off + 1);</span>
+        }
+
+<span class="nc" id="L294">        bytes[off] = (byte) (BC_ARRAY_FIX_MIN + 13);</span>
+<span class="nc" id="L295">        this.off = off + 1;</span>
+<span class="nc" id="L296">    }</span>
+
+    @Override
+    public void startArray14() {
+<span class="nc" id="L300">        int off = this.off;</span>
+<span class="nc bnc" id="L301" title="All 2 branches missed.">        if (off == bytes.length) {</span>
+<span class="nc" id="L302">            ensureCapacity(off + 1);</span>
+        }
+
+<span class="nc" id="L305">        bytes[off] = (byte) (BC_ARRAY_FIX_MIN + 14);</span>
+<span class="nc" id="L306">        this.off = off + 1;</span>
+<span class="nc" id="L307">    }</span>
+
+    @Override
+    public void startArray15() {
+<span class="nc" id="L311">        int off = this.off;</span>
+<span class="nc bnc" id="L312" title="All 2 branches missed.">        if (off == bytes.length) {</span>
+<span class="nc" id="L313">            ensureCapacity(off + 1);</span>
+        }
+
+<span class="nc" id="L316">        bytes[off] = (byte) (BC_ARRAY_FIX_MIN + 15);</span>
+<span class="nc" id="L317">        this.off = off + 1;</span>
+<span class="nc" id="L318">    }</span>
+
+    @Override
+    public void writeRaw(byte b) {
+<span class="pc bpc" id="L322" title="1 of 2 branches missed.">        if (off == bytes.length) {</span>
+<span class="nc" id="L323">            ensureCapacity(off + 1);</span>
+        }
+<span class="fc" id="L325">        bytes[off++] = b;</span>
+<span class="fc" id="L326">    }</span>
+
+    @Override
+    public void writeChar(char ch) {
+<span class="pc bpc" id="L330" title="1 of 2 branches missed.">        if (off == bytes.length) {</span>
+<span class="nc" id="L331">            ensureCapacity(off + 1);</span>
+        }
+<span class="fc" id="L333">        bytes[off++] = BC_CHAR;</span>
+<span class="fc" id="L334">        writeInt32(ch);</span>
+<span class="fc" id="L335">    }</span>
+
+    @Override
+    public void writeName(String name) {
+<span class="fc" id="L339">        writeString(name);</span>
+<span class="fc" id="L340">    }</span>
+
+    @Override
+    public void writeNull() {
+<span class="fc bfc" id="L344" title="All 2 branches covered.">        if (off == bytes.length) {</span>
+<span class="fc" id="L345">            ensureCapacity(off + 1);</span>
+        }
+<span class="fc" id="L347">        bytes[off++] = BC_NULL;</span>
+<span class="fc" id="L348">    }</span>
+
+    @Override
+    public void writeStringNull() {
+<span class="pc bpc" id="L352" title="1 of 2 branches missed.">        if (off == bytes.length) {</span>
+<span class="nc" id="L353">            ensureCapacity(off + 1);</span>
+        }
+<span class="fc" id="L355">        bytes[off++] = BC_NULL;</span>
+<span class="fc" id="L356">    }</span>
+
+    @Override
+    public void endArray() {
+<span class="fc" id="L360">    }</span>
+
+    @Override
+    public void writeComma() {
+<span class="fc" id="L364">        throw new JSONException(&quot;unsupported operation&quot;);</span>
+    }
+
+    @Override
+    protected void write0(char ch) {
+<span class="fc" id="L369">        throw new JSONException(&quot;unsupported operation&quot;);</span>
+    }
+
+    @Override
+    public void writeString(boolean value) {
+<span class="fc" id="L374">        writeString(Boolean.toString(value));</span>
+<span class="fc" id="L375">    }</span>
+
+    @Override
+    public void writeString(byte value) {
+<span class="fc" id="L379">        writeString(Integer.toString(value));</span>
+<span class="fc" id="L380">    }</span>
+
+    @Override
+    public void writeString(short value) {
+<span class="fc" id="L384">        writeString(Integer.toString(value));</span>
+<span class="fc" id="L385">    }</span>
+
+    @Override
+    public void writeString(int value) {
+<span class="fc" id="L389">        writeString(Integer.toString(value));</span>
+<span class="fc" id="L390">    }</span>
+
+    @Override
+    public void writeString(long value) {
+<span class="fc" id="L394">        writeString(Long.toString(value));</span>
+<span class="fc" id="L395">    }</span>
+
+    @Override
+    public void writeString(boolean[] value) {
+<span class="pc bpc" id="L399" title="1 of 2 branches missed.">        if (value == null) {</span>
+<span class="nc" id="L400">            writeArrayNull();</span>
+<span class="nc" id="L401">            return;</span>
+        }
+<span class="fc" id="L403">        startArray(value.length);</span>
+<span class="fc bfc" id="L404" title="All 2 branches covered.">        for (int i = 0; i &lt; value.length; i++) {</span>
+<span class="fc" id="L405">            writeString(value[i]);</span>
+        }
+<span class="fc" id="L407">    }</span>
+
+    @Override
+    public void writeString(byte[] value) {
+<span class="pc bpc" id="L411" title="1 of 2 branches missed.">        if (value == null) {</span>
+<span class="nc" id="L412">            writeArrayNull();</span>
+<span class="nc" id="L413">            return;</span>
+        }
+<span class="fc" id="L415">        startArray(value.length);</span>
+<span class="fc bfc" id="L416" title="All 2 branches covered.">        for (int i = 0; i &lt; value.length; i++) {</span>
+<span class="fc" id="L417">            writeString(value[i]);</span>
+        }
+<span class="fc" id="L419">    }</span>
+
+    @Override
+    public void writeString(short[] value) {
+<span class="pc bpc" id="L423" title="1 of 2 branches missed.">        if (value == null) {</span>
+<span class="nc" id="L424">            writeArrayNull();</span>
+<span class="nc" id="L425">            return;</span>
+        }
+<span class="fc" id="L427">        startArray(value.length);</span>
+<span class="fc bfc" id="L428" title="All 2 branches covered.">        for (int i = 0; i &lt; value.length; i++) {</span>
+<span class="fc" id="L429">            writeString(value[i]);</span>
+        }
+<span class="fc" id="L431">    }</span>
+
+    @Override
+    public void writeString(int[] value) {
+<span class="pc bpc" id="L435" title="1 of 2 branches missed.">        if (value == null) {</span>
+<span class="nc" id="L436">            writeArrayNull();</span>
+<span class="nc" id="L437">            return;</span>
+        }
+<span class="fc" id="L439">        startArray(value.length);</span>
+<span class="fc bfc" id="L440" title="All 2 branches covered.">        for (int i = 0; i &lt; value.length; i++) {</span>
+<span class="fc" id="L441">            writeString(value[i]);</span>
+        }
+<span class="fc" id="L443">    }</span>
+
+    @Override
+    public void writeString(long[] value) {
+<span class="pc bpc" id="L447" title="1 of 2 branches missed.">        if (value == null) {</span>
+<span class="nc" id="L448">            writeArrayNull();</span>
+<span class="nc" id="L449">            return;</span>
+        }
+<span class="fc" id="L451">        startArray(value.length);</span>
+<span class="fc bfc" id="L452" title="All 2 branches covered.">        for (int i = 0; i &lt; value.length; i++) {</span>
+<span class="fc" id="L453">            writeString(value[i]);</span>
+        }
+<span class="fc" id="L455">    }</span>
+
+    @Override
+    public void writeString(float[] value) {
+<span class="pc bpc" id="L459" title="1 of 2 branches missed.">        if (value == null) {</span>
+<span class="nc" id="L460">            writeArrayNull();</span>
+<span class="nc" id="L461">            return;</span>
+        }
+<span class="fc" id="L463">        startArray(value.length);</span>
+<span class="fc bfc" id="L464" title="All 2 branches covered.">        for (int i = 0; i &lt; value.length; i++) {</span>
+<span class="fc" id="L465">            writeString(value[i]);</span>
+        }
+<span class="fc" id="L467">    }</span>
+
+    @Override
+    public void writeString(double[] value) {
+<span class="pc bpc" id="L471" title="1 of 2 branches missed.">        if (value == null) {</span>
+<span class="nc" id="L472">            writeArrayNull();</span>
+<span class="nc" id="L473">            return;</span>
+        }
+<span class="fc" id="L475">        startArray(value.length);</span>
+<span class="fc bfc" id="L476" title="All 2 branches covered.">        for (int i = 0; i &lt; value.length; i++) {</span>
+<span class="fc" id="L477">            writeString(value[i]);</span>
+        }
+<span class="fc" id="L479">    }</span>
+
+    @Override
+    public void writeString(char[] chars, int off, int len, boolean quote) {
+<span class="pc bpc" id="L483" title="1 of 2 branches missed.">        if (chars == null) {</span>
+<span class="nc" id="L484">            writeNull();</span>
+<span class="nc" id="L485">            return;</span>
+        }
+
+<span class="fc" id="L488">        boolean ascii = true;</span>
+<span class="fc bfc" id="L489" title="All 2 branches covered.">        for (int i = 0; i &lt; len; ++i) {</span>
+<span class="fc bfc" id="L490" title="All 2 branches covered.">            if (chars[i + off] &gt; 0x00FF) {</span>
+<span class="fc" id="L491">                ascii = false;</span>
+<span class="fc" id="L492">                break;</span>
+            }
+        }
+
+<span class="fc bfc" id="L496" title="All 2 branches covered.">        if (ascii) {</span>
+<span class="fc bfc" id="L497" title="All 2 branches covered.">            if (len &lt;= STR_ASCII_FIX_LEN) {</span>
+<span class="fc" id="L498">                bytes[this.off++] = (byte) (len + BC_STR_ASCII_FIX_MIN);</span>
+            } else {
+<span class="fc" id="L500">                bytes[this.off++] = BC_STR_ASCII;</span>
+<span class="fc" id="L501">                writeInt32(len);</span>
+            }
+<span class="fc bfc" id="L503" title="All 2 branches covered.">            for (int i = 0; i &lt; len; ++i) {</span>
+<span class="fc" id="L504">                bytes[this.off++] = (byte) chars[off + i];</span>
+            }
+<span class="fc" id="L506">            return;</span>
+        }
+
+<span class="fc" id="L509">        writeString(new String(chars, off, len));</span>
+<span class="fc" id="L510">    }</span>
+
+    public void writeStringLatin1(final byte[] value) {
+<span class="pc bpc" id="L513" title="1 of 2 branches missed.">        if (value == null) {</span>
+<span class="nc" id="L514">            writeStringNull();</span>
+<span class="nc" id="L515">            return;</span>
+        }
+
+<span class="fc" id="L518">        int off = this.off;</span>
+<span class="fc" id="L519">        int strlen = value.length;</span>
+<span class="fc" id="L520">        int minCapacity = value.length</span>
+                + off
+                + 5 /*max str len*/
+                + 1;
+
+<span class="fc bfc" id="L525" title="All 2 branches covered.">        if (minCapacity - bytes.length &gt; 0) {</span>
+<span class="fc" id="L526">            ensureCapacity(minCapacity);</span>
+        }
+
+<span class="fc" id="L529">        final byte[] bytes = this.bytes;</span>
+<span class="pc bpc" id="L530" title="1 of 2 branches missed.">        if (strlen &lt;= STR_ASCII_FIX_LEN) {</span>
+<span class="nc" id="L531">            bytes[off++] = (byte) (strlen + BC_STR_ASCII_FIX_MIN);</span>
+<span class="fc bfc" id="L532" title="All 2 branches covered.">        } else if (strlen &lt;= INT32_BYTE_MAX) {</span>
+<span class="fc" id="L533">            putStringSizeSmall(bytes, off, strlen);</span>
+<span class="fc" id="L534">            off += 3;</span>
+        } else {
+<span class="fc" id="L536">            off += putStringSizeLarge(bytes, off, strlen);</span>
+        }
+<span class="fc" id="L538">        System.arraycopy(value, 0, bytes, off, value.length);</span>
+<span class="fc" id="L539">        this.off = off + strlen;</span>
+<span class="fc" id="L540">    }</span>
+
+    private static void putStringSizeSmall(byte[] bytes, int off, int val) {
+<span class="fc" id="L543">        bytes[off] = BC_STR_ASCII;</span>
+<span class="fc" id="L544">        bytes[off + 1] = (byte) (BC_INT32_BYTE_ZERO + (val &gt;&gt; 8));</span>
+<span class="fc" id="L545">        bytes[off + 2] = (byte) (val);</span>
+<span class="fc" id="L546">    }</span>
+
+    private static int putStringSizeLarge(byte[] bytes, int off, int strlen) {
+<span class="fc bfc" id="L549" title="All 2 branches covered.">        if (strlen &lt;= INT32_SHORT_MAX) {</span>
+<span class="fc" id="L550">            bytes[off] = BC_STR_ASCII;</span>
+<span class="fc" id="L551">            bytes[off + 1] = (byte) (BC_INT32_SHORT_ZERO + (strlen &gt;&gt; 16));</span>
+<span class="fc" id="L552">            bytes[off + 2] = (byte) (strlen &gt;&gt; 8);</span>
+<span class="fc" id="L553">            bytes[off + 3] = (byte) (strlen);</span>
+<span class="fc" id="L554">            return 4;</span>
+        }
+
+<span class="fc" id="L557">        bytes[off] = BC_STR_ASCII;</span>
+<span class="fc" id="L558">        bytes[off + 1] = BC_INT32;</span>
+<span class="pc bpc" id="L559" title="1 of 2 branches missed.">        UNSAFE.putInt(</span>
+                bytes,
+                ARRAY_BYTE_BASE_OFFSET + off + 2,
+<span class="fc" id="L562">                BIG_ENDIAN ? strlen : Integer.reverseBytes(strlen)</span>
+        );
+<span class="fc" id="L564">        return 6;</span>
+    }
+
+    @Override
+    public void writeString(final char[] chars) {
+<span class="fc bfc" id="L569" title="All 2 branches covered.">        if (chars == null) {</span>
+<span class="fc" id="L570">            writeNull();</span>
+<span class="fc" id="L571">            return;</span>
+        }
+
+<span class="fc" id="L574">        int off = this.off;</span>
+<span class="fc" id="L575">        boolean ascii = true;</span>
+<span class="fc" id="L576">        int strlen = chars.length;</span>
+<span class="fc bfc" id="L577" title="All 2 branches covered.">        if (chars.length &lt; STR_ASCII_FIX_LEN) {</span>
+<span class="fc" id="L578">            int minCapacity = off + 1 + strlen;</span>
+<span class="fc bfc" id="L579" title="All 2 branches covered.">            if (minCapacity - bytes.length &gt; 0) {</span>
+<span class="fc" id="L580">                ensureCapacity(minCapacity);</span>
+            }
+
+<span class="fc" id="L583">            bytes[off++] = (byte) (strlen + BC_STR_ASCII_FIX_MIN);</span>
+<span class="fc bfc" id="L584" title="All 2 branches covered.">            for (int i = 0; i &lt; chars.length; i++) {</span>
+<span class="fc" id="L585">                char ch = chars[i];</span>
+<span class="fc bfc" id="L586" title="All 2 branches covered.">                if (ch &gt; 0x00FF) {</span>
+<span class="fc" id="L587">                    ascii = false;</span>
+<span class="fc" id="L588">                    break;</span>
+                }
+<span class="fc" id="L590">                bytes[off++] = (byte) ch;</span>
+            }
+
+<span class="fc bfc" id="L593" title="All 2 branches covered.">            if (ascii) {</span>
+<span class="fc" id="L594">                this.off = off;</span>
+<span class="fc" id="L595">                return;</span>
+            } else {
+<span class="fc" id="L597">                off = this.off;</span>
+            }
+        }
+
+        {
+<span class="fc" id="L602">            int i = 0;</span>
+<span class="fc" id="L603">            int upperBound = chars.length &amp; ~3;</span>
+<span class="fc bfc" id="L604" title="All 2 branches covered.">            for (; i &lt; upperBound; i += 4) {</span>
+<span class="fc" id="L605">                char c0 = chars[i];</span>
+<span class="fc" id="L606">                char c1 = chars[i + 1];</span>
+<span class="fc" id="L607">                char c2 = chars[i + 2];</span>
+<span class="fc" id="L608">                char c3 = chars[i + 3];</span>
+<span class="pc bpc" id="L609" title="2 of 8 branches missed.">                if (c0 &gt; 0x00FF || c1 &gt; 0x00FF || c2 &gt; 0x00FF || c3 &gt; 0x00FF) {</span>
+<span class="fc" id="L610">                    ascii = false;</span>
+<span class="fc" id="L611">                    break;</span>
+                }
+            }
+<span class="fc bfc" id="L614" title="All 2 branches covered.">            if (ascii) {</span>
+<span class="fc bfc" id="L615" title="All 2 branches covered.">                for (; i &lt; chars.length; ++i) {</span>
+<span class="fc bfc" id="L616" title="All 2 branches covered.">                    if (chars[i] &gt; 0x00FF) {</span>
+<span class="fc" id="L617">                        ascii = false;</span>
+<span class="fc" id="L618">                        break;</span>
+                    }
+                }
+            }
+        }
+
+<span class="fc bfc" id="L624" title="All 2 branches covered.">        int minCapacity = (ascii ? strlen : strlen * 3)</span>
+                + off
+                + 5 /*max str len*/
+                + 1;
+
+<span class="fc bfc" id="L629" title="All 2 branches covered.">        if (minCapacity - bytes.length &gt; 0) {</span>
+<span class="fc" id="L630">            ensureCapacity(minCapacity);</span>
+        }
+
+<span class="fc bfc" id="L633" title="All 2 branches covered.">        if (ascii) {</span>
+<span class="fc bfc" id="L634" title="All 2 branches covered.">            if (strlen &lt;= STR_ASCII_FIX_LEN) {</span>
+<span class="fc" id="L635">                bytes[off++] = (byte) (strlen + BC_STR_ASCII_FIX_MIN);</span>
+<span class="fc bfc" id="L636" title="All 2 branches covered.">            } else if (strlen &lt;= INT32_BYTE_MAX) {</span>
+<span class="fc" id="L637">                putStringSizeSmall(bytes, off, strlen);</span>
+<span class="fc" id="L638">                off += 3;</span>
+            } else {
+<span class="fc" id="L640">                off += putStringSizeLarge(bytes, off, strlen);</span>
+            }
+<span class="fc bfc" id="L642" title="All 2 branches covered.">            for (int i = 0; i &lt; chars.length; i++) {</span>
+<span class="fc" id="L643">                bytes[off++] = (byte) chars[i];</span>
+            }
+        } else {
+<span class="fc" id="L646">            int maxSize = chars.length * 3;</span>
+<span class="fc" id="L647">            int lenByteCnt = sizeOfInt(maxSize);</span>
+<span class="fc" id="L648">            ensureCapacity(off + maxSize + lenByteCnt + 1);</span>
+<span class="fc" id="L649">            int result = IOUtils.encodeUTF8(chars, 0, chars.length, bytes, off + lenByteCnt + 1);</span>
+
+<span class="fc" id="L651">            int utf8len = result - off - lenByteCnt - 1;</span>
+<span class="fc" id="L652">            int utf8lenByteCnt = sizeOfInt(utf8len);</span>
+<span class="fc bfc" id="L653" title="All 2 branches covered.">            if (lenByteCnt != utf8lenByteCnt) {</span>
+<span class="fc" id="L654">                System.arraycopy(bytes, off + lenByteCnt + 1, bytes, off + utf8lenByteCnt + 1, utf8len);</span>
+            }
+<span class="fc" id="L656">            final byte[] bytes = this.bytes;</span>
+<span class="fc" id="L657">            bytes[off++] = BC_STR_UTF8;</span>
+<span class="pc bpc" id="L658" title="1 of 4 branches missed.">            if (utf8len &gt;= BC_INT32_NUM_MIN &amp;&amp; utf8len &lt;= BC_INT32_NUM_MAX) {</span>
+<span class="fc" id="L659">                bytes[off++] = (byte) utf8len;</span>
+<span class="pc bpc" id="L660" title="1 of 4 branches missed.">            } else if (utf8len &gt;= INT32_BYTE_MIN &amp;&amp; utf8len &lt;= INT32_BYTE_MAX) {</span>
+<span class="fc" id="L661">                bytes[off] = (byte) (BC_INT32_BYTE_ZERO + (utf8len &gt;&gt; 8));</span>
+<span class="fc" id="L662">                bytes[off + 1] = (byte) (utf8len);</span>
+<span class="fc" id="L663">                off += 2;</span>
+            } else {
+<span class="fc" id="L665">                off += writeInt32(bytes, off, utf8len);</span>
+            }
+<span class="fc" id="L667">            off += utf8len;</span>
+        }
+<span class="fc" id="L669">        this.off = off;</span>
+<span class="fc" id="L670">    }</span>
+
+    @Override
+    public void writeString(final char[] chars, final int charsOff, final int len) {
+<span class="pc bpc" id="L674" title="1 of 2 branches missed.">        if (chars == null) {</span>
+<span class="nc" id="L675">            writeNull();</span>
+<span class="nc" id="L676">            return;</span>
+        }
+
+<span class="fc" id="L679">        boolean ascii = true;</span>
+
+<span class="fc bfc" id="L681" title="All 2 branches covered.">        if (len &lt; STR_ASCII_FIX_LEN) {</span>
+<span class="fc" id="L682">            final int mark = this.off;</span>
+
+<span class="fc" id="L684">            int minCapacity = this.off + 1 + len;</span>
+<span class="pc bpc" id="L685" title="1 of 2 branches missed.">            if (minCapacity - bytes.length &gt; 0) {</span>
+<span class="nc" id="L686">                ensureCapacity(minCapacity);</span>
+            }
+
+<span class="fc" id="L689">            bytes[this.off++] = (byte) (len + BC_STR_ASCII_FIX_MIN);</span>
+<span class="pc bpc" id="L690" title="1 of 2 branches missed.">            for (int i = charsOff; i &lt; len; i++) {</span>
+<span class="nc" id="L691">                char ch = chars[i];</span>
+<span class="nc bnc" id="L692" title="All 2 branches missed.">                if (ch &gt; 0x00FF) {</span>
+<span class="nc" id="L693">                    ascii = false;</span>
+<span class="nc" id="L694">                    break;</span>
+                }
+<span class="nc" id="L696">                bytes[this.off++] = (byte) ch;</span>
+            }
+
+<span class="pc bpc" id="L699" title="1 of 2 branches missed.">            if (ascii) {</span>
+<span class="fc" id="L700">                return;</span>
+            }
+
+<span class="nc" id="L703">            this.off = mark;</span>
+        }
+
+        {
+<span class="fc" id="L707">            int i = charsOff;</span>
+<span class="fc" id="L708">            int upperBound = chars.length &amp; ~3;</span>
+<span class="pc bpc" id="L709" title="1 of 2 branches missed.">            for (; i &lt; upperBound; i += 4) {</span>
+<span class="fc" id="L710">                char c0 = chars[i];</span>
+<span class="fc" id="L711">                char c1 = chars[i + 1];</span>
+<span class="fc" id="L712">                char c2 = chars[i + 2];</span>
+<span class="fc" id="L713">                char c3 = chars[i + 3];</span>
+<span class="pc bpc" id="L714" title="3 of 8 branches missed.">                if (c0 &gt; 0x00FF || c1 &gt; 0x00FF || c2 &gt; 0x00FF || c3 &gt; 0x00FF) {</span>
+<span class="fc" id="L715">                    ascii = false;</span>
+<span class="fc" id="L716">                    break;</span>
+                }
+            }
+<span class="pc bpc" id="L719" title="1 of 2 branches missed.">            if (ascii) {</span>
+<span class="nc bnc" id="L720" title="All 2 branches missed.">                for (; i &lt; chars.length; ++i) {</span>
+<span class="nc bnc" id="L721" title="All 2 branches missed.">                    if (chars[i] &gt; 0x00FF) {</span>
+<span class="nc" id="L722">                        ascii = false;</span>
+<span class="nc" id="L723">                        break;</span>
+                    }
+                }
+            }
+        }
+
+<span class="pc bpc" id="L729" title="1 of 2 branches missed.">        int minCapacity = (ascii ? len : len * 3)</span>
+                + this.off
+                + 5 /*max str len*/
+                + 1;
+
+<span class="pc bpc" id="L734" title="1 of 2 branches missed.">        if (minCapacity - bytes.length &gt; 0) {</span>
+<span class="nc" id="L735">            ensureCapacity(minCapacity);</span>
+        }
+
+<span class="pc bpc" id="L738" title="1 of 2 branches missed.">        if (ascii) {</span>
+<span class="nc" id="L739">            byte[] bytes = this.bytes;</span>
+<span class="nc bnc" id="L740" title="All 2 branches missed.">            if (len &lt;= STR_ASCII_FIX_LEN) {</span>
+<span class="nc" id="L741">                bytes[this.off++] = (byte) (len + BC_STR_ASCII_FIX_MIN);</span>
+<span class="nc bnc" id="L742" title="All 2 branches missed.">            } else if (len &lt;= INT32_BYTE_MAX) {</span>
+<span class="nc" id="L743">                int off = this.off;</span>
+<span class="nc" id="L744">                bytes[off] = BC_STR_ASCII;</span>
+<span class="nc" id="L745">                bytes[off + 1] = (byte) (BC_INT32_BYTE_ZERO + (len &gt;&gt; 8));</span>
+<span class="nc" id="L746">                bytes[off + 2] = (byte) (len);</span>
+<span class="nc" id="L747">                this.off += 3;</span>
+<span class="nc" id="L748">            } else {</span>
+<span class="nc" id="L749">                bytes[this.off++] = BC_STR_ASCII;</span>
+<span class="nc" id="L750">                writeInt32(len);</span>
+            }
+<span class="nc bnc" id="L752" title="All 2 branches missed.">            for (int i = 0; i &lt; chars.length; i++) {</span>
+<span class="nc" id="L753">                bytes[this.off++] = (byte) chars[i];</span>
+            }
+<span class="nc" id="L755">        } else {</span>
+<span class="fc" id="L756">            int maxSize = chars.length * 3;</span>
+<span class="fc" id="L757">            int lenByteCnt = sizeOfInt(maxSize);</span>
+<span class="fc" id="L758">            ensureCapacity(this.off + maxSize + lenByteCnt + 1);</span>
+<span class="fc" id="L759">            int result = IOUtils.encodeUTF8(chars, 0, chars.length, bytes, this.off + lenByteCnt + 1);</span>
+
+<span class="fc" id="L761">            int utf8len = result - this.off - lenByteCnt - 1;</span>
+<span class="fc" id="L762">            int utf8lenByteCnt = sizeOfInt(utf8len);</span>
+<span class="pc bpc" id="L763" title="1 of 2 branches missed.">            if (lenByteCnt != utf8lenByteCnt) {</span>
+<span class="fc" id="L764">                System.arraycopy(bytes, this.off + lenByteCnt + 1, bytes, this.off + utf8lenByteCnt + 1, utf8len);</span>
+            }
+<span class="fc" id="L766">            bytes[this.off++] = BC_STR_UTF8;</span>
+<span class="pc bpc" id="L767" title="2 of 4 branches missed.">            if (utf8len &gt;= BC_INT32_NUM_MIN &amp;&amp; utf8len &lt;= BC_INT32_NUM_MAX) {</span>
+<span class="nc" id="L768">                bytes[this.off++] = (byte) utf8len;</span>
+<span class="pc bpc" id="L769" title="2 of 4 branches missed.">            } else if (utf8len &gt;= INT32_BYTE_MIN &amp;&amp; utf8len &lt;= INT32_BYTE_MAX) {</span>
+<span class="fc" id="L770">                bytes[this.off] = (byte) (BC_INT32_BYTE_ZERO + (utf8len &gt;&gt; 8));</span>
+<span class="fc" id="L771">                bytes[this.off + 1] = (byte) (utf8len);</span>
+<span class="fc" id="L772">                this.off += 2;</span>
+            } else {
+<span class="nc" id="L774">                writeInt32(utf8len);</span>
+            }
+<span class="fc" id="L776">            this.off += utf8len;</span>
+        }
+<span class="fc" id="L778">    }</span>
+
+    public void writeString(String[] strings) {
+<span class="pc bpc" id="L781" title="1 of 2 branches missed.">        if (strings == null) {</span>
+<span class="nc" id="L782">            writeArrayNull();</span>
+<span class="nc" id="L783">            return;</span>
+        }
+
+<span class="fc" id="L786">        startArray(strings.length);</span>
+<span class="fc bfc" id="L787" title="All 2 branches covered.">        for (int i = 0; i &lt; strings.length; i++) {</span>
+<span class="fc" id="L788">            String item = strings[i];</span>
+<span class="pc bpc" id="L789" title="1 of 2 branches missed.">            if (item == null) {</span>
+<span class="nc" id="L790">                writeStringNull();</span>
+<span class="nc" id="L791">                continue;</span>
+            }
+<span class="fc" id="L793">            writeString(item);</span>
+        }
+<span class="fc" id="L795">    }</span>
+
+    @Override
+    public void writeSymbol(String str) {
+<span class="pc bpc" id="L799" title="1 of 2 branches missed.">        if (str == null) {</span>
+<span class="nc" id="L800">            writeNull();</span>
+<span class="nc" id="L801">            return;</span>
+        }
+
+<span class="pc bpc" id="L804" title="1 of 2 branches missed.">        if (symbolTable != null) {</span>
+<span class="fc" id="L805">            int ordinal = symbolTable.getOrdinal(str);</span>
+<span class="fc bfc" id="L806" title="All 2 branches covered.">            if (ordinal &gt;= 0) {</span>
+<span class="fc" id="L807">                writeRaw(BC_SYMBOL);</span>
+<span class="fc" id="L808">                writeInt32(-ordinal);</span>
+<span class="fc" id="L809">                return;</span>
+            }
+        }
+
+<span class="fc" id="L813">        writeString(str);</span>
+<span class="fc" id="L814">    }</span>
+
+    @Override
+    public void writeTypeName(String typeName) {
+<span class="fc bfc" id="L818" title="All 2 branches covered.">        if (off == bytes.length) {</span>
+<span class="fc" id="L819">            ensureCapacity(off + 1);</span>
+        }
+<span class="fc" id="L821">        this.bytes[off++] = BC_TYPED_ANY;</span>
+
+<span class="fc" id="L823">        long hash = Fnv.hashCode64(typeName);</span>
+
+<span class="fc" id="L825">        int symbol = -1;</span>
+<span class="fc bfc" id="L826" title="All 2 branches covered.">        if (symbolTable != null) {</span>
+<span class="fc" id="L827">            symbol = symbolTable.getOrdinalByHashCode(hash);</span>
+<span class="pc bpc" id="L828" title="1 of 4 branches missed.">            if (symbol == -1 &amp;&amp; symbols != null) {</span>
+<span class="fc" id="L829">                symbol = symbols.get(hash);</span>
+            }
+<span class="fc bfc" id="L831" title="All 2 branches covered.">        } else if (symbols != null) {</span>
+<span class="fc" id="L832">            symbol = symbols.get(hash);</span>
+        }
+
+<span class="fc bfc" id="L835" title="All 2 branches covered.">        if (symbol == -1) {</span>
+<span class="fc bfc" id="L836" title="All 2 branches covered.">            if (symbols == null) {</span>
+<span class="fc" id="L837">                symbols = new TLongIntHashMap();</span>
+            }
+<span class="fc" id="L839">            symbols.put(hash, symbol = symbolIndex++);</span>
+        } else {
+<span class="fc bfc" id="L841" title="All 2 branches covered.">            if (off == bytes.length) {</span>
+<span class="fc" id="L842">                ensureCapacity(off + 1);</span>
+            }
+
+<span class="fc" id="L845">            writeInt32(symbol);</span>
+<span class="fc" id="L846">            return;</span>
+        }
+
+<span class="fc" id="L849">        writeString(typeName);</span>
+<span class="fc" id="L850">        writeInt32(symbol);</span>
+<span class="fc" id="L851">    }</span>
+
+    @Override
+    public boolean writeTypeName(byte[] typeName, long hash) {
+<span class="fc bfc" id="L855" title="All 2 branches covered.">        if (symbolTable != null) {</span>
+<span class="fc" id="L856">            int symbol = symbolTable.getOrdinalByHashCode(hash);</span>
+<span class="fc bfc" id="L857" title="All 2 branches covered.">            if (symbol != -1) {</span>
+<span class="fc" id="L858">                return writeTypeNameSymbol(symbol);</span>
+            }
+        }
+
+<span class="fc" id="L862">        boolean symbolExists = false;</span>
+        int symbol;
+<span class="fc bfc" id="L864" title="All 2 branches covered.">        if (rootTypeNameHash == hash) {</span>
+<span class="fc" id="L865">            symbolExists = true;</span>
+<span class="fc" id="L866">            symbol = 0;</span>
+<span class="fc bfc" id="L867" title="All 2 branches covered.">        } else if (symbols != null) {</span>
+<span class="fc" id="L868">            symbol = symbols.putIfAbsent(hash, symbolIndex);</span>
+<span class="fc bfc" id="L869" title="All 2 branches covered.">            if (symbol != symbolIndex) {</span>
+<span class="fc" id="L870">                symbolExists = true;</span>
+            } else {
+<span class="fc" id="L872">                symbolIndex++;</span>
+            }
+        } else {
+<span class="fc" id="L875">            symbol = symbolIndex++;</span>
+<span class="fc bfc" id="L876" title="All 2 branches covered.">            if (symbol == 0) {</span>
+<span class="fc" id="L877">                rootTypeNameHash = hash;</span>
+            }
+<span class="fc bfc" id="L879" title="All 4 branches covered.">            if (symbol != 0 || (context.features &amp; WriteNameAsSymbol.mask) != 0) {</span>
+<span class="fc" id="L880">                symbols = new TLongIntHashMap(hash, symbol);</span>
+            }
+        }
+
+<span class="fc bfc" id="L884" title="All 2 branches covered.">        if (symbolExists) {</span>
+<span class="fc" id="L885">            writeTypeNameSymbol(-symbol);</span>
+<span class="fc" id="L886">            return false;</span>
+        }
+
+<span class="fc" id="L889">        int off = this.off;</span>
+<span class="fc" id="L890">        int minCapacity = off + 2 + typeName.length;</span>
+<span class="fc bfc" id="L891" title="All 2 branches covered.">        if (minCapacity &gt; bytes.length) {</span>
+<span class="fc" id="L892">            ensureCapacity(minCapacity);</span>
+        }
+
+<span class="fc" id="L895">        final byte[] bytes = this.bytes;</span>
+<span class="fc" id="L896">        bytes[off++] = BC_TYPED_ANY;</span>
+<span class="fc" id="L897">        System.arraycopy(typeName, 0, bytes, off, typeName.length);</span>
+<span class="fc" id="L898">        off += typeName.length;</span>
+<span class="pc bpc" id="L899" title="2 of 4 branches missed.">        if (symbol &gt;= BC_INT32_NUM_MIN &amp;&amp; symbol &lt;= BC_INT32_NUM_MAX) {</span>
+<span class="fc" id="L900">            bytes[off] = (byte) symbol;</span>
+<span class="fc" id="L901">            this.off = off + 1;</span>
+        } else {
+<span class="nc" id="L903">            this.off = off;</span>
+<span class="nc" id="L904">            writeInt32(symbol);</span>
+        }
+
+<span class="fc" id="L907">        return false;</span>
+    }
+
+    private boolean writeTypeNameSymbol(int symbol) {
+<span class="fc" id="L911">        int off = this.off;</span>
+<span class="fc bfc" id="L912" title="All 2 branches covered.">        if (off + 2 &gt;= bytes.length) {</span>
+<span class="fc" id="L913">            ensureCapacity(off + 2);</span>
+        }
+
+<span class="fc" id="L916">        this.bytes[off] = BC_TYPED_ANY;</span>
+<span class="fc" id="L917">        this.off = off + 1;</span>
+<span class="fc" id="L918">        writeInt32(-symbol);</span>
+<span class="fc" id="L919">        return false;</span>
+    }
+
+    static int sizeOfInt(int i) {
+<span class="pc bpc" id="L923" title="1 of 4 branches missed.">        if (i &gt;= BC_INT32_NUM_MIN &amp;&amp; i &lt;= BC_INT32_NUM_MAX) {</span>
+<span class="fc" id="L924">            return 1;</span>
+        }
+
+<span class="pc bpc" id="L927" title="1 of 4 branches missed.">        if (i &gt;= INT32_BYTE_MIN &amp;&amp; i &lt;= INT32_BYTE_MAX) {</span>
+<span class="fc" id="L928">            return 2;</span>
+        }
+
+<span class="pc bpc" id="L931" title="1 of 4 branches missed.">        if (i &gt;= INT32_SHORT_MIN &amp;&amp; i &lt;= INT32_SHORT_MAX) {</span>
+<span class="fc" id="L932">            return 3;</span>
+        }
+
+<span class="fc" id="L935">        return 5;</span>
+    }
+
+    public void writeString(List&lt;String&gt; list) {
+<span class="pc bpc" id="L939" title="1 of 2 branches missed.">        if (list == null) {</span>
+<span class="nc" id="L940">            writeArrayNull();</span>
+<span class="nc" id="L941">            return;</span>
+        }
+
+<span class="fc" id="L944">        final int size = list.size();</span>
+<span class="fc" id="L945">        startArray(size);</span>
+
+<span class="pc bpc" id="L947" title="3 of 4 branches missed.">        if (STRING_VALUE != null &amp;&amp; STRING_CODER != null) {</span>
+<span class="nc" id="L948">            int mark = off;</span>
+<span class="nc" id="L949">            final int LATIN = 0;</span>
+<span class="nc" id="L950">            boolean latinAll = true;</span>
+<span class="nc bnc" id="L951" title="All 2 branches missed.">            for (int i = 0; i &lt; list.size(); i++) {</span>
+<span class="nc" id="L952">                String str = list.get(i);</span>
+<span class="nc bnc" id="L953" title="All 2 branches missed.">                if (str == null) {</span>
+<span class="nc" id="L954">                    writeNull();</span>
+<span class="nc" id="L955">                    continue;</span>
+                }
+<span class="nc" id="L957">                int coder = STRING_CODER.applyAsInt(str);</span>
+<span class="nc bnc" id="L958" title="All 2 branches missed.">                if (coder != LATIN) {</span>
+<span class="nc" id="L959">                    latinAll = false;</span>
+<span class="nc" id="L960">                    off = mark;</span>
+<span class="nc" id="L961">                    break;</span>
+                }
+<span class="nc" id="L963">                int strlen = str.length();</span>
+<span class="nc bnc" id="L964" title="All 2 branches missed.">                if (off + strlen + 6 &gt; bytes.length) {</span>
+<span class="nc" id="L965">                    ensureCapacity(off + strlen + 6);</span>
+                }
+<span class="nc bnc" id="L967" title="All 2 branches missed.">                if (strlen &lt;= STR_ASCII_FIX_LEN) {</span>
+<span class="nc" id="L968">                    bytes[off++] = (byte) (strlen + BC_STR_ASCII_FIX_MIN);</span>
+<span class="nc bnc" id="L969" title="All 2 branches missed.">                } else if (strlen &lt;= INT32_BYTE_MAX) {</span>
+<span class="nc" id="L970">                    int off = this.off;</span>
+<span class="nc" id="L971">                    bytes[off] = BC_STR_ASCII;</span>
+<span class="nc" id="L972">                    bytes[off + 1] = (byte) (BC_INT32_BYTE_ZERO + (strlen &gt;&gt; 8));</span>
+<span class="nc" id="L973">                    bytes[off + 2] = (byte) (strlen);</span>
+<span class="nc" id="L974">                    this.off += 3;</span>
+<span class="nc" id="L975">                } else {</span>
+<span class="nc" id="L976">                    bytes[off++] = BC_STR_ASCII;</span>
+<span class="nc" id="L977">                    writeInt32(strlen);</span>
+                }
+<span class="nc" id="L979">                byte[] value = STRING_VALUE.apply(str);</span>
+<span class="nc" id="L980">                System.arraycopy(value, 0, bytes, off, value.length);</span>
+<span class="nc" id="L981">                off += strlen;</span>
+            }
+<span class="nc bnc" id="L983" title="All 2 branches missed.">            if (latinAll) {</span>
+<span class="nc" id="L984">                return;</span>
+            }
+        }
+
+<span class="fc bfc" id="L988" title="All 2 branches covered.">        for (int i = 0; i &lt; list.size(); i++) {</span>
+<span class="fc" id="L989">            String str = list.get(i);</span>
+<span class="fc" id="L990">            writeString(str);</span>
+        }
+<span class="fc" id="L992">    }</span>
+
+    @Override
+    public void writeString(String str) {
+<span class="fc bfc" id="L996" title="All 2 branches covered.">        if (str == null) {</span>
+<span class="fc" id="L997">            writeNull();</span>
+<span class="fc" id="L998">            return;</span>
+        }
+
+<span class="pc bpc" id="L1001" title="1 of 2 branches missed.">        if (STRING_VALUE != null) {</span>
+<span class="nc" id="L1002">            int coder = STRING_CODER.applyAsInt(str);</span>
+<span class="nc" id="L1003">            byte[] value = STRING_VALUE.apply(str);</span>
+
+<span class="nc bnc" id="L1005" title="All 2 branches missed.">            if (coder == 0) {</span>
+<span class="nc" id="L1006">                int off = this.off;</span>
+<span class="nc" id="L1007">                int strlen = value.length;</span>
+<span class="nc" id="L1008">                int minCapacity = value.length + off + 6;</span>
+
+<span class="nc bnc" id="L1010" title="All 2 branches missed.">                if (minCapacity - bytes.length &gt; 0) {</span>
+<span class="nc" id="L1011">                    ensureCapacity(minCapacity);</span>
+                }
+
+<span class="nc" id="L1014">                final byte[] bytes = this.bytes;</span>
+<span class="nc bnc" id="L1015" title="All 2 branches missed.">                if (strlen &lt;= STR_ASCII_FIX_LEN) {</span>
+<span class="nc" id="L1016">                    bytes[off++] = (byte) (strlen + BC_STR_ASCII_FIX_MIN);</span>
+<span class="nc bnc" id="L1017" title="All 2 branches missed.">                } else if (strlen &lt;= INT32_BYTE_MAX) {</span>
+<span class="nc" id="L1018">                    putStringSizeSmall(bytes, off, strlen);</span>
+<span class="nc" id="L1019">                    off += 3;</span>
+                } else {
+<span class="nc" id="L1021">                    off += putStringSizeLarge(bytes, off, strlen);</span>
+                }
+<span class="nc" id="L1023">                System.arraycopy(value, 0, bytes, off, value.length);</span>
+<span class="nc" id="L1024">                this.off = off + strlen;</span>
+<span class="nc" id="L1025">                return;</span>
+            } else {
+<span class="nc bnc" id="L1027" title="All 2 branches missed.">                if (tryWriteStringUTF16(value)) {</span>
+<span class="nc" id="L1028">                    return;</span>
+                }
+            }
+        }
+
+<span class="fc" id="L1033">        writeString(</span>
+<span class="fc" id="L1034">                JDKUtils.getCharArray(str)</span>
+        );
+<span class="fc" id="L1036">    }</span>
+
+    public void writeStringUTF16(byte[] value) {
+<span class="fc" id="L1039">        int off = this.off;</span>
+<span class="fc" id="L1040">        final int strlen = value.length;</span>
+<span class="fc" id="L1041">        int minCapacity = off + strlen + 6;</span>
+<span class="pc bpc" id="L1042" title="1 of 2 branches missed.">        if (minCapacity &gt;= bytes.length) {</span>
+<span class="nc" id="L1043">            ensureCapacity(minCapacity);</span>
+        }
+
+<span class="fc" id="L1046">        final byte[] bytes = this.bytes;</span>
+<span class="pc bpc" id="L1047" title="1 of 2 branches missed.">        bytes[off++] = JDKUtils.BIG_ENDIAN ? BC_STR_UTF16BE : BC_STR_UTF16LE;</span>
+<span class="fc" id="L1048">        off += writeInt32(bytes, off, strlen);</span>
+<span class="fc" id="L1049">        System.arraycopy(value, 0, bytes, off, strlen);</span>
+<span class="fc" id="L1050">        this.off = off + strlen;</span>
+<span class="fc" id="L1051">    }</span>
+
+    protected boolean tryWriteStringUTF16(byte[] value) {
+<span class="fc" id="L1054">        int check_cnt = 128;</span>
+<span class="pc bpc" id="L1055" title="1 of 2 branches missed.">        if (check_cnt &gt; value.length) {</span>
+<span class="fc" id="L1056">            check_cnt = value.length;</span>
+        }
+<span class="pc bpc" id="L1058" title="1 of 2 branches missed.">        if ((check_cnt &amp; 1) == 1) {</span>
+<span class="nc" id="L1059">            check_cnt -= 1;</span>
+        }
+
+<span class="fc" id="L1062">        int asciiCount = 0;</span>
+<span class="fc bfc" id="L1063" title="All 2 branches covered.">        for (int i = 0; i + 2 &lt;= check_cnt; i += 2) {</span>
+<span class="fc" id="L1064">            byte b0 = value[i];</span>
+<span class="fc" id="L1065">            byte b1 = value[i + 1];</span>
+<span class="pc bpc" id="L1066" title="1 of 4 branches missed.">            if (b0 == 0 || b1 == 0) {</span>
+<span class="fc" id="L1067">                asciiCount++;</span>
+            }
+        }
+
+<span class="pc bpc" id="L1071" title="3 of 6 branches missed.">        boolean utf16 = value.length != 0 &amp;&amp; (asciiCount == 0 || (check_cnt &gt;&gt; 1) / asciiCount &gt;= 3); // utf16字符占比&gt;=1/3</span>
+<span class="fc" id="L1072">        int off = this.off;</span>
+<span class="fc" id="L1073">        int minCapacity = off + 6 + value.length * 2 + 1;</span>
+<span class="pc bpc" id="L1074" title="1 of 2 branches missed.">        if (minCapacity &gt;= this.bytes.length) {</span>
+<span class="nc" id="L1075">            ensureCapacity(minCapacity);</span>
+        }
+
+<span class="fc" id="L1078">        final byte[] bytes = this.bytes;</span>
+<span class="pc bpc" id="L1079" title="1 of 2 branches missed.">        if (!utf16) {</span>
+<span class="fc" id="L1080">            int maxSize = value.length + (value.length &gt;&gt; 2);</span>
+<span class="fc" id="L1081">            int lenByteCnt = sizeOfInt(maxSize);</span>
+<span class="fc" id="L1082">            int result = IOUtils.encodeUTF8(value, 0, value.length, bytes, off + lenByteCnt + 1);</span>
+<span class="fc" id="L1083">            int utf8len = result - off - lenByteCnt - 1;</span>
+<span class="pc bpc" id="L1084" title="1 of 2 branches missed.">            if (utf8len &gt; value.length) {</span>
+<span class="nc" id="L1085">                utf16 = true;</span>
+<span class="pc bpc" id="L1086" title="1 of 2 branches missed.">            } else if (result != -1) {</span>
+<span class="fc" id="L1087">                this.off = off + writeUTF8(bytes, off, value, utf8len, asciiCount, lenByteCnt);</span>
+<span class="fc" id="L1088">                return true;</span>
+            }
+        }
+
+<span class="nc bnc" id="L1092" title="All 2 branches missed.">        if (utf16) {</span>
+<span class="nc" id="L1093">            this.off = off + writeUTF16(bytes, off, value);</span>
+<span class="nc" id="L1094">            return true;</span>
+        }
+<span class="nc" id="L1096">        return false;</span>
+    }
+
+    private static int writeUTF8(
+            byte[] bytes,
+            int off,
+            byte[] value,
+            int utf8len,
+            int asciiCount,
+            int lenByteCnt
+    ) {
+        final byte strtype;
+<span class="fc bfc" id="L1108" title="All 2 branches covered.">        if (utf8len * 2 == value.length) {</span>
+<span class="pc bpc" id="L1109" title="1 of 2 branches missed.">            if (asciiCount &lt;= STR_ASCII_FIX_LEN) {</span>
+<span class="fc" id="L1110">                bytes[off] = (byte) (BC_STR_ASCII_FIX_MIN + utf8len);</span>
+<span class="fc" id="L1111">                System.arraycopy(bytes, off + 1 + lenByteCnt, bytes, off + 1, utf8len);</span>
+<span class="fc" id="L1112">                return utf8len + 1;</span>
+            }
+<span class="nc" id="L1114">            strtype = BC_STR_ASCII;</span>
+        } else {
+<span class="fc" id="L1116">            strtype = BC_STR_UTF8;</span>
+        }
+<span class="fc" id="L1118">        int utf8lenByteCnt = sizeOfInt(utf8len);</span>
+<span class="pc bpc" id="L1119" title="1 of 2 branches missed.">        if (lenByteCnt != utf8lenByteCnt) {</span>
+<span class="fc" id="L1120">            System.arraycopy(bytes, off + lenByteCnt + 1, bytes, off + utf8lenByteCnt + 1, utf8len);</span>
+        }
+<span class="fc" id="L1122">        bytes[off] = strtype;</span>
+<span class="fc" id="L1123">        return writeInt32(bytes, off + 1, utf8len) + utf8len + 1;</span>
+    }
+
+    private static int writeUTF16(byte[] bytes, int off, byte[] value) {
+<span class="nc bnc" id="L1127" title="All 2 branches missed.">        bytes[off] = JDKUtils.BIG_ENDIAN ? BC_STR_UTF16BE : BC_STR_UTF16LE;</span>
+<span class="nc" id="L1128">        int size = writeInt32(bytes, off + 1, value.length);</span>
+<span class="nc" id="L1129">        System.arraycopy(value, 0, bytes, off + size + 1, value.length);</span>
+<span class="nc" id="L1130">        return value.length + size + 1;</span>
+    }
+
+    void ensureCapacity(int minCapacity) {
+<span class="fc bfc" id="L1134" title="All 2 branches covered.">        if (minCapacity &gt;= bytes.length) {</span>
+<span class="fc" id="L1135">            int oldCapacity = bytes.length;</span>
+<span class="fc" id="L1136">            int newCapacity = oldCapacity + (oldCapacity &gt;&gt; 1);</span>
+<span class="fc bfc" id="L1137" title="All 2 branches covered.">            if (newCapacity - minCapacity &lt; 0) {</span>
+<span class="fc" id="L1138">                newCapacity = minCapacity;</span>
+            }
+<span class="fc bfc" id="L1140" title="All 2 branches covered.">            if (newCapacity &gt; maxArraySize) {</span>
+<span class="fc" id="L1141">                throw new OutOfMemoryError(&quot;try enabling LargeObject feature instead&quot;);</span>
+            }
+
+            // minCapacity is usually close to size, so this is a win:
+<span class="fc" id="L1145">            bytes = Arrays.copyOf(bytes, newCapacity);</span>
+        }
+<span class="fc" id="L1147">    }</span>
+
+    @Override
+    public void writeMillis(long millis) {
+<span class="fc" id="L1151">        int off = this.off;</span>
+<span class="fc" id="L1152">        int minCapacity = off + 9;</span>
+<span class="fc bfc" id="L1153" title="All 2 branches covered.">        if (minCapacity &gt;= bytes.length) {</span>
+<span class="fc" id="L1154">            ensureCapacity(minCapacity);</span>
+        }
+
+<span class="fc" id="L1157">        final byte[] bytes = this.bytes;</span>
+<span class="fc bfc" id="L1158" title="All 2 branches covered.">        if (millis % 1000 == 0) {</span>
+<span class="fc" id="L1159">            long seconds = (millis / 1000);</span>
+<span class="fc bfc" id="L1160" title="All 4 branches covered.">            if (seconds &gt;= Integer.MIN_VALUE &amp;&amp; seconds &lt;= Integer.MAX_VALUE) {</span>
+<span class="fc" id="L1161">                int secondsInt = (int) seconds;</span>
+
+<span class="fc" id="L1163">                bytes[off] = BC_TIMESTAMP_SECONDS;</span>
+<span class="pc bpc" id="L1164" title="1 of 2 branches missed.">                UNSAFE.putInt(</span>
+                        bytes,
+                        ARRAY_BYTE_BASE_OFFSET + off + 1,
+<span class="fc" id="L1167">                        BIG_ENDIAN ? secondsInt : Integer.reverseBytes(secondsInt)</span>
+                );
+<span class="fc" id="L1169">                this.off = off + 5;</span>
+<span class="fc" id="L1170">                return;</span>
+            }
+
+<span class="fc bfc" id="L1173" title="All 2 branches covered.">            if (seconds % 60 == 0) {</span>
+<span class="fc" id="L1174">                long minutes = seconds / 60;</span>
+<span class="pc bpc" id="L1175" title="1 of 4 branches missed.">                if (minutes &gt;= Integer.MIN_VALUE &amp;&amp; minutes &lt;= Integer.MAX_VALUE) {</span>
+<span class="fc" id="L1176">                    int minutesInt = (int) minutes;</span>
+<span class="fc" id="L1177">                    bytes[off] = BC_TIMESTAMP_MINUTES;</span>
+<span class="pc bpc" id="L1178" title="1 of 2 branches missed.">                    UNSAFE.putInt(</span>
+                            bytes,
+                            ARRAY_BYTE_BASE_OFFSET + off + 1,
+<span class="fc" id="L1181">                            BIG_ENDIAN ? minutesInt : Integer.reverseBytes(minutesInt)</span>
+                    );
+<span class="fc" id="L1183">                    this.off = off + 5;</span>
+<span class="fc" id="L1184">                    return;</span>
+                }
+            }
+        }
+
+<span class="fc" id="L1189">        bytes[off] = BC_TIMESTAMP_MILLIS;</span>
+<span class="pc bpc" id="L1190" title="1 of 2 branches missed.">        UNSAFE.putLong(</span>
+                bytes,
+                ARRAY_BYTE_BASE_OFFSET + off + 1,
+<span class="fc" id="L1193">                BIG_ENDIAN ? millis : Long.reverseBytes(millis)</span>
+        );
+<span class="fc" id="L1195">        this.off = off + 9;</span>
+<span class="fc" id="L1196">    }</span>
+
+<span class="fc" id="L1198">    static final long WRITE_NUM_NULL_MASK = Feature.NullAsDefaultValue.mask | Feature.WriteNullNumberAsZero.mask;</span>
+
+    @Override
+    public void writeInt64(Long i) {
+<span class="fc" id="L1202">        int minCapacity = off + 9;</span>
+<span class="fc bfc" id="L1203" title="All 2 branches covered.">        if (minCapacity &gt; bytes.length) {</span>
+<span class="fc" id="L1204">            ensureCapacity(minCapacity);</span>
+        }
+
+<span class="fc" id="L1207">        final byte[] bytes = this.bytes;</span>
+<span class="fc" id="L1208">        int off = this.off;</span>
+        int size;
+<span class="fc bfc" id="L1210" title="All 2 branches covered.">        if (i == null) {</span>
+<span class="pc bpc" id="L1211" title="1 of 2 branches missed.">            bytes[off] = (this.context.features &amp; WRITE_NUM_NULL_MASK) == 0</span>
+                    ? BC_NULL
+                    : (byte) (BC_INT64_NUM_MIN - INT64_NUM_LOW_VALUE);
+<span class="fc" id="L1214">            size = 1;</span>
+        } else {
+<span class="fc" id="L1216">            long val = i;</span>
+<span class="fc bfc" id="L1217" title="All 4 branches covered.">            if (val &gt;= INT64_NUM_LOW_VALUE &amp;&amp; val &lt;= INT64_NUM_HIGH_VALUE) {</span>
+<span class="fc" id="L1218">                bytes[off] = (byte) (BC_INT64_NUM_MIN + (val - INT64_NUM_LOW_VALUE));</span>
+<span class="fc" id="L1219">                size = 1;</span>
+<span class="fc bfc" id="L1220" title="All 4 branches covered.">            } else if (val &gt;= INT64_BYTE_MIN &amp;&amp; val &lt;= INT64_BYTE_MAX) {</span>
+<span class="fc" id="L1221">                bytes[off] = (byte) (BC_INT64_BYTE_ZERO + (val &gt;&gt; 8));</span>
+<span class="fc" id="L1222">                bytes[off + 1] = (byte) (val);</span>
+<span class="fc" id="L1223">                size = 2;</span>
+<span class="pc bpc" id="L1224" title="1 of 4 branches missed.">            } else if (val &gt;= INT64_SHORT_MIN &amp;&amp; val &lt;= INT64_SHORT_MAX) {</span>
+<span class="fc" id="L1225">                bytes[off] = (byte) (BC_INT64_SHORT_ZERO + (val &gt;&gt; 16));</span>
+<span class="fc" id="L1226">                bytes[off + 1] = (byte) (val &gt;&gt; 8);</span>
+<span class="fc" id="L1227">                bytes[off + 2] = (byte) (val);</span>
+<span class="fc" id="L1228">                size = 3;</span>
+<span class="pc bpc" id="L1229" title="1 of 4 branches missed.">            } else if (val &gt;= Integer.MIN_VALUE &amp;&amp; val &lt;= Integer.MAX_VALUE) {</span>
+<span class="fc" id="L1230">                bytes[off] = BC_INT64_INT;</span>
+<span class="pc bpc" id="L1231" title="1 of 2 branches missed.">                UNSAFE.putInt(</span>
+                        bytes,
+                        ARRAY_BYTE_BASE_OFFSET + off + 1,
+<span class="fc" id="L1234">                        BIG_ENDIAN ? (int) val : Integer.reverseBytes((int) val)</span>
+                );
+<span class="fc" id="L1236">                size = 5;</span>
+            } else {
+<span class="fc" id="L1238">                size = writeInt64Large8(bytes, off, val);</span>
+            }
+        }
+
+<span class="fc" id="L1242">        this.off = off + size;</span>
+<span class="fc" id="L1243">    }</span>
+
+    @Override
+    public void writeInt64(long val) {
+<span class="fc" id="L1247">        int minCapacity = off + 9;</span>
+<span class="fc bfc" id="L1248" title="All 2 branches covered.">        if (minCapacity &gt; bytes.length) {</span>
+<span class="fc" id="L1249">            ensureCapacity(minCapacity);</span>
+        }
+
+<span class="fc" id="L1252">        final byte[] bytes = this.bytes;</span>
+<span class="fc" id="L1253">        int off = this.off;</span>
+        int size;
+<span class="fc bfc" id="L1255" title="All 4 branches covered.">        if (val &gt;= INT64_NUM_LOW_VALUE &amp;&amp; val &lt;= INT64_NUM_HIGH_VALUE) {</span>
+<span class="fc" id="L1256">            bytes[off] = (byte) (BC_INT64_NUM_MIN + (val - INT64_NUM_LOW_VALUE));</span>
+<span class="fc" id="L1257">            size = 1;</span>
+<span class="fc bfc" id="L1258" title="All 4 branches covered.">        } else if (val &gt;= INT64_BYTE_MIN &amp;&amp; val &lt;= INT64_BYTE_MAX) {</span>
+<span class="fc" id="L1259">            bytes[off] = (byte) (BC_INT64_BYTE_ZERO + (val &gt;&gt; 8));</span>
+<span class="fc" id="L1260">            bytes[off + 1] = (byte) (val);</span>
+<span class="fc" id="L1261">            size = 2;</span>
+<span class="fc bfc" id="L1262" title="All 4 branches covered.">        } else if (val &gt;= INT64_SHORT_MIN &amp;&amp; val &lt;= INT64_SHORT_MAX) {</span>
+<span class="fc" id="L1263">            bytes[off] = (byte) (BC_INT64_SHORT_ZERO + (val &gt;&gt; 16));</span>
+<span class="fc" id="L1264">            bytes[off + 1] = (byte) (val &gt;&gt; 8);</span>
+<span class="fc" id="L1265">            bytes[off + 2] = (byte) (val);</span>
+<span class="fc" id="L1266">            size = 3;</span>
+<span class="fc bfc" id="L1267" title="All 4 branches covered.">        } else if (val &gt;= Integer.MIN_VALUE &amp;&amp; val &lt;= Integer.MAX_VALUE) {</span>
+<span class="fc" id="L1268">            bytes[off] = BC_INT64_INT;</span>
+<span class="pc bpc" id="L1269" title="1 of 2 branches missed.">            UNSAFE.putInt(</span>
+                    bytes,
+                    ARRAY_BYTE_BASE_OFFSET + off + 1,
+<span class="fc" id="L1272">                    BIG_ENDIAN ? (int) val : Integer.reverseBytes((int) val)</span>
+            );
+<span class="fc" id="L1274">            size = 5;</span>
+        } else {
+<span class="fc" id="L1276">            bytes[off] = BC_INT64;</span>
+<span class="pc bpc" id="L1277" title="1 of 2 branches missed.">            UNSAFE.putLong(</span>
+                    bytes,
+                    ARRAY_BYTE_BASE_OFFSET + off + 1,
+<span class="fc" id="L1280">                    BIG_ENDIAN ? val : Long.reverseBytes(val)</span>
+            );
+<span class="fc" id="L1282">            size = 9;</span>
+        }
+<span class="fc" id="L1284">        this.off = off + size;</span>
+<span class="fc" id="L1285">    }</span>
+
+    @Override
+    public void writeInt64(long[] value) {
+<span class="fc bfc" id="L1289" title="All 2 branches covered.">        if (value == null) {</span>
+<span class="fc" id="L1290">            writeArrayNull();</span>
+<span class="fc" id="L1291">            return;</span>
+        }
+
+<span class="fc" id="L1294">        int size = value.length;</span>
+
+<span class="fc" id="L1296">        int off = this.off;</span>
+<span class="fc" id="L1297">        int minCapacity = off + size * 9 + 5;</span>
+<span class="fc bfc" id="L1298" title="All 2 branches covered.">        if (minCapacity &gt;= bytes.length) {</span>
+<span class="fc" id="L1299">            ensureCapacity(minCapacity);</span>
+        }
+
+<span class="fc" id="L1302">        final byte[] bytes = this.bytes;</span>
+<span class="fc bfc" id="L1303" title="All 2 branches covered.">        if (size &lt;= ARRAY_FIX_LEN) {</span>
+<span class="fc" id="L1304">            bytes[off++] = (byte) (BC_ARRAY_FIX_MIN + size);</span>
+        } else {
+<span class="fc" id="L1306">            bytes[off] = BC_ARRAY;</span>
+<span class="fc" id="L1307">            off += writeInt32(bytes, off + 1, size) + 1;</span>
+        }
+
+<span class="fc bfc" id="L1310" title="All 2 branches covered.">        for (int i = 0; i &lt; value.length; i++) {</span>
+<span class="fc" id="L1311">            long val = value[i];</span>
+<span class="fc bfc" id="L1312" title="All 4 branches covered.">            if (val &gt;= INT64_NUM_LOW_VALUE &amp;&amp; val &lt;= INT64_NUM_HIGH_VALUE) {</span>
+<span class="fc" id="L1313">                bytes[off++] = (byte) (BC_INT64_NUM_MIN + (val - INT64_NUM_LOW_VALUE));</span>
+<span class="fc" id="L1314">                continue;</span>
+            }
+
+<span class="fc bfc" id="L1317" title="All 4 branches covered.">            if (val &gt;= INT64_BYTE_MIN &amp;&amp; val &lt;= INT64_BYTE_MAX) {</span>
+<span class="fc" id="L1318">                bytes[off] = (byte) (BC_INT64_BYTE_ZERO + (val &gt;&gt; 8));</span>
+<span class="fc" id="L1319">                bytes[off + 1] = (byte) (val);</span>
+<span class="fc" id="L1320">                off += 2;</span>
+<span class="fc" id="L1321">                continue;</span>
+            }
+
+<span class="fc bfc" id="L1324" title="All 4 branches covered.">            if (val &gt;= INT64_SHORT_MIN &amp;&amp; val &lt;= INT64_SHORT_MAX) {</span>
+<span class="fc" id="L1325">                bytes[off] = (byte) (BC_INT64_SHORT_ZERO + (val &gt;&gt; 16));</span>
+<span class="fc" id="L1326">                bytes[off + 1] = (byte) (val &gt;&gt; 8);</span>
+<span class="fc" id="L1327">                bytes[off + 2] = (byte) (val);</span>
+<span class="fc" id="L1328">                off += 3;</span>
+<span class="fc" id="L1329">                continue;</span>
+            }
+
+<span class="fc bfc" id="L1332" title="All 4 branches covered.">            if (val &gt;= Integer.MIN_VALUE &amp;&amp; val &lt;= Integer.MAX_VALUE) {</span>
+<span class="fc" id="L1333">                bytes[off] = BC_INT64_INT;</span>
+<span class="pc bpc" id="L1334" title="1 of 2 branches missed.">                UNSAFE.putInt(</span>
+                        bytes,
+                        ARRAY_BYTE_BASE_OFFSET + off + 1,
+<span class="fc" id="L1337">                        BIG_ENDIAN ? (int) val : Integer.reverseBytes((int) val)</span>
+                );
+<span class="fc" id="L1339">                off += 5;</span>
+<span class="fc" id="L1340">                continue;</span>
+            }
+
+<span class="fc" id="L1343">            bytes[off] = BC_INT64;</span>
+<span class="pc bpc" id="L1344" title="1 of 2 branches missed.">            UNSAFE.putLong(</span>
+                    bytes,
+                    ARRAY_BYTE_BASE_OFFSET + off + 1,
+<span class="fc" id="L1347">                    BIG_ENDIAN ? val : Long.reverseBytes(val)</span>
+            );
+<span class="fc" id="L1349">            off += 9;</span>
+        }
+<span class="fc" id="L1351">        this.off = off;</span>
+<span class="fc" id="L1352">    }</span>
+
+    @Override
+    public void writeListInt64(List&lt;Long&gt; values) {
+<span class="pc bpc" id="L1356" title="1 of 2 branches missed.">        if (values == null) {</span>
+<span class="nc" id="L1357">            writeArrayNull();</span>
+<span class="nc" id="L1358">            return;</span>
+        }
+
+<span class="fc" id="L1361">        int size = values.size();</span>
+
+<span class="fc" id="L1363">        int off = this.off;</span>
+<span class="fc" id="L1364">        int minCapacity = off + size * 9 + 5;</span>
+<span class="pc bpc" id="L1365" title="1 of 2 branches missed.">        if (minCapacity &gt;= bytes.length) {</span>
+<span class="nc" id="L1366">            ensureCapacity(minCapacity);</span>
+        }
+
+<span class="fc" id="L1369">        final byte[] bytes = this.bytes;</span>
+<span class="fc bfc" id="L1370" title="All 2 branches covered.">        if (size &lt;= ARRAY_FIX_LEN) {</span>
+<span class="fc" id="L1371">            bytes[off++] = (byte) (BC_ARRAY_FIX_MIN + size);</span>
+        } else {
+<span class="fc" id="L1373">            bytes[off] = BC_ARRAY;</span>
+<span class="fc" id="L1374">            off += writeInt32(bytes, off + 1, size) + 1;</span>
+        }
+
+<span class="fc bfc" id="L1377" title="All 2 branches covered.">        for (int i = 0; i &lt; size; i++) {</span>
+<span class="fc" id="L1378">            Long item = values.get(i);</span>
+<span class="pc bpc" id="L1379" title="1 of 2 branches missed.">            if (item == null) {</span>
+<span class="nc" id="L1380">                bytes[off++] = BC_NULL;</span>
+<span class="nc" id="L1381">                continue;</span>
+            }
+
+<span class="fc" id="L1384">            long val = item;</span>
+<span class="fc bfc" id="L1385" title="All 4 branches covered.">            if (val &gt;= INT64_NUM_LOW_VALUE &amp;&amp; val &lt;= INT64_NUM_HIGH_VALUE) {</span>
+<span class="fc" id="L1386">                bytes[off++] = (byte) (BC_INT64_NUM_MIN + (val - INT64_NUM_LOW_VALUE));</span>
+<span class="fc" id="L1387">                continue;</span>
+            }
+
+<span class="fc bfc" id="L1390" title="All 4 branches covered.">            if (val &gt;= INT64_BYTE_MIN &amp;&amp; val &lt;= INT64_BYTE_MAX) {</span>
+<span class="fc" id="L1391">                bytes[off] = (byte) (BC_INT64_BYTE_ZERO + (val &gt;&gt; 8));</span>
+<span class="fc" id="L1392">                bytes[off + 1] = (byte) (val);</span>
+<span class="fc" id="L1393">                off += 2;</span>
+<span class="fc" id="L1394">                continue;</span>
+            }
+
+<span class="fc bfc" id="L1397" title="All 4 branches covered.">            if (val &gt;= INT64_SHORT_MIN &amp;&amp; val &lt;= INT64_SHORT_MAX) {</span>
+<span class="fc" id="L1398">                bytes[off] = (byte) (BC_INT64_SHORT_ZERO + (val &gt;&gt; 16));</span>
+<span class="fc" id="L1399">                bytes[off + 1] = (byte) (val &gt;&gt; 8);</span>
+<span class="fc" id="L1400">                bytes[off + 2] = (byte) (val);</span>
+<span class="fc" id="L1401">                off += 3;</span>
+<span class="fc" id="L1402">                continue;</span>
+            }
+
+<span class="fc" id="L1405">            off += writeInt64Large(bytes, off, val);</span>
+        }
+<span class="fc" id="L1407">        this.off = off;</span>
+<span class="fc" id="L1408">    }</span>
+
+    private static int writeInt64Large(byte[] bytes, int off, long val) {
+<span class="fc bfc" id="L1411" title="All 4 branches covered.">        if (val &gt;= Integer.MIN_VALUE &amp;&amp; val &lt;= Integer.MAX_VALUE) {</span>
+<span class="fc" id="L1412">            bytes[off] = BC_INT64_INT;</span>
+<span class="pc bpc" id="L1413" title="1 of 2 branches missed.">            UNSAFE.putInt(</span>
+                    bytes,
+                    ARRAY_BYTE_BASE_OFFSET + off + 1,
+<span class="fc" id="L1416">                    BIG_ENDIAN ? (int) val : Integer.reverseBytes((int) val)</span>
+            );
+<span class="fc" id="L1418">            return 5;</span>
+        }
+
+<span class="fc" id="L1421">        return writeInt64Large8(bytes, off, val);</span>
+    }
+
+    private static int writeInt64Large8(byte[] bytes, int off, long val) {
+<span class="fc" id="L1425">        bytes[off] = BC_INT64;</span>
+<span class="pc bpc" id="L1426" title="1 of 2 branches missed.">        UNSAFE.putLong(</span>
+                bytes,
+                ARRAY_BYTE_BASE_OFFSET + off + 1,
+<span class="fc" id="L1429">                BIG_ENDIAN ? val : Long.reverseBytes(val)</span>
+        );
+<span class="fc" id="L1431">        return 9;</span>
+    }
+
+    @Override
+    public void writeFloat(float value) {
+<span class="fc" id="L1436">        int off = this.off;</span>
+<span class="fc" id="L1437">        int minCapacity = off + 5;</span>
+<span class="pc bpc" id="L1438" title="1 of 2 branches missed.">        if (minCapacity &gt;= bytes.length) {</span>
+<span class="nc" id="L1439">            ensureCapacity(minCapacity);</span>
+        }
+
+<span class="fc" id="L1442">        final byte[] bytes = this.bytes;</span>
+<span class="fc" id="L1443">        int i = (int) value;</span>
+<span class="fc bfc" id="L1444" title="All 6 branches covered.">        if (i == value &amp;&amp; value &gt;= BC_INT32_NUM_MIN &amp;&amp; value &lt;= BC_INT32_NUM_MAX) {</span>
+<span class="fc" id="L1445">            bytes[off] = BC_FLOAT_INT;</span>
+<span class="fc" id="L1446">            bytes[off + 1] = (byte) i;</span>
+<span class="fc" id="L1447">            off += 2;</span>
+        } else {
+<span class="fc" id="L1449">            bytes[off] = BC_FLOAT;</span>
+<span class="fc" id="L1450">            i = Float.floatToIntBits(value);</span>
+<span class="pc bpc" id="L1451" title="1 of 2 branches missed.">            UNSAFE.putInt(</span>
+                    bytes,
+                    ARRAY_BYTE_BASE_OFFSET + off + 1,
+<span class="fc" id="L1454">                    BIG_ENDIAN ? i : Integer.reverseBytes(i)</span>
+            );
+<span class="fc" id="L1456">            off += 5;</span>
+        }
+<span class="fc" id="L1458">        this.off = off;</span>
+<span class="fc" id="L1459">    }</span>
+
+    @Override
+    public void writeFloat(float[] values) {
+<span class="fc bfc" id="L1463" title="All 2 branches covered.">        if (values == null) {</span>
+<span class="fc" id="L1464">            writeNull();</span>
+<span class="fc" id="L1465">            return;</span>
+        }
+<span class="fc" id="L1467">        startArray(values.length);</span>
+<span class="fc bfc" id="L1468" title="All 2 branches covered.">        for (int i = 0; i &lt; values.length; i++) {</span>
+<span class="fc" id="L1469">            writeFloat(values[i]);</span>
+        }
+<span class="fc" id="L1471">        endArray();</span>
+<span class="fc" id="L1472">    }</span>
+
+    @Override
+    public void writeDouble(double value) {
+<span class="fc bfc" id="L1476" title="All 2 branches covered.">        if (value == 0) {</span>
+<span class="fc" id="L1477">            ensureCapacity(off + 1);</span>
+<span class="fc" id="L1478">            bytes[off++] = BC_DOUBLE_NUM_0;</span>
+<span class="fc" id="L1479">            return;</span>
+        }
+
+<span class="fc" id="L1482">        int off = this.off;</span>
+<span class="fc bfc" id="L1483" title="All 2 branches covered.">        if (value == 1) {</span>
+<span class="fc" id="L1484">            ensureCapacity(off + 1);</span>
+<span class="fc" id="L1485">            bytes[off] = BC_DOUBLE_NUM_1;</span>
+<span class="fc" id="L1486">            this.off = off + 1;</span>
+<span class="fc" id="L1487">            return;</span>
+        }
+
+<span class="fc bfc" id="L1490" title="All 4 branches covered.">        if (value &gt;= Integer.MIN_VALUE &amp;&amp; value &lt;= Integer.MAX_VALUE) {</span>
+<span class="fc" id="L1491">            long longValue = (long) value;</span>
+<span class="fc bfc" id="L1492" title="All 2 branches covered.">            if (longValue == value) {</span>
+<span class="fc" id="L1493">                ensureCapacity(off + 1);</span>
+<span class="fc" id="L1494">                bytes[off] = BC_DOUBLE_LONG;</span>
+<span class="fc" id="L1495">                this.off = off + 1;</span>
+<span class="fc" id="L1496">                writeInt64(longValue);</span>
+<span class="fc" id="L1497">                return;</span>
+            }
+        }
+
+<span class="fc" id="L1501">        ensureCapacity(off + 9);</span>
+<span class="fc" id="L1502">        final byte[] bytes = this.bytes;</span>
+<span class="fc" id="L1503">        bytes[off] = BC_DOUBLE;</span>
+<span class="fc" id="L1504">        long i = Double.doubleToLongBits(value);</span>
+<span class="pc bpc" id="L1505" title="1 of 2 branches missed.">        UNSAFE.putLong(</span>
+                bytes,
+                ARRAY_BYTE_BASE_OFFSET + off + 1,
+<span class="fc" id="L1508">                BIG_ENDIAN ? i : Long.reverseBytes(i)</span>
+        );
+<span class="fc" id="L1510">        this.off = off + 9;</span>
+<span class="fc" id="L1511">    }</span>
+
+    @Override
+    public void writeDouble(double[] values) {
+<span class="fc bfc" id="L1515" title="All 2 branches covered.">        if (values == null) {</span>
+<span class="fc" id="L1516">            writeNull();</span>
+<span class="fc" id="L1517">            return;</span>
+        }
+<span class="fc" id="L1519">        startArray(values.length);</span>
+<span class="fc bfc" id="L1520" title="All 2 branches covered.">        for (int i = 0; i &lt; values.length; i++) {</span>
+<span class="fc" id="L1521">            writeDouble(values[i]);</span>
+        }
+<span class="fc" id="L1523">        endArray();</span>
+<span class="fc" id="L1524">    }</span>
+
+    @Override
+    public void writeInt16(short[] values) {
+<span class="fc bfc" id="L1528" title="All 2 branches covered.">        if (values == null) {</span>
+<span class="fc" id="L1529">            writeNull();</span>
+<span class="fc" id="L1530">            return;</span>
+        }
+<span class="fc" id="L1532">        startArray(values.length);</span>
+<span class="fc bfc" id="L1533" title="All 2 branches covered.">        for (int i = 0; i &lt; values.length; i++) {</span>
+<span class="fc" id="L1534">            writeInt32(values[i]);</span>
+        }
+<span class="fc" id="L1536">        endArray();</span>
+<span class="fc" id="L1537">    }</span>
+
+    @Override
+    public void writeInt32(int[] values) {
+<span class="fc bfc" id="L1541" title="All 2 branches covered.">        if (values == null) {</span>
+<span class="fc" id="L1542">            writeArrayNull();</span>
+<span class="fc" id="L1543">            return;</span>
+        }
+
+        // inline startArray(value.length);
+<span class="fc" id="L1547">        int size = values.length;</span>
+<span class="fc bfc" id="L1548" title="All 2 branches covered.">        if (off == bytes.length) {</span>
+<span class="fc" id="L1549">            ensureCapacity(off + 1);</span>
+        }
+
+<span class="fc bfc" id="L1552" title="All 2 branches covered.">        if (size &lt;= ARRAY_FIX_LEN) {</span>
+<span class="fc" id="L1553">            bytes[off++] = (byte) (BC_ARRAY_FIX_MIN + size);</span>
+        } else {
+<span class="fc" id="L1555">            bytes[off++] = BC_ARRAY;</span>
+<span class="fc" id="L1556">            writeInt32(size);</span>
+        }
+
+<span class="fc" id="L1559">        int off = this.off;</span>
+<span class="fc" id="L1560">        int minCapacity = off + values.length * 5;</span>
+<span class="fc bfc" id="L1561" title="All 2 branches covered.">        if (minCapacity - bytes.length &gt; 0) {</span>
+<span class="fc" id="L1562">            ensureCapacity(minCapacity);</span>
+        }
+
+<span class="fc" id="L1565">        final byte[] bytes = this.bytes;</span>
+<span class="fc bfc" id="L1566" title="All 2 branches covered.">        for (int i = 0; i &lt; values.length; i++) {</span>
+<span class="fc" id="L1567">            int val = values[i];</span>
+<span class="fc bfc" id="L1568" title="All 4 branches covered.">            if (val &gt;= BC_INT32_NUM_MIN &amp;&amp; val &lt;= BC_INT32_NUM_MAX) {</span>
+<span class="fc" id="L1569">                bytes[off++] = (byte) val;</span>
+<span class="fc" id="L1570">                continue;</span>
+            }
+
+<span class="fc bfc" id="L1573" title="All 4 branches covered.">            if (val &gt;= INT32_BYTE_MIN &amp;&amp; val &lt;= INT32_BYTE_MAX) {</span>
+<span class="fc" id="L1574">                bytes[off++] = (byte) (BC_INT32_BYTE_ZERO + (val &gt;&gt; 8));</span>
+<span class="fc" id="L1575">                bytes[off++] = (byte) (val);</span>
+<span class="fc" id="L1576">                continue;</span>
+            }
+
+<span class="fc bfc" id="L1579" title="All 4 branches covered.">            if (val &gt;= INT32_SHORT_MIN &amp;&amp; val &lt;= INT32_SHORT_MAX) {</span>
+<span class="fc" id="L1580">                bytes[off] = (byte) (BC_INT32_SHORT_ZERO + (val &gt;&gt; 16));</span>
+<span class="fc" id="L1581">                bytes[off + 1] = (byte) (val &gt;&gt; 8);</span>
+<span class="fc" id="L1582">                bytes[off + 2] = (byte) (val);</span>
+<span class="fc" id="L1583">                off += 3;</span>
+<span class="fc" id="L1584">                continue;</span>
+            }
+
+<span class="fc" id="L1587">            bytes[off] = BC_INT32;</span>
+<span class="pc bpc" id="L1588" title="1 of 2 branches missed.">            UNSAFE.putInt(</span>
+                    bytes,
+                    ARRAY_BYTE_BASE_OFFSET + off + 1,
+<span class="fc" id="L1591">                    BIG_ENDIAN ? val : Integer.reverseBytes(val)</span>
+            );
+<span class="fc" id="L1593">            off += 5;</span>
+        }
+<span class="fc" id="L1595">        this.off = off;</span>
+<span class="fc" id="L1596">    }</span>
+
+    @Override
+    public void writeInt8(byte[] values) {
+<span class="nc bnc" id="L1600" title="All 2 branches missed.">        if (values == null) {</span>
+<span class="nc" id="L1601">            writeArrayNull();</span>
+<span class="nc" id="L1602">            return;</span>
+        }
+
+<span class="nc" id="L1605">        int size = values.length;</span>
+<span class="nc bnc" id="L1606" title="All 2 branches missed.">        if (off == bytes.length) {</span>
+<span class="nc" id="L1607">            ensureCapacity(off + 1);</span>
+        }
+
+<span class="nc bnc" id="L1610" title="All 2 branches missed.">        if (size &lt;= ARRAY_FIX_LEN) {</span>
+<span class="nc" id="L1611">            bytes[off++] = (byte) (BC_ARRAY_FIX_MIN + size);</span>
+        } else {
+<span class="nc" id="L1613">            bytes[off++] = BC_ARRAY;</span>
+<span class="nc" id="L1614">            writeInt32(size);</span>
+        }
+
+<span class="nc" id="L1617">        int off = this.off;</span>
+<span class="nc" id="L1618">        int minCapacity = off + values.length * 2;</span>
+<span class="nc bnc" id="L1619" title="All 2 branches missed.">        if (minCapacity - bytes.length &gt; 0) {</span>
+<span class="nc" id="L1620">            ensureCapacity(minCapacity);</span>
+        }
+
+<span class="nc" id="L1623">        final byte[] bytes = this.bytes;</span>
+<span class="nc bnc" id="L1624" title="All 2 branches missed.">        for (int i = 0; i &lt; values.length; i++) {</span>
+<span class="nc" id="L1625">            int val = values[i];</span>
+<span class="nc bnc" id="L1626" title="All 4 branches missed.">            if (val &gt;= BC_INT32_NUM_MIN &amp;&amp; val &lt;= BC_INT32_NUM_MAX) {</span>
+<span class="nc" id="L1627">                bytes[off++] = (byte) val;</span>
+            } else {
+<span class="nc" id="L1629">                bytes[off++] = (byte) (BC_INT32_BYTE_ZERO + (val &gt;&gt; 8));</span>
+<span class="nc" id="L1630">                bytes[off++] = (byte) (val);</span>
+            }
+        }
+<span class="nc" id="L1633">        this.off = off;</span>
+<span class="nc" id="L1634">    }</span>
+
+    @Override
+    public void writeInt8(byte val) {
+<span class="fc" id="L1638">        int off = this.off;</span>
+<span class="fc" id="L1639">        int minCapacity = off + 2;</span>
+<span class="fc bfc" id="L1640" title="All 2 branches covered.">        if (minCapacity - bytes.length &gt; 0) {</span>
+<span class="fc" id="L1641">            ensureCapacity(minCapacity);</span>
+        }
+
+<span class="fc" id="L1644">        final byte[] bytes = this.bytes;</span>
+<span class="fc" id="L1645">        bytes[off] = BC_INT8;</span>
+<span class="fc" id="L1646">        bytes[off + 1] = val;</span>
+<span class="fc" id="L1647">        this.off = off + 2;</span>
+<span class="fc" id="L1648">    }</span>
+
+    @Override
+    public void writeInt16(short val) {
+<span class="fc" id="L1652">        int off = this.off;</span>
+<span class="fc" id="L1653">        int minCapacity = off + 3;</span>
+<span class="fc bfc" id="L1654" title="All 2 branches covered.">        if (minCapacity &gt;= bytes.length) {</span>
+<span class="fc" id="L1655">            ensureCapacity(minCapacity);</span>
+        }
+<span class="fc" id="L1657">        final byte[] bytes = this.bytes;</span>
+<span class="fc" id="L1658">        bytes[off] = BC_INT16;</span>
+<span class="fc" id="L1659">        bytes[off + 1] = (byte) (val &gt;&gt;&gt; 8);</span>
+<span class="fc" id="L1660">        bytes[off + 2] = (byte) val;</span>
+<span class="fc" id="L1661">        this.off = off + 3;</span>
+<span class="fc" id="L1662">    }</span>
+
+    @Override
+    public void writeEnum(Enum e) {
+<span class="pc bpc" id="L1666" title="1 of 2 branches missed.">        if (e == null) {</span>
+<span class="nc" id="L1667">            writeNull();</span>
+<span class="nc" id="L1668">            return;</span>
+        }
+
+<span class="pc bpc" id="L1671" title="1 of 2 branches missed.">        if ((context.features &amp; WRITE_ENUM_USING_STRING_MASK) != 0) {</span>
+<span class="nc bnc" id="L1672" title="All 2 branches missed.">            writeString(</span>
+                    (context.features &amp; WriteEnumUsingToString.mask) != 0
+<span class="nc" id="L1674">                            ? e.toString()</span>
+<span class="nc" id="L1675">                            : e.name()</span>
+            );
+        } else {
+<span class="fc" id="L1678">            int val = e.ordinal();</span>
+<span class="pc bpc" id="L1679" title="1 of 2 branches missed.">            if (val &lt;= BC_INT32_NUM_MAX) {</span>
+<span class="pc bpc" id="L1680" title="1 of 2 branches missed.">                if (off == bytes.length) {</span>
+<span class="nc" id="L1681">                    ensureCapacity(off + 1);</span>
+                }
+
+<span class="fc" id="L1684">                bytes[off++] = (byte) val;</span>
+<span class="fc" id="L1685">                return;</span>
+            }
+<span class="nc" id="L1687">            writeInt32(val);</span>
+        }
+<span class="nc" id="L1689">    }</span>
+
+    @Override
+    public void writeInt32(Integer i) {
+<span class="fc" id="L1693">        int minCapacity = off + 5;</span>
+<span class="fc bfc" id="L1694" title="All 2 branches covered.">        if (minCapacity &gt;= bytes.length) {</span>
+<span class="fc" id="L1695">            ensureCapacity(minCapacity);</span>
+        }
+
+<span class="fc" id="L1698">        final byte[] bytes = this.bytes;</span>
+        int size;
+<span class="fc" id="L1700">        int off = this.off;</span>
+<span class="fc bfc" id="L1701" title="All 2 branches covered.">        if (i == null) {</span>
+<span class="pc bpc" id="L1702" title="1 of 2 branches missed.">            if ((this.context.features &amp; (Feature.NullAsDefaultValue.mask | Feature.WriteNullNumberAsZero.mask)) == 0) {</span>
+<span class="fc" id="L1703">                bytes[off] = BC_NULL;</span>
+            } else {
+<span class="nc" id="L1705">                bytes[off] = 0;</span>
+            }
+<span class="fc" id="L1707">            size = 1;</span>
+        } else {
+<span class="fc" id="L1709">            int val = i;</span>
+<span class="pc bpc" id="L1710" title="1 of 4 branches missed.">            if (val &gt;= BC_INT32_NUM_MIN &amp;&amp; val &lt;= BC_INT32_NUM_MAX) {</span>
+<span class="fc" id="L1711">                bytes[off] = (byte) val;</span>
+<span class="fc" id="L1712">                size = 1;</span>
+<span class="pc bpc" id="L1713" title="1 of 4 branches missed.">            } else if (val &gt;= INT32_BYTE_MIN &amp;&amp; val &lt;= INT32_BYTE_MAX) {</span>
+<span class="fc" id="L1714">                bytes[off] = (byte) (BC_INT32_BYTE_ZERO + (val &gt;&gt; 8));</span>
+<span class="fc" id="L1715">                bytes[off + 1] = (byte) (val);</span>
+<span class="fc" id="L1716">                size = 2;</span>
+<span class="pc bpc" id="L1717" title="1 of 4 branches missed.">            } else if (val &gt;= INT32_SHORT_MIN &amp;&amp; val &lt;= INT32_SHORT_MAX) {</span>
+<span class="fc" id="L1718">                bytes[off] = (byte) (BC_INT32_SHORT_ZERO + (val &gt;&gt; 16));</span>
+<span class="fc" id="L1719">                bytes[off + 1] = (byte) (val &gt;&gt; 8);</span>
+<span class="fc" id="L1720">                bytes[off + 2] = (byte) (val);</span>
+<span class="fc" id="L1721">                size = 3;</span>
+            } else {
+<span class="fc" id="L1723">                bytes[off] = BC_INT32;</span>
+<span class="pc bpc" id="L1724" title="1 of 2 branches missed.">                UNSAFE.putInt(</span>
+                        bytes,
+                        ARRAY_BYTE_BASE_OFFSET + off + 1,
+<span class="fc" id="L1727">                        BIG_ENDIAN ? val : Integer.reverseBytes(val)</span>
+                );
+<span class="fc" id="L1729">                size = 5;</span>
+            }
+        }
+<span class="fc" id="L1732">        this.off += size;</span>
+<span class="fc" id="L1733">    }</span>
+
+    @Override
+    public void writeInt32(int val) {
+<span class="fc" id="L1737">        int minCapacity = off + 5;</span>
+<span class="fc bfc" id="L1738" title="All 2 branches covered.">        if (minCapacity &gt;= bytes.length) {</span>
+<span class="fc" id="L1739">            ensureCapacity(minCapacity);</span>
+        }
+
+<span class="fc" id="L1742">        final byte[] bytes = this.bytes;</span>
+        int size;
+<span class="fc" id="L1744">        int off = this.off;</span>
+<span class="fc bfc" id="L1745" title="All 4 branches covered.">        if (val &gt;= BC_INT32_NUM_MIN &amp;&amp; val &lt;= BC_INT32_NUM_MAX) {</span>
+<span class="fc" id="L1746">            bytes[off] = (byte) val;</span>
+<span class="fc" id="L1747">            size = 1;</span>
+<span class="fc bfc" id="L1748" title="All 4 branches covered.">        } else if (val &gt;= INT32_BYTE_MIN &amp;&amp; val &lt;= INT32_BYTE_MAX) {</span>
+<span class="fc" id="L1749">            bytes[off] = (byte) (BC_INT32_BYTE_ZERO + (val &gt;&gt; 8));</span>
+<span class="fc" id="L1750">            bytes[off + 1] = (byte) (val);</span>
+<span class="fc" id="L1751">            size = 2;</span>
+<span class="fc bfc" id="L1752" title="All 4 branches covered.">        } else if (val &gt;= INT32_SHORT_MIN &amp;&amp; val &lt;= INT32_SHORT_MAX) {</span>
+<span class="fc" id="L1753">            bytes[off] = (byte) (BC_INT32_SHORT_ZERO + (val &gt;&gt; 16));</span>
+<span class="fc" id="L1754">            bytes[off + 1] = (byte) (val &gt;&gt; 8);</span>
+<span class="fc" id="L1755">            bytes[off + 2] = (byte) (val);</span>
+<span class="fc" id="L1756">            size = 3;</span>
+        } else {
+<span class="fc" id="L1758">            bytes[off] = BC_INT32;</span>
+<span class="pc bpc" id="L1759" title="1 of 2 branches missed.">            UNSAFE.putInt(</span>
+                    bytes,
+                    ARRAY_BYTE_BASE_OFFSET + off + 1,
+<span class="fc" id="L1762">                    BIG_ENDIAN ? val : Integer.reverseBytes(val)</span>
+            );
+<span class="fc" id="L1764">            size = 5;</span>
+        }
+<span class="fc" id="L1766">        this.off += size;</span>
+<span class="fc" id="L1767">    }</span>
+
+    @Override
+    public void writeListInt32(List&lt;Integer&gt; values) {
+<span class="pc bpc" id="L1771" title="1 of 2 branches missed.">        if (values == null) {</span>
+<span class="nc" id="L1772">            writeArrayNull();</span>
+<span class="nc" id="L1773">            return;</span>
+        }
+
+<span class="fc" id="L1776">        int size = values.size();</span>
+
+<span class="fc" id="L1778">        int off = this.off;</span>
+<span class="fc" id="L1779">        int minCapacity = off + size * 5 + 5;</span>
+<span class="pc bpc" id="L1780" title="1 of 2 branches missed.">        if (minCapacity &gt;= bytes.length) {</span>
+<span class="nc" id="L1781">            ensureCapacity(minCapacity);</span>
+        }
+
+<span class="fc" id="L1784">        final byte[] bytes = this.bytes;</span>
+<span class="fc bfc" id="L1785" title="All 2 branches covered.">        if (size &lt;= ARRAY_FIX_LEN) {</span>
+<span class="fc" id="L1786">            bytes[off++] = (byte) (BC_ARRAY_FIX_MIN + size);</span>
+        } else {
+<span class="fc" id="L1788">            bytes[off] = BC_ARRAY;</span>
+<span class="fc" id="L1789">            off += writeInt32(bytes, off + 1, size) + 1;</span>
+        }
+
+<span class="fc bfc" id="L1792" title="All 2 branches covered.">        for (int i = 0; i &lt; size; i++) {</span>
+<span class="fc" id="L1793">            Number item = values.get(i);</span>
+<span class="pc bpc" id="L1794" title="1 of 2 branches missed.">            if (item == null) {</span>
+<span class="nc" id="L1795">                bytes[off++] = BC_NULL;</span>
+<span class="nc" id="L1796">                continue;</span>
+            }
+
+<span class="fc" id="L1799">            int val = item.intValue();</span>
+<span class="fc bfc" id="L1800" title="All 4 branches covered.">            if (val &gt;= BC_INT32_NUM_MIN &amp;&amp; val &lt;= BC_INT32_NUM_MAX) {</span>
+<span class="fc" id="L1801">                bytes[off++] = (byte) val;</span>
+<span class="fc bfc" id="L1802" title="All 4 branches covered.">            } else if (val &gt;= INT32_BYTE_MIN &amp;&amp; val &lt;= INT32_BYTE_MAX) {</span>
+<span class="fc" id="L1803">                bytes[off] = (byte) (BC_INT32_BYTE_ZERO + (val &gt;&gt; 8));</span>
+<span class="fc" id="L1804">                bytes[off + 1] = (byte) (val);</span>
+<span class="fc" id="L1805">                off += 2;</span>
+<span class="fc bfc" id="L1806" title="All 4 branches covered.">            } else if (val &gt;= INT32_SHORT_MIN &amp;&amp; val &lt;= INT32_SHORT_MAX) {</span>
+<span class="fc" id="L1807">                bytes[off] = (byte) (BC_INT32_SHORT_ZERO + (val &gt;&gt; 16));</span>
+<span class="fc" id="L1808">                bytes[off + 1] = (byte) (val &gt;&gt; 8);</span>
+<span class="fc" id="L1809">                bytes[off + 2] = (byte) (val);</span>
+<span class="fc" id="L1810">                off += 3;</span>
+            } else {
+<span class="fc" id="L1812">                bytes[off] = BC_INT32;</span>
+<span class="pc bpc" id="L1813" title="1 of 2 branches missed.">                UNSAFE.putInt(</span>
+                        bytes,
+                        ARRAY_BYTE_BASE_OFFSET + off + 1,
+<span class="fc" id="L1816">                        BIG_ENDIAN ? val : Integer.reverseBytes(val)</span>
+                );
+<span class="fc" id="L1818">                off += 5;</span>
+            }
+        }
+<span class="fc" id="L1821">        this.off = off;</span>
+<span class="fc" id="L1822">    }</span>
+
+    public static int writeInt32(byte[] bytes, int off, int val) {
+<span class="pc bpc" id="L1825" title="1 of 4 branches missed.">        if (val &gt;= BC_INT32_NUM_MIN &amp;&amp; val &lt;= BC_INT32_NUM_MAX) {</span>
+<span class="fc" id="L1826">            bytes[off] = (byte) val;</span>
+<span class="fc" id="L1827">            return 1;</span>
+<span class="pc bpc" id="L1828" title="1 of 4 branches missed.">        } else if (val &gt;= INT32_BYTE_MIN &amp;&amp; val &lt;= INT32_BYTE_MAX) {</span>
+<span class="fc" id="L1829">            bytes[off] = (byte) (BC_INT32_BYTE_ZERO + (val &gt;&gt; 8));</span>
+<span class="fc" id="L1830">            bytes[off + 1] = (byte) (val);</span>
+<span class="fc" id="L1831">            return 2;</span>
+<span class="pc bpc" id="L1832" title="1 of 4 branches missed.">        } else if (val &gt;= INT32_SHORT_MIN &amp;&amp; val &lt;= INT32_SHORT_MAX) {</span>
+<span class="fc" id="L1833">            bytes[off] = (byte) (BC_INT32_SHORT_ZERO + (val &gt;&gt; 16));</span>
+<span class="fc" id="L1834">            bytes[off + 1] = (byte) (val &gt;&gt; 8);</span>
+<span class="fc" id="L1835">            bytes[off + 2] = (byte) (val);</span>
+<span class="fc" id="L1836">            return 3;</span>
+        } else {
+<span class="fc" id="L1838">            bytes[off] = BC_INT32;</span>
+<span class="pc bpc" id="L1839" title="1 of 2 branches missed.">            UNSAFE.putInt(</span>
+                    bytes,
+                    ARRAY_BYTE_BASE_OFFSET + off + 1,
+<span class="fc" id="L1842">                    BIG_ENDIAN ? val : Integer.reverseBytes(val)</span>
+            );
+<span class="fc" id="L1844">            return 5;</span>
+        }
+    }
+
+    @Override
+    public void writeArrayNull() {
+<span class="fc bfc" id="L1850" title="All 2 branches covered.">        if (off == bytes.length) {</span>
+<span class="fc" id="L1851">            ensureCapacity(off + 1);</span>
+        }
+
+<span class="fc bfc" id="L1854" title="All 2 branches covered.">        bytes[off++] = (this.context.features &amp; WRITE_ARRAY_NULL_MASK) != 0 ? BC_ARRAY_FIX_MIN : BC_NULL;</span>
+<span class="fc" id="L1855">    }</span>
+
+    @Override
+    public void writeRaw(String str) {
+<span class="fc" id="L1859">        throw new JSONException(&quot;unsupported operation&quot;);</span>
+    }
+
+    @Override
+    public void writeRaw(byte[] bytes) {
+<span class="fc" id="L1864">        int minCapacity = this.off + bytes.length;</span>
+<span class="pc bpc" id="L1865" title="1 of 2 branches missed.">        if (minCapacity - this.bytes.length &gt; 0) {</span>
+<span class="nc" id="L1866">            ensureCapacity(minCapacity);</span>
+        }
+<span class="fc" id="L1868">        System.arraycopy(bytes, 0, this.bytes, off, bytes.length);</span>
+<span class="fc" id="L1869">        off += bytes.length;</span>
+<span class="fc" id="L1870">    }</span>
+
+    public void writeSymbol(int symbol) {
+<span class="fc" id="L1873">        int minCapacity = off + 3;</span>
+<span class="pc bpc" id="L1874" title="1 of 2 branches missed.">        if (minCapacity &gt;= bytes.length) {</span>
+<span class="nc" id="L1875">            ensureCapacity(minCapacity);</span>
+        }
+
+<span class="fc" id="L1878">        final byte[] bytes = this.bytes;</span>
+<span class="fc" id="L1879">        bytes[off++] = BC_SYMBOL;</span>
+
+<span class="pc bpc" id="L1881" title="1 of 4 branches missed.">        if (symbol &gt;= BC_INT32_NUM_MIN &amp;&amp; symbol &lt;= BC_INT32_NUM_MAX) {</span>
+<span class="fc" id="L1882">            bytes[off++] = (byte) symbol;</span>
+<span class="fc" id="L1883">            return;</span>
+        }
+
+<span class="pc bpc" id="L1886" title="2 of 4 branches missed.">        if (symbol &gt;= INT32_BYTE_MIN &amp;&amp; symbol &lt;= INT32_BYTE_MAX) {</span>
+<span class="fc" id="L1887">            bytes[off] = (byte) (BC_INT32_BYTE_ZERO + (symbol &gt;&gt; 8));</span>
+<span class="fc" id="L1888">            bytes[off + 1] = (byte) (symbol);</span>
+<span class="fc" id="L1889">            off += 2;</span>
+<span class="fc" id="L1890">            return;</span>
+        }
+
+<span class="nc" id="L1893">        writeInt32(symbol);</span>
+<span class="nc" id="L1894">    }</span>
+
+    @Override
+    public void writeNameRaw(byte[] name, long nameHash) {
+<span class="fc" id="L1898">        int off = this.off;</span>
+<span class="fc" id="L1899">        int minCapacity = off + name.length + 2;</span>
+<span class="fc bfc" id="L1900" title="All 2 branches covered.">        if (minCapacity &gt;= this.bytes.length) {</span>
+<span class="fc" id="L1901">            ensureCapacity(minCapacity);</span>
+        }
+
+<span class="fc" id="L1904">        final byte[] bytes = this.bytes;</span>
+        int symbol;
+<span class="fc bfc" id="L1906" title="All 2 branches covered.">        if (symbolTable == null</span>
+<span class="pc bpc" id="L1907" title="1 of 2 branches missed.">                || (symbol = symbolTable.getOrdinalByHashCode(nameHash)) == -1</span>
+        ) {
+<span class="fc bfc" id="L1909" title="All 2 branches covered.">            if ((context.features &amp; WriteNameAsSymbol.mask) == 0) {</span>
+<span class="fc" id="L1910">                System.arraycopy(name, 0, bytes, off, name.length);</span>
+<span class="fc" id="L1911">                this.off = off + name.length;</span>
+<span class="fc" id="L1912">                return;</span>
+            }
+
+<span class="fc" id="L1915">            boolean symbolExists = false;</span>
+<span class="fc bfc" id="L1916" title="All 2 branches covered.">            if (symbols != null) {</span>
+<span class="fc bfc" id="L1917" title="All 2 branches covered.">                if ((symbol = symbols.putIfAbsent(nameHash, symbolIndex)) != symbolIndex) {</span>
+<span class="fc" id="L1918">                    symbolExists = true;</span>
+                } else {
+<span class="fc" id="L1920">                    symbolIndex++;</span>
+                }
+            } else {
+<span class="fc" id="L1923">                (symbols = new TLongIntHashMap())</span>
+<span class="fc" id="L1924">                        .put(nameHash, symbol = symbolIndex++);</span>
+            }
+
+<span class="fc bfc" id="L1927" title="All 2 branches covered.">            if (!symbolExists) {</span>
+<span class="fc" id="L1928">                bytes[off++] = BC_SYMBOL;</span>
+<span class="fc" id="L1929">                System.arraycopy(name, 0, bytes, off, name.length);</span>
+<span class="fc" id="L1930">                this.off = off + name.length;</span>
+
+<span class="pc bpc" id="L1932" title="2 of 4 branches missed.">                if (symbol &gt;= BC_INT32_NUM_MIN &amp;&amp; symbol &lt;= BC_INT32_NUM_MAX) {</span>
+<span class="fc" id="L1933">                    bytes[this.off++] = (byte) symbol;</span>
+                } else {
+<span class="nc" id="L1935">                    writeInt32(symbol);</span>
+                }
+<span class="fc" id="L1937">                return;</span>
+            }
+<span class="fc" id="L1939">            symbol = -symbol;</span>
+        }
+
+<span class="fc" id="L1942">        bytes[off++] = BC_SYMBOL;</span>
+<span class="fc" id="L1943">        int intValue = -symbol;</span>
+<span class="pc bpc" id="L1944" title="2 of 4 branches missed.">        if (intValue &gt;= BC_INT32_NUM_MIN &amp;&amp; intValue &lt;= BC_INT32_NUM_MAX) {</span>
+<span class="fc" id="L1945">            bytes[off] = (byte) intValue;</span>
+<span class="fc" id="L1946">            this.off = off + 1;</span>
+        } else {
+<span class="nc" id="L1948">            this.off = off;</span>
+<span class="nc" id="L1949">            writeInt32(intValue);</span>
+        }
+<span class="fc" id="L1951">    }</span>
+
+    @Override
+    public void writeLocalDate(LocalDate date) {
+<span class="fc bfc" id="L1955" title="All 2 branches covered.">        if (date == null) {</span>
+<span class="fc" id="L1956">            writeNull();</span>
+<span class="fc" id="L1957">            return;</span>
+        }
+
+<span class="fc" id="L1960">        int off = this.off;</span>
+<span class="fc" id="L1961">        ensureCapacity(off + 5);</span>
+
+<span class="fc" id="L1963">        final byte[] bytes = this.bytes;</span>
+<span class="fc" id="L1964">        bytes[off] = BC_LOCAL_DATE;</span>
+<span class="fc" id="L1965">        int year = date.getYear();</span>
+<span class="fc" id="L1966">        bytes[off + 1] = (byte) (year &gt;&gt;&gt; 8);</span>
+<span class="fc" id="L1967">        bytes[off + 2] = (byte) year;</span>
+<span class="fc" id="L1968">        bytes[off + 3] = (byte) date.getMonthValue();</span>
+<span class="fc" id="L1969">        bytes[off + 4] = (byte) date.getDayOfMonth();</span>
+<span class="fc" id="L1970">        this.off = off + 5;</span>
+<span class="fc" id="L1971">    }</span>
+
+    @Override
+    public void writeLocalTime(LocalTime time) {
+<span class="fc bfc" id="L1975" title="All 2 branches covered.">        if (time == null) {</span>
+<span class="fc" id="L1976">            writeNull();</span>
+<span class="fc" id="L1977">            return;</span>
+        }
+
+<span class="fc" id="L1980">        int off = this.off;</span>
+<span class="fc" id="L1981">        ensureCapacity(off + 4);</span>
+
+<span class="fc" id="L1983">        final byte[] bytes = this.bytes;</span>
+<span class="fc" id="L1984">        bytes[off] = BC_LOCAL_TIME;</span>
+<span class="fc" id="L1985">        bytes[off + 1] = (byte) time.getHour();</span>
+<span class="fc" id="L1986">        bytes[off + 2] = (byte) time.getMinute();</span>
+<span class="fc" id="L1987">        bytes[off + 3] = (byte) time.getSecond();</span>
+<span class="fc" id="L1988">        this.off = off + 4;</span>
+
+<span class="fc" id="L1990">        int nano = time.getNano();</span>
+<span class="fc" id="L1991">        writeInt32(nano);</span>
+<span class="fc" id="L1992">    }</span>
+
+    @Override
+    public void writeLocalDateTime(LocalDateTime dateTime) {
+<span class="fc bfc" id="L1996" title="All 2 branches covered.">        if (dateTime == null) {</span>
+<span class="fc" id="L1997">            writeNull();</span>
+<span class="fc" id="L1998">            return;</span>
+        }
+
+<span class="fc" id="L2001">        int off = this.off;</span>
+<span class="fc" id="L2002">        ensureCapacity(off + 8);</span>
+
+<span class="fc" id="L2004">        final byte[] bytes = this.bytes;</span>
+<span class="fc" id="L2005">        bytes[off] = BC_LOCAL_DATETIME;</span>
+<span class="fc" id="L2006">        int year = dateTime.getYear();</span>
+<span class="fc" id="L2007">        bytes[off + 1] = (byte) (year &gt;&gt;&gt; 8);</span>
+<span class="fc" id="L2008">        bytes[off + 2] = (byte) year;</span>
+<span class="fc" id="L2009">        bytes[off + 3] = (byte) dateTime.getMonthValue();</span>
+<span class="fc" id="L2010">        bytes[off + 4] = (byte) dateTime.getDayOfMonth();</span>
+<span class="fc" id="L2011">        bytes[off + 5] = (byte) dateTime.getHour();</span>
+<span class="fc" id="L2012">        bytes[off + 6] = (byte) dateTime.getMinute();</span>
+<span class="fc" id="L2013">        bytes[off + 7] = (byte) dateTime.getSecond();</span>
+<span class="fc" id="L2014">        this.off = off + 8;</span>
+
+<span class="fc" id="L2016">        int nano = dateTime.getNano();</span>
+<span class="fc" id="L2017">        writeInt32(nano);</span>
+<span class="fc" id="L2018">    }</span>
+
+    @Override
+    public void writeZonedDateTime(ZonedDateTime dateTime) {
+<span class="fc bfc" id="L2022" title="All 2 branches covered.">        if (dateTime == null) {</span>
+<span class="fc" id="L2023">            writeNull();</span>
+<span class="fc" id="L2024">            return;</span>
+        }
+
+<span class="fc" id="L2027">        int off = this.off;</span>
+<span class="fc" id="L2028">        ensureCapacity(off + 8);</span>
+
+<span class="fc" id="L2030">        final byte[] bytes = this.bytes;</span>
+<span class="fc" id="L2031">        bytes[off] = BC_TIMESTAMP_WITH_TIMEZONE;</span>
+<span class="fc" id="L2032">        int year = dateTime.getYear();</span>
+<span class="fc" id="L2033">        bytes[off + 1] = (byte) (year &gt;&gt;&gt; 8);</span>
+<span class="fc" id="L2034">        bytes[off + 2] = (byte) year;</span>
+<span class="fc" id="L2035">        bytes[off + 3] = (byte) dateTime.getMonthValue();</span>
+<span class="fc" id="L2036">        bytes[off + 4] = (byte) dateTime.getDayOfMonth();</span>
+<span class="fc" id="L2037">        bytes[off + 5] = (byte) dateTime.getHour();</span>
+<span class="fc" id="L2038">        bytes[off + 6] = (byte) dateTime.getMinute();</span>
+<span class="fc" id="L2039">        bytes[off + 7] = (byte) dateTime.getSecond();</span>
+<span class="fc" id="L2040">        this.off = off + 8;</span>
+
+<span class="fc" id="L2042">        int nano = dateTime.getNano();</span>
+<span class="fc" id="L2043">        writeInt32(nano);</span>
+
+<span class="fc" id="L2045">        ZoneId zoneId = dateTime.getZone();</span>
+<span class="fc" id="L2046">        String zoneIdStr = zoneId.getId();</span>
+<span class="fc bfc" id="L2047" title="All 2 branches covered.">        if (zoneIdStr.equals(SHANGHAI_ZONE_ID_NAME)) {</span>
+<span class="fc" id="L2048">            writeRaw(SHANGHAI_ZONE_ID_NAME_BYTES);</span>
+        } else {
+<span class="fc" id="L2050">            writeString(zoneIdStr);</span>
+        }
+<span class="fc" id="L2052">    }</span>
+
+    @Override
+    public void writeOffsetDateTime(OffsetDateTime dateTime) {
+<span class="pc bpc" id="L2056" title="1 of 2 branches missed.">        if (dateTime == null) {</span>
+<span class="nc" id="L2057">            writeNull();</span>
+<span class="nc" id="L2058">            return;</span>
+        }
+
+<span class="fc" id="L2061">        int off = this.off;</span>
+<span class="fc" id="L2062">        ensureCapacity(off + 8);</span>
+
+<span class="fc" id="L2064">        final byte[] bytes = this.bytes;</span>
+<span class="fc" id="L2065">        bytes[off] = BC_TIMESTAMP_WITH_TIMEZONE;</span>
+<span class="fc" id="L2066">        int year = dateTime.getYear();</span>
+<span class="fc" id="L2067">        bytes[off + 1] = (byte) (year &gt;&gt;&gt; 8);</span>
+<span class="fc" id="L2068">        bytes[off + 2] = (byte) year;</span>
+<span class="fc" id="L2069">        bytes[off + 3] = (byte) dateTime.getMonthValue();</span>
+<span class="fc" id="L2070">        bytes[off + 4] = (byte) dateTime.getDayOfMonth();</span>
+<span class="fc" id="L2071">        bytes[off + 5] = (byte) dateTime.getHour();</span>
+<span class="fc" id="L2072">        bytes[off + 6] = (byte) dateTime.getMinute();</span>
+<span class="fc" id="L2073">        bytes[off + 7] = (byte) dateTime.getSecond();</span>
+<span class="fc" id="L2074">        this.off = off + 8;</span>
+
+<span class="fc" id="L2076">        int nano = dateTime.getNano();</span>
+<span class="fc" id="L2077">        writeInt32(nano);</span>
+
+<span class="fc" id="L2079">        ZoneId zoneId = dateTime.getOffset();</span>
+<span class="fc" id="L2080">        String zoneIdStr = zoneId.getId();</span>
+<span class="fc bfc" id="L2081" title="All 2 branches covered.">        if (zoneIdStr.equals(OFFSET_8_ZONE_ID_NAME)) {</span>
+<span class="fc" id="L2082">            writeRaw(OFFSET_8_ZONE_ID_NAME_BYTES);</span>
+        } else {
+<span class="fc" id="L2084">            writeString(zoneIdStr);</span>
+        }
+<span class="fc" id="L2086">    }</span>
+
+    @Override
+    public void writeOffsetTime(OffsetTime offsetTime) {
+<span class="pc bpc" id="L2090" title="1 of 2 branches missed.">        if (offsetTime == null) {</span>
+<span class="nc" id="L2091">            writeNull();</span>
+<span class="nc" id="L2092">            return;</span>
+        }
+
+<span class="fc" id="L2095">        writeOffsetDateTime(</span>
+<span class="fc" id="L2096">                OffsetDateTime.of(DateUtils.LOCAL_DATE_19700101, offsetTime.toLocalTime(), offsetTime.getOffset())</span>
+        );
+<span class="fc" id="L2098">    }</span>
+
+    @Override
+    public void writeInstant(Instant instant) {
+<span class="fc bfc" id="L2102" title="All 2 branches covered.">        if (instant == null) {</span>
+<span class="fc" id="L2103">            writeNull();</span>
+<span class="fc" id="L2104">            return;</span>
+        }
+
+<span class="fc" id="L2107">        ensureCapacity(off + 1);</span>
+<span class="fc" id="L2108">        bytes[off++] = BC_TIMESTAMP;</span>
+<span class="fc" id="L2109">        long second = instant.getEpochSecond();</span>
+<span class="fc" id="L2110">        int nano = instant.getNano();</span>
+<span class="fc" id="L2111">        writeInt64(second);</span>
+<span class="fc" id="L2112">        writeInt32(nano);</span>
+<span class="fc" id="L2113">    }</span>
+
+    @Override
+    public void writeUUID(UUID value) {
+<span class="fc bfc" id="L2117" title="All 2 branches covered.">        if (value == null) {</span>
+<span class="fc" id="L2118">            writeNull();</span>
+<span class="fc" id="L2119">            return;</span>
+        }
+
+<span class="fc" id="L2122">        int off = this.off;</span>
+<span class="fc" id="L2123">        ensureCapacity(off + 18);</span>
+
+<span class="fc" id="L2125">        final byte[] bytes = this.bytes;</span>
+<span class="fc" id="L2126">        bytes[off] = BC_BINARY;</span>
+<span class="fc" id="L2127">        bytes[off + 1] = BC_INT32_NUM_16;</span>
+<span class="fc" id="L2128">        long msb = value.getMostSignificantBits();</span>
+<span class="pc bpc" id="L2129" title="1 of 2 branches missed.">        UNSAFE.putLong(</span>
+                bytes,
+                ARRAY_BYTE_BASE_OFFSET + off + 2,
+<span class="fc" id="L2132">                BIG_ENDIAN ? msb : Long.reverseBytes(msb)</span>
+        );
+<span class="fc" id="L2134">        long lsb = value.getLeastSignificantBits();</span>
+<span class="pc bpc" id="L2135" title="1 of 2 branches missed.">        UNSAFE.putLong(</span>
+                bytes,
+                ARRAY_BYTE_BASE_OFFSET + off + 10,
+<span class="fc" id="L2138">                BIG_ENDIAN ? lsb : Long.reverseBytes(lsb)</span>
+        );
+<span class="fc" id="L2140">        this.off = off + 18;</span>
+<span class="fc" id="L2141">    }</span>
+
+    @Override
+    public void writeBigInt(BigInteger value, long features) {
+<span class="fc bfc" id="L2145" title="All 2 branches covered.">        if (value == null) {</span>
+<span class="fc" id="L2146">            writeNull();</span>
+<span class="fc" id="L2147">            return;</span>
+        }
+
+<span class="fc bfc" id="L2150" title="All 2 branches covered.">        if (isInt64(value)) {</span>
+<span class="fc bfc" id="L2151" title="All 2 branches covered.">            if (off == bytes.length) {</span>
+<span class="fc" id="L2152">                ensureCapacity(off + 1);</span>
+            }
+<span class="fc" id="L2154">            bytes[off++] = BC_BIGINT_LONG;</span>
+<span class="fc" id="L2155">            long int64Value = value.longValue();</span>
+<span class="fc" id="L2156">            writeInt64(int64Value);</span>
+<span class="fc" id="L2157">            return;</span>
+        }
+
+<span class="fc" id="L2160">        byte[] valueBytes = value.toByteArray();</span>
+<span class="fc" id="L2161">        ensureCapacity(off + 5 + valueBytes.length);</span>
+
+<span class="fc" id="L2163">        bytes[off++] = BC_BIGINT;</span>
+<span class="fc" id="L2164">        writeInt32(valueBytes.length);</span>
+<span class="fc" id="L2165">        System.arraycopy(valueBytes, 0, bytes, off, valueBytes.length);</span>
+<span class="fc" id="L2166">        off += valueBytes.length;</span>
+<span class="fc" id="L2167">    }</span>
+
+    @Override
+    public void writeBinary(byte[] bytes) {
+<span class="fc bfc" id="L2171" title="All 2 branches covered.">        if (bytes == null) {</span>
+<span class="fc" id="L2172">            writeNull();</span>
+<span class="fc" id="L2173">            return;</span>
+        }
+
+<span class="fc" id="L2176">        ensureCapacity(off + 6 + bytes.length);</span>
+<span class="fc" id="L2177">        this.bytes[off++] = BC_BINARY;</span>
+<span class="fc" id="L2178">        writeInt32(bytes.length);</span>
+
+<span class="fc" id="L2180">        System.arraycopy(bytes, 0, this.bytes, off, bytes.length);</span>
+<span class="fc" id="L2181">        off += bytes.length;</span>
+<span class="fc" id="L2182">    }</span>
+
+    @Override
+    public void writeDecimal(BigDecimal value, long features, DecimalFormat format) {
+<span class="fc bfc" id="L2186" title="All 2 branches covered.">        if (value == null) {</span>
+<span class="fc" id="L2187">            writeNull();</span>
+<span class="fc" id="L2188">            return;</span>
+        }
+
+<span class="fc" id="L2191">        int precision = value.precision();</span>
+<span class="fc" id="L2192">        int scale = value.scale();</span>
+
+<span class="pc bpc" id="L2194" title="1 of 4 branches missed.">        if (precision &lt; 19 &amp;&amp; FIELD_DECIMAL_INT_COMPACT_OFFSET != -1) {</span>
+<span class="fc" id="L2195">            long intCompact = UNSAFE.getLong(value, FIELD_DECIMAL_INT_COMPACT_OFFSET);</span>
+<span class="fc bfc" id="L2196" title="All 2 branches covered.">            if (scale == 0) {</span>
+<span class="fc" id="L2197">                ensureCapacity(off + 1);</span>
+<span class="fc" id="L2198">                this.bytes[off++] = BC_DECIMAL_LONG;</span>
+<span class="fc" id="L2199">                writeInt64(intCompact);</span>
+<span class="fc" id="L2200">                return;</span>
+            }
+
+<span class="fc" id="L2203">            ensureCapacity(off + 1);</span>
+<span class="fc" id="L2204">            this.bytes[off++] = BC_DECIMAL;</span>
+<span class="fc" id="L2205">            writeInt32(scale);</span>
+<span class="fc bfc" id="L2206" title="All 4 branches covered.">            if (intCompact &gt;= Integer.MIN_VALUE &amp;&amp; intCompact &lt;= Integer.MAX_VALUE) {</span>
+<span class="fc" id="L2207">                writeInt32((int) intCompact);</span>
+            } else {
+<span class="fc" id="L2209">                writeInt64(intCompact);</span>
+            }
+<span class="fc" id="L2211">            return;</span>
+        }
+
+<span class="fc" id="L2214">        BigInteger unscaledValue = value.unscaledValue();</span>
+<span class="fc bfc" id="L2215" title="All 2 branches covered.">        if (scale == 0</span>
+<span class="fc bfc" id="L2216" title="All 2 branches covered.">                &amp;&amp; isInt64(unscaledValue)) {</span>
+<span class="fc" id="L2217">            ensureCapacity(off + 1);</span>
+<span class="fc" id="L2218">            this.bytes[off++] = BC_DECIMAL_LONG;</span>
+<span class="fc" id="L2219">            long longValue = unscaledValue.longValue();</span>
+<span class="fc" id="L2220">            writeInt64(longValue);</span>
+<span class="fc" id="L2221">            return;</span>
+        }
+
+<span class="fc" id="L2224">        ensureCapacity(off + 1);</span>
+<span class="fc" id="L2225">        this.bytes[off++] = BC_DECIMAL;</span>
+<span class="fc" id="L2226">        writeInt32(scale);</span>
+
+<span class="pc bpc" id="L2228" title="1 of 2 branches missed.">        if (isInt32(unscaledValue)) {</span>
+<span class="nc" id="L2229">            int intValue = unscaledValue.intValue();</span>
+<span class="nc" id="L2230">            writeInt32(intValue);</span>
+<span class="pc bfc" id="L2231" title="All 2 branches covered.">        } else if (isInt64(unscaledValue)) {</span>
+<span class="fc" id="L2232">            long longValue = unscaledValue.longValue();</span>
+<span class="fc" id="L2233">            writeInt64(longValue);</span>
+<span class="fc" id="L2234">        } else {</span>
+<span class="fc" id="L2235">            writeBigInt(unscaledValue, 0);</span>
+        }
+<span class="fc" id="L2237">    }</span>
+
+    @Override
+    public void writeBool(boolean value) {
+<span class="fc" id="L2241">        int off = this.off;</span>
+<span class="fc bfc" id="L2242" title="All 2 branches covered.">        if (off == bytes.length) {</span>
+<span class="fc" id="L2243">            ensureCapacity(off + 1);</span>
+        }
+<span class="fc bfc" id="L2245" title="All 2 branches covered.">        this.bytes[off] = value ? BC_TRUE : BC_FALSE;</span>
+<span class="fc" id="L2246">        this.off = off + 1;</span>
+<span class="fc" id="L2247">    }</span>
+
+    @Override
+    public void writeBool(boolean[] values) {
+<span class="fc bfc" id="L2251" title="All 2 branches covered.">        if (values == null) {</span>
+<span class="fc" id="L2252">            writeNull();</span>
+<span class="fc" id="L2253">            return;</span>
+        }
+
+<span class="fc" id="L2256">        startArray(values.length);</span>
+<span class="fc bfc" id="L2257" title="All 2 branches covered.">        for (int i = 0; i &lt; values.length; i++) {</span>
+<span class="fc" id="L2258">            writeBool(values[i]);</span>
+        }
+<span class="fc" id="L2260">        endArray();</span>
+<span class="fc" id="L2261">    }</span>
+
+    @Override
+    public void writeReference(String path) {
+<span class="fc" id="L2265">        int off = this.off;</span>
+<span class="fc bfc" id="L2266" title="All 2 branches covered.">        if (off == bytes.length) {</span>
+<span class="fc" id="L2267">            ensureCapacity(off + 1);</span>
+        }
+<span class="fc" id="L2269">        bytes[off] = BC_REFERENCE;</span>
+<span class="fc" id="L2270">        this.off = off + 1;</span>
+
+<span class="fc bfc" id="L2272" title="All 2 branches covered.">        if (path == this.lastReference) {</span>
+<span class="fc" id="L2273">            writeString(&quot;#-1&quot;);</span>
+        } else {
+<span class="fc" id="L2275">            writeString(path);</span>
+        }
+
+<span class="fc" id="L2278">        this.lastReference = path;</span>
+<span class="fc" id="L2279">    }</span>
+
+    @Override
+    public void writeDateTime14(
+            int year,
+            int month,
+            int dayOfMonth,
+            int hour,
+            int minute,
+            int second
+    ) {
+<span class="fc" id="L2290">        int off = this.off;</span>
+<span class="fc" id="L2291">        ensureCapacity(off + 8);</span>
+
+<span class="fc" id="L2293">        final byte[] bytes = this.bytes;</span>
+<span class="fc" id="L2294">        bytes[off] = BC_LOCAL_DATETIME;</span>
+<span class="fc" id="L2295">        bytes[off + 1] = (byte) (year &gt;&gt;&gt; 8);</span>
+<span class="fc" id="L2296">        bytes[off + 2] = (byte) year;</span>
+<span class="fc" id="L2297">        bytes[off + 3] = (byte) month;</span>
+<span class="fc" id="L2298">        bytes[off + 4] = (byte) dayOfMonth;</span>
+<span class="fc" id="L2299">        bytes[off + 5] = (byte) hour;</span>
+<span class="fc" id="L2300">        bytes[off + 6] = (byte) minute;</span>
+<span class="fc" id="L2301">        bytes[off + 7] = (byte) second;</span>
+<span class="fc" id="L2302">        this.off = off + 8;</span>
+
+<span class="fc" id="L2304">        int nano = 0;</span>
+<span class="fc" id="L2305">        writeInt32(nano);</span>
+<span class="fc" id="L2306">    }</span>
+
+    @Override
+    public void writeDateTime19(
+            int year,
+            int month,
+            int dayOfMonth,
+            int hour,
+            int minute,
+            int second
+    ) {
+<span class="fc" id="L2317">        int off = this.off;</span>
+<span class="fc" id="L2318">        ensureCapacity(off + 8);</span>
+
+<span class="fc" id="L2320">        final byte[] bytes = this.bytes;</span>
+<span class="fc" id="L2321">        bytes[off] = BC_LOCAL_DATETIME;</span>
+<span class="fc" id="L2322">        bytes[off + 1] = (byte) (year &gt;&gt;&gt; 8);</span>
+<span class="fc" id="L2323">        bytes[off + 2] = (byte) year;</span>
+<span class="fc" id="L2324">        bytes[off + 3] = (byte) month;</span>
+<span class="fc" id="L2325">        bytes[off + 4] = (byte) dayOfMonth;</span>
+<span class="fc" id="L2326">        bytes[off + 5] = (byte) hour;</span>
+<span class="fc" id="L2327">        bytes[off + 6] = (byte) minute;</span>
+<span class="fc" id="L2328">        bytes[off + 7] = (byte) second;</span>
+<span class="fc" id="L2329">        this.off = off + 8;</span>
+
+<span class="fc" id="L2331">        int nano = 0;</span>
+<span class="fc" id="L2332">        writeInt32(nano);</span>
+<span class="fc" id="L2333">    }</span>
+
+    @Override
+    public void writeDateTimeISO8601(
+            int year,
+            int month,
+            int dayOfMonth,
+            int hour,
+            int minute,
+            int second,
+            int millis,
+            int offsetSeconds,
+            boolean timeZone
+    ) {
+<span class="fc" id="L2347">        throw new JSONException(&quot;unsupported operation&quot;);</span>
+    }
+
+    @Override
+    public void writeDateYYYMMDD8(int year, int month, int dayOfMonth) {
+<span class="fc" id="L2352">        int off = this.off;</span>
+<span class="fc" id="L2353">        ensureCapacity(off + 5);</span>
+
+<span class="fc" id="L2355">        final byte[] bytes = this.bytes;</span>
+<span class="fc" id="L2356">        bytes[off] = BC_LOCAL_DATE;</span>
+<span class="fc" id="L2357">        bytes[off + 1] = (byte) (year &gt;&gt;&gt; 8);</span>
+<span class="fc" id="L2358">        bytes[off + 2] = (byte) year;</span>
+<span class="fc" id="L2359">        bytes[off + 3] = (byte) month;</span>
+<span class="fc" id="L2360">        bytes[off + 4] = (byte) dayOfMonth;</span>
+<span class="fc" id="L2361">        this.off = off + 5;</span>
+<span class="fc" id="L2362">    }</span>
+
+    @Override
+    public void writeDateYYYMMDD10(int year, int month, int dayOfMonth) {
+<span class="fc" id="L2366">        writeDateYYYMMDD8(year, month, dayOfMonth);</span>
+<span class="fc" id="L2367">    }</span>
+
+    @Override
+    public void writeTimeHHMMSS8(int hour, int minute, int second) {
+<span class="fc" id="L2371">        throw new JSONException(&quot;unsupported operation&quot;);</span>
+    }
+
+    @Override
+    public void writeBase64(byte[] bytes) {
+<span class="fc" id="L2376">        throw new JSONException(&quot;UnsupportedOperation&quot;);</span>
+    }
+
+    @Override
+    public void writeHex(byte[] bytes) {
+<span class="fc" id="L2381">        writeBinary(bytes);</span>
+<span class="fc" id="L2382">    }</span>
+
+    @Override
+    public void writeRaw(char ch) {
+<span class="fc" id="L2386">        throw new JSONException(&quot;UnsupportedOperation&quot;);</span>
+    }
+
+    @Override
+    public void writeNameRaw(byte[] bytes) {
+<span class="fc" id="L2391">        writeRaw(bytes);</span>
+<span class="fc" id="L2392">    }</span>
+
+    @Override
+    public void writeName2Raw(long name) {
+<span class="fc" id="L2396">        int off = this.off;</span>
+<span class="fc" id="L2397">        int minCapacity = off + 8;</span>
+<span class="pc bpc" id="L2398" title="1 of 2 branches missed.">        if (minCapacity &gt;= this.bytes.length) {</span>
+<span class="nc" id="L2399">            ensureCapacity(minCapacity);</span>
+        }
+
+<span class="fc" id="L2402">        UNSAFE.putLong(bytes, ARRAY_BYTE_BASE_OFFSET + off, name);</span>
+<span class="fc" id="L2403">        this.off = off + 2;</span>
+<span class="fc" id="L2404">    }</span>
+
+    @Override
+    public void writeName3Raw(long name) {
+<span class="fc" id="L2408">        int off = this.off;</span>
+<span class="fc" id="L2409">        int minCapacity = off + 8;</span>
+<span class="pc bpc" id="L2410" title="1 of 2 branches missed.">        if (minCapacity &gt;= this.bytes.length) {</span>
+<span class="nc" id="L2411">            ensureCapacity(minCapacity);</span>
+        }
+
+<span class="fc" id="L2414">        UNSAFE.putLong(bytes, ARRAY_BYTE_BASE_OFFSET + off, name);</span>
+<span class="fc" id="L2415">        this.off = off + 3;</span>
+<span class="fc" id="L2416">    }</span>
+
+    @Override
+    public void writeName4Raw(long name) {
+<span class="fc" id="L2420">        int off = this.off;</span>
+<span class="fc" id="L2421">        int minCapacity = off + 8;</span>
+<span class="pc bpc" id="L2422" title="1 of 2 branches missed.">        if (minCapacity &gt;= this.bytes.length) {</span>
+<span class="nc" id="L2423">            ensureCapacity(minCapacity);</span>
+        }
+
+<span class="fc" id="L2426">        UNSAFE.putLong(bytes, ARRAY_BYTE_BASE_OFFSET + off, name);</span>
+<span class="fc" id="L2427">        this.off = off + 4;</span>
+<span class="fc" id="L2428">    }</span>
+
+    @Override
+    public void writeName5Raw(long name) {
+<span class="fc" id="L2432">        int off = this.off;</span>
+<span class="fc" id="L2433">        int minCapacity = off + 8;</span>
+<span class="pc bpc" id="L2434" title="1 of 2 branches missed.">        if (minCapacity &gt;= this.bytes.length) {</span>
+<span class="nc" id="L2435">            ensureCapacity(minCapacity);</span>
+        }
+
+<span class="fc" id="L2438">        UNSAFE.putLong(bytes, ARRAY_BYTE_BASE_OFFSET + off, name);</span>
+<span class="fc" id="L2439">        this.off = off + 5;</span>
+<span class="fc" id="L2440">    }</span>
+
+    @Override
+    public void writeName6Raw(long name) {
+<span class="fc" id="L2444">        int off = this.off;</span>
+<span class="fc" id="L2445">        int minCapacity = off + 8;</span>
+<span class="pc bpc" id="L2446" title="1 of 2 branches missed.">        if (minCapacity &gt;= this.bytes.length) {</span>
+<span class="nc" id="L2447">            ensureCapacity(minCapacity);</span>
+        }
+
+<span class="fc" id="L2450">        UNSAFE.putLong(bytes, ARRAY_BYTE_BASE_OFFSET + off, name);</span>
+<span class="fc" id="L2451">        this.off = off + 6;</span>
+<span class="fc" id="L2452">    }</span>
+
+    @Override
+    public void writeName7Raw(long name) {
+<span class="fc" id="L2456">        int off = this.off;</span>
+<span class="fc" id="L2457">        int minCapacity = off + 8;</span>
+<span class="pc bpc" id="L2458" title="1 of 2 branches missed.">        if (minCapacity &gt;= this.bytes.length) {</span>
+<span class="nc" id="L2459">            ensureCapacity(minCapacity);</span>
+        }
+
+<span class="fc" id="L2462">        UNSAFE.putLong(bytes, ARRAY_BYTE_BASE_OFFSET + off, name);</span>
+<span class="fc" id="L2463">        this.off = off + 7;</span>
+<span class="fc" id="L2464">    }</span>
+
+    @Override
+    public void writeName8Raw(long name) {
+<span class="fc" id="L2468">        int off = this.off;</span>
+<span class="fc" id="L2469">        int minCapacity = off + 8;</span>
+<span class="pc bpc" id="L2470" title="1 of 2 branches missed.">        if (minCapacity &gt;= this.bytes.length) {</span>
+<span class="nc" id="L2471">            ensureCapacity(minCapacity);</span>
+        }
+
+<span class="fc" id="L2474">        UNSAFE.putLong(bytes, ARRAY_BYTE_BASE_OFFSET + off, name);</span>
+<span class="fc" id="L2475">        this.off = off + 8;</span>
+<span class="fc" id="L2476">    }</span>
+
+    @Override
+    public void writeName9Raw(long name0, int name1) {
+<span class="fc" id="L2480">        int off = this.off;</span>
+<span class="fc" id="L2481">        int minCapacity = off + 12;</span>
+<span class="pc bpc" id="L2482" title="1 of 2 branches missed.">        if (minCapacity &gt;= this.bytes.length) {</span>
+<span class="nc" id="L2483">            ensureCapacity(minCapacity);</span>
+        }
+
+<span class="fc" id="L2486">        UNSAFE.putLong(bytes, ARRAY_BYTE_BASE_OFFSET + off, name0);</span>
+<span class="fc" id="L2487">        UNSAFE.putInt(bytes, ARRAY_BYTE_BASE_OFFSET + off + 8, name1);</span>
+<span class="fc" id="L2488">        this.off = off + 9;</span>
+<span class="fc" id="L2489">    }</span>
+
+    @Override
+    public void writeName10Raw(long name0, long name1) {
+<span class="fc" id="L2493">        int off = this.off;</span>
+<span class="fc" id="L2494">        int minCapacity = off + 16;</span>
+<span class="pc bpc" id="L2495" title="1 of 2 branches missed.">        if (minCapacity &gt;= this.bytes.length) {</span>
+<span class="nc" id="L2496">            ensureCapacity(minCapacity);</span>
+        }
+
+<span class="fc" id="L2499">        UNSAFE.putLong(bytes, ARRAY_BYTE_BASE_OFFSET + off, name0);</span>
+<span class="fc" id="L2500">        UNSAFE.putLong(bytes, ARRAY_BYTE_BASE_OFFSET + off + 8, name1);</span>
+<span class="fc" id="L2501">        this.off = off + 10;</span>
+<span class="fc" id="L2502">    }</span>
+
+    @Override
+    public void writeName11Raw(long name0, long name1) {
+<span class="fc" id="L2506">        int off = this.off;</span>
+<span class="fc" id="L2507">        int minCapacity = off + 16;</span>
+<span class="pc bpc" id="L2508" title="1 of 2 branches missed.">        if (minCapacity &gt;= this.bytes.length) {</span>
+<span class="nc" id="L2509">            ensureCapacity(minCapacity);</span>
+        }
+
+<span class="fc" id="L2512">        UNSAFE.putLong(bytes, ARRAY_BYTE_BASE_OFFSET + off, name0);</span>
+<span class="fc" id="L2513">        UNSAFE.putLong(bytes, ARRAY_BYTE_BASE_OFFSET + off + 8, name1);</span>
+<span class="fc" id="L2514">        this.off = off + 11;</span>
+<span class="fc" id="L2515">    }</span>
+
+    @Override
+    public void writeName12Raw(long name0, long name1) {
+<span class="fc" id="L2519">        int off = this.off;</span>
+<span class="fc" id="L2520">        int minCapacity = off + 16;</span>
+<span class="pc bpc" id="L2521" title="1 of 2 branches missed.">        if (minCapacity &gt;= this.bytes.length) {</span>
+<span class="nc" id="L2522">            ensureCapacity(minCapacity);</span>
+        }
+
+<span class="fc" id="L2525">        UNSAFE.putLong(bytes, ARRAY_BYTE_BASE_OFFSET + off, name0);</span>
+<span class="fc" id="L2526">        UNSAFE.putLong(bytes, ARRAY_BYTE_BASE_OFFSET + off + 8, name1);</span>
+<span class="fc" id="L2527">        this.off = off + 12;</span>
+<span class="fc" id="L2528">    }</span>
+
+    @Override
+    public void writeName13Raw(long name0, long name1) {
+<span class="fc" id="L2532">        int off = this.off;</span>
+<span class="fc" id="L2533">        int minCapacity = off + 16;</span>
+<span class="pc bpc" id="L2534" title="1 of 2 branches missed.">        if (minCapacity &gt;= this.bytes.length) {</span>
+<span class="nc" id="L2535">            ensureCapacity(minCapacity);</span>
+        }
+
+<span class="fc" id="L2538">        UNSAFE.putLong(bytes, ARRAY_BYTE_BASE_OFFSET + off, name0);</span>
+<span class="fc" id="L2539">        UNSAFE.putLong(bytes, ARRAY_BYTE_BASE_OFFSET + off + 8, name1);</span>
+<span class="fc" id="L2540">        this.off = off + 13;</span>
+<span class="fc" id="L2541">    }</span>
+
+    @Override
+    public void writeName14Raw(long name0, long name1) {
+<span class="fc" id="L2545">        int off = this.off;</span>
+<span class="fc" id="L2546">        int minCapacity = off + 16;</span>
+<span class="pc bpc" id="L2547" title="1 of 2 branches missed.">        if (minCapacity &gt;= this.bytes.length) {</span>
+<span class="nc" id="L2548">            ensureCapacity(minCapacity);</span>
+        }
+
+<span class="fc" id="L2551">        UNSAFE.putLong(bytes, ARRAY_BYTE_BASE_OFFSET + off, name0);</span>
+<span class="fc" id="L2552">        UNSAFE.putLong(bytes, ARRAY_BYTE_BASE_OFFSET + off + 8, name1);</span>
+<span class="fc" id="L2553">        this.off = off + 14;</span>
+<span class="fc" id="L2554">    }</span>
+
+    @Override
+    public void writeName15Raw(long name0, long name1) {
+<span class="fc" id="L2558">        int off = this.off;</span>
+<span class="fc" id="L2559">        int minCapacity = off + 16;</span>
+<span class="pc bpc" id="L2560" title="1 of 2 branches missed.">        if (minCapacity &gt;= this.bytes.length) {</span>
+<span class="nc" id="L2561">            ensureCapacity(minCapacity);</span>
+        }
+
+<span class="fc" id="L2564">        UNSAFE.putLong(bytes, ARRAY_BYTE_BASE_OFFSET + off, name0);</span>
+<span class="fc" id="L2565">        UNSAFE.putLong(bytes, ARRAY_BYTE_BASE_OFFSET + off + 8, name1);</span>
+<span class="fc" id="L2566">        this.off = off + 15;</span>
+<span class="fc" id="L2567">    }</span>
+
+    @Override
+    public void writeName16Raw(long name0, long name1) {
+<span class="fc" id="L2571">        int off = this.off;</span>
+<span class="fc" id="L2572">        int minCapacity = off + 16;</span>
+<span class="pc bpc" id="L2573" title="1 of 2 branches missed.">        if (minCapacity &gt;= this.bytes.length) {</span>
+<span class="nc" id="L2574">            ensureCapacity(minCapacity);</span>
+        }
+
+<span class="fc" id="L2577">        UNSAFE.putLong(bytes, ARRAY_BYTE_BASE_OFFSET + off, name0);</span>
+<span class="fc" id="L2578">        UNSAFE.putLong(bytes, ARRAY_BYTE_BASE_OFFSET + off + 8, name1);</span>
+<span class="fc" id="L2579">        this.off = off + 16;</span>
+<span class="fc" id="L2580">    }</span>
+
+    @Override
+    public void writeNameRaw(char[] chars) {
+<span class="fc" id="L2584">        throw new JSONException(&quot;UnsupportedOperation&quot;);</span>
+    }
+
+    @Override
+    public void writeNameRaw(char[] bytes, int offset, int len) {
+<span class="fc" id="L2589">        throw new JSONException(&quot;UnsupportedOperation&quot;);</span>
+    }
+
+    @Override
+    public void writeColon() {
+<span class="fc" id="L2594">        throw new JSONException(&quot;UnsupportedOperation&quot;);</span>
+    }
+
+    @Override
+    public void write(List array) {
+<span class="pc bpc" id="L2599" title="1 of 2 branches missed.">        if (array == null) {</span>
+<span class="nc" id="L2600">            writeArrayNull();</span>
+<span class="nc" id="L2601">            return;</span>
+        }
+
+<span class="fc" id="L2604">        final int size = array.size();</span>
+<span class="fc" id="L2605">        startArray(size);</span>
+<span class="fc bfc" id="L2606" title="All 2 branches covered.">        for (int i = 0; i &lt; array.size(); i++) {</span>
+<span class="fc" id="L2607">            Object item = array.get(i);</span>
+<span class="fc" id="L2608">            writeAny(item);</span>
+        }
+<span class="fc" id="L2610">    }</span>
+
+    @Override
+    public void write(Map map) {
+<span class="pc bpc" id="L2614" title="1 of 2 branches missed.">        if (map == null) {</span>
+<span class="nc" id="L2615">            writeNull();</span>
+<span class="nc" id="L2616">            return;</span>
+        }
+
+<span class="fc" id="L2619">        startObject();</span>
+<span class="fc bfc" id="L2620" title="All 2 branches covered.">        for (Map.Entry entry : (Iterable&lt;Map.Entry&gt;) map.entrySet()) {</span>
+<span class="fc" id="L2621">            writeAny(entry.getKey());</span>
+<span class="fc" id="L2622">            writeAny(entry.getValue());</span>
+<span class="fc" id="L2623">        }</span>
+<span class="fc" id="L2624">        endObject();</span>
+<span class="fc" id="L2625">    }</span>
+
+    @Override
+    public void write(JSONObject object) {
+<span class="pc bpc" id="L2629" title="1 of 2 branches missed.">        if (object == null) {</span>
+<span class="nc" id="L2630">            writeNull();</span>
+<span class="nc" id="L2631">            return;</span>
+        }
+
+<span class="fc" id="L2634">        startObject();</span>
+<span class="fc bfc" id="L2635" title="All 2 branches covered.">        for (Map.Entry entry : object.entrySet()) {</span>
+<span class="fc" id="L2636">            writeAny(entry.getKey());</span>
+<span class="fc" id="L2637">            writeAny(entry.getValue());</span>
+<span class="fc" id="L2638">        }</span>
+<span class="fc" id="L2639">        endObject();</span>
+<span class="fc" id="L2640">    }</span>
+
+    @Override
+    public byte[] getBytes() {
+<span class="fc" id="L2644">        return Arrays.copyOf(bytes, off);</span>
+    }
+
+    @Override
+    public int size() {
+<span class="fc" id="L2649">        return off;</span>
+    }
+
+    @Override
+    public byte[] getBytes(Charset charset) {
+<span class="fc" id="L2654">        throw new JSONException(&quot;not support operator&quot;);</span>
+    }
+
+    @Override
+    public int flushTo(OutputStream to) throws IOException {
+<span class="fc" id="L2659">        int len = off;</span>
+<span class="fc" id="L2660">        to.write(bytes, 0, off);</span>
+<span class="fc" id="L2661">        off = 0;</span>
+<span class="fc" id="L2662">        return len;</span>
+    }
+
+    @Override
+    public int flushTo(OutputStream out, Charset charset) {
+<span class="fc" id="L2667">        throw new JSONException(&quot;UnsupportedOperation&quot;);</span>
+    }
+
+    @Override
+    public String toString() {
+<span class="pc bpc" id="L2672" title="1 of 2 branches missed.">        if (bytes.length == 0) {</span>
+<span class="nc" id="L2673">            return &quot;&lt;empty&gt;&quot;;</span>
+        }
+
+<span class="fc" id="L2676">        byte[] jsonbBytes = getBytes();</span>
+<span class="fc" id="L2677">        JSONReader reader = JSONReader.ofJSONB(jsonbBytes);</span>
+<span class="fc" id="L2678">        JSONWriter writer = JSONWriter.of();</span>
+        try {
+<span class="fc" id="L2680">            Object object = reader.readAny();</span>
+<span class="fc" id="L2681">            writer.writeAny(object);</span>
+<span class="fc" id="L2682">            return writer.toString();</span>
+<span class="nc" id="L2683">        } catch (Exception ex) {</span>
+<span class="nc" id="L2684">            return JSONB.typeName(bytes[0]) + &quot;, bytes length &quot; + off;</span>
+        }
+    }
+
+    @Override
+    public void println() {
+<span class="nc" id="L2690">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.8.202204050719</span></div></body></html>

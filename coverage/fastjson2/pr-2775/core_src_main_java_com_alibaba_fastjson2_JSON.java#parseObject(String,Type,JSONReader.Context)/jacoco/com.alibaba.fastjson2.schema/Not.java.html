@@ -1,0 +1,100 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>Not.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">fastjson2</a> &gt; <a href="index.source.html" class="el_package">com.alibaba.fastjson2.schema</a> &gt; <span class="el_source">Not.java</span></div><h1>Not.java</h1><pre class="source lang-java linenums">package com.alibaba.fastjson2.schema;
+
+import com.alibaba.fastjson2.reader.ObjectReaderBean;
+
+import java.math.BigInteger;
+import java.util.Collection;
+import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
+
+final class Not
+        extends JSONSchema {
+    final JSONSchema schema;
+    final Type[] types;
+    final Boolean result;
+
+    public Not(JSONSchema schema, Type[] types, Boolean result) {
+<span class="fc" id="L18">        super(null, null);</span>
+<span class="fc" id="L19">        this.schema = schema;</span>
+<span class="fc" id="L20">        this.types = types;</span>
+<span class="fc" id="L21">        this.result = result;</span>
+<span class="fc" id="L22">    }</span>
+
+    @Override
+    public Type getType() {
+<span class="fc" id="L26">        return Type.AllOf;</span>
+    }
+
+    @Override
+    public ValidateResult validate(Object value) {
+<span class="fc bfc" id="L31" title="All 2 branches covered.">        if (schema != null) {</span>
+<span class="fc bfc" id="L32" title="All 2 branches covered.">            if (schema.validate(value).isSuccess()) {</span>
+<span class="fc" id="L33">                return FAIL_NOT;</span>
+            }
+        }
+
+<span class="fc bfc" id="L37" title="All 2 branches covered.">        if (types != null) {</span>
+<span class="fc bfc" id="L38" title="All 2 branches covered.">            for (Type type : types) {</span>
+<span class="pc bpc" id="L39" title="6 of 9 branches missed.">                switch (type) {</span>
+                    case String:
+<span class="nc bnc" id="L41" title="All 2 branches missed.">                        if (value instanceof String) {</span>
+<span class="nc" id="L42">                            return FAIL_NOT;</span>
+                        }
+                        break;
+                    case Integer:
+<span class="pc bpc" id="L46" title="6 of 14 branches missed.">                        if (value instanceof Byte</span>
+                                || value instanceof Short
+                                || value instanceof Integer
+                                || value instanceof Long
+                                || value instanceof BigInteger
+                                || value instanceof AtomicInteger
+                                || value instanceof AtomicLong
+                        ) {
+<span class="fc" id="L54">                            return FAIL_NOT;</span>
+                        }
+                        break;
+                    case Number:
+<span class="nc bnc" id="L58" title="All 2 branches missed.">                        if (value instanceof Number) {</span>
+<span class="nc" id="L59">                            return FAIL_NOT;</span>
+                        }
+                        break;
+                    case Null:
+<span class="nc bnc" id="L63" title="All 2 branches missed.">                        if (value == null) {</span>
+<span class="nc" id="L64">                            return FAIL_NOT;</span>
+                        }
+                        break;
+                    case Array:
+<span class="nc bnc" id="L68" title="All 8 branches missed.">                        if (value instanceof Object[] || value instanceof Collection || (value != null &amp;&amp; value.getClass().isArray())) {</span>
+<span class="nc" id="L69">                            return FAIL_NOT;</span>
+                        }
+                        break;
+                    case Object:
+<span class="nc bnc" id="L73" title="All 2 branches missed.">                        if (value instanceof Map) {</span>
+<span class="nc" id="L74">                            return FAIL_NOT;</span>
+                        }
+<span class="nc bnc" id="L76" title="All 4 branches missed.">                        if (value != null &amp;&amp; JSONSchema.CONTEXT.getObjectReader(value.getClass()) instanceof ObjectReaderBean) {</span>
+<span class="nc" id="L77">                            return FAIL_NOT;</span>
+                        }
+                        break;
+                    case Boolean:
+<span class="fc bfc" id="L81" title="All 2 branches covered.">                        if (value instanceof Boolean) {</span>
+<span class="fc" id="L82">                            return FAIL_NOT;</span>
+                        }
+                        break;
+                    case Any:
+<span class="fc" id="L86">                        return FAIL_NOT;</span>
+                    default:
+                        break;
+                }
+            }
+        }
+
+<span class="fc bfc" id="L93" title="All 2 branches covered.">        if (result != null) {</span>
+<span class="fc bfc" id="L94" title="All 2 branches covered.">            return result ? FAIL_NOT : SUCCESS;</span>
+        }
+
+<span class="fc" id="L97">        return SUCCESS;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.8.202204050719</span></div></body></html>

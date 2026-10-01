@@ -1,0 +1,938 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>JSONSchema.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">fastjson2</a> &gt; <a href="index.source.html" class="el_package">com.alibaba.fastjson2.schema</a> &gt; <span class="el_source">JSONSchema.java</span></div><h1>JSONSchema.java</h1><pre class="source lang-java linenums">package com.alibaba.fastjson2.schema;
+
+import com.alibaba.fastjson2.*;
+import com.alibaba.fastjson2.annotation.JSONCreator;
+import com.alibaba.fastjson2.annotation.JSONType;
+import com.alibaba.fastjson2.reader.FieldReader;
+import com.alibaba.fastjson2.reader.ObjectReader;
+import com.alibaba.fastjson2.reader.ObjectReaderAdapter;
+import com.alibaba.fastjson2.reader.ObjectReaderBean;
+import com.alibaba.fastjson2.writer.ObjectWriter;
+
+import java.lang.reflect.GenericArrayType;
+import java.lang.reflect.ParameterizedType;
+import java.math.BigDecimal;
+import java.math.BigInteger;
+import java.net.URL;
+import java.net.URLDecoder;
+import java.util.Collection;
+import java.util.Iterator;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Consumer;
+import java.util.function.Predicate;
+
+@JSONType(serializer = JSONSchema.JSONSchemaWriter.class)
+public abstract class JSONSchema {
+<span class="fc" id="L30">    static final Map&lt;String, JSONSchema&gt; CACHE = new ConcurrentHashMap&lt;&gt;();</span>
+
+    final String title;
+    final String description;
+
+<span class="fc" id="L35">    static final JSONReader.Context CONTEXT = JSONFactory.createReadContext();</span>
+
+<span class="fc" id="L37">    JSONSchema(JSONObject input) {</span>
+<span class="fc" id="L38">        this.title = input.getString(&quot;title&quot;);</span>
+<span class="fc" id="L39">        this.description = input.getString(&quot;description&quot;);</span>
+<span class="fc" id="L40">    }</span>
+
+<span class="fc" id="L42">    JSONSchema(String title, String description) {</span>
+<span class="fc" id="L43">        this.title = title;</span>
+<span class="fc" id="L44">        this.description = description;</span>
+<span class="fc" id="L45">    }</span>
+
+    void addResolveTask(UnresolvedReference.ResolveTask task){
+<span class="nc" id="L48">    }</span>
+
+    public static JSONSchema of(JSONObject input, Class objectClass) {
+<span class="pc bpc" id="L51" title="1 of 4 branches missed.">        if (input == null || input.isEmpty()) {</span>
+<span class="fc" id="L52">            return null;</span>
+        }
+
+<span class="fc bfc" id="L55" title="All 4 branches covered.">        if (objectClass == null || objectClass == Object.class) {</span>
+<span class="fc" id="L56">            return of(input);</span>
+        }
+
+<span class="pc bpc" id="L59" title="1 of 22 branches missed.">        if (objectClass == byte.class</span>
+                || objectClass == short.class
+                || objectClass == int.class
+                || objectClass == long.class
+                || objectClass == Byte.class
+                || objectClass == Short.class
+                || objectClass == Integer.class
+                || objectClass == Long.class
+                || objectClass == BigInteger.class
+                || objectClass == AtomicInteger.class
+                || objectClass == AtomicLong.class
+        ) {
+<span class="pc bpc" id="L71" title="2 of 4 branches missed.">            if (input.containsKey(&quot;AnyOf&quot;) || input.containsKey(&quot;anyOf&quot;)) {</span>
+<span class="nc" id="L72">                return anyOf(input, objectClass);</span>
+            }
+
+<span class="fc bfc" id="L75" title="All 2 branches covered.">            if (input.containsKey(&quot;oneOf&quot;)) {</span>
+<span class="fc" id="L76">                return oneOf(input, objectClass);</span>
+            }
+
+<span class="pc bpc" id="L79" title="1 of 2 branches missed.">            if (input.containsKey(&quot;not&quot;)) {</span>
+<span class="nc" id="L80">                return ofNot(input, objectClass);</span>
+            }
+
+<span class="fc" id="L83">            return new IntegerSchema(input);</span>
+        }
+
+<span class="fc bfc" id="L86" title="All 12 branches covered.">        if (objectClass == BigDecimal.class</span>
+                || objectClass == float.class
+                || objectClass == double.class
+                || objectClass == Float.class
+                || objectClass == Double.class
+                || objectClass == Number.class
+        ) {
+<span class="pc bpc" id="L93" title="2 of 4 branches missed.">            if (input.containsKey(&quot;AnyOf&quot;) || input.containsKey(&quot;anyOf&quot;)) {</span>
+<span class="nc" id="L94">                return anyOf(input, objectClass);</span>
+            }
+
+<span class="fc bfc" id="L97" title="All 2 branches covered.">            if (input.containsKey(&quot;oneOf&quot;)) {</span>
+<span class="fc" id="L98">                return oneOf(input, objectClass);</span>
+            }
+
+<span class="fc bfc" id="L101" title="All 2 branches covered.">            if (input.containsKey(&quot;not&quot;)) {</span>
+<span class="fc" id="L102">                return ofNot(input, objectClass);</span>
+            }
+
+<span class="fc" id="L105">            return new NumberSchema(input);</span>
+        }
+
+<span class="fc bfc" id="L108" title="All 4 branches covered.">        if (objectClass == boolean.class</span>
+                || objectClass == Boolean.class) {
+<span class="fc" id="L110">            return new BooleanSchema(input);</span>
+        }
+
+<span class="fc bfc" id="L113" title="All 2 branches covered.">        if (objectClass == String.class) {</span>
+<span class="fc" id="L114">            return new StringSchema(input);</span>
+        }
+
+<span class="fc bfc" id="L117" title="All 2 branches covered.">        if (Collection.class.isAssignableFrom(objectClass)) {</span>
+<span class="fc" id="L118">            return new ArraySchema(input, null);</span>
+        }
+
+<span class="fc bfc" id="L121" title="All 2 branches covered.">        if (objectClass.isArray()) {</span>
+<span class="fc" id="L122">            return new ArraySchema(input, null);</span>
+        }
+
+<span class="fc" id="L125">        return new ObjectSchema(input, null);</span>
+    }
+
+    static Not ofNot(JSONObject input, Class objectClass) {
+<span class="fc" id="L129">        Object not = input.get(&quot;not&quot;);</span>
+<span class="fc bfc" id="L130" title="All 2 branches covered.">        if (not instanceof Boolean) {</span>
+<span class="fc" id="L131">            return new Not(null, null, (Boolean) not);</span>
+        }
+
+<span class="fc" id="L134">        JSONObject object = (JSONObject) not;</span>
+
+<span class="fc bfc" id="L136" title="All 4 branches covered.">        if (object == null || object.isEmpty()) {</span>
+<span class="fc" id="L137">            return new Not(null, new Type[]{Type.Any}, null);</span>
+        }
+
+<span class="fc bfc" id="L140" title="All 2 branches covered.">        if (object.size() == 1) {</span>
+<span class="fc" id="L141">            Object type = object.get(&quot;type&quot;);</span>
+<span class="fc bfc" id="L142" title="All 2 branches covered.">            if (type instanceof JSONArray) {</span>
+<span class="fc" id="L143">                JSONArray array = (JSONArray) type;</span>
+<span class="fc" id="L144">                Type[] types = new Type[array.size()];</span>
+<span class="fc bfc" id="L145" title="All 2 branches covered.">                for (int i = 0; i &lt; array.size(); i++) {</span>
+<span class="fc" id="L146">                    types[i] = array.getObject(i, Type.class);</span>
+                }
+<span class="fc" id="L148">                return new Not(null, types, null);</span>
+            }
+        }
+
+<span class="fc" id="L152">        JSONSchema schema = of(object, objectClass);</span>
+<span class="fc" id="L153">        return new Not(schema, null, null);</span>
+    }
+
+    public static JSONSchema parseSchema(String schema) {
+<span class="fc bfc" id="L157" title="All 2 branches covered.">        if (&quot;true&quot;.equals(schema)) {</span>
+<span class="fc" id="L158">            return Any.INSTANCE;</span>
+        }
+
+<span class="fc bfc" id="L161" title="All 2 branches covered.">        if (&quot;false&quot;.equals(schema)) {</span>
+<span class="fc" id="L162">            return Any.NOT_ANY;</span>
+        }
+
+<span class="fc" id="L165">        try (JSONReader reader = JSONReader.of(schema)) {</span>
+<span class="fc" id="L166">            ObjectReader&lt;?&gt; objectReader = reader.getObjectReader(Object.class);</span>
+<span class="fc" id="L167">            JSONObject object = (JSONObject) objectReader.readObject(reader, null, null, 0);</span>
+<span class="fc" id="L168">            return of(object);</span>
+        }
+    }
+
+    @JSONCreator
+    public static JSONSchema of(JSONObject input) {
+<span class="fc" id="L174">        return of(input, (JSONSchema) null);</span>
+    }
+
+    public static JSONSchema of(java.lang.reflect.Type type) {
+<span class="fc" id="L178">        return of(type, null);</span>
+    }
+
+    public static JSONSchema ofValue(Object value) {
+<span class="fc" id="L182">        return ofValue(value, null);</span>
+    }
+
+    static JSONSchema ofValue(Object value, JSONSchema root) {
+<span class="pc bpc" id="L186" title="1 of 2 branches missed.">        if (value == null) {</span>
+<span class="nc" id="L187">            return null;</span>
+        }
+
+<span class="fc bfc" id="L190" title="All 2 branches covered.">        if (value instanceof Collection) {</span>
+<span class="fc" id="L191">            Collection collection = (Collection) value;</span>
+<span class="pc bpc" id="L192" title="1 of 2 branches missed.">            if (collection.isEmpty()) {</span>
+<span class="nc" id="L193">                return new ArraySchema(JSONObject.of(&quot;type&quot;, &quot;array&quot;), root);</span>
+            }
+
+<span class="fc" id="L196">            Object firstItem = null;</span>
+<span class="fc" id="L197">            Class firstItemClass = null;</span>
+<span class="fc" id="L198">            boolean sameClass = true;</span>
+<span class="fc bfc" id="L199" title="All 2 branches covered.">            for (Object item : collection) {</span>
+<span class="pc bpc" id="L200" title="1 of 2 branches missed.">                if (item != null) {</span>
+<span class="pc bpc" id="L201" title="1 of 2 branches missed.">                    if (firstItem == null) {</span>
+<span class="fc" id="L202">                        firstItem = item;</span>
+                    }
+
+<span class="pc bpc" id="L205" title="1 of 2 branches missed.">                    if (firstItemClass == null) {</span>
+<span class="fc" id="L206">                        firstItemClass = item.getClass();</span>
+<span class="nc bnc" id="L207" title="All 2 branches missed.">                    } else if (firstItemClass != item.getClass()) {</span>
+<span class="nc" id="L208">                        sameClass = false;</span>
+                    }
+                }
+<span class="fc" id="L211">            }</span>
+
+<span class="pc bpc" id="L213" title="1 of 2 branches missed.">            if (sameClass) {</span>
+                JSONSchema itemSchema;
+<span class="pc bpc" id="L215" title="1 of 2 branches missed.">                if (Map.class.isAssignableFrom(firstItemClass)) {</span>
+<span class="nc" id="L216">                    itemSchema = ofValue(firstItem, root);</span>
+                } else {
+<span class="fc" id="L218">                    itemSchema = of(firstItemClass, root);</span>
+                }
+<span class="fc" id="L220">                ArraySchema schema = new ArraySchema(JSONObject.of(&quot;type&quot;, &quot;array&quot;), root);</span>
+<span class="fc" id="L221">                schema.itemSchema = itemSchema;</span>
+<span class="fc" id="L222">                return schema;</span>
+            }
+        }
+
+<span class="fc bfc" id="L226" title="All 2 branches covered.">        if (value instanceof Map) {</span>
+<span class="fc" id="L227">            JSONObject object = JSONObject.of(&quot;type&quot;, &quot;object&quot;);</span>
+<span class="fc" id="L228">            ObjectSchema schema = new ObjectSchema(object, root);</span>
+
+<span class="fc" id="L230">            Map map = (Map) value;</span>
+<span class="fc bfc" id="L231" title="All 2 branches covered.">            for (Iterator it = map.entrySet().iterator(); it.hasNext(); ) {</span>
+<span class="fc" id="L232">                Map.Entry entry = (Map.Entry) it.next();</span>
+<span class="fc" id="L233">                Object entryKey = entry.getKey();</span>
+<span class="fc" id="L234">                Object entryValue = entry.getValue();</span>
+
+<span class="pc bpc" id="L236" title="1 of 2 branches missed.">                if (entryKey instanceof String) {</span>
+                    JSONSchema valueSchema;
+<span class="pc bpc" id="L238" title="1 of 2 branches missed.">                    if (entryValue == null) {</span>
+<span class="nc" id="L239">                        valueSchema = new StringSchema(JSONObject.of());</span>
+                    } else {
+<span class="pc bpc" id="L241" title="1 of 2 branches missed.">                        valueSchema = ofValue(entryValue, root == null ? schema : root);</span>
+                    }
+<span class="fc" id="L243">                    schema.properties.put((String) entryKey, valueSchema);</span>
+                }
+<span class="fc" id="L245">            }</span>
+
+<span class="fc" id="L247">            return schema;</span>
+        }
+
+<span class="fc" id="L250">        return of(value.getClass(), root);</span>
+    }
+
+    static JSONSchema of(java.lang.reflect.Type type, JSONSchema root) {
+<span class="fc bfc" id="L254" title="All 2 branches covered.">        if (type instanceof ParameterizedType) {</span>
+<span class="fc" id="L255">            ParameterizedType paramType = (ParameterizedType) type;</span>
+
+<span class="fc" id="L257">            java.lang.reflect.Type rawType = paramType.getRawType();</span>
+<span class="fc" id="L258">            java.lang.reflect.Type[] arguments = paramType.getActualTypeArguments();</span>
+
+<span class="pc bpc" id="L260" title="1 of 4 branches missed.">            if (rawType instanceof Class &amp;&amp; Collection.class.isAssignableFrom((Class) rawType)) {</span>
+<span class="fc" id="L261">                JSONObject object = JSONObject.of(&quot;type&quot;, &quot;array&quot;);</span>
+<span class="fc" id="L262">                ArraySchema arraySchema = new ArraySchema(object, root);</span>
+<span class="pc bpc" id="L263" title="1 of 2 branches missed.">                if (arguments.length == 1) {</span>
+<span class="fc bfc" id="L264" title="All 2 branches covered.">                    arraySchema.itemSchema = of(arguments[0], root == null ? arraySchema : root);</span>
+                }
+
+<span class="fc" id="L267">                return arraySchema;</span>
+            }
+
+<span class="pc bpc" id="L270" title="1 of 2 branches missed.">            if (rawType instanceof Class</span>
+<span class="pc bpc" id="L271" title="1 of 2 branches missed.">                    &amp;&amp; Map.class.isAssignableFrom((Class) rawType)</span>
+            ) {
+<span class="fc" id="L273">                JSONObject object = JSONObject.of(&quot;type&quot;, &quot;object&quot;);</span>
+<span class="fc" id="L274">                return new ObjectSchema(object, root);</span>
+            }
+        }
+
+<span class="fc bfc" id="L278" title="All 2 branches covered.">        if (type instanceof GenericArrayType) {</span>
+<span class="fc" id="L279">            GenericArrayType arrayType = (GenericArrayType) type;</span>
+<span class="fc" id="L280">            java.lang.reflect.Type componentType = arrayType.getGenericComponentType();</span>
+<span class="fc" id="L281">            JSONObject object = JSONObject.of(&quot;type&quot;, &quot;array&quot;);</span>
+<span class="fc" id="L282">            ArraySchema arraySchema = new ArraySchema(object, root);</span>
+<span class="pc bpc" id="L283" title="1 of 2 branches missed.">            arraySchema.itemSchema = of(componentType, root == null ? arraySchema : root);</span>
+<span class="fc" id="L284">            return arraySchema;</span>
+        }
+
+<span class="fc bfc" id="L287" title="All 22 branches covered.">        if (type == byte.class</span>
+                || type == short.class
+                || type == int.class
+                || type == long.class
+                || type == Byte.class
+                || type == Short.class
+                || type == Integer.class
+                || type == Long.class
+                || type == BigInteger.class
+                || type == AtomicInteger.class
+                || type == AtomicLong.class
+        ) {
+<span class="fc" id="L299">            return new IntegerSchema(JSONObject.of(&quot;type&quot;, &quot;integer&quot;));</span>
+        }
+
+<span class="fc bfc" id="L302" title="All 10 branches covered.">        if (type == float.class</span>
+                || type == double.class
+                || type == Float.class
+                || type == Double.class
+                || type == BigDecimal.class
+        ) {
+<span class="fc" id="L308">            return new NumberSchema(JSONObject.of(&quot;type&quot;, &quot;number&quot;));</span>
+        }
+
+<span class="fc bfc" id="L311" title="All 6 branches covered.">        if (type == boolean.class || type == Boolean.class || type == AtomicBoolean.class) {</span>
+<span class="fc" id="L312">            return new BooleanSchema(JSONObject.of(&quot;type&quot;, &quot;boolean&quot;));</span>
+        }
+
+<span class="fc bfc" id="L315" title="All 2 branches covered.">        if (type == String.class) {</span>
+<span class="fc" id="L316">            return new StringSchema(JSONObject.of(&quot;type&quot;, &quot;string&quot;));</span>
+        }
+
+<span class="pc bpc" id="L319" title="1 of 2 branches missed.">        if (type instanceof Class) {</span>
+<span class="fc" id="L320">            Class schemaClass = (Class) type;</span>
+<span class="fc bfc" id="L321" title="All 2 branches covered.">            if (Enum.class.isAssignableFrom(schemaClass)) {</span>
+<span class="fc" id="L322">                Object[] enums = schemaClass.getEnumConstants();</span>
+<span class="fc" id="L323">                String[] names = new String[enums.length];</span>
+<span class="fc bfc" id="L324" title="All 2 branches covered.">                for (int i = 0; i &lt; enums.length; i++) {</span>
+<span class="fc" id="L325">                    names[i] = ((Enum) enums[i]).name();</span>
+                }
+<span class="fc" id="L327">                return new StringSchema(JSONObject.of(&quot;type&quot;, &quot;string&quot;, &quot;enum&quot;, names));</span>
+            }
+
+<span class="fc bfc" id="L330" title="All 2 branches covered.">            if (schemaClass.isArray()) {</span>
+<span class="fc" id="L331">                Class componentType = schemaClass.getComponentType();</span>
+<span class="fc" id="L332">                JSONObject object = JSONObject.of(&quot;type&quot;, &quot;array&quot;);</span>
+<span class="fc" id="L333">                ArraySchema arraySchema = new ArraySchema(object, root);</span>
+<span class="pc bpc" id="L334" title="1 of 2 branches missed.">                arraySchema.itemSchema = of(componentType, root == null ? arraySchema : root);</span>
+<span class="fc" id="L335">                return arraySchema;</span>
+            }
+
+<span class="fc bfc" id="L338" title="All 2 branches covered.">            if (Map.class.isAssignableFrom(schemaClass)) {</span>
+<span class="fc" id="L339">                return new ObjectSchema(JSONObject.of(&quot;type&quot;, &quot;object&quot;), root);</span>
+            }
+
+<span class="fc bfc" id="L342" title="All 2 branches covered.">            if (Collection.class.isAssignableFrom(schemaClass)) {</span>
+<span class="fc" id="L343">                return new ArraySchema(JSONObject.of(&quot;type&quot;, &quot;array&quot;), root);</span>
+            }
+        }
+
+<span class="fc" id="L347">        ObjectReader reader = JSONFactory.getDefaultObjectReaderProvider().getObjectReader(type);</span>
+
+<span class="pc bpc" id="L349" title="1 of 2 branches missed.">        if (reader instanceof ObjectReaderBean) {</span>
+<span class="fc" id="L350">            ObjectReaderAdapter adapter = (ObjectReaderAdapter) reader;</span>
+
+<span class="fc" id="L352">            JSONArray required = new JSONArray();</span>
+<span class="fc" id="L353">            adapter.apply((Consumer&lt;FieldReader&gt;) e -&gt; {</span>
+<span class="fc bfc" id="L354" title="All 2 branches covered.">                if (e.fieldClass.isPrimitive()) {</span>
+<span class="fc" id="L355">                    required.add(e.fieldName);</span>
+                }
+<span class="fc" id="L357">            });</span>
+
+<span class="fc" id="L359">            JSONObject object = JSONObject.of(&quot;type&quot;, &quot;object&quot;, &quot;required&quot;, required);</span>
+<span class="fc" id="L360">            ObjectSchema schema = new ObjectSchema(object);</span>
+<span class="fc" id="L361">            adapter.apply((Consumer&lt;FieldReader&gt;) e -&gt; {</span>
+<span class="fc bfc" id="L362" title="All 2 branches covered.">                schema.properties.put(</span>
+                        e.fieldName,
+<span class="fc" id="L364">                        of(e.fieldType, root == null ? schema : root)</span>
+                );
+<span class="fc" id="L366">            });</span>
+
+<span class="fc" id="L368">            return schema;</span>
+        }
+
+<span class="nc" id="L371">        throw new JSONException(&quot;TODO : &quot; + type);</span>
+    }
+
+    @JSONCreator
+    public static JSONSchema of(JSONObject input, JSONSchema parent) {
+<span class="fc" id="L376">        Type type = Type.of(</span>
+<span class="fc" id="L377">                input.getString(&quot;type&quot;)</span>
+        );
+
+<span class="fc bfc" id="L380" title="All 2 branches covered.">        if (type == null) {</span>
+<span class="fc" id="L381">            Object[] enums = input.getObject(&quot;enum&quot;, Object[].class);</span>
+<span class="fc bfc" id="L382" title="All 2 branches covered.">            if (enums != null) {</span>
+<span class="fc" id="L383">                boolean nonString = false;</span>
+<span class="fc bfc" id="L384" title="All 2 branches covered.">                for (Object anEnum : enums) {</span>
+<span class="fc bfc" id="L385" title="All 2 branches covered.">                    if (!(anEnum instanceof String)) {</span>
+<span class="fc" id="L386">                        nonString = true;</span>
+<span class="fc" id="L387">                        break;</span>
+                    }
+                }
+<span class="fc bfc" id="L390" title="All 2 branches covered.">                if (!nonString) {</span>
+<span class="fc" id="L391">                    return new StringSchema(input);</span>
+                }
+
+<span class="fc" id="L394">                return new EnumSchema(enums);</span>
+            }
+
+<span class="fc" id="L397">            Object constValue = input.get(&quot;const&quot;);</span>
+<span class="fc bfc" id="L398" title="All 2 branches covered.">            if (constValue instanceof String) {</span>
+<span class="fc" id="L399">                return new StringSchema(input);</span>
+<span class="fc bfc" id="L400" title="All 4 branches covered.">            } else if (constValue instanceof Integer || constValue instanceof Long) {</span>
+<span class="fc" id="L401">                return new IntegerSchema(input);</span>
+            }
+
+<span class="fc bfc" id="L404" title="All 2 branches covered.">            if (input.size() == 1) {</span>
+<span class="fc" id="L405">                String ref = input.getString(&quot;$ref&quot;);</span>
+<span class="pc bpc" id="L406" title="1 of 4 branches missed.">                if (ref != null &amp;&amp; !ref.isEmpty()) {</span>
+<span class="pc bpc" id="L407" title="1 of 2 branches missed.">                    if (&quot;http://json-schema.org/draft-04/schema#&quot;.equals(ref)) {</span>
+<span class="nc" id="L408">                        JSONSchema schema = CACHE.get(ref);</span>
+<span class="nc bnc" id="L409" title="All 2 branches missed.">                        if (schema == null) {</span>
+<span class="nc" id="L410">                            URL draf4Resource = JSONSchema.class.getClassLoader().getResource(&quot;schema/draft-04.json&quot;);</span>
+<span class="nc" id="L411">                            schema = JSONSchema.of(</span>
+<span class="nc" id="L412">                                    JSON.parseObject(draf4Resource),</span>
+                                    (JSONSchema) null
+                            );
+<span class="nc" id="L415">                            JSONSchema origin = CACHE.putIfAbsent(ref, schema);</span>
+<span class="nc bnc" id="L416" title="All 2 branches missed.">                            if (origin != null) {</span>
+<span class="nc" id="L417">                                schema = origin;</span>
+                            }
+                        }
+<span class="nc" id="L420">                        return schema;</span>
+                    }
+
+<span class="pc bpc" id="L423" title="1 of 2 branches missed.">                    if (&quot;#&quot;.equals(ref)) {</span>
+<span class="nc" id="L424">                        return parent;</span>
+                    }
+
+<span class="fc" id="L427">                    Map&lt;String, JSONSchema&gt; definitions = null, defs = null, properties = null;</span>
+<span class="fc bfc" id="L428" title="All 2 branches covered.">                    if (parent instanceof ObjectSchema) {</span>
+<span class="fc" id="L429">                        ObjectSchema objectSchema = (ObjectSchema) parent;</span>
+
+<span class="fc" id="L431">                        definitions = objectSchema.definitions;</span>
+<span class="fc" id="L432">                        defs = objectSchema.defs;</span>
+<span class="fc" id="L433">                        properties = objectSchema.properties;</span>
+<span class="pc bpc" id="L434" title="1 of 2 branches missed.">                    } else if (parent instanceof ArraySchema) {</span>
+<span class="fc" id="L435">                        definitions = ((ArraySchema) parent).definitions;</span>
+<span class="fc" id="L436">                        defs = ((ArraySchema) parent).defs;</span>
+                    }
+
+<span class="pc bpc" id="L439" title="1 of 2 branches missed.">                    if (definitions != null) {</span>
+<span class="fc bfc" id="L440" title="All 2 branches covered.">                        if (ref.startsWith(&quot;#/definitions/&quot;)) {</span>
+<span class="fc" id="L441">                            final int PREFIX_LEN = 14; // &quot;#/definitions/&quot;.length();</span>
+<span class="fc" id="L442">                            String refName = ref.substring(PREFIX_LEN);</span>
+<span class="fc" id="L443">                            return definitions.get(refName);</span>
+                        }
+                    }
+
+<span class="pc bpc" id="L447" title="1 of 2 branches missed.">                    if (defs != null) {</span>
+<span class="pc bpc" id="L448" title="1 of 2 branches missed.">                        if (ref.startsWith(&quot;#/$defs/&quot;)) {</span>
+<span class="fc" id="L449">                            final int PREFIX_LEN = 8; // &quot;#/$defs/&quot;.length();</span>
+<span class="fc" id="L450">                            String refName = ref.substring(PREFIX_LEN);</span>
+<span class="fc" id="L451">                            refName = URLDecoder.decode(refName);</span>
+<span class="fc" id="L452">                            JSONSchema refSchema = defs.get(refName);</span>
+<span class="fc bfc" id="L453" title="All 2 branches covered.">                            if (refSchema == null) {</span>
+<span class="fc" id="L454">                                refSchema = new UnresolvedReference(refName);</span>
+                            }
+<span class="fc" id="L456">                            return refSchema;</span>
+                        }
+                    }
+
+<span class="nc bnc" id="L460" title="All 2 branches missed.">                    if (properties != null) {</span>
+<span class="nc bnc" id="L461" title="All 2 branches missed.">                        if (ref.startsWith(&quot;#/properties/&quot;)) {</span>
+<span class="nc" id="L462">                            final int PREFIX_LEN = 13; // &quot;#/properties/&quot;.length();</span>
+<span class="nc" id="L463">                            String refName = ref.substring(PREFIX_LEN);</span>
+<span class="nc" id="L464">                            return properties.get(refName);</span>
+                        }
+                    }
+
+<span class="nc bnc" id="L468" title="All 4 branches missed.">                    if (ref.startsWith(&quot;#/prefixItems/&quot;) &amp;&amp; parent instanceof ArraySchema) {</span>
+<span class="nc" id="L469">                        final int PREFIX_LEN = 14; // &quot;#/properties/&quot;.length();</span>
+<span class="nc" id="L470">                        int index = Integer.parseInt(ref.substring(PREFIX_LEN));</span>
+<span class="nc" id="L471">                        return ((ArraySchema) parent).prefixItems[index];</span>
+                    }
+                }
+
+<span class="fc" id="L475">                Object exclusiveMaximum = input.get(&quot;exclusiveMaximum&quot;);</span>
+<span class="fc" id="L476">                Object exclusiveMinimum = input.get(&quot;exclusiveMinimum&quot;);</span>
+<span class="pc bpc" id="L477" title="4 of 8 branches missed.">                if (exclusiveMaximum instanceof Integer</span>
+                        || exclusiveMinimum instanceof Integer
+                        || exclusiveMaximum instanceof Long
+                        || exclusiveMinimum instanceof Long) {
+<span class="nc" id="L481">                    return new IntegerSchema(input);</span>
+                }
+
+<span class="fc bfc" id="L484" title="All 4 branches covered.">                if (exclusiveMaximum instanceof Number || exclusiveMinimum instanceof Number) {</span>
+<span class="fc" id="L485">                    return new NumberSchema(input);</span>
+                }
+            }
+
+<span class="fc bfc" id="L489" title="All 2 branches covered.">            if (input.containsKey(&quot;properties&quot;)</span>
+<span class="pc bpc" id="L490" title="1 of 2 branches missed.">                    || input.containsKey(&quot;dependentSchemas&quot;)</span>
+<span class="fc bfc" id="L491" title="All 2 branches covered.">                    || input.containsKey(&quot;if&quot;)</span>
+<span class="fc bfc" id="L492" title="All 2 branches covered.">                    || input.containsKey(&quot;required&quot;)</span>
+<span class="fc bfc" id="L493" title="All 2 branches covered.">                    || input.containsKey(&quot;patternProperties&quot;)</span>
+<span class="fc bfc" id="L494" title="All 2 branches covered.">                    || input.containsKey(&quot;additionalProperties&quot;)</span>
+<span class="fc bfc" id="L495" title="All 2 branches covered.">                    || input.containsKey(&quot;minProperties&quot;)</span>
+<span class="fc bfc" id="L496" title="All 2 branches covered.">                    || input.containsKey(&quot;maxProperties&quot;)</span>
+<span class="fc bfc" id="L497" title="All 2 branches covered.">                    || input.containsKey(&quot;propertyNames&quot;)</span>
+<span class="pc bpc" id="L498" title="1 of 2 branches missed.">                    || input.containsKey(&quot;$ref&quot;)</span>
+            ) {
+<span class="fc" id="L500">                return new ObjectSchema(input, parent);</span>
+            }
+
+<span class="fc bfc" id="L503" title="All 2 branches covered.">            if (input.containsKey(&quot;maxItems&quot;)</span>
+<span class="fc bfc" id="L504" title="All 2 branches covered.">                    || input.containsKey(&quot;minItems&quot;)</span>
+<span class="fc bfc" id="L505" title="All 2 branches covered.">                    || input.containsKey(&quot;additionalItems&quot;)</span>
+<span class="fc bfc" id="L506" title="All 2 branches covered.">                    || input.containsKey(&quot;items&quot;)</span>
+<span class="fc bfc" id="L507" title="All 2 branches covered.">                    || input.containsKey(&quot;prefixItems&quot;)</span>
+<span class="fc bfc" id="L508" title="All 2 branches covered.">                    || input.containsKey(&quot;uniqueItems&quot;)</span>
+<span class="fc bfc" id="L509" title="All 2 branches covered.">                    || input.containsKey(&quot;maxContains&quot;)</span>
+<span class="fc bfc" id="L510" title="All 2 branches covered.">                    || input.containsKey(&quot;minContains&quot;)</span>
+            ) {
+<span class="fc" id="L512">                return new ArraySchema(input, parent);</span>
+            }
+
+<span class="fc bfc" id="L515" title="All 2 branches covered.">            if (input.containsKey(&quot;pattern&quot;)</span>
+<span class="fc bfc" id="L516" title="All 2 branches covered.">                    || input.containsKey(&quot;format&quot;)</span>
+<span class="fc bfc" id="L517" title="All 2 branches covered.">                    || input.containsKey(&quot;minLength&quot;)</span>
+<span class="fc bfc" id="L518" title="All 2 branches covered.">                    || input.containsKey(&quot;maxLength&quot;)</span>
+            ) {
+<span class="fc" id="L520">                return new StringSchema(input);</span>
+            }
+
+<span class="fc" id="L523">            boolean allOf = input.containsKey(&quot;allOf&quot;);</span>
+<span class="fc" id="L524">            boolean anyOf = input.containsKey(&quot;anyOf&quot;);</span>
+<span class="fc" id="L525">            boolean oneOf = input.containsKey(&quot;oneOf&quot;);</span>
+
+<span class="fc bfc" id="L527" title="All 6 branches covered.">            if (allOf || anyOf || oneOf) {</span>
+<span class="fc bfc" id="L528" title="All 6 branches covered.">                int count = (allOf ? 1 : 0) + (anyOf ? 1 : 0) + (oneOf ? 1 : 0);</span>
+<span class="fc bfc" id="L529" title="All 2 branches covered.">                if (count == 1) {</span>
+<span class="fc bfc" id="L530" title="All 2 branches covered.">                    if (allOf) {</span>
+<span class="fc" id="L531">                        return new AllOf(input, parent);</span>
+                    }
+
+<span class="fc bfc" id="L534" title="All 2 branches covered.">                    if (anyOf) {</span>
+<span class="fc" id="L535">                        return new AnyOf(input, parent);</span>
+                    }
+
+<span class="fc" id="L538">                    return new OneOf(input, parent);</span>
+                }
+<span class="fc" id="L540">                JSONSchema[] items = new JSONSchema[count];</span>
+<span class="fc" id="L541">                int index = 0;</span>
+<span class="pc bpc" id="L542" title="1 of 2 branches missed.">                if (allOf) {</span>
+<span class="fc" id="L543">                    items[index++] = new AllOf(input, parent);</span>
+                }
+<span class="pc bpc" id="L545" title="1 of 2 branches missed.">                if (anyOf) {</span>
+<span class="fc" id="L546">                    items[index++] = new AnyOf(input, parent);</span>
+                }
+<span class="pc bpc" id="L548" title="1 of 2 branches missed.">                if (oneOf) {</span>
+<span class="fc" id="L549">                    items[index++] = new OneOf(input, parent);</span>
+                }
+<span class="fc" id="L551">                return new AllOf(items);</span>
+            }
+
+<span class="fc bfc" id="L554" title="All 2 branches covered.">            if (input.containsKey(&quot;not&quot;)) {</span>
+<span class="fc" id="L555">                return ofNot(input, null);</span>
+            }
+
+<span class="fc bfc" id="L558" title="All 2 branches covered.">            if (input.get(&quot;maximum&quot;) instanceof Number</span>
+<span class="fc bfc" id="L559" title="All 2 branches covered.">                    || input.get(&quot;minimum&quot;) instanceof Number</span>
+<span class="fc bfc" id="L560" title="All 2 branches covered.">                    || input.containsKey(&quot;multipleOf&quot;)</span>
+            ) {
+<span class="fc" id="L562">                return new NumberSchema(input);</span>
+            }
+
+<span class="fc bfc" id="L565" title="All 2 branches covered.">            if (input.isEmpty()) {</span>
+<span class="fc" id="L566">                return Any.INSTANCE;</span>
+            }
+
+<span class="pc bpc" id="L569" title="1 of 2 branches missed.">            if (input.size() == 1) {</span>
+<span class="fc" id="L570">                Object propertyType = input.get(&quot;type&quot;);</span>
+<span class="pc bpc" id="L571" title="1 of 2 branches missed.">                if (propertyType instanceof JSONArray) {</span>
+<span class="fc" id="L572">                    JSONArray array = (JSONArray) propertyType;</span>
+<span class="fc" id="L573">                    JSONSchema[] typeSchemas = new JSONSchema[array.size()];</span>
+<span class="fc bfc" id="L574" title="All 2 branches covered.">                    for (int i = 0; i &lt; array.size(); i++) {</span>
+<span class="fc" id="L575">                        Type itemType = Type.of(array.getString(i));</span>
+<span class="pc bpc" id="L576" title="3 of 8 branches missed.">                        switch (itemType) {</span>
+                            case String:
+<span class="fc" id="L578">                                typeSchemas[i] = new StringSchema(JSONObject.of(&quot;type&quot;, &quot;string&quot;));</span>
+<span class="fc" id="L579">                                break;</span>
+                            case Integer:
+<span class="fc" id="L581">                                typeSchemas[i] = new IntegerSchema(JSONObject.of(&quot;type&quot;, &quot;integer&quot;));</span>
+<span class="fc" id="L582">                                break;</span>
+                            case Number:
+<span class="nc" id="L584">                                typeSchemas[i] = new NumberSchema(JSONObject.of(&quot;type&quot;, &quot;number&quot;));</span>
+<span class="nc" id="L585">                                break;</span>
+                            case Boolean:
+<span class="nc" id="L587">                                typeSchemas[i] = new BooleanSchema(JSONObject.of(&quot;type&quot;, &quot;boolean&quot;));</span>
+<span class="nc" id="L588">                                break;</span>
+                            case Null:
+<span class="fc" id="L590">                                typeSchemas[i] = new NullSchema(JSONObject.of(&quot;type&quot;, &quot;null&quot;));</span>
+<span class="fc" id="L591">                                break;</span>
+                            case Object:
+<span class="fc" id="L593">                                typeSchemas[i] = new ObjectSchema(JSONObject.of(&quot;type&quot;, &quot;object&quot;));</span>
+<span class="fc" id="L594">                                break;</span>
+                            case Array:
+<span class="fc" id="L596">                                typeSchemas[i] = new ArraySchema(JSONObject.of(&quot;type&quot;, &quot;array&quot;), null);</span>
+<span class="fc" id="L597">                                break;</span>
+                            default:
+<span class="nc" id="L599">                                throw new JSONSchemaValidException(&quot;not support type : &quot; + itemType);</span>
+                        }
+                    }
+<span class="fc" id="L602">                    return new AnyOf(typeSchemas);</span>
+                }
+            }
+
+<span class="nc bnc" id="L606" title="All 2 branches missed.">            if (input.getString(&quot;type&quot;) == null) {</span>
+<span class="nc" id="L607">                throw new JSONSchemaValidException(&quot;type required&quot;);</span>
+            } else {
+<span class="nc" id="L609">                throw new JSONSchemaValidException(&quot;not support type : &quot; + input.getString(&quot;type&quot;));</span>
+            }
+        }
+
+<span class="pc bpc" id="L613" title="1 of 8 branches missed.">        switch (type) {</span>
+            case String:
+<span class="fc" id="L615">                return new StringSchema(input);</span>
+            case Integer:
+<span class="fc" id="L617">                return new IntegerSchema(input);</span>
+            case Number:
+<span class="fc" id="L619">                return new NumberSchema(input);</span>
+            case Boolean:
+<span class="fc" id="L621">                return new BooleanSchema(input);</span>
+            case Null:
+<span class="fc" id="L623">                return new NullSchema(input);</span>
+            case Object:
+<span class="fc" id="L625">                return new ObjectSchema(input, parent);</span>
+            case Array:
+<span class="fc" id="L627">                return new ArraySchema(input, parent);</span>
+            default:
+<span class="nc" id="L629">                throw new JSONSchemaValidException(&quot;not support type : &quot; + type);</span>
+        }
+    }
+
+    static AnyOf anyOf(JSONObject input, Class type) {
+<span class="fc" id="L634">        JSONArray array = input.getJSONArray(&quot;anyOf&quot;);</span>
+<span class="pc bpc" id="L635" title="1 of 4 branches missed.">        if (array == null || array.isEmpty()) {</span>
+<span class="fc" id="L636">            return null;</span>
+        }
+<span class="fc" id="L638">        JSONSchema[] items = new JSONSchema[array.size()];</span>
+<span class="fc bfc" id="L639" title="All 2 branches covered.">        for (int i = 0; i &lt; items.length; i++) {</span>
+<span class="fc" id="L640">            items[i] = JSONSchema.of(array.getJSONObject(i), type);</span>
+        }
+
+<span class="fc" id="L643">        return new AnyOf(items);</span>
+    }
+
+    static AnyOf anyOf(JSONArray array, Class type) {
+<span class="pc bpc" id="L647" title="2 of 4 branches missed.">        if (array == null || array.isEmpty()) {</span>
+<span class="nc" id="L648">            return null;</span>
+        }
+<span class="fc" id="L650">        JSONSchema[] items = new JSONSchema[array.size()];</span>
+<span class="fc bfc" id="L651" title="All 2 branches covered.">        for (int i = 0; i &lt; items.length; i++) {</span>
+<span class="fc" id="L652">            items[i] = JSONSchema.of(array.getJSONObject(i), type);</span>
+        }
+
+<span class="fc" id="L655">        return new AnyOf(items);</span>
+    }
+
+    static AllOf allOf(JSONObject input, Class type) {
+<span class="fc" id="L659">        JSONArray array = input.getJSONArray(&quot;allOf&quot;);</span>
+<span class="pc bpc" id="L660" title="1 of 4 branches missed.">        if (array == null || array.isEmpty()) {</span>
+<span class="fc" id="L661">            return null;</span>
+        }
+
+<span class="fc" id="L664">        JSONSchema[] items = new JSONSchema[array.size()];</span>
+<span class="fc bfc" id="L665" title="All 2 branches covered.">        for (int i = 0; i &lt; items.length; i++) {</span>
+<span class="fc" id="L666">            items[i] = JSONSchema.of(array.getJSONObject(i), type);</span>
+        }
+<span class="fc" id="L668">        return new AllOf(items);</span>
+    }
+
+    static OneOf oneOf(JSONObject input, Class type) {
+<span class="fc" id="L672">        JSONArray array = input.getJSONArray(&quot;oneOf&quot;);</span>
+<span class="pc bpc" id="L673" title="1 of 4 branches missed.">        if (array == null || array.isEmpty()) {</span>
+<span class="fc" id="L674">            return null;</span>
+        }
+
+<span class="fc" id="L677">        JSONSchema[] items = new JSONSchema[array.size()];</span>
+<span class="fc bfc" id="L678" title="All 2 branches covered.">        for (int i = 0; i &lt; items.length; i++) {</span>
+<span class="fc" id="L679">            items[i] = JSONSchema.of(array.getJSONObject(i), type);</span>
+        }
+<span class="fc" id="L681">        return new OneOf(items);</span>
+    }
+
+    static OneOf oneOf(JSONArray array, Class type) {
+<span class="pc bpc" id="L685" title="2 of 4 branches missed.">        if (array == null || array.isEmpty()) {</span>
+<span class="nc" id="L686">            return null;</span>
+        }
+
+<span class="fc" id="L689">        JSONSchema[] items = new JSONSchema[array.size()];</span>
+<span class="fc bfc" id="L690" title="All 2 branches covered.">        for (int i = 0; i &lt; items.length; i++) {</span>
+<span class="fc" id="L691">            items[i] = JSONSchema.of(array.getJSONObject(i), type);</span>
+        }
+<span class="fc" id="L693">        return new OneOf(items);</span>
+    }
+
+    public String getTitle() {
+<span class="fc" id="L697">        return title;</span>
+    }
+
+    public String getDescription() {
+<span class="fc" id="L701">        return description;</span>
+    }
+
+    public abstract Type getType();
+
+    public abstract ValidateResult validate(Object value);
+
+    public boolean isValid(Object value) {
+<span class="fc" id="L709">        return validate(value)</span>
+<span class="fc" id="L710">                .isSuccess();</span>
+    }
+
+    public boolean isValid(long value) {
+<span class="fc" id="L714">        return validate(value)</span>
+<span class="fc" id="L715">                .isSuccess();</span>
+    }
+
+    public boolean isValid(double value) {
+<span class="fc" id="L719">        return validate(value)</span>
+<span class="fc" id="L720">                .isSuccess();</span>
+    }
+
+    public boolean isValid(Double value) {
+<span class="fc" id="L724">        return validate(value)</span>
+<span class="fc" id="L725">                .isSuccess();</span>
+    }
+
+    public boolean isValid(float value) {
+<span class="fc" id="L729">        return validate(value)</span>
+<span class="fc" id="L730">                .isSuccess();</span>
+    }
+
+    public boolean isValid(Float value) {
+<span class="fc" id="L734">        return validate(value)</span>
+<span class="fc" id="L735">                .isSuccess();</span>
+    }
+
+    public boolean isValid(Integer value) {
+<span class="fc" id="L739">        return validate(value)</span>
+<span class="fc" id="L740">                .isSuccess();</span>
+    }
+
+    public boolean isValid(Long value) {
+<span class="fc" id="L744">        return validate(value)</span>
+<span class="fc" id="L745">                .isSuccess();</span>
+    }
+
+    public ValidateResult validate(long value) {
+<span class="fc" id="L749">        return validate((Object) value);</span>
+    }
+
+    public ValidateResult validate(double value) {
+<span class="fc" id="L753">        return validate((Object) value);</span>
+    }
+
+    public ValidateResult validate(Float value) {
+<span class="fc" id="L757">        return validate((Object) value);</span>
+    }
+
+    public ValidateResult validate(Double value) {
+<span class="fc" id="L761">        return validate((Object) value);</span>
+    }
+
+    public ValidateResult validate(Integer value) {
+<span class="fc" id="L765">        return validate((Object) value);</span>
+    }
+
+    public ValidateResult validate(Long value) {
+<span class="fc" id="L769">        return validate((Object) value);</span>
+    }
+
+    public void assertValidate(Object value) {
+<span class="fc" id="L773">        ValidateResult result = validate(value);</span>
+<span class="fc bfc" id="L774" title="All 2 branches covered.">        if (result.isSuccess()) {</span>
+<span class="fc" id="L775">            return;</span>
+        }
+<span class="fc" id="L777">        throw new JSONSchemaValidException(result.getMessage());</span>
+    }
+
+    public void assertValidate(Integer value) {
+<span class="fc" id="L781">        ValidateResult result = validate(value);</span>
+<span class="fc bfc" id="L782" title="All 2 branches covered.">        if (result.isSuccess()) {</span>
+<span class="fc" id="L783">            return;</span>
+        }
+<span class="fc" id="L785">        throw new JSONSchemaValidException(result.getMessage());</span>
+    }
+
+    public void assertValidate(Long value) {
+<span class="fc" id="L789">        ValidateResult result = validate(value);</span>
+<span class="fc bfc" id="L790" title="All 2 branches covered.">        if (result.isSuccess()) {</span>
+<span class="fc" id="L791">            return;</span>
+        }
+<span class="fc" id="L793">        throw new JSONSchemaValidException(result.getMessage());</span>
+    }
+
+    public void assertValidate(Double value) {
+<span class="fc" id="L797">        ValidateResult result = validate(value);</span>
+<span class="fc bfc" id="L798" title="All 2 branches covered.">        if (result.isSuccess()) {</span>
+<span class="fc" id="L799">            return;</span>
+        }
+<span class="fc" id="L801">        throw new JSONSchemaValidException(result.getMessage());</span>
+    }
+
+    public void assertValidate(Float value) {
+<span class="fc" id="L805">        ValidateResult result = validate(value);</span>
+<span class="fc bfc" id="L806" title="All 2 branches covered.">        if (result.isSuccess()) {</span>
+<span class="fc" id="L807">            return;</span>
+        }
+<span class="fc" id="L809">        throw new JSONSchemaValidException(result.getMessage());</span>
+    }
+
+    public void assertValidate(long value) {
+<span class="fc" id="L813">        ValidateResult result = validate(value);</span>
+<span class="fc bfc" id="L814" title="All 2 branches covered.">        if (result.isSuccess()) {</span>
+<span class="fc" id="L815">            return;</span>
+        }
+<span class="fc" id="L817">        throw new JSONSchemaValidException(result.getMessage());</span>
+    }
+
+    public void assertValidate(double value) {
+<span class="fc" id="L821">        ValidateResult result = validate(value);</span>
+<span class="fc bfc" id="L822" title="All 2 branches covered.">        if (result.isSuccess()) {</span>
+<span class="fc" id="L823">            return;</span>
+        }
+<span class="fc" id="L825">        throw new JSONSchemaValidException(result.getMessage());</span>
+    }
+
+    @Override
+    public String toString() {
+<span class="fc" id="L830">        return toJSONObject()</span>
+<span class="fc" id="L831">                .toString();</span>
+    }
+
+    @Override
+    public boolean equals(Object o) {
+<span class="fc bfc" id="L836" title="All 2 branches covered.">        if (this == o) {</span>
+<span class="fc" id="L837">            return true;</span>
+        }
+<span class="fc bfc" id="L839" title="All 4 branches covered.">        if (o == null || getClass() != o.getClass()) {</span>
+<span class="fc" id="L840">            return false;</span>
+        }
+<span class="fc" id="L842">        JSONSchema that = (JSONSchema) o;</span>
+<span class="fc" id="L843">        JSONObject thisObj = this.toJSONObject();</span>
+<span class="fc" id="L844">        JSONObject thatObj = that.toJSONObject();</span>
+<span class="fc" id="L845">        return thisObj.equals(thatObj);</span>
+    }
+
+    @Override
+    public int hashCode() {
+<span class="fc" id="L850">        return toJSONObject().hashCode();</span>
+    }
+
+    public JSONObject toJSONObject() {
+<span class="fc" id="L854">        return new JSONObject();</span>
+    }
+
+<span class="fc" id="L857">    public enum Type {</span>
+<span class="fc" id="L858">        Null,</span>
+<span class="fc" id="L859">        Boolean,</span>
+<span class="fc" id="L860">        Object,</span>
+<span class="fc" id="L861">        Array,</span>
+<span class="fc" id="L862">        Number,</span>
+<span class="fc" id="L863">        String,</span>
+
+        // extended type
+<span class="fc" id="L866">        Integer,</span>
+<span class="fc" id="L867">        Enum,</span>
+<span class="fc" id="L868">        Const,</span>
+<span class="fc" id="L869">        OneOf,</span>
+<span class="fc" id="L870">        AllOf,</span>
+<span class="fc" id="L871">        AnyOf,</span>
+<span class="fc" id="L872">        Any,</span>
+<span class="fc" id="L873">        UnresolvedReference;</span>
+
+        public static Type of(String typeStr) {
+<span class="fc bfc" id="L876" title="All 2 branches covered.">            if (typeStr == null) {</span>
+<span class="fc" id="L877">                return null;</span>
+            }
+
+<span class="fc bfc" id="L880" title="All 8 branches covered.">            switch (typeStr) {</span>
+                case &quot;Null&quot;:
+                case &quot;null&quot;:
+<span class="fc" id="L883">                    return Type.Null;</span>
+                case &quot;String&quot;:
+                case &quot;string&quot;:
+<span class="fc" id="L886">                    return Type.String;</span>
+                case &quot;Integer&quot;:
+                case &quot;integer&quot;:
+<span class="fc" id="L889">                    return Type.Integer;</span>
+                case &quot;Number&quot;:
+                case &quot;number&quot;:
+<span class="fc" id="L892">                    return Type.Number;</span>
+                case &quot;Boolean&quot;:
+                case &quot;boolean&quot;:
+<span class="fc" id="L895">                    return Type.Boolean;</span>
+                case &quot;Object&quot;:
+                case &quot;object&quot;:
+<span class="fc" id="L898">                    return Type.Object;</span>
+                case &quot;Array&quot;:
+                case &quot;array&quot;:
+<span class="fc" id="L901">                    return Type.Array;</span>
+                default:
+<span class="fc" id="L903">                    return null;</span>
+            }
+        }
+    }
+
+<span class="fc" id="L908">    static final ValidateResult SUCCESS = new ValidateResult(true, &quot;success&quot;);</span>
+<span class="fc" id="L909">    static final ValidateResult FAIL_INPUT_NULL = new ValidateResult(false, &quot;input null&quot;);</span>
+<span class="fc" id="L910">    static final ValidateResult FAIL_INPUT_NOT_ENCODED = new ValidateResult(false, &quot;input not encoded string&quot;);</span>
+<span class="fc" id="L911">    static final ValidateResult FAIL_ANY_OF = new ValidateResult(false, &quot;anyOf fail&quot;);</span>
+<span class="fc" id="L912">    static final ValidateResult FAIL_ONE_OF = new ValidateResult(false, &quot;oneOf fail&quot;);</span>
+<span class="fc" id="L913">    static final ValidateResult FAIL_NOT = new ValidateResult(false, &quot;not fail&quot;);</span>
+<span class="fc" id="L914">    static final ValidateResult FAIL_TYPE_NOT_MATCH = new ValidateResult(false, &quot;type not match&quot;);</span>
+<span class="fc" id="L915">    static final ValidateResult FAIL_PROPERTY_NAME = new ValidateResult(false, &quot;propertyName not match&quot;);</span>
+
+<span class="fc" id="L917">    static final ValidateResult CONTAINS_NOT_MATCH = new ValidateResult(false, &quot;contains not match&quot;);</span>
+<span class="fc" id="L918">    static final ValidateResult UNIQUE_ITEMS_NOT_MATCH = new ValidateResult(false, &quot;uniqueItems not match&quot;);</span>
+<span class="fc" id="L919">    static final ValidateResult REQUIRED_NOT_MATCH = new ValidateResult(false, &quot;required&quot;);</span>
+
+<span class="fc" id="L921">    static class JSONSchemaWriter</span>
+            implements ObjectWriter {
+        @Override
+        public void write(JSONWriter jsonWriter,
+                          Object object,
+                          Object fieldName,
+                          java.lang.reflect.Type fieldType,
+                          long features) {
+<span class="fc" id="L929">            JSONObject jsonObject = ((JSONSchema) object).toJSONObject();</span>
+<span class="fc" id="L930">            jsonWriter.write(jsonObject);</span>
+<span class="fc" id="L931">        }</span>
+    }
+
+    public void accept(Predicate&lt;JSONSchema&gt; v) {
+<span class="nc" id="L935">        v.test(this);</span>
+<span class="nc" id="L936">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.8.202204050719</span></div></body></html>

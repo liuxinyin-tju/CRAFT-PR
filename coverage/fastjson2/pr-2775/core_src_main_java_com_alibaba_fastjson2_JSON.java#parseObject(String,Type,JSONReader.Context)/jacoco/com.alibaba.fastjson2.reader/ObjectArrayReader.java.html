@@ -1,0 +1,168 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ObjectArrayReader.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">fastjson2</a> &gt; <a href="index.source.html" class="el_package">com.alibaba.fastjson2.reader</a> &gt; <span class="el_source">ObjectArrayReader.java</span></div><h1>ObjectArrayReader.java</h1><pre class="source lang-java linenums">package com.alibaba.fastjson2.reader;
+
+import com.alibaba.fastjson2.JSONException;
+import com.alibaba.fastjson2.JSONReader;
+import com.alibaba.fastjson2.util.Fnv;
+
+import java.lang.reflect.Type;
+import java.util.Arrays;
+import java.util.Collection;
+
+import static com.alibaba.fastjson2.JSONB.Constants.*;
+
+public final class ObjectArrayReader
+        extends ObjectReaderPrimitive {
+<span class="fc" id="L15">    public static final ObjectArrayReader INSTANCE = new ObjectArrayReader();</span>
+<span class="fc" id="L16">    public static final long TYPE_HASH_CODE = Fnv.hashCode64(&quot;[O&quot;);</span>
+
+    public ObjectArrayReader() {
+<span class="fc" id="L19">        super(Object[].class);</span>
+<span class="fc" id="L20">    }</span>
+
+    @Override
+    public Object[] createInstance(Collection collection, long features) {
+<span class="fc" id="L24">        Object[] array = new Object[collection.size()];</span>
+<span class="fc" id="L25">        int i = 0;</span>
+<span class="fc bfc" id="L26" title="All 2 branches covered.">        for (Object item : collection) {</span>
+<span class="fc" id="L27">            array[i++] = item;</span>
+<span class="fc" id="L28">        }</span>
+<span class="fc" id="L29">        return array;</span>
+    }
+
+    @Override
+    public Object readObject(JSONReader jsonReader, Type fieldType, Object fieldName, long features) {
+<span class="fc bfc" id="L34" title="All 2 branches covered.">        if (jsonReader.nextIfNullOrEmptyString()) {</span>
+<span class="fc" id="L35">            return null;</span>
+        }
+
+<span class="fc bfc" id="L38" title="All 2 branches covered.">        if (jsonReader.nextIfArrayStart()) {</span>
+<span class="fc" id="L39">            Object[] values = new Object[16];</span>
+<span class="fc" id="L40">            int size = 0;</span>
+<span class="fc bfc" id="L41" title="All 2 branches covered.">            while (!jsonReader.nextIfArrayEnd()) {</span>
+<span class="fc" id="L42">                int minCapacity = size + 1;</span>
+<span class="fc bfc" id="L43" title="All 2 branches covered.">                if (minCapacity - values.length &gt; 0) {</span>
+<span class="fc" id="L44">                    int oldCapacity = values.length;</span>
+<span class="fc" id="L45">                    int newCapacity = oldCapacity + (oldCapacity &gt;&gt; 1);</span>
+<span class="pc bpc" id="L46" title="1 of 2 branches missed.">                    if (newCapacity - minCapacity &lt; 0) {</span>
+<span class="nc" id="L47">                        newCapacity = minCapacity;</span>
+                    }
+
+<span class="fc" id="L50">                    values = Arrays.copyOf(values, newCapacity);</span>
+                }
+
+                Object value;
+<span class="fc" id="L54">                char ch = jsonReader.current();</span>
+<span class="fc bfc" id="L55" title="All 7 branches covered.">                switch (ch) {</span>
+                    case '&quot;':
+<span class="fc" id="L57">                        value = jsonReader.readString();</span>
+<span class="fc" id="L58">                        break;</span>
+                    case '+':
+                    case '-':
+                    case '0':
+                    case '1':
+                    case '2':
+                    case '3':
+                    case '4':
+                    case '5':
+                    case '6':
+                    case '7':
+                    case '8':
+                    case '9':
+                    case '.':
+<span class="fc" id="L72">                        value = jsonReader.readNumber();</span>
+<span class="fc" id="L73">                        break;</span>
+                    case 'n':
+<span class="fc" id="L75">                        jsonReader.readNull();</span>
+<span class="fc" id="L76">                        value = null;</span>
+<span class="fc" id="L77">                        break;</span>
+                    case 't':
+                    case 'f':
+<span class="fc" id="L80">                        value = jsonReader.readBoolValue();</span>
+<span class="fc" id="L81">                        break;</span>
+                    case '{':
+<span class="fc" id="L83">                        value = jsonReader.read(Object.class);</span>
+<span class="fc" id="L84">                        break;</span>
+                    case '[':
+<span class="fc" id="L86">                        value = jsonReader.readArray();</span>
+<span class="fc" id="L87">                        break;</span>
+                    default:
+<span class="fc" id="L89">                        throw new JSONException(jsonReader.info());</span>
+                }
+<span class="fc" id="L91">                values[size++] = value;</span>
+<span class="fc" id="L92">            }</span>
+<span class="fc" id="L93">            jsonReader.nextIfComma();</span>
+
+<span class="fc" id="L95">            return Arrays.copyOf(values, size);</span>
+        }
+
+<span class="fc bfc" id="L98" title="All 2 branches covered.">        if (jsonReader.current() == '{') {</span>
+<span class="fc" id="L99">            jsonReader.next();</span>
+<span class="fc" id="L100">            long filedHash = jsonReader.readFieldNameHashCode();</span>
+<span class="fc bfc" id="L101" title="All 2 branches covered.">            if (filedHash == HASH_TYPE) {</span>
+<span class="fc" id="L102">                jsonReader.readString();</span>
+            }
+        }
+<span class="fc bfc" id="L105" title="All 2 branches covered.">        if (jsonReader.isString()) {</span>
+<span class="fc" id="L106">            String str = jsonReader.readString();</span>
+<span class="pc bpc" id="L107" title="2 of 4 branches missed.">            if (str == null || str.isEmpty()) {</span>
+<span class="nc" id="L108">                return null;</span>
+            }
+<span class="pc bpc" id="L110" title="1 of 2 branches missed.">            if (VALUE_NAME.equals(str)) {</span>
+<span class="fc" id="L111">                jsonReader.next();</span>
+<span class="fc" id="L112">                Object result = this.readObject(jsonReader, fieldType, fieldName, features);</span>
+<span class="fc" id="L113">                jsonReader.nextIfObjectEnd();</span>
+<span class="fc" id="L114">                return result;</span>
+            }
+        }
+
+<span class="fc" id="L118">        throw new JSONException(jsonReader.info(&quot;TODO&quot;));</span>
+    }
+
+    @Override
+    public Object readJSONBObject(JSONReader jsonReader, Type fieldType, Object fieldName, long features) {
+<span class="fc bfc" id="L123" title="All 2 branches covered.">        if (jsonReader.getType() == BC_TYPED_ANY) {</span>
+<span class="fc" id="L124">            ObjectReader autoTypeObjectReader = jsonReader.checkAutoType(Object[].class, TYPE_HASH_CODE, features);</span>
+<span class="pc bpc" id="L125" title="1 of 2 branches missed.">            if (autoTypeObjectReader != this) {</span>
+<span class="nc" id="L126">                return autoTypeObjectReader.readJSONBObject(jsonReader, fieldType, fieldName, features);</span>
+            }
+        }
+
+<span class="fc" id="L130">        int itemCnt = jsonReader.startArray();</span>
+<span class="fc bfc" id="L131" title="All 2 branches covered.">        if (itemCnt == -1) {</span>
+<span class="fc" id="L132">            return null;</span>
+        }
+<span class="fc" id="L134">        Object[] array = new Object[itemCnt];</span>
+<span class="fc bfc" id="L135" title="All 2 branches covered.">        for (int i = 0; i &lt; itemCnt; i++) {</span>
+<span class="fc" id="L136">            byte type = jsonReader.getType();</span>
+
+            Object value;
+            ObjectReader autoTypeValueReader;
+<span class="pc bpc" id="L140" title="1 of 4 branches missed.">            if (type &gt;= BC_STR_ASCII_FIX_MIN &amp;&amp; type &lt;= BC_STR_UTF16BE) {</span>
+<span class="fc" id="L141">                value = jsonReader.readString();</span>
+<span class="fc bfc" id="L142" title="All 2 branches covered.">            } else if (type == BC_TYPED_ANY) {</span>
+<span class="fc" id="L143">                autoTypeValueReader = jsonReader.checkAutoType(Object.class, 0, features);</span>
+<span class="pc bpc" id="L144" title="1 of 2 branches missed.">                if (autoTypeValueReader != null) {</span>
+<span class="fc" id="L145">                    value = autoTypeValueReader.readJSONBObject(jsonReader, null, null, features);</span>
+                } else {
+<span class="nc" id="L147">                    value = jsonReader.readAny();</span>
+                }
+<span class="fc bfc" id="L149" title="All 2 branches covered.">            } else if (type == BC_NULL) {</span>
+<span class="fc" id="L150">                jsonReader.next();</span>
+<span class="fc" id="L151">                value = null;</span>
+<span class="fc bfc" id="L152" title="All 2 branches covered.">            } else if (type == BC_TRUE) {</span>
+<span class="fc" id="L153">                jsonReader.next();</span>
+<span class="fc" id="L154">                value = Boolean.TRUE;</span>
+<span class="fc bfc" id="L155" title="All 2 branches covered.">            } else if (type == BC_FALSE) {</span>
+<span class="fc" id="L156">                jsonReader.next();</span>
+<span class="fc" id="L157">                value = Boolean.FALSE;</span>
+<span class="fc bfc" id="L158" title="All 2 branches covered.">            } else if (type == BC_INT64) {</span>
+<span class="fc" id="L159">                value = jsonReader.readInt64Value();</span>
+            } else {
+<span class="fc" id="L161">                value = jsonReader.readAny();</span>
+            }
+<span class="fc" id="L163">            array[i] = value;</span>
+        }
+<span class="fc" id="L165">        return array;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.8.202204050719</span></div></body></html>

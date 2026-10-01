@@ -1,0 +1,347 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>GuavaSupport.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">fastjson2</a> &gt; <a href="index.source.html" class="el_package">com.alibaba.fastjson2.util</a> &gt; <span class="el_source">GuavaSupport.java</span></div><h1>GuavaSupport.java</h1><pre class="source lang-java linenums">package com.alibaba.fastjson2.util;
+
+import com.alibaba.fastjson2.JSONB;
+import com.alibaba.fastjson2.JSONException;
+import com.alibaba.fastjson2.JSONWriter;
+import com.alibaba.fastjson2.support.LambdaMiscCodec;
+import com.alibaba.fastjson2.writer.ObjectWriter;
+
+import java.lang.reflect.Constructor;
+import java.lang.reflect.Method;
+import java.lang.reflect.Type;
+import java.util.*;
+import java.util.function.BiFunction;
+import java.util.function.Function;
+import java.util.function.Supplier;
+
+<span class="nc" id="L17">public class GuavaSupport {</span>
+    static Class CLASS_IMMUTABLE_MAP;
+    static Class CLASS_IMMUTABLE_LIST;
+    static Class CLASS_IMMUTABLE_SET;
+    static Class CLASS_ARRAYLIST_MULTI_MAP;
+
+    static Supplier FUNC_IMMUTABLE_MAP_OF_0;
+    static BiFunction FUNC_IMMUTABLE_MAP_OF_1;
+    static Function FUNC_IMMUTABLE_MAP_COPY_OF;
+
+    static Supplier FUNC_IMMUTABLE_LIST_OF_0;
+    static Function FUNC_IMMUTABLE_LIST_OF_1;
+    static Function FUNC_IMMUTABLE_LIST_COPY_OF;
+
+    static Supplier FUNC_IMMUTABLE_SET_OF_0;
+    static Function FUNC_IMMUTABLE_SET_OF_1;
+    static Function FUNC_IMMUTABLE_SET_COPY_OF;
+
+    static Supplier FUNC_ARRAYLIST_MULTI_MAP_CREATE;
+    static Method METHOD_ARRAYLIST_MULTI_MAP_PUT_ALL;
+    static volatile boolean METHOD_ARRAYLIST_MULTI_MAP_ERROR;
+
+    static BiFunction FUNC_SINGLETON_IMMUTABLE_BIMAP;
+
+    public static Function immutableListConverter() {
+<span class="fc" id="L42">        return new ImmutableListConvertFunction();</span>
+    }
+
+    public static Function immutableSetConverter() {
+<span class="fc" id="L46">        return new ImmutableSetConvertFunction();</span>
+    }
+
+    public static Function immutableMapConverter() {
+<span class="fc" id="L50">        return new ImmutableSingletonMapConvertFunction();</span>
+    }
+
+    public static Function singletonBiMapConverter() {
+<span class="fc" id="L54">        return new SingletonImmutableBiMapConvertFunction();</span>
+    }
+
+<span class="fc" id="L57">    static class ImmutableSetConvertFunction</span>
+            implements Function {
+        @Override
+        public Object apply(Object object) {
+<span class="fc bfc" id="L61" title="All 2 branches covered.">            if (CLASS_IMMUTABLE_SET == null) {</span>
+<span class="fc" id="L62">                CLASS_IMMUTABLE_SET = TypeUtils.loadClass(&quot;com.google.common.collect.ImmutableSet&quot;);</span>
+            }
+
+<span class="pc bpc" id="L65" title="1 of 2 branches missed.">            if (CLASS_IMMUTABLE_SET == null) {</span>
+<span class="nc" id="L66">                throw new JSONException(&quot;class not found : com.google.common.collect.ImmutableSet&quot;);</span>
+            }
+
+<span class="fc" id="L69">            List list = (List) object;</span>
+<span class="fc bfc" id="L70" title="All 2 branches covered.">            if (list.isEmpty()) {</span>
+<span class="pc bpc" id="L71" title="1 of 2 branches missed.">                if (FUNC_IMMUTABLE_SET_OF_0 == null) {</span>
+                    try {
+<span class="fc" id="L73">                        Method method = CLASS_IMMUTABLE_SET.getMethod(&quot;of&quot;);</span>
+<span class="fc" id="L74">                        FUNC_IMMUTABLE_SET_OF_0 = LambdaMiscCodec.createSupplier(method);</span>
+<span class="nc" id="L75">                    } catch (NoSuchMethodException e) {</span>
+<span class="nc" id="L76">                        throw new JSONException(&quot;method not found : com.google.common.collect.ImmutableSet.of&quot;, e);</span>
+<span class="fc" id="L77">                    }</span>
+                }
+
+<span class="fc" id="L80">                return FUNC_IMMUTABLE_SET_OF_0.get();</span>
+            }
+
+<span class="fc bfc" id="L83" title="All 2 branches covered.">            if (list.size() == 1) {</span>
+<span class="pc bpc" id="L84" title="1 of 2 branches missed.">                if (FUNC_IMMUTABLE_SET_OF_1 == null) {</span>
+                    try {
+<span class="fc" id="L86">                        Method method = CLASS_IMMUTABLE_SET.getMethod(&quot;of&quot;, Object.class);</span>
+<span class="fc" id="L87">                        FUNC_IMMUTABLE_SET_OF_1 = LambdaMiscCodec.createFunction(method);</span>
+<span class="nc" id="L88">                    } catch (NoSuchMethodException e) {</span>
+<span class="nc" id="L89">                        throw new JSONException(&quot;method not found : com.google.common.collect.ImmutableSet.of&quot;, e);</span>
+<span class="fc" id="L90">                    }</span>
+                }
+
+<span class="fc" id="L93">                Object first = list.get(0);</span>
+<span class="fc" id="L94">                return FUNC_IMMUTABLE_SET_OF_1.apply(first);</span>
+            }
+
+<span class="fc bfc" id="L97" title="All 2 branches covered.">            if (FUNC_IMMUTABLE_SET_COPY_OF == null) {</span>
+                try {
+<span class="fc" id="L99">                    Method method = CLASS_IMMUTABLE_SET.getMethod(&quot;copyOf&quot;, Collection.class);</span>
+<span class="fc" id="L100">                    FUNC_IMMUTABLE_SET_COPY_OF = LambdaMiscCodec.createFunction(method);</span>
+<span class="nc" id="L101">                } catch (NoSuchMethodException e) {</span>
+<span class="nc" id="L102">                    throw new JSONException(&quot;method not found : com.google.common.collect.ImmutableSet.copyOf&quot;, e);</span>
+<span class="fc" id="L103">                }</span>
+            }
+
+<span class="fc" id="L106">            return FUNC_IMMUTABLE_SET_COPY_OF.apply(list);</span>
+        }
+    }
+
+<span class="fc" id="L110">    static class ImmutableListConvertFunction</span>
+            implements Function {
+        @Override
+        public Object apply(Object object) {
+<span class="fc bfc" id="L114" title="All 2 branches covered.">            if (CLASS_IMMUTABLE_LIST == null) {</span>
+<span class="fc" id="L115">                CLASS_IMMUTABLE_LIST = TypeUtils.loadClass(&quot;com.google.common.collect.ImmutableList&quot;);</span>
+            }
+
+<span class="pc bpc" id="L118" title="1 of 2 branches missed.">            if (CLASS_IMMUTABLE_LIST == null) {</span>
+<span class="nc" id="L119">                throw new JSONException(&quot;class not found : com.google.common.collect.ImmutableList&quot;);</span>
+            }
+
+<span class="fc" id="L122">            List list = (List) object;</span>
+<span class="fc bfc" id="L123" title="All 2 branches covered.">            if (list.isEmpty()) {</span>
+<span class="pc bpc" id="L124" title="1 of 2 branches missed.">                if (FUNC_IMMUTABLE_LIST_OF_0 == null) {</span>
+                    try {
+<span class="fc" id="L126">                        Method method = CLASS_IMMUTABLE_LIST.getMethod(&quot;of&quot;);</span>
+<span class="fc" id="L127">                        FUNC_IMMUTABLE_LIST_OF_0 = LambdaMiscCodec.createSupplier(method);</span>
+<span class="nc" id="L128">                    } catch (NoSuchMethodException e) {</span>
+<span class="nc" id="L129">                        throw new JSONException(&quot;method not found : com.google.common.collect.ImmutableList.of&quot;, e);</span>
+<span class="fc" id="L130">                    }</span>
+                }
+
+<span class="fc" id="L133">                return FUNC_IMMUTABLE_LIST_OF_0.get();</span>
+            }
+
+<span class="fc bfc" id="L136" title="All 2 branches covered.">            if (list.size() == 1) {</span>
+<span class="fc bfc" id="L137" title="All 2 branches covered.">                if (FUNC_IMMUTABLE_LIST_OF_1 == null) {</span>
+                    try {
+<span class="fc" id="L139">                        Method method = CLASS_IMMUTABLE_LIST.getMethod(&quot;of&quot;, Object.class);</span>
+<span class="fc" id="L140">                        FUNC_IMMUTABLE_LIST_OF_1 = LambdaMiscCodec.createFunction(method);</span>
+<span class="nc" id="L141">                    } catch (NoSuchMethodException e) {</span>
+<span class="nc" id="L142">                        throw new JSONException(&quot;method not found : com.google.common.collect.ImmutableList.of&quot;, e);</span>
+<span class="fc" id="L143">                    }</span>
+                }
+
+<span class="fc" id="L146">                Object first = list.get(0);</span>
+<span class="fc" id="L147">                return FUNC_IMMUTABLE_LIST_OF_1.apply(first);</span>
+            }
+
+<span class="fc bfc" id="L150" title="All 2 branches covered.">            if (FUNC_IMMUTABLE_LIST_COPY_OF == null) {</span>
+                try {
+<span class="fc" id="L152">                    Method method = CLASS_IMMUTABLE_LIST.getMethod(&quot;copyOf&quot;, Collection.class);</span>
+<span class="fc" id="L153">                    FUNC_IMMUTABLE_LIST_COPY_OF = LambdaMiscCodec.createFunction(method);</span>
+<span class="nc" id="L154">                } catch (NoSuchMethodException e) {</span>
+<span class="nc" id="L155">                    throw new JSONException(&quot;method not found : com.google.common.collect.ImmutableList.copyOf&quot;, e);</span>
+<span class="fc" id="L156">                }</span>
+            }
+
+<span class="fc" id="L159">            return FUNC_IMMUTABLE_LIST_COPY_OF.apply(list);</span>
+        }
+    }
+
+    public static ObjectWriter createAsMapWriter(Class objectClass) {
+<span class="fc" id="L164">        return new AsMapWriter(objectClass);</span>
+    }
+
+    static class AsMapWriter
+            implements ObjectWriter {
+        final Class objectClass;
+        final String typeName;
+        final long typeNameHash;
+        final Function asMap;
+
+        protected byte[] typeNameJSONB;
+
+<span class="fc" id="L176">        public AsMapWriter(Class objectClass) {</span>
+<span class="fc" id="L177">            this.objectClass = objectClass;</span>
+<span class="fc" id="L178">            this.typeName = TypeUtils.getTypeName(objectClass);</span>
+<span class="fc" id="L179">            this.typeNameHash = Fnv.hashCode64(typeName);</span>
+            try {
+<span class="fc" id="L181">                Method method = objectClass.getMethod(&quot;asMap&quot;);</span>
+<span class="fc" id="L182">                asMap = LambdaMiscCodec.createFunction(method);</span>
+<span class="nc" id="L183">            } catch (NoSuchMethodException e) {</span>
+<span class="nc" id="L184">                throw new JSONException(&quot;create Guava AsMapWriter error&quot;, e);</span>
+<span class="fc" id="L185">            }</span>
+<span class="fc" id="L186">        }</span>
+
+        @Override
+        public void write(JSONWriter jsonWriter, Object object, Object fieldName, Type fieldType, long features) {
+<span class="fc" id="L190">            Map map = (Map) asMap.apply(object);</span>
+<span class="fc" id="L191">            jsonWriter.write(map);</span>
+<span class="fc" id="L192">        }</span>
+
+        @Override
+        public void writeJSONB(JSONWriter jsonWriter, Object object, Object fieldName, Type fieldType, long features) {
+<span class="fc bfc" id="L196" title="All 2 branches covered.">            if (jsonWriter.isWriteTypeInfo(object, fieldType, features)) {</span>
+<span class="pc bpc" id="L197" title="1 of 2 branches missed.">                if (typeNameJSONB == null) {</span>
+<span class="fc" id="L198">                    typeNameJSONB = JSONB.toBytes(typeName);</span>
+                }
+<span class="fc" id="L200">                jsonWriter.writeTypeName(typeNameJSONB, typeNameHash);</span>
+            }
+
+<span class="fc" id="L203">            Map map = (Map) asMap.apply(object);</span>
+<span class="fc" id="L204">            jsonWriter.write(map);</span>
+<span class="fc" id="L205">        }</span>
+    }
+
+    public static Function createConvertFunction(Class objectClass) {
+<span class="fc" id="L209">        String instanceTypeName = objectClass.getName();</span>
+<span class="pc bpc" id="L210" title="1 of 2 branches missed.">        if (&quot;com.google.common.collect.ArrayListMultimap&quot;.equals(instanceTypeName)) {</span>
+<span class="fc bfc" id="L211" title="All 2 branches covered.">            if (CLASS_ARRAYLIST_MULTI_MAP == null) {</span>
+<span class="fc" id="L212">                CLASS_ARRAYLIST_MULTI_MAP = objectClass;</span>
+            }
+
+<span class="pc bpc" id="L215" title="1 of 4 branches missed.">            if (!METHOD_ARRAYLIST_MULTI_MAP_ERROR &amp;&amp; FUNC_ARRAYLIST_MULTI_MAP_CREATE == null) {</span>
+                try {
+<span class="fc" id="L217">                    Method method = CLASS_ARRAYLIST_MULTI_MAP.getMethod(&quot;create&quot;);</span>
+<span class="fc" id="L218">                    FUNC_ARRAYLIST_MULTI_MAP_CREATE = LambdaMiscCodec.createSupplier(method);</span>
+<span class="nc" id="L219">                } catch (Throwable ignored) {</span>
+<span class="nc" id="L220">                    METHOD_ARRAYLIST_MULTI_MAP_ERROR = true;</span>
+<span class="fc" id="L221">                }</span>
+            }
+
+<span class="pc bpc" id="L224" title="1 of 4 branches missed.">            if (!METHOD_ARRAYLIST_MULTI_MAP_ERROR &amp;&amp; METHOD_ARRAYLIST_MULTI_MAP_PUT_ALL == null) {</span>
+                try {
+<span class="fc" id="L226">                    METHOD_ARRAYLIST_MULTI_MAP_PUT_ALL = CLASS_ARRAYLIST_MULTI_MAP.getMethod(&quot;putAll&quot;, Object.class, Iterable.class);</span>
+<span class="nc" id="L227">                } catch (Throwable ignored) {</span>
+<span class="nc" id="L228">                    METHOD_ARRAYLIST_MULTI_MAP_ERROR = true;</span>
+<span class="fc" id="L229">                }</span>
+            }
+
+<span class="pc bpc" id="L232" title="2 of 4 branches missed.">            if (FUNC_ARRAYLIST_MULTI_MAP_CREATE != null &amp;&amp; METHOD_ARRAYLIST_MULTI_MAP_PUT_ALL != null) {</span>
+<span class="fc" id="L233">                return new ArrayListMultimapConvertFunction(FUNC_ARRAYLIST_MULTI_MAP_CREATE, METHOD_ARRAYLIST_MULTI_MAP_PUT_ALL);</span>
+            }
+        }
+
+<span class="nc" id="L237">        throw new JSONException(&quot;create map error : &quot; + objectClass);</span>
+    }
+
+    static class ArrayListMultimapConvertFunction
+            implements Function {
+        final Supplier method;
+        final Method putAllMethod;
+
+<span class="fc" id="L245">        public ArrayListMultimapConvertFunction(Supplier method, Method putAllMethod) {</span>
+<span class="fc" id="L246">            this.method = method;</span>
+<span class="fc" id="L247">            this.putAllMethod = putAllMethod;</span>
+<span class="fc" id="L248">        }</span>
+
+        @Override
+        public Object apply(Object o) {
+<span class="fc" id="L252">            Map map = (Map) o;</span>
+
+<span class="fc" id="L254">            Object multiMap = method.get();</span>
+
+<span class="fc bfc" id="L256" title="All 2 branches covered.">            for (Map.Entry entry : (Iterable&lt;Map.Entry&gt;) map.entrySet()) {</span>
+<span class="fc" id="L257">                Object key = entry.getKey();</span>
+<span class="fc" id="L258">                Iterable item = (Iterable) entry.getValue();</span>
+
+                try {
+<span class="fc" id="L261">                    putAllMethod.invoke(multiMap, key, item);</span>
+<span class="nc" id="L262">                } catch (Throwable e) {</span>
+<span class="nc" id="L263">                    throw new JSONException(&quot;putAll ArrayListMultimap error&quot;, e);</span>
+<span class="fc" id="L264">                }</span>
+<span class="fc" id="L265">            }</span>
+
+<span class="fc" id="L267">            return multiMap;</span>
+        }
+    }
+
+<span class="fc" id="L271">    static class SingletonImmutableBiMapConvertFunction</span>
+            implements Function {
+        @Override
+        public Object apply(Object object) {
+<span class="fc bfc" id="L275" title="All 2 branches covered.">            if (FUNC_SINGLETON_IMMUTABLE_BIMAP == null) {</span>
+                try {
+<span class="fc" id="L277">                    Constructor constructor = TypeUtils.loadClass(&quot;com.google.common.collect.SingletonImmutableBiMap&quot;)</span>
+<span class="fc" id="L278">                            .getDeclaredConstructor(Object.class, Object.class);</span>
+<span class="fc" id="L279">                    FUNC_SINGLETON_IMMUTABLE_BIMAP = LambdaMiscCodec.createBiFunction(constructor);</span>
+<span class="nc" id="L280">                } catch (NoSuchMethodException | SecurityException e) {</span>
+<span class="nc" id="L281">                    throw new JSONException(&quot;method not found : com.google.common.collect.SingletonImmutableBiMap(Object, Object)&quot;, e);</span>
+<span class="fc" id="L282">                }</span>
+            }
+
+<span class="fc" id="L285">            Map map = (Map) object;</span>
+<span class="fc" id="L286">            Map.Entry entry = (Map.Entry) map.entrySet().iterator().next();</span>
+
+<span class="fc" id="L288">            return FUNC_SINGLETON_IMMUTABLE_BIMAP.apply(entry.getKey(), entry.getValue());</span>
+        }
+    }
+
+<span class="fc" id="L292">    static class ImmutableSingletonMapConvertFunction</span>
+            implements Function {
+        @Override
+        public Object apply(Object object) {
+<span class="fc bfc" id="L296" title="All 2 branches covered.">            if (CLASS_IMMUTABLE_MAP == null) {</span>
+<span class="fc" id="L297">                CLASS_IMMUTABLE_MAP = TypeUtils.loadClass(&quot;com.google.common.collect.ImmutableMap&quot;);</span>
+            }
+
+<span class="pc bpc" id="L300" title="1 of 2 branches missed.">            if (CLASS_IMMUTABLE_MAP == null) {</span>
+<span class="nc" id="L301">                throw new JSONException(&quot;class not found : com.google.common.collect.ImmutableMap&quot;);</span>
+            }
+
+<span class="fc" id="L304">            Map map = (Map) object;</span>
+
+<span class="fc bfc" id="L306" title="All 2 branches covered.">            if (map.size() == 0) {</span>
+<span class="fc bfc" id="L307" title="All 2 branches covered.">                if (FUNC_IMMUTABLE_MAP_OF_0 == null) {</span>
+                    try {
+<span class="fc" id="L309">                        Method method = CLASS_IMMUTABLE_MAP.getMethod(&quot;of&quot;);</span>
+<span class="fc" id="L310">                        FUNC_IMMUTABLE_MAP_OF_0 = LambdaMiscCodec.createSupplier(method);</span>
+<span class="nc" id="L311">                    } catch (NoSuchMethodException e) {</span>
+<span class="nc" id="L312">                        throw new JSONException(&quot;method not found : com.google.common.collect.ImmutableMap.of&quot;, e);</span>
+<span class="fc" id="L313">                    }</span>
+                }
+
+<span class="fc" id="L316">                return FUNC_IMMUTABLE_MAP_OF_0.get();</span>
+            }
+
+<span class="pc bpc" id="L319" title="1 of 2 branches missed.">            if (map.size() == 1) {</span>
+<span class="nc bnc" id="L320" title="All 2 branches missed.">                if (FUNC_IMMUTABLE_MAP_OF_1 == null) {</span>
+                    try {
+<span class="nc" id="L322">                        Method method = CLASS_IMMUTABLE_MAP.getMethod(&quot;of&quot;, Object.class, Object.class);</span>
+<span class="nc" id="L323">                        method.setAccessible(true);</span>
+<span class="nc" id="L324">                        FUNC_IMMUTABLE_MAP_OF_1 = LambdaMiscCodec.createBiFunction(method);</span>
+<span class="nc" id="L325">                    } catch (NoSuchMethodException e) {</span>
+<span class="nc" id="L326">                        throw new JSONException(&quot;method not found : com.google.common.collect.ImmutableBiMap.of&quot;, e);</span>
+<span class="nc" id="L327">                    }</span>
+                }
+
+<span class="nc" id="L330">                Map.Entry entry = (Map.Entry) map.entrySet().iterator().next();</span>
+<span class="nc" id="L331">                return FUNC_IMMUTABLE_MAP_OF_1.apply(entry.getKey(), entry.getValue());</span>
+            }
+
+<span class="fc bfc" id="L334" title="All 2 branches covered.">            if (FUNC_IMMUTABLE_MAP_COPY_OF == null) {</span>
+                try {
+<span class="fc" id="L336">                    Method method = CLASS_IMMUTABLE_MAP.getMethod(&quot;copyOf&quot;, Map.class);</span>
+<span class="fc" id="L337">                    FUNC_IMMUTABLE_MAP_COPY_OF = LambdaMiscCodec.createFunction(method);</span>
+<span class="nc" id="L338">                } catch (NoSuchMethodException e) {</span>
+<span class="nc" id="L339">                    throw new JSONException(&quot;method not found : com.google.common.collect.ImmutableBiMap.copyOf&quot;, e);</span>
+<span class="fc" id="L340">                }</span>
+            }
+
+<span class="fc" id="L343">            return FUNC_IMMUTABLE_MAP_COPY_OF.apply(map);</span>
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.8.202204050719</span></div></body></html>

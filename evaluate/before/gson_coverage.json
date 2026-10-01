@@ -1,0 +1,88 @@
+{
+    "1555_gson/src/main/java/com/google/gson/internal/bind/JsonAdapterAnnotationTypeAdapterFactory.java#getTypeAdapter(ConstructorConstructor,Gson,TypeToken<?>,JsonAdapter)": {
+        "success": true,
+        "function_name": "getTypeAdapter(ConstructorConstructor, Gson)",
+        "file_path": "gson/src/main/java/com/google/gson/internal/bind/JsonAdapterAnnotationTypeAdapterFactory.java",
+        "start_line": 52,
+        "end_line": 84,
+        "instruction_coverage": 0.0,
+        "branch_coverage": 0.0,
+        "line_coverage": 0.0,
+        "total_lines_num": 0,
+        "missed_lines_num": 0,
+        "missed_lines": [],
+        "annotated_code": "@SuppressWarnings({ \"unchecked\", \"rawtypes\" }) // Casts guarded by conditionals.\n  TypeAdapter<?> getTypeAdapter(ConstructorConstructor constructorConstructor, Gson gson,\n      TypeToken<?> type, JsonAdapter annotation) {\n    Object instance = constructorConstructor.get(TypeToken.get(annotation.value())).construct();\n\n    TypeAdapter<?> typeAdapter;\n    boolean nullSafe = annotation.nullSafe();\n    if (instance instanceof TypeAdapter) {\n      typeAdapter = (TypeAdapter<?>) instance;\n    } else if (instance instanceof TypeAdapterFactory) {\n      typeAdapter = ((TypeAdapterFactory) instance).create(gson, type);\n    } else if (instance instanceof JsonSerializer || instance instanceof JsonDeserializer) {\n      JsonSerializer<?> serializer = instance instanceof JsonSerializer\n          ? (JsonSerializer) instance\n          : null;\n      JsonDeserializer<?> deserializer = instance instanceof JsonDeserializer\n          ? (JsonDeserializer) instance\n          : null;\n      typeAdapter = new TreeTypeAdapter(serializer, deserializer, gson, type, null, nullSafe);\n      nullSafe = false;\n    } else {\n      throw new IllegalArgumentException(\"Invalid attempt to bind an instance of \"\n          + instance.getClass().getName() + \" as a @JsonAdapter for \" + type.toString()\n          + \". @JsonAdapter value must be a TypeAdapter, TypeAdapterFactory,\"\n          + \" JsonSerializer or JsonDeserializer.\");\n    }\n\n    if (typeAdapter != null && nullSafe) {\n      typeAdapter = typeAdapter.nullSafe();\n    }\n\n    return typeAdapter;\n  }"
+    },
+    "1555_gson/src/main/java/com/google/gson/internal/bind/TreeTypeAdapter.java#read(JsonReader)": {
+        "success": true,
+        "function_name": "read(JsonReader)",
+        "file_path": "gson/src/main/java/com/google/gson/internal/bind/TreeTypeAdapter.java",
+        "start_line": 68,
+        "end_line": 77,
+        "instruction_coverage": 100.0,
+        "branch_coverage": 83.0,
+        "line_coverage": 100.0,
+        "total_lines_num": 6,
+        "missed_lines_num": 0,
+        "missed_lines": [],
+        "annotated_code": "@Override public T read(JsonReader in) throws IOException {\n    if (deserializer == null) {\n      return delegate().read(in);\n    }\n    JsonElement value = Streams.parse(in);\n    if (nullSafe && value.isJsonNull()) {\n      return null;\n    }\n    return deserializer.deserialize(value, typeToken.getType(), context);\n  }"
+    },
+    "1555_gson/src/main/java/com/google/gson/internal/bind/TreeTypeAdapter.java#write(JsonWriter,T)": {
+        "success": true,
+        "function_name": "write(JsonWriter, T)",
+        "file_path": "gson/src/main/java/com/google/gson/internal/bind/TreeTypeAdapter.java",
+        "start_line": 79,
+        "end_line": 90,
+        "instruction_coverage": 0.0,
+        "branch_coverage": 0.0,
+        "line_coverage": 0.0,
+        "total_lines_num": 0,
+        "missed_lines_num": 0,
+        "missed_lines": [],
+        "annotated_code": "@Override public void write(JsonWriter out, T value) throws IOException {\n    if (serializer == null) {\n      delegate().write(out, value);\n      return;\n    }\n    if (nullSafe && value == null) {\n      out.nullValue();\n      return;\n    }\n    JsonElement tree = serializer.serialize(value, typeToken.getType(), context);\n    Streams.write(tree, out);\n  }"
+    },
+    "1391_gson/src/main/java/com/google/gson/internal/$Gson$Types.java#resolve(Type,Class<?>,Type)": {
+        "success": true,
+        "function_name": "resolve(Type, Class<?>, Type)",
+        "file_path": "gson/src/main/java/com/google/gson/internal/$Gson$Types.java",
+        "start_line": 341,
+        "end_line": 343,
+        "instruction_coverage": 0.0,
+        "branch_coverage": 0.0,
+        "line_coverage": 0.0,
+        "total_lines_num": 0,
+        "missed_lines_num": 0,
+        "missed_lines": [],
+        "annotated_code": "public static Type resolve(Type context, Class<?> contextRawType, Type toResolve) {\n    return resolve(context, contextRawType, toResolve, new HashMap<TypeVariable, Type>());\n  }"
+    },
+    "1391_gson/src/main/java/com/google/gson/internal/$Gson$Types.java#resolve(Type,Class<?>,Type,Map<TypeVariable, Type>)": {
+        "success": true,
+        "function_name": "resolve(Type, Class<?>, Type)",
+        "file_path": "gson/src/main/java/com/google/gson/internal/$Gson$Types.java",
+        "start_line": 345,
+        "end_line": 440,
+        "instruction_coverage": 0.0,
+        "branch_coverage": 0.0,
+        "line_coverage": 0.0,
+        "total_lines_num": 0,
+        "missed_lines_num": 0,
+        "missed_lines": [
+            39
+        ],
+        "annotated_code": "private static Type resolve(Type context, Class<?> contextRawType, Type toResolve,\n                              Map<TypeVariable, Type> visitedTypeVariables) {\n    // this implementation is made a little more complicated in an attempt to avoid object-creation\n    TypeVariable resolving = null;\n    while (true) {\n      if (toResolve instanceof TypeVariable) {\n        TypeVariable<?> typeVariable = (TypeVariable<?>) toResolve;\n        Type previouslyResolved = visitedTypeVariables.get(typeVariable);\n        if (previouslyResolved != null) {\n          // cannot reduce due to infinite recursion\n          return (previouslyResolved == Void.TYPE) ? toResolve : previouslyResolved;\n        }\n\n        // Insert a placeholder to mark the fact that we are in the process of resolving this type\n        visitedTypeVariables.put(typeVariable, Void.TYPE);\n        if (resolving == null) {\n          resolving = typeVariable;\n        }\n\n        toResolve = resolveTypeVariable(context, contextRawType, typeVariable);\n        if (toResolve == typeVariable) {\n          break;\n        }\n\n      } else if (toResolve instanceof Class && ((Class<?>) toResolve).isArray()) {\n        Class<?> original = (Class<?>) toResolve;\n        Type componentType = original.getComponentType();\n        Type newComponentType = resolve(context, contextRawType, componentType, visitedTypeVariables);\n        toResolve = equal(componentType, newComponentType)\n            ? original\n            : arrayOf(newComponentType);\n        break;\n\n      } else if (toResolve instanceof GenericArrayType) {\n        GenericArrayType original = (GenericArrayType) toResolve;\n        Type componentType = original.getGenericComponentType();\n        Type newComponentType = resolve(context, contextRawType, componentType, visitedTypeVariables);\n        toResolve = equal(componentType, newComponentType)\n            ? original  //UNCOVERED\n            : arrayOf(newComponentType);\n        break;\n\n      } else if (toResolve instanceof ParameterizedType) {\n        ParameterizedType original = (ParameterizedType) toResolve;\n        Type ownerType = original.getOwnerType();\n        Type newOwnerType = resolve(context, contextRawType, ownerType, visitedTypeVariables);\n        boolean changed = !equal(newOwnerType, ownerType);\n\n        Type[] args = original.getActualTypeArguments();\n        for (int t = 0, length = args.length; t < length; t++) {\n          Type resolvedTypeArgument = resolve(context, contextRawType, args[t], visitedTypeVariables);\n          if (!equal(resolvedTypeArgument, args[t])) {\n            if (!changed) {\n              args = args.clone();\n              changed = true;\n            }\n            args[t] = resolvedTypeArgument;\n          }\n        }\n\n        toResolve = changed\n            ? newParameterizedTypeWithOwner(newOwnerType, original.getRawType(), args)\n            : original;\n        break;\n\n      } else if (toResolve instanceof WildcardType) {\n        WildcardType original = (WildcardType) toResolve;\n        Type[] originalLowerBound = original.getLowerBounds();\n        Type[] originalUpperBound = original.getUpperBounds();\n\n        if (originalLowerBound.length == 1) {\n          Type lowerBound = resolve(context, contextRawType, originalLowerBound[0], visitedTypeVariables);\n          if (lowerBound != originalLowerBound[0]) {\n            toResolve = supertypeOf(lowerBound);\n            break;\n          }\n        } else if (originalUpperBound.length == 1) {\n          Type upperBound = resolve(context, contextRawType, originalUpperBound[0], visitedTypeVariables);\n          if (upperBound != originalUpperBound[0]) {\n            toResolve = subtypeOf(upperBound);\n            break;\n          }\n        }\n        toResolve = original;\n        break;\n\n      } else {\n        break;\n      }\n    }\n    // ensure that any in-process resolution gets updated with the final result\n    if (resolving != null) {\n      visitedTypeVariables.put(resolving, toResolve);\n    }\n    return toResolve;\n  }"
+    },
+    "1093_gson/src/main/java/com/google/gson/stream/JsonWriter.java#value(double)": {
+        "success": true,
+        "function_name": "value(double)",
+        "file_path": "gson/src/main/java/com/google/gson/stream/JsonWriter.java",
+        "start_line": 493,
+        "end_line": 501,
+        "instruction_coverage": 100.0,
+        "branch_coverage": 83.0,
+        "line_coverage": 100.0,
+        "total_lines_num": 6,
+        "missed_lines_num": 0,
+        "missed_lines": [],
+        "annotated_code": "public JsonWriter value(double value) throws IOException {\n    writeDeferredName();\n    if (!lenient && (Double.isNaN(value) || Double.isInfinite(value))) {\n      throw new IllegalArgumentException(\"Numeric values must be finite, but was \" + value);\n    }\n    beforeValue();\n    out.append(Double.toString(value));\n    return this;\n  }"
+    }
+}

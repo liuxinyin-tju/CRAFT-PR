@@ -1,0 +1,113 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ObjectReaderImplValue.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">fastjson2</a> &gt; <a href="index.source.html" class="el_package">com.alibaba.fastjson2.reader</a> &gt; <span class="el_source">ObjectReaderImplValue.java</span></div><h1>ObjectReaderImplValue.java</h1><pre class="source lang-java linenums">package com.alibaba.fastjson2.reader;
+
+import com.alibaba.fastjson2.JSONException;
+import com.alibaba.fastjson2.JSONReader;
+import com.alibaba.fastjson2.schema.JSONSchema;
+
+import java.lang.reflect.Array;
+import java.lang.reflect.Constructor;
+import java.lang.reflect.Method;
+import java.lang.reflect.Type;
+import java.util.function.Function;
+
+public class ObjectReaderImplValue&lt;I, T&gt;
+        implements ObjectReader&lt;T&gt; {
+    final Type valueType;
+    final Class&lt;I&gt; valueClass;
+    final long features;
+    final Constructor&lt;T&gt; constructor;
+    final Method factoryMethod;
+    final Function&lt;I, T&gt; function;
+    final JSONSchema schema;
+    final Object emptyVariantArgs;
+    ObjectReader valueReader;
+
+    public ObjectReaderImplValue(
+            Class&lt;T&gt; objectClass,
+            Type valueType,
+            Class&lt;I&gt; valueClass,
+            long features,
+            String format,
+            Object defaultValue,
+            JSONSchema schema,
+            Constructor&lt;T&gt; constructor,
+            Method factoryMethod,
+            Function&lt;I, T&gt; function
+<span class="fc" id="L36">    ) {</span>
+<span class="fc" id="L37">        this.valueType = valueType;</span>
+<span class="fc" id="L38">        this.valueClass = valueClass;</span>
+<span class="fc" id="L39">        this.features = features;</span>
+<span class="fc" id="L40">        this.schema = schema;</span>
+<span class="fc" id="L41">        this.constructor = constructor;</span>
+<span class="fc" id="L42">        this.factoryMethod = factoryMethod;</span>
+<span class="fc" id="L43">        this.function = function;</span>
+
+<span class="pc bpc" id="L45" title="1 of 4 branches missed.">        if (factoryMethod != null &amp;&amp; factoryMethod.getParameterCount() == 2) {</span>
+<span class="nc" id="L46">            Class&lt;?&gt; varArgType = factoryMethod.getParameterTypes()[1].getComponentType();</span>
+<span class="nc" id="L47">            emptyVariantArgs = Array.newInstance(varArgType, 0);</span>
+<span class="nc" id="L48">        } else {</span>
+<span class="fc" id="L49">            emptyVariantArgs = null;</span>
+        }
+<span class="fc" id="L51">    }</span>
+
+    @Override
+    public T readJSONBObject(JSONReader jsonReader, Type fieldType, Object fieldName, long features) {
+<span class="fc" id="L55">        return readObject(jsonReader, fieldType, fieldName, features);</span>
+    }
+
+    @Override
+    public T readObject(JSONReader jsonReader, Type fieldType, Object fieldName, long features) {
+<span class="fc bfc" id="L60" title="All 2 branches covered.">        if (valueReader == null) {</span>
+<span class="fc" id="L61">            valueReader = jsonReader.getObjectReader(valueType);</span>
+        }
+
+<span class="fc" id="L64">        I value = (I) valueReader.readObject(jsonReader, fieldType, fieldName, features | this.features);</span>
+
+<span class="pc bpc" id="L66" title="1 of 2 branches missed.">        if (value == null) {</span>
+<span class="nc" id="L67">            return null;</span>
+        }
+
+<span class="pc bpc" id="L70" title="1 of 2 branches missed.">        if (schema != null) {</span>
+<span class="nc" id="L71">            schema.validate(value);</span>
+        }
+
+        T object;
+
+<span class="fc bfc" id="L76" title="All 2 branches covered.">        if (function != null) {</span>
+            try {
+<span class="fc" id="L78">                object = function.apply(value);</span>
+<span class="nc" id="L79">            } catch (Exception ex) {</span>
+<span class="nc" id="L80">                throw new JSONException(jsonReader.info(&quot;create object error&quot;), ex);</span>
+<span class="fc" id="L81">            }</span>
+<span class="fc bfc" id="L82" title="All 2 branches covered.">        } else if (constructor != null) {</span>
+            try {
+<span class="fc" id="L84">                object = constructor.newInstance(value);</span>
+<span class="nc" id="L85">            } catch (Exception ex) {</span>
+<span class="nc" id="L86">                throw new JSONException(jsonReader.info(&quot;create object error&quot;), ex);</span>
+<span class="fc" id="L87">            }</span>
+<span class="pc bpc" id="L88" title="1 of 2 branches missed.">        } else if (factoryMethod != null) {</span>
+            try {
+<span class="pc bpc" id="L90" title="1 of 2 branches missed.">                if (emptyVariantArgs != null) {</span>
+<span class="nc" id="L91">                    object = (T) factoryMethod.invoke(null, value, emptyVariantArgs);</span>
+                } else {
+<span class="fc" id="L93">                    object = (T) factoryMethod.invoke(null, value);</span>
+                }
+<span class="nc" id="L95">            } catch (Exception ex) {</span>
+<span class="nc" id="L96">                throw new JSONException(jsonReader.info(&quot;create object error&quot;), ex);</span>
+<span class="fc" id="L97">            }</span>
+        } else {
+<span class="nc" id="L99">            throw new JSONException(jsonReader.info(&quot;create object error&quot;));</span>
+        }
+
+<span class="fc" id="L102">        return object;</span>
+    }
+
+    public static &lt;I, T&gt; ObjectReaderImplValue&lt;I, T&gt; of(Class&lt;T&gt; objectClass, Class&lt;I&gt; valueClass, Method method) {
+<span class="fc" id="L106">        return new ObjectReaderImplValue(objectClass, valueClass, valueClass, 0L, null, null, null, null, method, null);</span>
+    }
+
+    public static &lt;I, T&gt; ObjectReaderImplValue&lt;I, T&gt; of(Class&lt;T&gt; objectClass, Class&lt;I&gt; valueClass, Function&lt;I, T&gt; function) {
+<span class="fc" id="L110">        return new ObjectReaderImplValue(objectClass, valueClass, valueClass, 0L, null, null, null, null, null, function);</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.8.202204050719</span></div></body></html>

@@ -1,0 +1,1569 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ObjectWriterBaseModule.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">fastjson2</a> &gt; <a href="index.source.html" class="el_package">com.alibaba.fastjson2.writer</a> &gt; <span class="el_source">ObjectWriterBaseModule.java</span></div><h1>ObjectWriterBaseModule.java</h1><pre class="source lang-java linenums">package com.alibaba.fastjson2.writer;
+
+import com.alibaba.fastjson2.*;
+import com.alibaba.fastjson2.annotation.*;
+import com.alibaba.fastjson2.codec.BeanInfo;
+import com.alibaba.fastjson2.codec.FieldInfo;
+import com.alibaba.fastjson2.filter.Filter;
+import com.alibaba.fastjson2.modules.ObjectWriterAnnotationProcessor;
+import com.alibaba.fastjson2.modules.ObjectWriterModule;
+import com.alibaba.fastjson2.support.LambdaMiscCodec;
+import com.alibaba.fastjson2.support.money.MoneySupport;
+import com.alibaba.fastjson2.util.*;
+
+import java.io.File;
+import java.io.Serializable;
+import java.lang.annotation.Annotation;
+import java.lang.reflect.*;
+import java.math.BigDecimal;
+import java.math.BigInteger;
+import java.net.URI;
+import java.net.URL;
+import java.nio.ByteBuffer;
+import java.nio.charset.Charset;
+import java.time.*;
+import java.util.*;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.*;
+
+import static com.alibaba.fastjson2.util.BeanUtils.*;
+
+public class ObjectWriterBaseModule
+        implements ObjectWriterModule {
+    static ObjectWriterAdapter STACK_TRACE_ELEMENT_WRITER;
+
+    final ObjectWriterProvider provider;
+    final WriterAnnotationProcessor annotationProcessor;
+
+<span class="fc" id="L38">    public ObjectWriterBaseModule(ObjectWriterProvider provider) {</span>
+<span class="fc" id="L39">        this.provider = provider;</span>
+<span class="fc" id="L40">        this.annotationProcessor = new WriterAnnotationProcessor();</span>
+<span class="fc" id="L41">    }</span>
+
+    @Override
+    public ObjectWriterProvider getProvider() {
+<span class="nc" id="L45">        return provider;</span>
+    }
+
+    @Override
+    public ObjectWriterAnnotationProcessor getAnnotationProcessor() {
+<span class="fc" id="L50">        return annotationProcessor;</span>
+    }
+
+<span class="fc" id="L53">    public class WriterAnnotationProcessor</span>
+            implements ObjectWriterAnnotationProcessor {
+        @Override
+        public void getBeanInfo(BeanInfo beanInfo, Class objectClass) {
+<span class="pc bpc" id="L57" title="1 of 2 branches missed.">            if (objectClass != null) {</span>
+<span class="fc" id="L58">                Class superclass = objectClass.getSuperclass();</span>
+<span class="fc bfc" id="L59" title="All 6 branches covered.">                if (superclass != Object.class &amp;&amp; superclass != null &amp;&amp; superclass != Enum.class) {</span>
+<span class="fc" id="L60">                    getBeanInfo(beanInfo, superclass);</span>
+                }
+
+<span class="fc" id="L63">                Class[] interfaces = objectClass.getInterfaces();</span>
+<span class="fc bfc" id="L64" title="All 2 branches covered.">                for (Class item : interfaces) {</span>
+<span class="fc bfc" id="L65" title="All 2 branches covered.">                    if (item == Serializable.class) {</span>
+<span class="fc" id="L66">                        continue;</span>
+                    }
+<span class="fc" id="L68">                    getBeanInfo(beanInfo, item);</span>
+                }
+
+<span class="fc bfc" id="L71" title="All 4 branches covered.">                if (beanInfo.seeAlso != null &amp;&amp; beanInfo.seeAlsoNames != null) {</span>
+<span class="fc bfc" id="L72" title="All 2 branches covered.">                    for (int i = 0; i &lt; beanInfo.seeAlso.length; i++) {</span>
+<span class="fc" id="L73">                        Class seeAlso = beanInfo.seeAlso[i];</span>
+<span class="pc bpc" id="L74" title="1 of 4 branches missed.">                        if (seeAlso == objectClass &amp;&amp; i &lt; beanInfo.seeAlsoNames.length) {</span>
+<span class="fc" id="L75">                            String seeAlsoName = beanInfo.seeAlsoNames[i];</span>
+<span class="pc bpc" id="L76" title="2 of 4 branches missed.">                            if (seeAlsoName != null &amp;&amp; seeAlsoName.length() != 0) {</span>
+<span class="fc" id="L77">                                beanInfo.typeName = seeAlsoName;</span>
+<span class="fc" id="L78">                                break;</span>
+                            }
+                        }
+                    }
+                }
+            }
+
+<span class="fc" id="L85">            Annotation jsonType1x = null;</span>
+<span class="fc" id="L86">            JSONType jsonType = null;</span>
+<span class="fc" id="L87">            Annotation[] annotations = getAnnotations(objectClass);</span>
+<span class="fc bfc" id="L88" title="All 2 branches covered.">            for (int i = 0; i &lt; annotations.length; i++) {</span>
+<span class="fc" id="L89">                Annotation annotation = annotations[i];</span>
+<span class="fc" id="L90">                Class annotationType = annotation.annotationType();</span>
+<span class="fc bfc" id="L91" title="All 2 branches covered.">                if (jsonType == null) {</span>
+<span class="fc" id="L92">                    jsonType = findAnnotation(annotation, JSONType.class);</span>
+                }
+<span class="fc bfc" id="L94" title="All 2 branches covered.">                if (jsonType == annotation) {</span>
+<span class="fc" id="L95">                    continue;</span>
+                }
+
+<span class="fc bfc" id="L98" title="All 2 branches covered.">                if (annotationType == JSONCompiler.class) {</span>
+<span class="fc" id="L99">                    JSONCompiler compiler = (JSONCompiler) annotation;</span>
+<span class="pc bpc" id="L100" title="1 of 2 branches missed.">                    if (compiler.value() == JSONCompiler.CompilerOption.LAMBDA) {</span>
+<span class="fc" id="L101">                        beanInfo.writerFeatures |= FieldInfo.JIT;</span>
+                    }
+                }
+
+<span class="fc" id="L105">                boolean useJacksonAnnotation = JSONFactory.isUseJacksonAnnotation();</span>
+<span class="fc bfc" id="L106" title="All 11 branches covered.">                switch (annotationType.getName()) {</span>
+                    case &quot;com.alibaba.fastjson.annotation.JSONType&quot;:
+<span class="fc" id="L108">                        jsonType1x = annotation;</span>
+<span class="fc" id="L109">                        break;</span>
+                    case &quot;com.fasterxml.jackson.annotation.JsonIgnoreProperties&quot;:
+<span class="pc bpc" id="L111" title="1 of 2 branches missed.">                        if (useJacksonAnnotation) {</span>
+<span class="fc" id="L112">                            processJacksonJsonIgnoreProperties(beanInfo, annotation);</span>
+                        }
+                        break;
+                    case &quot;com.fasterxml.jackson.annotation.JsonPropertyOrder&quot;:
+<span class="pc bpc" id="L116" title="1 of 2 branches missed.">                        if (useJacksonAnnotation) {</span>
+<span class="fc" id="L117">                            processJacksonJsonPropertyOrder(beanInfo, annotation);</span>
+                        }
+                        break;
+                    case &quot;com.fasterxml.jackson.annotation.JsonFormat&quot;:
+<span class="pc bpc" id="L121" title="1 of 2 branches missed.">                        if (useJacksonAnnotation) {</span>
+<span class="fc" id="L122">                            processJacksonJsonFormat(beanInfo, annotation);</span>
+                        }
+                        break;
+                    case &quot;com.fasterxml.jackson.annotation.JsonInclude&quot;:
+<span class="pc bpc" id="L126" title="1 of 2 branches missed.">                        if (useJacksonAnnotation) {</span>
+<span class="fc" id="L127">                            processJacksonJsonInclude(beanInfo, annotation);</span>
+                        }
+                        break;
+                    case &quot;com.fasterxml.jackson.annotation.JsonTypeInfo&quot;:
+<span class="pc bpc" id="L131" title="1 of 2 branches missed.">                        if (useJacksonAnnotation) {</span>
+<span class="fc" id="L132">                            processJacksonJsonTypeInfo(beanInfo, annotation);</span>
+                        }
+                        break;
+                    case &quot;com.fasterxml.jackson.databind.annotation.JsonSerialize&quot;:
+<span class="pc bpc" id="L136" title="1 of 2 branches missed.">                        if (useJacksonAnnotation) {</span>
+<span class="fc" id="L137">                            processJacksonJsonSerialize(beanInfo, annotation);</span>
+<span class="pc bpc" id="L138" title="3 of 4 branches missed.">                            if (beanInfo.serializer != null &amp;&amp; Enum.class.isAssignableFrom(objectClass)) {</span>
+<span class="nc" id="L139">                                beanInfo.writeEnumAsJavaBean = true;</span>
+                            }
+                        }
+                        break;
+                    case &quot;com.fasterxml.jackson.annotation.JsonTypeName&quot;:
+<span class="pc bpc" id="L144" title="1 of 2 branches missed.">                        if (useJacksonAnnotation) {</span>
+<span class="fc" id="L145">                            processJacksonJsonTypeName(beanInfo, annotation);</span>
+                        }
+                        break;
+                    case &quot;com.fasterxml.jackson.annotation.JsonSubTypes&quot;:
+<span class="pc bpc" id="L149" title="1 of 2 branches missed.">                        if (useJacksonAnnotation) {</span>
+<span class="fc" id="L150">                            processJacksonJsonSubTypes(beanInfo, annotation);</span>
+                        }
+                        break;
+                    case &quot;kotlin.Metadata&quot;:
+<span class="fc" id="L154">                        beanInfo.kotlin = true;</span>
+<span class="fc" id="L155">                        KotlinUtils.getConstructor(objectClass, beanInfo);</span>
+<span class="fc" id="L156">                        break;</span>
+                    default:
+                        break;
+                }
+            }
+
+<span class="fc bfc" id="L162" title="All 2 branches covered.">            if (jsonType == null) {</span>
+<span class="fc" id="L163">                Class mixInSource = provider.mixInCache.get(objectClass);</span>
+
+<span class="fc bfc" id="L165" title="All 2 branches covered.">                if (mixInSource != null) {</span>
+<span class="fc" id="L166">                    beanInfo.mixIn = true;</span>
+
+<span class="fc" id="L168">                    Annotation[] mixInAnnotations = getAnnotations(mixInSource);</span>
+<span class="fc bfc" id="L169" title="All 2 branches covered.">                    for (int i = 0; i &lt; mixInAnnotations.length; i++) {</span>
+<span class="fc" id="L170">                        Annotation annotation = mixInAnnotations[i];</span>
+<span class="fc" id="L171">                        Class&lt;? extends Annotation&gt; annotationType = annotation.annotationType();</span>
+<span class="fc" id="L172">                        jsonType = findAnnotation(annotation, JSONType.class);</span>
+<span class="fc bfc" id="L173" title="All 2 branches covered.">                        if (jsonType == annotation) {</span>
+<span class="fc" id="L174">                            continue;</span>
+                        }
+
+<span class="fc" id="L177">                        String annotationTypeName = annotationType.getName();</span>
+<span class="pc bpc" id="L178" title="1 of 2 branches missed.">                        if (&quot;com.alibaba.fastjson.annotation.JSONType&quot;.equals(annotationTypeName)) {</span>
+<span class="fc" id="L179">                            jsonType1x = annotation;</span>
+                        }
+                    }
+                }
+            }
+
+<span class="fc bfc" id="L185" title="All 2 branches covered.">            if (jsonType != null) {</span>
+<span class="fc" id="L186">                Class&lt;?&gt;[] classes = jsonType.seeAlso();</span>
+<span class="fc bfc" id="L187" title="All 2 branches covered.">                if (classes.length != 0) {</span>
+<span class="fc" id="L188">                    beanInfo.seeAlso = classes;</span>
+                }
+
+<span class="fc" id="L191">                String typeKey = jsonType.typeKey();</span>
+<span class="fc bfc" id="L192" title="All 2 branches covered.">                if (!typeKey.isEmpty()) {</span>
+<span class="fc" id="L193">                    beanInfo.typeKey = typeKey;</span>
+                }
+
+<span class="fc" id="L196">                String typeName = jsonType.typeName();</span>
+<span class="fc bfc" id="L197" title="All 2 branches covered.">                if (!typeName.isEmpty()) {</span>
+<span class="fc" id="L198">                    beanInfo.typeName = typeName;</span>
+                }
+
+<span class="fc bfc" id="L201" title="All 2 branches covered.">                for (JSONWriter.Feature feature : jsonType.serializeFeatures()) {</span>
+<span class="fc" id="L202">                    beanInfo.writerFeatures |= feature.mask;</span>
+                }
+
+<span class="fc" id="L205">                beanInfo.namingStrategy =</span>
+<span class="fc" id="L206">                        jsonType.naming().name();</span>
+
+<span class="fc" id="L208">                String[] ignores = jsonType.ignores();</span>
+<span class="fc bfc" id="L209" title="All 2 branches covered.">                if (ignores.length &gt; 0) {</span>
+<span class="fc" id="L210">                    beanInfo.ignores = ignores;</span>
+                }
+
+<span class="fc" id="L213">                String[] includes = jsonType.includes();</span>
+<span class="fc bfc" id="L214" title="All 2 branches covered.">                if (includes.length &gt; 0) {</span>
+<span class="fc" id="L215">                    beanInfo.includes = includes;</span>
+                }
+
+<span class="fc" id="L218">                String[] orders = jsonType.orders();</span>
+<span class="fc bfc" id="L219" title="All 2 branches covered.">                if (orders.length &gt; 0) {</span>
+<span class="fc" id="L220">                    beanInfo.orders = orders;</span>
+                }
+
+<span class="fc" id="L223">                Class&lt;?&gt; serializer = jsonType.serializer();</span>
+<span class="fc bfc" id="L224" title="All 2 branches covered.">                if (ObjectWriter.class.isAssignableFrom(serializer)) {</span>
+<span class="fc" id="L225">                    beanInfo.serializer = serializer;</span>
+<span class="fc" id="L226">                    beanInfo.writeEnumAsJavaBean = true;</span>
+                }
+
+<span class="fc" id="L229">                Class&lt;? extends Filter&gt;[] serializeFilters = jsonType.serializeFilters();</span>
+<span class="fc bfc" id="L230" title="All 2 branches covered.">                if (serializeFilters.length != 0) {</span>
+<span class="fc" id="L231">                    beanInfo.serializeFilters = serializeFilters;</span>
+                }
+
+<span class="fc" id="L234">                String format = jsonType.format();</span>
+<span class="fc bfc" id="L235" title="All 2 branches covered.">                if (!format.isEmpty()) {</span>
+<span class="fc" id="L236">                    beanInfo.format = format;</span>
+                }
+
+<span class="fc" id="L239">                String locale = jsonType.locale();</span>
+<span class="pc bpc" id="L240" title="1 of 2 branches missed.">                if (!locale.isEmpty()) {</span>
+<span class="nc" id="L241">                    String[] parts = locale.split(&quot;_&quot;);</span>
+<span class="nc bnc" id="L242" title="All 2 branches missed.">                    if (parts.length == 2) {</span>
+<span class="nc" id="L243">                        beanInfo.locale = new Locale(parts[0], parts[1]);</span>
+                    }
+                }
+
+<span class="fc bfc" id="L247" title="All 2 branches covered.">                if (!jsonType.alphabetic()) {</span>
+<span class="fc" id="L248">                    beanInfo.alphabetic = false;</span>
+                }
+
+<span class="fc bfc" id="L251" title="All 2 branches covered.">                if (jsonType.writeEnumAsJavaBean()) {</span>
+<span class="fc" id="L252">                    beanInfo.writeEnumAsJavaBean = true;</span>
+                }
+<span class="fc bfc" id="L254" title="All 2 branches covered.">            } else if (jsonType1x != null) {</span>
+<span class="fc" id="L255">                final Annotation annotation = jsonType1x;</span>
+<span class="fc" id="L256">                BeanUtils.annotationMethods(jsonType1x.annotationType(), method -&gt; BeanUtils.processJSONType1x(beanInfo, annotation, method));</span>
+            }
+
+<span class="pc bpc" id="L259" title="1 of 6 branches missed.">            if (beanInfo.seeAlso != null &amp;&amp; beanInfo.seeAlso.length != 0</span>
+<span class="pc bpc" id="L260" title="1 of 2 branches missed.">                    &amp;&amp; (beanInfo.typeName == null || beanInfo.typeName.length() == 0)) {</span>
+<span class="fc bfc" id="L261" title="All 2 branches covered.">                for (Class seeAlsoClass : beanInfo.seeAlso) {</span>
+<span class="fc bfc" id="L262" title="All 2 branches covered.">                    if (seeAlsoClass == objectClass) {</span>
+<span class="fc" id="L263">                        beanInfo.typeName = objectClass.getSimpleName();</span>
+<span class="fc" id="L264">                        break;</span>
+                    }
+                }
+            }
+<span class="fc" id="L268">        }</span>
+
+        @Override
+        public void getFieldInfo(BeanInfo beanInfo, FieldInfo fieldInfo, Class objectClass, Field field) {
+<span class="pc bpc" id="L272" title="1 of 2 branches missed.">            if (objectClass != null) {</span>
+<span class="fc" id="L273">                Class mixInSource = provider.mixInCache.get(objectClass);</span>
+
+<span class="pc bpc" id="L275" title="1 of 4 branches missed.">                if (mixInSource != null &amp;&amp; mixInSource != objectClass) {</span>
+<span class="fc" id="L276">                    Field mixInField = null;</span>
+                    try {
+<span class="fc" id="L278">                        mixInField = mixInSource.getDeclaredField(field.getName());</span>
+<span class="fc" id="L279">                    } catch (Exception ignored) {</span>
+<span class="fc" id="L280">                    }</span>
+
+<span class="fc bfc" id="L282" title="All 2 branches covered.">                    if (mixInField != null) {</span>
+<span class="fc" id="L283">                        getFieldInfo(beanInfo, fieldInfo, mixInSource, mixInField);</span>
+                    }
+                }
+            }
+
+<span class="fc" id="L288">            Class fieldClassMixInSource = provider.mixInCache.get(field.getType());</span>
+<span class="fc bfc" id="L289" title="All 2 branches covered.">            if (fieldClassMixInSource != null) {</span>
+<span class="fc" id="L290">                fieldInfo.fieldClassMixIn = true;</span>
+            }
+
+<span class="fc" id="L293">            int modifiers = field.getModifiers();</span>
+<span class="fc" id="L294">            boolean isTransient = Modifier.isTransient(modifiers);</span>
+<span class="fc bfc" id="L295" title="All 2 branches covered.">            if (isTransient) {</span>
+<span class="fc" id="L296">                fieldInfo.ignore = true;</span>
+            }
+
+<span class="fc" id="L299">            JSONField jsonField = null;</span>
+<span class="fc" id="L300">            Annotation[] annotations = getAnnotations(field);</span>
+<span class="fc bfc" id="L301" title="All 2 branches covered.">            for (Annotation annotation : annotations) {</span>
+<span class="fc" id="L302">                Class&lt;? extends Annotation&gt; annotationType = annotation.annotationType();</span>
+<span class="fc bfc" id="L303" title="All 2 branches covered.">                if (jsonField == null) {</span>
+<span class="fc" id="L304">                    jsonField = findAnnotation(annotation, JSONField.class);</span>
+<span class="fc bfc" id="L305" title="All 2 branches covered.">                    if (jsonField == annotation) {</span>
+<span class="fc" id="L306">                        continue;</span>
+                    }
+                }
+
+<span class="fc" id="L310">                String annotationTypeName = annotationType.getName();</span>
+<span class="fc" id="L311">                boolean useJacksonAnnotation = JSONFactory.isUseJacksonAnnotation();</span>
+<span class="pc bpc" id="L312" title="3 of 13 branches missed.">                switch (annotationTypeName) {</span>
+                    case &quot;com.fasterxml.jackson.annotation.JsonIgnore&quot;:
+<span class="pc bpc" id="L314" title="1 of 2 branches missed.">                        if (useJacksonAnnotation) {</span>
+<span class="fc" id="L315">                            processJacksonJsonIgnore(fieldInfo, annotation);</span>
+                        }
+                        break;
+                    case &quot;com.fasterxml.jackson.annotation.JsonAnyGetter&quot;:
+<span class="nc bnc" id="L319" title="All 2 branches missed.">                        if (useJacksonAnnotation) {</span>
+<span class="nc" id="L320">                            fieldInfo.features |= FieldInfo.UNWRAPPED_MASK;</span>
+                        }
+                        break;
+                    case &quot;com.fasterxml.jackson.annotation.JsonValue&quot;:
+<span class="pc bpc" id="L324" title="1 of 2 branches missed.">                        if (useJacksonAnnotation) {</span>
+<span class="fc" id="L325">                            fieldInfo.features |= FieldInfo.VALUE_MASK;</span>
+                        }
+                        break;
+                    case &quot;com.fasterxml.jackson.annotation.JsonRawValue&quot;:
+<span class="pc bpc" id="L329" title="1 of 2 branches missed.">                        if (useJacksonAnnotation) {</span>
+<span class="fc" id="L330">                            fieldInfo.features |= FieldInfo.RAW_VALUE_MASK;</span>
+                        }
+                        break;
+                    case &quot;com.alibaba.fastjson.annotation.JSONField&quot;:
+<span class="fc" id="L334">                        processJSONField1x(fieldInfo, annotation);</span>
+<span class="fc" id="L335">                        break;</span>
+                    case &quot;com.fasterxml.jackson.annotation.JsonProperty&quot;:
+<span class="pc bpc" id="L337" title="1 of 2 branches missed.">                        if (useJacksonAnnotation) {</span>
+<span class="fc" id="L338">                            processJacksonJsonProperty(fieldInfo, annotation);</span>
+                        }
+                        break;
+                    case &quot;com.fasterxml.jackson.annotation.JsonFormat&quot;:
+<span class="pc bpc" id="L342" title="1 of 2 branches missed.">                        if (useJacksonAnnotation) {</span>
+<span class="fc" id="L343">                            processJacksonJsonFormat(fieldInfo, annotation);</span>
+                        }
+                        break;
+                    case &quot;com.fasterxml.jackson.annotation.JsonInclude&quot;:
+<span class="nc bnc" id="L347" title="All 2 branches missed.">                        if (useJacksonAnnotation) {</span>
+<span class="nc" id="L348">                            processJacksonJsonInclude(beanInfo, annotation);</span>
+                        }
+                        break;
+                    case &quot;com.fasterxml.jackson.databind.annotation.JsonSerialize&quot;:
+<span class="nc bnc" id="L352" title="All 2 branches missed.">                        if (useJacksonAnnotation) {</span>
+<span class="nc" id="L353">                            processJacksonJsonSerialize(fieldInfo, annotation);</span>
+                        }
+                        break;
+                    case &quot;com.google.gson.annotations.SerializedName&quot;:
+<span class="pc bpc" id="L357" title="1 of 2 branches missed.">                        if (JSONFactory.isUseGsonAnnotation()) {</span>
+<span class="fc" id="L358">                            processGsonSerializedName(fieldInfo, annotation);</span>
+                        }
+                        break;
+                    case &quot;com.fasterxml.jackson.annotation.JsonManagedReference&quot;:
+<span class="pc bpc" id="L362" title="1 of 2 branches missed.">                        if (useJacksonAnnotation) {</span>
+<span class="fc" id="L363">                            fieldInfo.features |= JSONWriter.Feature.ReferenceDetection.mask;</span>
+                        }
+                        break;
+                    case &quot;com.fasterxml.jackson.annotation.JsonBackReference&quot;:
+<span class="pc bpc" id="L367" title="1 of 2 branches missed.">                        if (useJacksonAnnotation) {</span>
+<span class="fc" id="L368">                            fieldInfo.features |= FieldInfo.BACKR_EFERENCE;</span>
+                        }
+                        break;
+                    default:
+                        break;
+                }
+            }
+
+<span class="fc bfc" id="L376" title="All 2 branches covered.">            if (jsonField == null) {</span>
+<span class="fc" id="L377">                return;</span>
+            }
+
+<span class="fc" id="L380">            loadFieldInfo(fieldInfo, jsonField);</span>
+
+<span class="fc" id="L382">            Class writeUsing = jsonField.writeUsing();</span>
+<span class="fc bfc" id="L383" title="All 2 branches covered.">            if (ObjectWriter.class.isAssignableFrom(writeUsing)) {</span>
+<span class="fc" id="L384">                fieldInfo.writeUsing = writeUsing;</span>
+            }
+
+<span class="fc" id="L387">            Class serializeUsing = jsonField.serializeUsing();</span>
+<span class="fc bfc" id="L388" title="All 2 branches covered.">            if (ObjectWriter.class.isAssignableFrom(serializeUsing)) {</span>
+<span class="fc" id="L389">                fieldInfo.writeUsing = serializeUsing;</span>
+            }
+
+<span class="fc bfc" id="L392" title="All 2 branches covered.">            if (jsonField.jsonDirect()) {</span>
+<span class="fc" id="L393">                fieldInfo.features |= FieldInfo.RAW_VALUE_MASK;</span>
+            }
+
+<span class="fc bfc" id="L396" title="All 2 branches covered.">            if ((fieldInfo.features &amp; JSONWriter.Feature.WriteNonStringValueAsString.mask) != 0</span>
+<span class="pc bpc" id="L397" title="2 of 4 branches missed.">                    &amp;&amp; !String.class.equals(field.getType())</span>
+                    &amp;&amp; fieldInfo.writeUsing == null
+            ) {
+<span class="fc" id="L400">                fieldInfo.writeUsing = ObjectWriterImplToString.class;</span>
+            }
+<span class="fc" id="L402">        }</span>
+
+        private void processJacksonJsonSubTypes(BeanInfo beanInfo, Annotation annotation) {
+<span class="fc" id="L405">            Class&lt;? extends Annotation&gt; annotationClass = annotation.getClass();</span>
+<span class="fc" id="L406">            BeanUtils.annotationMethods(annotationClass, m -&gt; {</span>
+<span class="fc" id="L407">                String name = m.getName();</span>
+                try {
+<span class="fc" id="L409">                    Object result = m.invoke(annotation);</span>
+<span class="fc bfc" id="L410" title="All 2 branches covered.">                    if (&quot;value&quot;.equals(name)) {</span>
+<span class="fc" id="L411">                        Annotation[] value = (Annotation[]) result;</span>
+<span class="pc bpc" id="L412" title="1 of 2 branches missed.">                        if (value.length != 0) {</span>
+<span class="fc" id="L413">                            beanInfo.seeAlso = new Class[value.length];</span>
+<span class="fc" id="L414">                            beanInfo.seeAlsoNames = new String[value.length];</span>
+<span class="fc bfc" id="L415" title="All 2 branches covered.">                            for (int i = 0; i &lt; value.length; i++) {</span>
+<span class="fc" id="L416">                                Annotation item = value[i];</span>
+<span class="fc" id="L417">                                processJacksonJsonSubTypesType(beanInfo, i, item);</span>
+                            }
+                        }
+                    }
+<span class="nc" id="L421">                } catch (Throwable ignored) {</span>
+                    // ignored
+<span class="fc" id="L423">                }</span>
+<span class="fc" id="L424">            });</span>
+<span class="fc" id="L425">        }</span>
+
+        private void processJacksonJsonSerialize(BeanInfo beanInfo, Annotation annotation) {
+<span class="fc" id="L428">            Class&lt;? extends Annotation&gt; annotationClass = annotation.getClass();</span>
+<span class="fc" id="L429">            BeanUtils.annotationMethods(annotationClass, m -&gt; {</span>
+<span class="fc" id="L430">                String name = m.getName();</span>
+                try {
+<span class="fc" id="L432">                    Object result = m.invoke(annotation);</span>
+<span class="fc bfc" id="L433" title="All 3 branches covered.">                    switch (name) {</span>
+                        case &quot;using&quot;: {
+<span class="fc" id="L435">                            Class using = processUsing((Class) result);</span>
+<span class="pc bpc" id="L436" title="1 of 2 branches missed.">                            if (using != null) {</span>
+<span class="nc" id="L437">                                beanInfo.serializer = using;</span>
+                            }
+                            break;
+                        }
+                        case &quot;keyUsing&quot;:
+<span class="fc" id="L442">                            Class keyUsing = processUsing((Class) result);</span>
+<span class="pc bpc" id="L443" title="1 of 2 branches missed.">                            if (keyUsing != null) {</span>
+<span class="nc" id="L444">                                beanInfo.serializer = keyUsing;</span>
+                            }
+                            break;
+                        default:
+                            break;
+                    }
+<span class="nc" id="L450">                } catch (Throwable ignored) {</span>
+                    // ignored
+<span class="fc" id="L452">                }</span>
+<span class="fc" id="L453">            });</span>
+<span class="fc" id="L454">        }</span>
+
+        private Class processUsing(Class result) {
+<span class="fc" id="L457">            String usingName = result.getName();</span>
+<span class="fc" id="L458">            String noneClassName1 = &quot;com.fasterxml.jackson.databind.JsonSerializer$None&quot;;</span>
+<span class="fc bfc" id="L459" title="All 2 branches covered.">            if (!noneClassName1.equals(usingName)</span>
+<span class="pc bpc" id="L460" title="1 of 2 branches missed.">                    &amp;&amp; ObjectWriter.class.isAssignableFrom(result)</span>
+            ) {
+<span class="nc" id="L462">                return result;</span>
+            }
+
+<span class="pc bpc" id="L465" title="1 of 2 branches missed.">            if (&quot;com.fasterxml.jackson.databind.ser.std.ToStringSerializer&quot;.equals(usingName)) {</span>
+<span class="nc" id="L466">                return ObjectWriterImplToString.class;</span>
+            }
+<span class="fc" id="L468">            return null;</span>
+        }
+
+        private void processJacksonJsonTypeInfo(BeanInfo beanInfo, Annotation annotation) {
+<span class="fc" id="L472">            Class&lt;? extends Annotation&gt; annotationClass = annotation.getClass();</span>
+<span class="fc" id="L473">            BeanUtils.annotationMethods(annotationClass, m -&gt; {</span>
+<span class="fc" id="L474">                String name = m.getName();</span>
+                try {
+<span class="fc" id="L476">                    Object result = m.invoke(annotation);</span>
+<span class="fc bfc" id="L477" title="All 2 branches covered.">                    if (&quot;property&quot;.equals(name)) {</span>
+<span class="fc" id="L478">                        String value = (String) result;</span>
+<span class="pc bpc" id="L479" title="1 of 2 branches missed.">                        if (!value.isEmpty()) {</span>
+<span class="fc" id="L480">                            beanInfo.typeKey = value;</span>
+<span class="fc" id="L481">                            beanInfo.writerFeatures |= JSONWriter.Feature.WriteClassName.mask;</span>
+                        }
+                    }
+<span class="nc" id="L484">                } catch (Throwable ignored) {</span>
+                    // ignored
+<span class="fc" id="L486">                }</span>
+<span class="fc" id="L487">            });</span>
+<span class="fc" id="L488">        }</span>
+
+        private void processJacksonJsonPropertyOrder(BeanInfo beanInfo, Annotation annotation) {
+<span class="fc" id="L491">            Class&lt;? extends Annotation&gt; annotationClass = annotation.getClass();</span>
+<span class="fc" id="L492">            final AtomicBoolean alphabetic = new AtomicBoolean(false);</span>
+<span class="fc" id="L493">            BeanUtils.annotationMethods(annotationClass, m -&gt; {</span>
+<span class="fc" id="L494">                String name = m.getName();</span>
+                try {
+<span class="fc" id="L496">                    Object result = m.invoke(annotation);</span>
+<span class="fc bfc" id="L497" title="All 2 branches covered.">                    if (&quot;value&quot;.equals(name)) {</span>
+<span class="fc" id="L498">                        String[] value = (String[]) result;</span>
+<span class="pc bpc" id="L499" title="1 of 2 branches missed.">                        if (value.length != 0) {</span>
+<span class="fc" id="L500">                            beanInfo.orders = value;</span>
+                        }
+<span class="pc bpc" id="L502" title="1 of 2 branches missed.">                    } else if (&quot;alphabetic&quot;.equals(name)) {</span>
+<span class="fc" id="L503">                        alphabetic.set((Boolean) result);</span>
+                    }
+<span class="nc" id="L505">                } catch (Throwable ignored) {</span>
+                    // ignored
+<span class="fc" id="L507">                }</span>
+<span class="fc" id="L508">            });</span>
+<span class="pc bpc" id="L509" title="2 of 4 branches missed.">            if (beanInfo.orders == null || beanInfo.orders.length == 0) {</span>
+<span class="nc" id="L510">                beanInfo.alphabetic = alphabetic.get();</span>
+            }
+<span class="fc" id="L512">        }</span>
+
+        private void processJacksonJsonSerialize(FieldInfo fieldInfo, Annotation annotation) {
+<span class="nc" id="L515">            Class&lt;? extends Annotation&gt; annotationClass = annotation.getClass();</span>
+<span class="nc" id="L516">            BeanUtils.annotationMethods(annotationClass, m -&gt; {</span>
+<span class="nc" id="L517">                String name = m.getName();</span>
+                try {
+<span class="nc" id="L519">                    Object result = m.invoke(annotation);</span>
+<span class="nc bnc" id="L520" title="All 4 branches missed.">                    switch (name) {</span>
+                        case &quot;using&quot;:
+<span class="nc" id="L522">                            Class using = processUsing((Class) result);</span>
+<span class="nc bnc" id="L523" title="All 2 branches missed.">                            if (using != null) {</span>
+<span class="nc" id="L524">                                fieldInfo.writeUsing = using;</span>
+                            }
+                            break;
+                        case &quot;keyUsing&quot;:
+<span class="nc" id="L528">                            Class keyUsing = processUsing((Class) result);</span>
+<span class="nc bnc" id="L529" title="All 2 branches missed.">                            if (keyUsing != null) {</span>
+<span class="nc" id="L530">                                fieldInfo.keyUsing = keyUsing;</span>
+                            }
+                            break;
+                        case &quot;valueUsing&quot;:
+<span class="nc" id="L534">                            Class valueUsing = processUsing((Class) result);</span>
+<span class="nc bnc" id="L535" title="All 2 branches missed.">                            if (valueUsing != null) {</span>
+<span class="nc" id="L536">                                fieldInfo.valueUsing = valueUsing;</span>
+                            }
+                            break;
+                        default:
+                            break;
+                    }
+<span class="nc" id="L542">                } catch (Throwable ignored) {</span>
+                    // ignored
+<span class="nc" id="L544">                }</span>
+<span class="nc" id="L545">            });</span>
+<span class="nc" id="L546">        }</span>
+
+        private void processJacksonJsonProperty(FieldInfo fieldInfo, Annotation annotation) {
+<span class="fc" id="L549">            Class&lt;? extends Annotation&gt; annotationClass = annotation.getClass();</span>
+<span class="fc" id="L550">            BeanUtils.annotationMethods(annotationClass, m -&gt; {</span>
+<span class="fc" id="L551">                String name = m.getName();</span>
+                try {
+<span class="fc" id="L553">                    Object result = m.invoke(annotation);</span>
+<span class="fc bfc" id="L554" title="All 4 branches covered.">                    switch (name) {</span>
+                        case &quot;value&quot;:
+<span class="fc" id="L556">                            String value = (String) result;</span>
+<span class="fc bfc" id="L557" title="All 4 branches covered.">                            if (!value.isEmpty()</span>
+<span class="pc bpc" id="L558" title="1 of 2 branches missed.">                                    &amp;&amp; (fieldInfo.fieldName == null || fieldInfo.fieldName.isEmpty())</span>
+                            ) {
+<span class="fc" id="L560">                                fieldInfo.fieldName = value;</span>
+                            }
+                            break;
+                        case &quot;access&quot;: {
+<span class="fc" id="L564">                            String access = ((Enum) result).name();</span>
+<span class="fc" id="L565">                            fieldInfo.ignore = &quot;WRITE_ONLY&quot;.equals(access);</span>
+<span class="fc" id="L566">                            break;</span>
+                        }
+                        case &quot;index&quot;: {
+<span class="fc" id="L569">                            int index = (Integer) result;</span>
+<span class="fc bfc" id="L570" title="All 2 branches covered.">                            if (index != -1) {</span>
+<span class="fc" id="L571">                                fieldInfo.ordinal = index;</span>
+                            }
+                            break;
+                        }
+                        default:
+                            break;
+                    }
+<span class="nc" id="L578">                } catch (Throwable ignored) {</span>
+                    // ignored
+<span class="fc" id="L580">                }</span>
+<span class="fc" id="L581">            });</span>
+<span class="fc" id="L582">        }</span>
+
+        private void processJacksonJsonIgnoreProperties(BeanInfo beanInfo, Annotation annotation) {
+<span class="fc" id="L585">            Class&lt;? extends Annotation&gt; annotationClass = annotation.getClass();</span>
+<span class="fc" id="L586">            BeanUtils.annotationMethods(annotationClass, m -&gt; {</span>
+<span class="fc" id="L587">                String name = m.getName();</span>
+                try {
+<span class="fc" id="L589">                    Object result = m.invoke(annotation);</span>
+<span class="fc bfc" id="L590" title="All 2 branches covered.">                    if (&quot;value&quot;.equals(name)) {</span>
+<span class="fc" id="L591">                        String[] value = (String[]) result;</span>
+<span class="fc bfc" id="L592" title="All 2 branches covered.">                        if (value.length != 0) {</span>
+<span class="fc" id="L593">                            beanInfo.ignores = value;</span>
+                        }
+                    }
+<span class="nc" id="L596">                } catch (Throwable ignored) {</span>
+                    // ignored
+<span class="fc" id="L598">                }</span>
+<span class="fc" id="L599">            });</span>
+<span class="fc" id="L600">        }</span>
+
+        private void processJSONField1x(FieldInfo fieldInfo, Annotation annotation) {
+<span class="fc" id="L603">            Class&lt;? extends Annotation&gt; annotationClass = annotation.getClass();</span>
+<span class="fc" id="L604">            BeanUtils.annotationMethods(annotationClass, m -&gt; {</span>
+<span class="fc" id="L605">                String name = m.getName();</span>
+                try {
+<span class="fc" id="L607">                    Object result = m.invoke(annotation);</span>
+<span class="fc bfc" id="L608" title="All 11 branches covered.">                    switch (name) {</span>
+                        case &quot;name&quot;: {
+<span class="fc" id="L610">                            String value = (String) result;</span>
+<span class="fc bfc" id="L611" title="All 2 branches covered.">                            if (!value.isEmpty()) {</span>
+<span class="fc" id="L612">                                fieldInfo.fieldName = value;</span>
+                            }
+                            break;
+                        }
+                        case &quot;format&quot;: {
+<span class="fc" id="L617">                            loadJsonFieldFormat(fieldInfo, (String) result);</span>
+<span class="fc" id="L618">                            break;</span>
+                        }
+                        case &quot;label&quot;: {
+<span class="fc" id="L621">                            String value = (String) result;</span>
+<span class="fc bfc" id="L622" title="All 2 branches covered.">                            if (!value.isEmpty()) {</span>
+<span class="fc" id="L623">                                fieldInfo.label = value;</span>
+                            }
+                            break;
+                        }
+                        case &quot;defaultValue&quot;: {
+<span class="fc" id="L628">                            String value = (String) result;</span>
+<span class="pc bpc" id="L629" title="1 of 2 branches missed.">                            if (!value.isEmpty()) {</span>
+<span class="nc" id="L630">                                fieldInfo.defaultValue = value;</span>
+                            }
+                            break;
+                        }
+                        case &quot;ordinal&quot;: {
+<span class="fc" id="L635">                            int ordinal = (Integer) result;</span>
+<span class="fc bfc" id="L636" title="All 2 branches covered.">                            if (ordinal != 0) {</span>
+<span class="fc" id="L637">                                fieldInfo.ordinal = ordinal;</span>
+                            }
+                            break;
+                        }
+                        case &quot;serialize&quot;: {
+<span class="fc" id="L642">                            boolean serialize = (Boolean) result;</span>
+<span class="fc bfc" id="L643" title="All 2 branches covered.">                            if (!serialize) {</span>
+<span class="fc" id="L644">                                fieldInfo.ignore = true;</span>
+                            }
+                            break;
+                        }
+                        case &quot;unwrapped&quot;: {
+<span class="fc bfc" id="L649" title="All 2 branches covered.">                            if ((Boolean) result) {</span>
+<span class="fc" id="L650">                                fieldInfo.features |= FieldInfo.UNWRAPPED_MASK;</span>
+                            }
+                            break;
+                        }
+                        case &quot;serialzeFeatures&quot;: {
+<span class="fc" id="L655">                            Enum[] features = (Enum[]) result;</span>
+<span class="fc" id="L656">                            applyFeatures(fieldInfo, features);</span>
+<span class="fc" id="L657">                            break;</span>
+                        }
+                        case &quot;serializeUsing&quot;: {
+<span class="fc" id="L660">                            Class writeUsing = (Class) result;</span>
+<span class="pc bpc" id="L661" title="1 of 2 branches missed.">                            if (ObjectWriter.class.isAssignableFrom(writeUsing)) {</span>
+<span class="nc" id="L662">                                fieldInfo.writeUsing = writeUsing;</span>
+                            }
+                            break;
+                        }
+                        case &quot;jsonDirect&quot;: {
+<span class="fc" id="L667">                            Boolean jsonDirect = (Boolean) result;</span>
+<span class="fc bfc" id="L668" title="All 2 branches covered.">                            if (jsonDirect) {</span>
+<span class="fc" id="L669">                                fieldInfo.features |= FieldInfo.RAW_VALUE_MASK;</span>
+                            }
+                            break;
+                        }
+                        default:
+                            break;
+                    }
+<span class="nc" id="L676">                } catch (Throwable ignored) {</span>
+                    // ignored
+<span class="fc" id="L678">                }</span>
+<span class="fc" id="L679">            });</span>
+<span class="fc" id="L680">        }</span>
+
+        private void applyFeatures(FieldInfo fieldInfo, Enum[] features) {
+<span class="fc bfc" id="L683" title="All 2 branches covered.">            for (Enum feature : features) {</span>
+<span class="pc bpc" id="L684" title="12 of 14 branches missed.">                switch (feature.name()) {</span>
+                    case &quot;UseISO8601DateFormat&quot;:
+<span class="nc" id="L686">                        fieldInfo.format = &quot;iso8601&quot;;</span>
+<span class="nc" id="L687">                        break;</span>
+                    case &quot;WriteMapNullValue&quot;:
+<span class="nc" id="L689">                        fieldInfo.features |= JSONWriter.Feature.WriteNulls.mask;</span>
+<span class="nc" id="L690">                        break;</span>
+                    case &quot;WriteNullListAsEmpty&quot;:
+<span class="nc" id="L692">                        fieldInfo.features |= JSONWriter.Feature.WriteNullListAsEmpty.mask;</span>
+<span class="nc" id="L693">                        break;</span>
+                    case &quot;WriteNullStringAsEmpty&quot;:
+<span class="nc" id="L695">                        fieldInfo.features |= JSONWriter.Feature.WriteNullStringAsEmpty.mask;</span>
+<span class="nc" id="L696">                        break;</span>
+                    case &quot;WriteNullNumberAsZero&quot;:
+<span class="nc" id="L698">                        fieldInfo.features |= JSONWriter.Feature.WriteNullNumberAsZero.mask;</span>
+<span class="nc" id="L699">                        break;</span>
+                    case &quot;WriteNullBooleanAsFalse&quot;:
+<span class="nc" id="L701">                        fieldInfo.features |= JSONWriter.Feature.WriteNullBooleanAsFalse.mask;</span>
+<span class="nc" id="L702">                        break;</span>
+                    case &quot;BrowserCompatible&quot;:
+<span class="fc" id="L704">                        fieldInfo.features |= JSONWriter.Feature.BrowserCompatible.mask;</span>
+<span class="fc" id="L705">                        break;</span>
+                    case &quot;WriteClassName&quot;:
+<span class="nc" id="L707">                        fieldInfo.features |= JSONWriter.Feature.WriteClassName.mask;</span>
+<span class="nc" id="L708">                        break;</span>
+                    case &quot;WriteNonStringValueAsString&quot;:
+<span class="nc" id="L710">                        fieldInfo.features |= JSONWriter.Feature.WriteNonStringValueAsString.mask;</span>
+<span class="nc" id="L711">                        break;</span>
+                    case &quot;WriteEnumUsingToString&quot;:
+<span class="nc" id="L713">                        fieldInfo.features |= JSONWriter.Feature.WriteEnumUsingToString.mask;</span>
+<span class="nc" id="L714">                        break;</span>
+                    case &quot;NotWriteRootClassName&quot;:
+<span class="nc" id="L716">                        fieldInfo.features |= JSONWriter.Feature.NotWriteRootClassName.mask;</span>
+<span class="nc" id="L717">                        break;</span>
+                    case &quot;IgnoreErrorGetter&quot;:
+<span class="nc" id="L719">                        fieldInfo.features |= JSONWriter.Feature.IgnoreErrorGetter.mask;</span>
+<span class="nc" id="L720">                        break;</span>
+                    case &quot;WriteBigDecimalAsPlain&quot;:
+<span class="nc" id="L722">                        fieldInfo.features |= JSONWriter.Feature.WriteBigDecimalAsPlain.mask;</span>
+<span class="nc" id="L723">                        break;</span>
+                    default:
+                        break;
+                }
+            }
+<span class="fc" id="L728">        }</span>
+
+        @Override
+        public void getFieldInfo(BeanInfo beanInfo, FieldInfo fieldInfo, Class objectClass, Method method) {
+<span class="fc" id="L732">            Class mixInSource = provider.mixInCache.get(objectClass);</span>
+<span class="fc" id="L733">            String methodName = method.getName();</span>
+
+<span class="fc bfc" id="L735" title="All 2 branches covered.">            if (&quot;getTargetSql&quot;.equals(methodName)) {</span>
+<span class="pc bpc" id="L736" title="1 of 2 branches missed.">                if (objectClass != null</span>
+<span class="pc bpc" id="L737" title="1 of 2 branches missed.">                        &amp;&amp; objectClass.getName().startsWith(&quot;com.baomidou.mybatisplus.&quot;)</span>
+                ) {
+<span class="fc" id="L739">                    fieldInfo.features |= JSONWriter.Feature.IgnoreErrorGetter.mask;</span>
+                }
+            }
+
+<span class="pc bpc" id="L743" title="1 of 4 branches missed.">            if (mixInSource != null &amp;&amp; mixInSource != objectClass) {</span>
+<span class="fc" id="L744">                Method mixInMethod = null;</span>
+                try {
+<span class="fc" id="L746">                    mixInMethod = mixInSource.getDeclaredMethod(methodName, method.getParameterTypes());</span>
+<span class="fc" id="L747">                } catch (Exception ignored) {</span>
+<span class="fc" id="L748">                }</span>
+
+<span class="fc bfc" id="L750" title="All 2 branches covered.">                if (mixInMethod != null) {</span>
+<span class="fc" id="L751">                    getFieldInfo(beanInfo, fieldInfo, mixInSource, mixInMethod);</span>
+                }
+            }
+
+<span class="fc" id="L755">            Class fieldClassMixInSource = provider.mixInCache.get(method.getReturnType());</span>
+<span class="fc bfc" id="L756" title="All 2 branches covered.">            if (fieldClassMixInSource != null) {</span>
+<span class="fc" id="L757">                fieldInfo.fieldClassMixIn = true;</span>
+            }
+
+<span class="pc bpc" id="L760" title="1 of 4 branches missed.">            if (JDKUtils.CLASS_TRANSIENT != null &amp;&amp; method.getAnnotation(JDKUtils.CLASS_TRANSIENT) != null) {</span>
+<span class="fc" id="L761">                fieldInfo.ignore = true;</span>
+            }
+
+<span class="pc bpc" id="L764" title="1 of 2 branches missed.">            if (objectClass != null) {</span>
+<span class="fc" id="L765">                Class superclass = objectClass.getSuperclass();</span>
+<span class="fc" id="L766">                Method supperMethod = BeanUtils.getMethod(superclass, method);</span>
+<span class="fc" id="L767">                boolean ignore = fieldInfo.ignore;</span>
+<span class="fc bfc" id="L768" title="All 2 branches covered.">                if (supperMethod != null) {</span>
+<span class="fc" id="L769">                    getFieldInfo(beanInfo, fieldInfo, superclass, supperMethod);</span>
+<span class="fc" id="L770">                    int supperMethodModifiers = supperMethod.getModifiers();</span>
+<span class="fc bfc" id="L771" title="All 2 branches covered.">                    if (ignore != fieldInfo.ignore</span>
+<span class="fc bfc" id="L772" title="All 2 branches covered.">                            &amp;&amp; !Modifier.isAbstract(supperMethodModifiers)</span>
+<span class="fc bfc" id="L773" title="All 2 branches covered.">                            &amp;&amp; !supperMethod.equals(method)</span>
+                    ) {
+<span class="fc" id="L775">                        fieldInfo.ignore = ignore;</span>
+                    }
+                }
+
+<span class="fc" id="L779">                Class[] interfaces = objectClass.getInterfaces();</span>
+<span class="fc bfc" id="L780" title="All 2 branches covered.">                for (Class anInterface : interfaces) {</span>
+<span class="fc" id="L781">                    Method interfaceMethod = BeanUtils.getMethod(anInterface, method);</span>
+<span class="fc bfc" id="L782" title="All 2 branches covered.">                    if (interfaceMethod != null) {</span>
+<span class="fc" id="L783">                        getFieldInfo(beanInfo, fieldInfo, superclass, interfaceMethod);</span>
+                    }
+                }
+            }
+
+<span class="fc" id="L788">            Annotation[] annotations = getAnnotations(method);</span>
+<span class="fc" id="L789">            processAnnotations(fieldInfo, annotations);</span>
+
+<span class="pc bpc" id="L791" title="1 of 4 branches missed.">            if (!objectClass.getName().startsWith(&quot;java.lang&quot;) &amp;&amp; !BeanUtils.isRecord(objectClass)) {</span>
+<span class="fc" id="L792">                Field methodField = getField(objectClass, method);</span>
+<span class="fc bfc" id="L793" title="All 2 branches covered.">                if (methodField != null) {</span>
+<span class="fc" id="L794">                    fieldInfo.features |= FieldInfo.FIELD_MASK;</span>
+<span class="fc" id="L795">                    getFieldInfo(beanInfo, fieldInfo, objectClass, methodField);</span>
+                }
+            }
+
+<span class="pc bpc" id="L799" title="1 of 6 branches missed.">            if (beanInfo.kotlin</span>
+                    &amp;&amp; beanInfo.creatorConstructor != null
+                    &amp;&amp; beanInfo.createParameterNames != null
+            ) {
+<span class="fc" id="L803">                String fieldName = BeanUtils.getterName(method, beanInfo.kotlin, null);</span>
+<span class="fc bfc" id="L804" title="All 2 branches covered.">                for (int i = 0; i &lt; beanInfo.createParameterNames.length; i++) {</span>
+<span class="fc bfc" id="L805" title="All 2 branches covered.">                    if (fieldName.equals(beanInfo.createParameterNames[i])) {</span>
+<span class="fc" id="L806">                        Annotation[][] creatorConsParamAnnotations</span>
+<span class="fc" id="L807">                                = beanInfo.creatorConstructor.getParameterAnnotations();</span>
+<span class="pc bpc" id="L808" title="1 of 2 branches missed.">                        if (i &lt; creatorConsParamAnnotations.length) {</span>
+<span class="fc" id="L809">                            Annotation[] parameterAnnotations = creatorConsParamAnnotations[i];</span>
+<span class="fc" id="L810">                            processAnnotations(fieldInfo, parameterAnnotations);</span>
+<span class="fc" id="L811">                            break;</span>
+                        }
+                    }
+                }
+            }
+<span class="fc" id="L816">        }</span>
+
+        private void processAnnotations(FieldInfo fieldInfo, Annotation[] annotations) {
+<span class="fc bfc" id="L819" title="All 2 branches covered.">            for (Annotation annotation : annotations) {</span>
+<span class="fc" id="L820">                Class&lt;? extends Annotation&gt; annotationType = annotation.annotationType();</span>
+<span class="fc" id="L821">                JSONField jsonField = findAnnotation(annotation, JSONField.class);</span>
+<span class="fc bfc" id="L822" title="All 2 branches covered.">                if (Objects.nonNull(jsonField)) {</span>
+<span class="fc" id="L823">                    loadFieldInfo(fieldInfo, jsonField);</span>
+<span class="fc" id="L824">                    continue;</span>
+                }
+
+<span class="fc bfc" id="L827" title="All 2 branches covered.">                if (annotationType == JSONCompiler.class) {</span>
+<span class="fc" id="L828">                    JSONCompiler compiler = (JSONCompiler) annotation;</span>
+<span class="pc bpc" id="L829" title="1 of 2 branches missed.">                    if (compiler.value() == JSONCompiler.CompilerOption.LAMBDA) {</span>
+<span class="fc" id="L830">                        fieldInfo.features |= FieldInfo.JIT;</span>
+                    }
+                }
+
+<span class="fc" id="L834">                boolean useJacksonAnnotation = JSONFactory.isUseJacksonAnnotation();</span>
+<span class="fc" id="L835">                String annotationTypeName = annotationType.getName();</span>
+<span class="pc bpc" id="L836" title="1 of 12 branches missed.">                switch (annotationTypeName) {</span>
+                    case &quot;com.fasterxml.jackson.annotation.JsonIgnore&quot;:
+<span class="pc bpc" id="L838" title="1 of 2 branches missed.">                        if (useJacksonAnnotation) {</span>
+<span class="fc" id="L839">                            processJacksonJsonIgnore(fieldInfo, annotation);</span>
+                        }
+                        break;
+                    case &quot;com.fasterxml.jackson.annotation.JsonAnyGetter&quot;:
+<span class="pc bpc" id="L843" title="1 of 2 branches missed.">                        if (useJacksonAnnotation) {</span>
+<span class="fc" id="L844">                            fieldInfo.features |= FieldInfo.UNWRAPPED_MASK;</span>
+                        }
+                        break;
+                    case &quot;com.alibaba.fastjson.annotation.JSONField&quot;:
+<span class="fc" id="L848">                        processJSONField1x(fieldInfo, annotation);</span>
+<span class="fc" id="L849">                        break;</span>
+                    case &quot;java.beans.Transient&quot;:
+<span class="fc" id="L851">                        fieldInfo.ignore = true;</span>
+<span class="fc" id="L852">                        fieldInfo.isTransient = true;</span>
+<span class="fc" id="L853">                        break;</span>
+                    case &quot;com.fasterxml.jackson.annotation.JsonProperty&quot;: {
+<span class="pc bpc" id="L855" title="1 of 2 branches missed.">                        if (useJacksonAnnotation) {</span>
+<span class="fc" id="L856">                            processJacksonJsonProperty(fieldInfo, annotation);</span>
+                        }
+                        break;
+                    }
+                    case &quot;com.fasterxml.jackson.annotation.JsonFormat&quot;:
+<span class="pc bpc" id="L861" title="1 of 2 branches missed.">                        if (useJacksonAnnotation) {</span>
+<span class="fc" id="L862">                            processJacksonJsonFormat(fieldInfo, annotation);</span>
+                        }
+                        break;
+                    case &quot;com.fasterxml.jackson.annotation.JsonValue&quot;:
+<span class="pc bpc" id="L866" title="1 of 2 branches missed.">                        if (useJacksonAnnotation) {</span>
+<span class="fc" id="L867">                            fieldInfo.features |= FieldInfo.VALUE_MASK;</span>
+                        }
+                        break;
+                    case &quot;com.fasterxml.jackson.annotation.JsonRawValue&quot;:
+<span class="pc bpc" id="L871" title="1 of 2 branches missed.">                        if (useJacksonAnnotation) {</span>
+<span class="fc" id="L872">                            fieldInfo.features |= FieldInfo.RAW_VALUE_MASK;</span>
+                        }
+                        break;
+                    case &quot;com.fasterxml.jackson.databind.annotation.JsonSerialize&quot;:
+<span class="nc bnc" id="L876" title="All 2 branches missed.">                        if (useJacksonAnnotation) {</span>
+<span class="nc" id="L877">                            processJacksonJsonSerialize(fieldInfo, annotation);</span>
+                        }
+                        break;
+                    case &quot;com.fasterxml.jackson.annotation.JsonInclude&quot;:
+<span class="pc bpc" id="L881" title="1 of 2 branches missed.">                        if (useJacksonAnnotation) {</span>
+<span class="fc" id="L882">                            processJacksonJsonInclude(fieldInfo, annotation);</span>
+                        }
+                        break;
+                    case &quot;com.fasterxml.jackson.annotation.JsonUnwrapped&quot;:
+<span class="pc bpc" id="L886" title="1 of 2 branches missed.">                        if (useJacksonAnnotation) {</span>
+<span class="fc" id="L887">                            processJacksonJsonUnwrapped(fieldInfo, annotation);</span>
+                        }
+                        break;
+                    default:
+                        break;
+                }
+            }
+<span class="fc" id="L894">        }</span>
+
+        /**
+         * load {@link JSONField} into {@link FieldInfo} params
+         *
+         * @param fieldInfo Java Field Info
+         * @param jsonField {@link JSONField} JSON Field Info
+         */
+        private void loadFieldInfo(FieldInfo fieldInfo, JSONField jsonField) {
+<span class="fc" id="L903">            String jsonFieldName = jsonField.name();</span>
+<span class="fc bfc" id="L904" title="All 2 branches covered.">            if (!jsonFieldName.isEmpty()) {</span>
+<span class="fc" id="L905">                fieldInfo.fieldName = jsonFieldName;</span>
+            }
+
+<span class="fc" id="L908">            String defaultValue = jsonField.defaultValue();</span>
+<span class="fc bfc" id="L909" title="All 2 branches covered.">            if (!defaultValue.isEmpty()) {</span>
+<span class="fc" id="L910">                fieldInfo.defaultValue = defaultValue;</span>
+            }
+
+<span class="fc" id="L913">            loadJsonFieldFormat(fieldInfo, jsonField.format());</span>
+
+<span class="fc" id="L915">            String label = jsonField.label();</span>
+<span class="fc bfc" id="L916" title="All 2 branches covered.">            if (!label.isEmpty()) {</span>
+<span class="fc" id="L917">                fieldInfo.label = label;</span>
+            }
+
+<span class="fc" id="L920">            String locale = jsonField.locale();</span>
+<span class="fc bfc" id="L921" title="All 2 branches covered.">            if (!locale.isEmpty()) {</span>
+<span class="fc" id="L922">                String[] parts = locale.split(&quot;_&quot;);</span>
+<span class="pc bpc" id="L923" title="1 of 2 branches missed.">                if (parts.length == 2) {</span>
+<span class="fc" id="L924">                    fieldInfo.locale = new Locale(parts[0], parts[1]);</span>
+                }
+            }
+
+<span class="fc bfc" id="L928" title="All 2 branches covered.">            boolean ignore = !jsonField.serialize();</span>
+<span class="fc bfc" id="L929" title="All 2 branches covered.">            if (!fieldInfo.ignore) {</span>
+<span class="fc" id="L930">                fieldInfo.ignore = ignore;</span>
+            }
+
+<span class="fc bfc" id="L933" title="All 2 branches covered.">            if (jsonField.unwrapped()) {</span>
+<span class="fc" id="L934">                fieldInfo.features |= FieldInfo.UNWRAPPED_MASK;</span>
+            }
+
+<span class="fc bfc" id="L937" title="All 2 branches covered.">            for (JSONWriter.Feature feature : jsonField.serializeFeatures()) {</span>
+<span class="fc" id="L938">                fieldInfo.features |= feature.mask;</span>
+<span class="pc bpc" id="L939" title="1 of 6 branches missed.">                if (fieldInfo.ignore &amp;&amp; !ignore &amp;&amp; feature == JSONWriter.Feature.FieldBased) {</span>
+<span class="fc" id="L940">                    fieldInfo.ignore = false;</span>
+                }
+            }
+
+<span class="fc" id="L944">            int ordinal = jsonField.ordinal();</span>
+<span class="fc bfc" id="L945" title="All 2 branches covered.">            if (ordinal != 0) {</span>
+<span class="fc" id="L946">                fieldInfo.ordinal = ordinal;</span>
+            }
+
+<span class="fc bfc" id="L949" title="All 2 branches covered.">            if (jsonField.value()) {</span>
+<span class="fc" id="L950">                fieldInfo.features |= FieldInfo.VALUE_MASK;</span>
+            }
+
+<span class="fc bfc" id="L953" title="All 2 branches covered.">            if (jsonField.jsonDirect()) {</span>
+<span class="fc" id="L954">                fieldInfo.features |= FieldInfo.RAW_VALUE_MASK;</span>
+            }
+
+<span class="fc" id="L957">            Class serializeUsing = jsonField.serializeUsing();</span>
+<span class="fc bfc" id="L958" title="All 2 branches covered.">            if (ObjectWriter.class.isAssignableFrom(serializeUsing)) {</span>
+<span class="fc" id="L959">                fieldInfo.writeUsing = serializeUsing;</span>
+            }
+<span class="fc" id="L961">        }</span>
+
+        /**
+         * load {@link JSONField} format params into FieldInfo
+         *
+         * @param fieldInfo Java Field Info
+         * @param jsonFieldFormat {@link JSONField} format params
+         */
+        private void loadJsonFieldFormat(FieldInfo fieldInfo, String jsonFieldFormat) {
+<span class="fc bfc" id="L970" title="All 2 branches covered.">            if (!jsonFieldFormat.isEmpty()) {</span>
+<span class="fc" id="L971">                jsonFieldFormat = jsonFieldFormat.trim();</span>
+
+<span class="pc bpc" id="L973" title="3 of 4 branches missed.">                if (jsonFieldFormat.indexOf('T') != -1 &amp;&amp; !jsonFieldFormat.contains(&quot;'T'&quot;)) {</span>
+<span class="nc" id="L974">                    jsonFieldFormat = jsonFieldFormat.replaceAll(&quot;T&quot;, &quot;'T'&quot;);</span>
+                }
+
+<span class="pc bpc" id="L977" title="1 of 2 branches missed.">                if (!jsonFieldFormat.isEmpty()) {</span>
+<span class="fc" id="L978">                    fieldInfo.format = jsonFieldFormat;</span>
+                }
+            }
+<span class="fc" id="L981">        }</span>
+    }
+
+    ObjectWriter getExternalObjectWriter(String className, Class objectClass) {
+<span class="fc bfc" id="L985" title="All 8 branches covered.">        switch (className) {</span>
+            case &quot;java.sql.Time&quot;:
+<span class="fc" id="L987">                return JdbcSupport.createTimeWriter(null);</span>
+            case &quot;java.sql.Timestamp&quot;:
+<span class="fc" id="L989">                return JdbcSupport.createTimestampWriter(objectClass, null);</span>
+            case &quot;org.joda.time.chrono.GregorianChronology&quot;:
+<span class="fc" id="L991">                return JodaSupport.createGregorianChronologyWriter(objectClass);</span>
+            case &quot;org.joda.time.chrono.ISOChronology&quot;:
+<span class="fc" id="L993">                return JodaSupport.createISOChronologyWriter(objectClass);</span>
+            case &quot;org.joda.time.LocalDate&quot;:
+<span class="fc" id="L995">                return JodaSupport.createLocalDateWriter(objectClass, null);</span>
+            case &quot;org.joda.time.LocalDateTime&quot;:
+<span class="fc" id="L997">                return JodaSupport.createLocalDateTimeWriter(objectClass, null);</span>
+            case &quot;org.joda.time.DateTime&quot;:
+<span class="fc" id="L999">                return new ObjectWriterImplZonedDateTime(null, null, new JodaSupport.DateTime2ZDT());</span>
+            default:
+<span class="fc bfc" id="L1001" title="All 2 branches covered.">                if (JdbcSupport.isClob(objectClass)) {</span>
+<span class="fc" id="L1002">                    return JdbcSupport.createClobWriter(objectClass);</span>
+                }
+<span class="fc" id="L1004">                return null;</span>
+        }
+    }
+
+    @Override
+    public ObjectWriter getObjectWriter(Type objectType, Class objectClass) {
+<span class="fc bfc" id="L1010" title="All 2 branches covered.">        if (objectType == String.class) {</span>
+<span class="fc" id="L1011">            return ObjectWriterImplString.INSTANCE;</span>
+        }
+
+<span class="pc bpc" id="L1014" title="1 of 2 branches missed.">        if (objectClass == null) {</span>
+<span class="nc bnc" id="L1015" title="All 2 branches missed.">            if (objectType instanceof Class) {</span>
+<span class="nc" id="L1016">                objectClass = (Class) objectType;</span>
+            } else {
+<span class="nc" id="L1018">                objectClass = TypeUtils.getMapping(objectType);</span>
+            }
+        }
+
+<span class="fc" id="L1022">        String className = objectClass.getName();</span>
+<span class="fc" id="L1023">        ObjectWriter externalObjectWriter = getExternalObjectWriter(className, objectClass);</span>
+<span class="fc bfc" id="L1024" title="All 2 branches covered.">        if (externalObjectWriter != null) {</span>
+<span class="fc" id="L1025">            return externalObjectWriter;</span>
+        }
+
+<span class="fc bfc" id="L1028" title="All 11 branches covered.">        switch (className) {</span>
+            case &quot;com.google.common.collect.AbstractMapBasedMultimap$RandomAccessWrappedList&quot;:
+            case &quot;com.google.common.collect.AbstractMapBasedMultimap$WrappedSet&quot;:
+<span class="fc" id="L1031">                return null;</span>
+            case &quot;org.javamoney.moneta.internal.JDKCurrencyAdapter&quot;:
+<span class="fc" id="L1033">                return ObjectWriterImplToString.INSTANCE;</span>
+            case &quot;com.fasterxml.jackson.databind.node.ObjectNode&quot;:
+<span class="fc" id="L1035">                return ObjectWriterImplToString.DIRECT;</span>
+            case &quot;org.javamoney.moneta.Money&quot;:
+<span class="fc" id="L1037">                return MoneySupport.createMonetaryAmountWriter();</span>
+            case &quot;org.javamoney.moneta.spi.DefaultNumberValue&quot;:
+<span class="fc" id="L1039">                return MoneySupport.createNumberValueWriter();</span>
+            case &quot;net.sf.json.JSONNull&quot;:
+            case &quot;java.net.Inet4Address&quot;:
+            case &quot;java.net.Inet6Address&quot;:
+            case &quot;java.net.InetSocketAddress&quot;:
+            case &quot;java.text.SimpleDateFormat&quot;:
+            case &quot;java.util.regex.Pattern&quot;:
+            case &quot;com.fasterxml.jackson.databind.node.ArrayNode&quot;:
+<span class="fc" id="L1047">                return ObjectWriterMisc.INSTANCE;</span>
+            case &quot;org.apache.commons.lang3.tuple.Pair&quot;:
+            case &quot;org.apache.commons.lang3.tuple.MutablePair&quot;:
+            case &quot;org.apache.commons.lang3.tuple.ImmutablePair&quot;:
+<span class="fc" id="L1051">                return new ApacheLang3Support.PairWriter(objectClass);</span>
+            case &quot;com.carrotsearch.hppc.ByteArrayList&quot;:
+            case &quot;com.carrotsearch.hppc.ShortArrayList&quot;:
+            case &quot;com.carrotsearch.hppc.IntArrayList&quot;:
+            case &quot;com.carrotsearch.hppc.IntHashSet&quot;:
+            case &quot;com.carrotsearch.hppc.LongArrayList&quot;:
+            case &quot;com.carrotsearch.hppc.LongHashSet&quot;:
+            case &quot;com.carrotsearch.hppc.CharArrayList&quot;:
+            case &quot;com.carrotsearch.hppc.CharHashSet&quot;:
+            case &quot;com.carrotsearch.hppc.FloatArrayList&quot;:
+            case &quot;com.carrotsearch.hppc.DoubleArrayList&quot;:
+            case &quot;com.carrotsearch.hppc.BitSet&quot;:
+            case &quot;gnu.trove.list.array.TByteArrayList&quot;:
+            case &quot;gnu.trove.list.array.TCharArrayList&quot;:
+            case &quot;gnu.trove.list.array.TShortArrayList&quot;:
+            case &quot;gnu.trove.list.array.TIntArrayList&quot;:
+            case &quot;gnu.trove.list.array.TLongArrayList&quot;:
+            case &quot;gnu.trove.list.array.TFloatArrayList&quot;:
+            case &quot;gnu.trove.list.array.TDoubleArrayList&quot;:
+            case &quot;gnu.trove.set.hash.TByteHashSet&quot;:
+            case &quot;gnu.trove.set.hash.TShortHashSet&quot;:
+            case &quot;gnu.trove.set.hash.TIntHashSet&quot;:
+            case &quot;gnu.trove.set.hash.TLongHashSet&quot;:
+            case &quot;gnu.trove.stack.array.TByteArrayStack&quot;:
+            case &quot;org.bson.types.Decimal128&quot;:
+<span class="fc" id="L1076">                return LambdaMiscCodec.getObjectWriter(objectType, objectClass);</span>
+            case &quot;java.nio.HeapByteBuffer&quot;:
+            case &quot;java.nio.DirectByteBuffer&quot;:
+<span class="fc" id="L1079">                return new ObjectWriterImplInt8ValueArray(</span>
+<span class="fc" id="L1080">                        o -&gt; ((ByteBuffer) o).array()</span>
+                );
+            case &quot;java.awt.Color&quot;:
+                try {
+<span class="fc" id="L1084">                    List&lt;FieldWriter&gt; fieldWriters = Arrays.asList(</span>
+<span class="fc" id="L1085">                            ObjectWriters.fieldWriter(&quot;r&quot;, objectClass.getMethod(&quot;getRed&quot;)),</span>
+<span class="fc" id="L1086">                            ObjectWriters.fieldWriter(&quot;g&quot;, objectClass.getMethod(&quot;getGreen&quot;)),</span>
+<span class="fc" id="L1087">                            ObjectWriters.fieldWriter(&quot;b&quot;, objectClass.getMethod(&quot;getBlue&quot;)),</span>
+<span class="fc" id="L1088">                            ObjectWriters.fieldWriter(&quot;alpha&quot;, objectClass.getMethod(&quot;getAlpha&quot;))</span>
+                    );
+<span class="fc" id="L1090">                    return new ObjectWriter4(objectClass, null, null, 0, fieldWriters);</span>
+<span class="nc" id="L1091">                } catch (NoSuchMethodException e) {</span>
+                    // ignored
+                }
+
+            default:
+                break;
+        }
+
+<span class="fc bfc" id="L1099" title="All 2 branches covered.">        if (objectType instanceof ParameterizedType) {</span>
+<span class="fc" id="L1100">            ParameterizedType parameterizedType = (ParameterizedType) objectType;</span>
+<span class="fc" id="L1101">            Type rawType = parameterizedType.getRawType();</span>
+<span class="fc" id="L1102">            Type[] actualTypeArguments = parameterizedType.getActualTypeArguments();</span>
+
+<span class="pc bpc" id="L1104" title="1 of 4 branches missed.">            if (rawType == List.class || rawType == ArrayList.class) {</span>
+<span class="pc bpc" id="L1105" title="1 of 4 branches missed.">                if (actualTypeArguments.length == 1</span>
+                        &amp;&amp; actualTypeArguments[0] == String.class) {
+<span class="fc" id="L1107">                    return ObjectWriterImplListStr.INSTANCE;</span>
+                }
+
+<span class="fc" id="L1110">                objectType = rawType;</span>
+            }
+
+<span class="fc bfc" id="L1113" title="All 2 branches covered.">            if (Map.class.isAssignableFrom(objectClass)) {</span>
+<span class="fc" id="L1114">                return ObjectWriterImplMap.of(objectType, objectClass);</span>
+            }
+
+<span class="fc bfc" id="L1117" title="All 2 branches covered.">            if (objectClass == Optional.class) {</span>
+<span class="pc bpc" id="L1118" title="1 of 2 branches missed.">                if (actualTypeArguments.length == 1) {</span>
+<span class="fc" id="L1119">                    return new ObjectWriterImplOptional(actualTypeArguments[0], null, null);</span>
+                }
+            }
+        }
+
+<span class="fc bfc" id="L1124" title="All 2 branches covered.">        if (objectType == LinkedList.class) {</span>
+<span class="fc" id="L1125">            return ObjectWriterImplList.INSTANCE;</span>
+        }
+
+<span class="fc bfc" id="L1128" title="All 4 branches covered.">        if (objectType == ArrayList.class</span>
+                || objectType == List.class
+<span class="fc bfc" id="L1130" title="All 2 branches covered.">                || List.class.isAssignableFrom(objectClass)) {</span>
+<span class="fc" id="L1131">            return ObjectWriterImplList.INSTANCE;</span>
+        }
+
+<span class="fc bfc" id="L1134" title="All 2 branches covered.">        if (Collection.class.isAssignableFrom(objectClass)) {</span>
+<span class="fc" id="L1135">            return ObjectWriterImplCollection.INSTANCE;</span>
+        }
+
+<span class="fc bfc" id="L1138" title="All 2 branches covered.">        if (isExtendedMap(objectClass)) {</span>
+<span class="fc" id="L1139">            return null;</span>
+        }
+
+<span class="fc bfc" id="L1142" title="All 2 branches covered.">        if (Map.class.isAssignableFrom(objectClass)) {</span>
+<span class="fc" id="L1143">            return ObjectWriterImplMap.of(objectClass);</span>
+        }
+
+<span class="fc bfc" id="L1146" title="All 2 branches covered.">        if (Map.Entry.class.isAssignableFrom(objectClass)) {</span>
+<span class="fc" id="L1147">            return ObjectWriterImplMapEntry.INSTANCE;</span>
+        }
+
+<span class="fc bfc" id="L1150" title="All 2 branches covered.">        if (java.nio.file.Path.class.isAssignableFrom(objectClass)) {</span>
+<span class="fc" id="L1151">            return ObjectWriterImplToString.INSTANCE;</span>
+        }
+
+<span class="fc bfc" id="L1154" title="All 2 branches covered.">        if (objectType == Integer.class) {</span>
+<span class="fc" id="L1155">            return ObjectWriterImplInt32.INSTANCE;</span>
+        }
+
+<span class="fc bfc" id="L1158" title="All 2 branches covered.">        if (objectType == AtomicInteger.class) {</span>
+<span class="fc" id="L1159">            return ObjectWriterImplAtomicInteger.INSTANCE;</span>
+        }
+
+<span class="fc bfc" id="L1162" title="All 2 branches covered.">        if (objectType == Byte.class) {</span>
+<span class="fc" id="L1163">            return ObjectWriterImplInt8.INSTANCE;</span>
+        }
+
+<span class="fc bfc" id="L1166" title="All 2 branches covered.">        if (objectType == Short.class) {</span>
+<span class="fc" id="L1167">            return ObjectWriterImplInt16.INSTANCE;</span>
+        }
+
+<span class="fc bfc" id="L1170" title="All 2 branches covered.">        if (objectType == Long.class) {</span>
+<span class="fc" id="L1171">            return ObjectWriterImplInt64.INSTANCE;</span>
+        }
+
+<span class="fc bfc" id="L1174" title="All 2 branches covered.">        if (objectType == AtomicLong.class) {</span>
+<span class="fc" id="L1175">            return ObjectWriterImplAtomicLong.INSTANCE;</span>
+        }
+
+<span class="fc bfc" id="L1178" title="All 2 branches covered.">        if (objectType == AtomicReference.class) {</span>
+<span class="fc" id="L1179">            return ObjectWriterImplAtomicReference.INSTANCE;</span>
+        }
+
+<span class="fc bfc" id="L1182" title="All 2 branches covered.">        if (objectType == Float.class) {</span>
+<span class="fc" id="L1183">            return ObjectWriterImplFloat.INSTANCE;</span>
+        }
+
+<span class="fc bfc" id="L1186" title="All 2 branches covered.">        if (objectType == Double.class) {</span>
+<span class="fc" id="L1187">            return ObjectWriterImplDouble.INSTANCE;</span>
+        }
+
+<span class="fc bfc" id="L1190" title="All 2 branches covered.">        if (objectType == BigInteger.class) {</span>
+<span class="fc" id="L1191">            return ObjectWriterBigInteger.INSTANCE;</span>
+        }
+
+<span class="fc bfc" id="L1194" title="All 2 branches covered.">        if (objectType == BigDecimal.class) {</span>
+<span class="fc" id="L1195">            return ObjectWriterImplBigDecimal.INSTANCE;</span>
+        }
+
+<span class="fc bfc" id="L1198" title="All 2 branches covered.">        if (objectType == BitSet.class) {</span>
+<span class="fc" id="L1199">            return ObjectWriterImplBitSet.INSTANCE;</span>
+        }
+
+<span class="fc bfc" id="L1202" title="All 2 branches covered.">        if (objectType == OptionalInt.class) {</span>
+<span class="fc" id="L1203">            return ObjectWriterImplOptionalInt.INSTANCE;</span>
+        }
+
+<span class="fc bfc" id="L1206" title="All 2 branches covered.">        if (objectType == OptionalLong.class) {</span>
+<span class="fc" id="L1207">            return ObjectWriterImplOptionalLong.INSTANCE;</span>
+        }
+
+<span class="fc bfc" id="L1210" title="All 2 branches covered.">        if (objectType == OptionalDouble.class) {</span>
+<span class="fc" id="L1211">            return ObjectWriterImplOptionalDouble.INSTANCE;</span>
+        }
+
+<span class="pc bpc" id="L1214" title="1 of 2 branches missed.">        if (objectType == Optional.class) {</span>
+<span class="nc" id="L1215">            return ObjectWriterImplOptional.INSTANCE;</span>
+        }
+
+<span class="fc bfc" id="L1218" title="All 2 branches covered.">        if (objectType == Boolean.class) {</span>
+<span class="fc" id="L1219">            return ObjectWriterImplBoolean.INSTANCE;</span>
+        }
+
+<span class="fc bfc" id="L1222" title="All 2 branches covered.">        if (objectType == AtomicBoolean.class) {</span>
+<span class="fc" id="L1223">            return ObjectWriterImplAtomicBoolean.INSTANCE;</span>
+        }
+
+<span class="fc bfc" id="L1226" title="All 2 branches covered.">        if (objectType == AtomicIntegerArray.class) {</span>
+<span class="fc" id="L1227">            return ObjectWriterImplAtomicIntegerArray.INSTANCE;</span>
+        }
+
+<span class="fc bfc" id="L1230" title="All 2 branches covered.">        if (objectType == AtomicLongArray.class) {</span>
+<span class="fc" id="L1231">            return ObjectWriterImplAtomicLongArray.INSTANCE;</span>
+        }
+
+<span class="fc bfc" id="L1234" title="All 2 branches covered.">        if (objectType == Character.class) {</span>
+<span class="fc" id="L1235">            return ObjectWriterImplCharacter.INSTANCE;</span>
+        }
+
+<span class="fc bfc" id="L1238" title="All 2 branches covered.">        if (objectType instanceof Class) {</span>
+<span class="fc" id="L1239">            Class clazz = (Class) objectType;</span>
+
+<span class="fc bfc" id="L1241" title="All 2 branches covered.">            if (TimeUnit.class.isAssignableFrom(clazz)) {</span>
+<span class="fc" id="L1242">                return new ObjectWriterImplEnum(null, TimeUnit.class, null, null, 0);</span>
+            }
+
+<span class="fc bfc" id="L1245" title="All 2 branches covered.">            if (Enum.class.isAssignableFrom(clazz)) {</span>
+<span class="fc" id="L1246">                ObjectWriter enumWriter = createEnumWriter(clazz);</span>
+<span class="fc bfc" id="L1247" title="All 2 branches covered.">                if (enumWriter != null) {</span>
+<span class="fc" id="L1248">                    return enumWriter;</span>
+                }
+            }
+
+<span class="fc bfc" id="L1252" title="All 2 branches covered.">            if (JSONPath.class.isAssignableFrom(clazz)) {</span>
+<span class="fc" id="L1253">                return ObjectWriterImplToString.INSTANCE;</span>
+            }
+
+<span class="fc bfc" id="L1256" title="All 2 branches covered.">            if (clazz == boolean[].class) {</span>
+<span class="fc" id="L1257">                return ObjectWriterImplBoolValueArray.INSTANCE;</span>
+            }
+
+<span class="fc bfc" id="L1260" title="All 2 branches covered.">            if (clazz == char[].class) {</span>
+<span class="fc" id="L1261">                return ObjectWriterImplCharValueArray.INSTANCE;</span>
+            }
+
+<span class="fc bfc" id="L1264" title="All 4 branches covered.">            if (clazz == StringBuffer.class || clazz == StringBuilder.class) {</span>
+<span class="fc" id="L1265">                return ObjectWriterImplToString.INSTANCE;</span>
+            }
+
+<span class="fc bfc" id="L1268" title="All 2 branches covered.">            if (clazz == byte[].class) {</span>
+<span class="fc" id="L1269">                return ObjectWriterImplInt8ValueArray.INSTANCE;</span>
+            }
+
+<span class="fc bfc" id="L1272" title="All 2 branches covered.">            if (clazz == short[].class) {</span>
+<span class="fc" id="L1273">                return ObjectWriterImplInt16ValueArray.INSTANCE;</span>
+            }
+
+<span class="fc bfc" id="L1276" title="All 2 branches covered.">            if (clazz == int[].class) {</span>
+<span class="fc" id="L1277">                return ObjectWriterImplInt32ValueArray.INSTANCE;</span>
+            }
+
+<span class="fc bfc" id="L1280" title="All 2 branches covered.">            if (clazz == long[].class) {</span>
+<span class="fc" id="L1281">                return ObjectWriterImplInt64ValueArray.INSTANCE;</span>
+            }
+
+<span class="fc bfc" id="L1284" title="All 2 branches covered.">            if (clazz == float[].class) {</span>
+<span class="fc" id="L1285">                return ObjectWriterImplFloatValueArray.INSTANCE;</span>
+            }
+
+<span class="fc bfc" id="L1288" title="All 2 branches covered.">            if (clazz == double[].class) {</span>
+<span class="fc" id="L1289">                return ObjectWriterImplDoubleValueArray.INSTANCE;</span>
+            }
+
+<span class="fc bfc" id="L1292" title="All 2 branches covered.">            if (clazz == Byte[].class) {</span>
+<span class="fc" id="L1293">                return ObjectWriterImplInt8Array.INSTANCE;</span>
+            }
+
+<span class="fc bfc" id="L1296" title="All 2 branches covered.">            if (clazz == Integer[].class) {</span>
+<span class="fc" id="L1297">                return ObjectWriterImplInt32Array.INSTANCE;</span>
+            }
+
+<span class="fc bfc" id="L1300" title="All 2 branches covered.">            if (clazz == Long[].class) {</span>
+<span class="fc" id="L1301">                return ObjectWriterImplInt64Array.INSTANCE;</span>
+            }
+
+<span class="fc bfc" id="L1304" title="All 2 branches covered.">            if (String[].class == clazz) {</span>
+<span class="fc" id="L1305">                return ObjectWriterImplStringArray.INSTANCE;</span>
+            }
+
+<span class="fc bfc" id="L1308" title="All 2 branches covered.">            if (BigDecimal[].class == clazz) {</span>
+<span class="fc" id="L1309">                return ObjectWriterImpDecimalArray.INSTANCE;</span>
+            }
+
+<span class="fc bfc" id="L1312" title="All 2 branches covered.">            if (Object[].class.isAssignableFrom(clazz)) {</span>
+<span class="fc bfc" id="L1313" title="All 2 branches covered.">                if (clazz == Object[].class) {</span>
+<span class="fc" id="L1314">                    return ObjectWriterArray.INSTANCE;</span>
+                } else {
+<span class="fc" id="L1316">                    Class componentType = clazz.getComponentType();</span>
+<span class="fc bfc" id="L1317" title="All 2 branches covered.">                    if (Modifier.isFinal(componentType.getModifiers())) {</span>
+<span class="fc" id="L1318">                        return new ObjectWriterArrayFinal(componentType, null);</span>
+                    } else {
+<span class="fc" id="L1320">                        return new ObjectWriterArray(componentType);</span>
+                    }
+                }
+            }
+
+<span class="fc bfc" id="L1325" title="All 2 branches covered.">            if (clazz == UUID.class) {</span>
+<span class="fc" id="L1326">                return ObjectWriterImplUUID.INSTANCE;</span>
+            }
+
+<span class="fc bfc" id="L1329" title="All 2 branches covered.">            if (clazz == Locale.class) {</span>
+<span class="fc" id="L1330">                return ObjectWriterImplLocale.INSTANCE;</span>
+            }
+
+<span class="fc bfc" id="L1333" title="All 2 branches covered.">            if (clazz == Currency.class) {</span>
+<span class="fc" id="L1334">                return ObjectWriterImplCurrency.INSTANCE;</span>
+            }
+
+<span class="fc bfc" id="L1337" title="All 2 branches covered.">            if (TimeZone.class.isAssignableFrom(clazz)) {</span>
+<span class="fc" id="L1338">                return ObjectWriterImplTimeZone.INSTANCE;</span>
+            }
+
+<span class="fc bfc" id="L1341" title="All 2 branches covered.">            if (JSONPObject.class.isAssignableFrom(clazz)) {</span>
+<span class="fc" id="L1342">                return new ObjectWriterImplJSONP();</span>
+            }
+
+<span class="fc bfc" id="L1345" title="All 6 branches covered.">            if (clazz == URI.class</span>
+                    || clazz == URL.class
+                    || clazz == File.class
+<span class="fc bfc" id="L1348" title="All 2 branches covered.">                    || ZoneId.class.isAssignableFrom(clazz)</span>
+<span class="pc bpc" id="L1349" title="1 of 2 branches missed.">                    || Charset.class.isAssignableFrom(clazz)) {</span>
+<span class="fc" id="L1350">                return ObjectWriterImplToString.INSTANCE;</span>
+            }
+
+<span class="fc" id="L1353">            externalObjectWriter = getExternalObjectWriter(clazz.getName(), clazz);</span>
+<span class="pc bpc" id="L1354" title="1 of 2 branches missed.">            if (externalObjectWriter != null) {</span>
+<span class="nc" id="L1355">                return externalObjectWriter;</span>
+            }
+
+<span class="fc" id="L1358">            BeanInfo beanInfo = provider.createBeanInfo();</span>
+<span class="fc" id="L1359">            Class mixIn = provider.getMixIn(clazz);</span>
+<span class="fc bfc" id="L1360" title="All 2 branches covered.">            if (mixIn != null) {</span>
+<span class="fc" id="L1361">                annotationProcessor.getBeanInfo(beanInfo, mixIn);</span>
+            }
+
+<span class="fc bfc" id="L1364" title="All 2 branches covered.">            if (Date.class.isAssignableFrom(clazz)) {</span>
+<span class="pc bpc" id="L1365" title="1 of 4 branches missed.">                if (beanInfo.format != null || beanInfo.locale != null) {</span>
+<span class="fc" id="L1366">                    return new ObjectWriterImplDate(beanInfo.format, beanInfo.locale);</span>
+                }
+
+<span class="fc" id="L1369">                return ObjectWriterImplDate.INSTANCE;</span>
+            }
+
+<span class="fc bfc" id="L1372" title="All 2 branches covered.">            if (Calendar.class.isAssignableFrom(clazz)) {</span>
+<span class="pc bpc" id="L1373" title="2 of 4 branches missed.">                if (beanInfo.format != null || beanInfo.locale != null) {</span>
+<span class="nc" id="L1374">                    return new ObjectWriterImplCalendar(beanInfo.format, beanInfo.locale);</span>
+                }
+
+<span class="fc" id="L1377">                return ObjectWriterImplCalendar.INSTANCE;</span>
+            }
+
+<span class="fc bfc" id="L1380" title="All 2 branches covered.">            if (ZonedDateTime.class == clazz) {</span>
+<span class="pc bpc" id="L1381" title="2 of 4 branches missed.">                if (beanInfo.format != null || beanInfo.locale != null) {</span>
+<span class="nc" id="L1382">                    return new ObjectWriterImplZonedDateTime(beanInfo.format, beanInfo.locale);</span>
+                }
+
+<span class="fc" id="L1385">                return ObjectWriterImplZonedDateTime.INSTANCE;</span>
+            }
+
+<span class="fc bfc" id="L1388" title="All 2 branches covered.">            if (OffsetDateTime.class == clazz) {</span>
+<span class="fc" id="L1389">                return ObjectWriterImplOffsetDateTime.of(beanInfo.format, beanInfo.locale);</span>
+            }
+
+<span class="fc bfc" id="L1392" title="All 2 branches covered.">            if (LocalDateTime.class == clazz) {</span>
+<span class="pc bpc" id="L1393" title="1 of 4 branches missed.">                if (beanInfo.format != null || beanInfo.locale != null) {</span>
+<span class="fc" id="L1394">                    return new ObjectWriterImplLocalDateTime(beanInfo.format, beanInfo.locale);</span>
+                }
+
+<span class="fc" id="L1397">                return ObjectWriterImplLocalDateTime.INSTANCE;</span>
+            }
+
+<span class="fc bfc" id="L1400" title="All 2 branches covered.">            if (LocalDate.class == clazz) {</span>
+<span class="fc" id="L1401">                return ObjectWriterImplLocalDate.of(beanInfo.format, beanInfo.locale);</span>
+            }
+
+<span class="fc bfc" id="L1404" title="All 2 branches covered.">            if (LocalTime.class == clazz) {</span>
+<span class="pc bpc" id="L1405" title="1 of 4 branches missed.">                if (beanInfo.format != null || beanInfo.locale != null) {</span>
+<span class="fc" id="L1406">                    return new ObjectWriterImplLocalTime(beanInfo.format, beanInfo.locale);</span>
+                }
+
+<span class="fc" id="L1409">                return ObjectWriterImplLocalTime.INSTANCE;</span>
+            }
+
+<span class="fc bfc" id="L1412" title="All 2 branches covered.">            if (OffsetTime.class == clazz) {</span>
+<span class="pc bpc" id="L1413" title="2 of 4 branches missed.">                if (beanInfo.format != null || beanInfo.locale != null) {</span>
+<span class="nc" id="L1414">                    return new ObjectWriterImplOffsetTime(beanInfo.format, beanInfo.locale);</span>
+                }
+
+<span class="fc" id="L1417">                return ObjectWriterImplOffsetTime.INSTANCE;</span>
+            }
+
+<span class="fc bfc" id="L1420" title="All 2 branches covered.">            if (Instant.class == clazz) {</span>
+<span class="pc bpc" id="L1421" title="2 of 4 branches missed.">                if (beanInfo.format != null || beanInfo.locale != null) {</span>
+<span class="nc" id="L1422">                    return new ObjectWriterImplInstant(beanInfo.format, beanInfo.locale);</span>
+                }
+
+<span class="fc" id="L1425">                return ObjectWriterImplInstant.INSTANCE;</span>
+            }
+
+<span class="fc bfc" id="L1428" title="All 4 branches covered.">            if (Duration.class == clazz || Period.class == clazz) {</span>
+<span class="fc" id="L1429">                return ObjectWriterImplToString.INSTANCE;</span>
+            }
+
+<span class="fc bfc" id="L1432" title="All 2 branches covered.">            if (StackTraceElement.class == clazz) {</span>
+                // return createFieldWriter(null, null, fieldName, 0, 0, null, null, fieldClass, fieldClass, null, function);
+<span class="fc bfc" id="L1434" title="All 2 branches covered.">                if (STACK_TRACE_ELEMENT_WRITER == null) {</span>
+<span class="fc" id="L1435">                    ObjectWriterCreator creator = provider.getCreator();</span>
+<span class="fc" id="L1436">                    STACK_TRACE_ELEMENT_WRITER = new ObjectWriterAdapter(</span>
+                            StackTraceElement.class,
+                            null,
+                            null,
+                            0,
+<span class="fc" id="L1441">                            Arrays.asList(</span>
+<span class="fc" id="L1442">                                    creator.createFieldWriter(</span>
+                                            &quot;fileName&quot;,
+                                            String.class,
+<span class="fc" id="L1445">                                            BeanUtils.getDeclaredField(StackTraceElement.class, &quot;fileName&quot;),</span>
+<span class="fc" id="L1446">                                            BeanUtils.getMethod(StackTraceElement.class, &quot;getFileName&quot;),</span>
+                                            StackTraceElement::getFileName
+                                    ),
+<span class="fc" id="L1449">                                    creator.createFieldWriter(</span>
+                                            &quot;lineNumber&quot;,
+<span class="fc" id="L1451">                                            BeanUtils.getDeclaredField(StackTraceElement.class, &quot;lineNumber&quot;),</span>
+<span class="fc" id="L1452">                                            BeanUtils.getMethod(StackTraceElement.class, &quot;getLineNumber&quot;),</span>
+                                            StackTraceElement::getLineNumber
+                                    ),
+<span class="fc" id="L1455">                                    creator.createFieldWriter(</span>
+                                            &quot;className&quot;,
+                                            String.class,
+<span class="fc" id="L1458">                                            BeanUtils.getDeclaredField(StackTraceElement.class, &quot;declaringClass&quot;),</span>
+<span class="fc" id="L1459">                                            BeanUtils.getMethod(StackTraceElement.class, &quot;getClassName&quot;),</span>
+                                            StackTraceElement::getClassName
+                                    ),
+<span class="fc" id="L1462">                                    creator.createFieldWriter(</span>
+                                            &quot;methodName&quot;,
+                                            String.class,
+<span class="fc" id="L1465">                                            BeanUtils.getDeclaredField(StackTraceElement.class, &quot;methodName&quot;),</span>
+<span class="fc" id="L1466">                                            BeanUtils.getMethod(StackTraceElement.class, &quot;getMethodName&quot;),</span>
+                                            StackTraceElement::getMethodName
+                                    )
+                            )
+                    );
+                }
+<span class="fc" id="L1472">                return STACK_TRACE_ELEMENT_WRITER;</span>
+            }
+
+<span class="fc bfc" id="L1475" title="All 2 branches covered.">            if (Class.class == clazz) {</span>
+<span class="fc" id="L1476">                return ObjectWriterImplClass.INSTANCE;</span>
+            }
+
+<span class="fc bfc" id="L1479" title="All 2 branches covered.">            if (Method.class == clazz) {</span>
+<span class="fc" id="L1480">                return new ObjectWriterAdapter&lt;&gt;(</span>
+                        Method.class,
+                        null,
+                        null,
+                        0,
+<span class="fc" id="L1485">                        Arrays.asList(</span>
+<span class="fc" id="L1486">                                ObjectWriters.fieldWriter(&quot;declaringClass&quot;, Class.class, Method::getDeclaringClass),</span>
+<span class="fc" id="L1487">                                ObjectWriters.fieldWriter(&quot;name&quot;, String.class, Method::getName),</span>
+<span class="fc" id="L1488">                                ObjectWriters.fieldWriter(&quot;parameterTypes&quot;, Class[].class, Method::getParameterTypes)</span>
+                        )
+                );
+            }
+
+<span class="fc bfc" id="L1493" title="All 2 branches covered.">            if (Field.class == clazz) {</span>
+<span class="fc" id="L1494">                return new ObjectWriterAdapter&lt;&gt;(</span>
+                        Method.class,
+                        null,
+                        null,
+                        0,
+<span class="fc" id="L1499">                        Arrays.asList(</span>
+<span class="fc" id="L1500">                                ObjectWriters.fieldWriter(&quot;declaringClass&quot;, Class.class, Field::getDeclaringClass),</span>
+<span class="fc" id="L1501">                                ObjectWriters.fieldWriter(&quot;name&quot;, String.class, Field::getName)</span>
+                        )
+                );
+            }
+
+<span class="fc bfc" id="L1506" title="All 2 branches covered.">            if (ParameterizedType.class.isAssignableFrom(clazz)) {</span>
+<span class="fc" id="L1507">                return ObjectWriters.objectWriter(</span>
+                        ParameterizedType.class,
+<span class="fc" id="L1509">                        ObjectWriters.fieldWriter(&quot;actualTypeArguments&quot;, Type[].class, ParameterizedType::getActualTypeArguments),</span>
+<span class="fc" id="L1510">                        ObjectWriters.fieldWriter(&quot;ownerType&quot;, Type.class, ParameterizedType::getOwnerType),</span>
+<span class="fc" id="L1511">                        ObjectWriters.fieldWriter(&quot;rawType&quot;, Type.class, ParameterizedType::getRawType)</span>
+                );
+            }
+        }
+
+<span class="fc" id="L1516">        return null;</span>
+    }
+
+    private ObjectWriter createEnumWriter(Class enumClass) {
+<span class="pc bpc" id="L1520" title="1 of 2 branches missed.">        if (!enumClass.isEnum()) {</span>
+<span class="nc" id="L1521">            Class superclass = enumClass.getSuperclass();</span>
+<span class="nc bnc" id="L1522" title="All 2 branches missed.">            if (superclass.isEnum()) {</span>
+<span class="nc" id="L1523">                enumClass = superclass;</span>
+            }
+        }
+
+<span class="fc" id="L1527">        Member valueField = BeanUtils.getEnumValueField(enumClass, provider);</span>
+<span class="fc bfc" id="L1528" title="All 2 branches covered.">        if (valueField == null) {</span>
+<span class="fc" id="L1529">            Class mixInSource = provider.mixInCache.get(enumClass);</span>
+<span class="fc" id="L1530">            Member mixedValueField = BeanUtils.getEnumValueField(mixInSource, provider);</span>
+<span class="pc bpc" id="L1531" title="1 of 2 branches missed.">            if (mixedValueField instanceof Field) {</span>
+                try {
+<span class="nc" id="L1533">                    valueField = enumClass.getField(mixedValueField.getName());</span>
+<span class="nc" id="L1534">                } catch (NoSuchFieldException ignored) {</span>
+<span class="nc" id="L1535">                }</span>
+<span class="fc bfc" id="L1536" title="All 2 branches covered.">            } else if (mixedValueField instanceof Method) {</span>
+                try {
+<span class="fc" id="L1538">                    valueField = enumClass.getMethod(mixedValueField.getName());</span>
+<span class="nc" id="L1539">                } catch (NoSuchMethodException ignored) {</span>
+<span class="fc" id="L1540">                }</span>
+            }
+        }
+
+<span class="fc" id="L1544">        BeanInfo beanInfo = provider.createBeanInfo();</span>
+
+<span class="fc" id="L1546">        Class[] interfaces = enumClass.getInterfaces();</span>
+<span class="fc bfc" id="L1547" title="All 2 branches covered.">        for (int i = 0; i &lt; interfaces.length; i++) {</span>
+<span class="fc" id="L1548">            annotationProcessor.getBeanInfo(beanInfo, interfaces[i]);</span>
+        }
+
+<span class="fc" id="L1551">        annotationProcessor.getBeanInfo(beanInfo, enumClass);</span>
+<span class="fc bfc" id="L1552" title="All 2 branches covered.">        if (beanInfo.writeEnumAsJavaBean) {</span>
+<span class="fc" id="L1553">            return null;</span>
+        }
+
+<span class="fc" id="L1556">        String[] annotationNames = BeanUtils.getEnumAnnotationNames(enumClass);</span>
+<span class="fc" id="L1557">        return new ObjectWriterImplEnum(null, enumClass, valueField, annotationNames, 0);</span>
+    }
+
+<span class="fc" id="L1560">    static class VoidObjectWriter</span>
+            implements ObjectWriter {
+<span class="fc" id="L1562">        public static final VoidObjectWriter INSTANCE = new VoidObjectWriter();</span>
+
+        @Override
+        public void write(JSONWriter jsonWriter, Object object, Object fieldName, Type fieldType, long features) {
+<span class="nc" id="L1566">        }</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.8.202204050719</span></div></body></html>

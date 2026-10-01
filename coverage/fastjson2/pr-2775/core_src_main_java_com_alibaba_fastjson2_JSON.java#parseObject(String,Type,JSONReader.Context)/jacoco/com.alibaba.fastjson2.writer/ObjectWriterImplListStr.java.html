@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ObjectWriterImplListStr.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">fastjson2</a> &gt; <a href="index.source.html" class="el_package">com.alibaba.fastjson2.writer</a> &gt; <span class="el_source">ObjectWriterImplListStr.java</span></div><h1>ObjectWriterImplListStr.java</h1><pre class="source lang-java linenums">package com.alibaba.fastjson2.writer;
+
+import com.alibaba.fastjson2.JSONWriter;
+import com.alibaba.fastjson2.util.TypeUtils;
+
+import java.lang.reflect.ParameterizedType;
+import java.lang.reflect.Type;
+import java.util.ArrayList;
+import java.util.List;
+
+import static com.alibaba.fastjson2.writer.ObjectWriterImplList.CLASS_SUBLIST;
+
+<span class="fc" id="L13">final class ObjectWriterImplListStr</span>
+        extends ObjectWriterPrimitiveImpl {
+<span class="fc" id="L15">    static final ObjectWriterImplListStr INSTANCE = new ObjectWriterImplListStr();</span>
+
+    @Override
+    public void write(JSONWriter jsonWriter, Object object, Object fieldName, Type fieldType, long features) {
+<span class="pc bpc" id="L19" title="1 of 2 branches missed.">        if (object == null) {</span>
+<span class="nc" id="L20">            jsonWriter.writeNull();</span>
+<span class="nc" id="L21">            return;</span>
+        }
+
+<span class="fc" id="L24">        List list = (List) object;</span>
+
+<span class="fc" id="L26">        jsonWriter.startArray();</span>
+<span class="fc bfc" id="L27" title="All 2 branches covered.">        for (int i = 0; i &lt; list.size(); i++) {</span>
+<span class="fc bfc" id="L28" title="All 2 branches covered.">            if (i != 0) {</span>
+<span class="fc" id="L29">                jsonWriter.writeComma();</span>
+            }
+
+<span class="fc" id="L32">            String item = (String) list.get(i);</span>
+<span class="pc bpc" id="L33" title="1 of 2 branches missed.">            if (item == null) {</span>
+<span class="nc" id="L34">                jsonWriter.writeNull();</span>
+<span class="nc" id="L35">                continue;</span>
+            }
+<span class="fc" id="L37">            jsonWriter.writeString(item);</span>
+        }
+<span class="fc" id="L39">        jsonWriter.endArray();</span>
+<span class="fc" id="L40">    }</span>
+
+    @Override
+    public void writeJSONB(JSONWriter jsonWriter, Object object, Object fieldName, Type fieldType, long features) {
+<span class="nc bnc" id="L44" title="All 2 branches missed.">        if (object == null) {</span>
+<span class="nc" id="L45">            jsonWriter.writeArrayNull();</span>
+<span class="nc" id="L46">            return;</span>
+        }
+
+<span class="nc" id="L49">        Class fieldClass = null;</span>
+<span class="nc bnc" id="L50" title="All 2 branches missed.">        if (fieldType == TypeUtils.PARAM_TYPE_LIST_STR) {</span>
+<span class="nc" id="L51">            fieldClass = List.class;</span>
+<span class="nc bnc" id="L52" title="All 2 branches missed.">        } else if (fieldType instanceof Class) {</span>
+<span class="nc" id="L53">            fieldClass = (Class) fieldType;</span>
+<span class="nc bnc" id="L54" title="All 2 branches missed.">        } else if (fieldType instanceof ParameterizedType) {</span>
+<span class="nc" id="L55">            ParameterizedType parameterizedType = (ParameterizedType) fieldType;</span>
+<span class="nc" id="L56">            Type rawType = parameterizedType.getRawType();</span>
+<span class="nc bnc" id="L57" title="All 2 branches missed.">            if (rawType instanceof Class) {</span>
+<span class="nc" id="L58">                fieldClass = (Class) rawType;</span>
+            }
+        }
+
+<span class="nc" id="L62">        Class&lt;?&gt; objectClass = object.getClass();</span>
+<span class="nc bnc" id="L63" title="All 4 branches missed.">        if (objectClass != ArrayList.class &amp;&amp; jsonWriter.isWriteTypeInfo(object, fieldClass, features)) {</span>
+<span class="nc bnc" id="L64" title="All 2 branches missed.">            jsonWriter.writeTypeName(</span>
+<span class="nc" id="L65">                    TypeUtils.getTypeName(</span>
+                            objectClass == CLASS_SUBLIST ? ArrayList.class : objectClass
+                    )
+            );
+        }
+
+<span class="nc" id="L71">        List&lt;String&gt; list = (List) object;</span>
+<span class="nc" id="L72">        jsonWriter.writeString(list);</span>
+<span class="nc" id="L73">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.8.202204050719</span></div></body></html>

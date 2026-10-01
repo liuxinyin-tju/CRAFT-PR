@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ObjectWriterImplMapEntry.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">fastjson2</a> &gt; <a href="index.source.html" class="el_package">com.alibaba.fastjson2.writer</a> &gt; <span class="el_source">ObjectWriterImplMapEntry.java</span></div><h1>ObjectWriterImplMapEntry.java</h1><pre class="source lang-java linenums">package com.alibaba.fastjson2.writer;
+
+import com.alibaba.fastjson2.JSONWriter;
+
+import java.lang.reflect.Type;
+import java.util.Map;
+
+import static com.alibaba.fastjson2.JSONWriter.Feature.BrowserCompatible;
+import static com.alibaba.fastjson2.JSONWriter.Feature.WriteNonStringKeyAsString;
+
+<span class="fc" id="L11">final class ObjectWriterImplMapEntry</span>
+        extends ObjectWriterPrimitiveImpl {
+<span class="fc" id="L13">    static final ObjectWriterImplMapEntry INSTANCE = new ObjectWriterImplMapEntry();</span>
+
+    @Override
+    public void writeJSONB(JSONWriter jsonWriter, Object object, Object fieldName, Type fieldType, long features) {
+<span class="fc" id="L17">        Map.Entry entry = (Map.Entry) object;</span>
+<span class="pc bpc" id="L18" title="1 of 2 branches missed.">        if (entry == null) {</span>
+<span class="nc" id="L19">            jsonWriter.writeNull();</span>
+<span class="nc" id="L20">            return;</span>
+        }
+
+<span class="fc" id="L23">        jsonWriter.startArray(2);</span>
+<span class="fc" id="L24">        Object key = entry.getKey();</span>
+<span class="fc" id="L25">        long contextFeatures = jsonWriter.context.getFeatures();</span>
+<span class="fc bfc" id="L26" title="All 2 branches covered.">        if ((contextFeatures &amp; (WriteNonStringKeyAsString.mask | BrowserCompatible.mask)) != 0) {</span>
+<span class="pc bpc" id="L27" title="1 of 2 branches missed.">            jsonWriter.writeAny(key == null ? &quot;null&quot; : key.toString());</span>
+        } else {
+<span class="fc" id="L29">            jsonWriter.writeAny(key);</span>
+        }
+<span class="fc" id="L31">        jsonWriter.writeAny(entry.getValue());</span>
+<span class="fc" id="L32">    }</span>
+
+    @Override
+    public void write(JSONWriter jsonWriter, Object object, Object fieldName, Type fieldType, long features) {
+<span class="fc" id="L36">        Map.Entry entry = (Map.Entry) object;</span>
+<span class="pc bpc" id="L37" title="1 of 2 branches missed.">        if (entry == null) {</span>
+<span class="nc" id="L38">            jsonWriter.writeNull();</span>
+<span class="nc" id="L39">            return;</span>
+        }
+
+<span class="fc" id="L42">        jsonWriter.startObject();</span>
+<span class="fc" id="L43">        Object key = entry.getKey();</span>
+<span class="fc" id="L44">        long contextFeatures = jsonWriter.context.getFeatures();</span>
+<span class="fc bfc" id="L45" title="All 2 branches covered.">        if ((contextFeatures &amp; (WriteNonStringKeyAsString.mask | BrowserCompatible.mask)) != 0) {</span>
+<span class="pc bpc" id="L46" title="1 of 2 branches missed.">            jsonWriter.writeAny(key == null ? &quot;null&quot; : key.toString());</span>
+        } else {
+<span class="fc" id="L48">            jsonWriter.writeAny(key);</span>
+        }
+<span class="fc" id="L50">        jsonWriter.writeColon();</span>
+<span class="fc" id="L51">        jsonWriter.writeAny(entry.getValue());</span>
+<span class="fc" id="L52">        jsonWriter.endObject();</span>
+<span class="fc" id="L53">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.8.202204050719</span></div></body></html>

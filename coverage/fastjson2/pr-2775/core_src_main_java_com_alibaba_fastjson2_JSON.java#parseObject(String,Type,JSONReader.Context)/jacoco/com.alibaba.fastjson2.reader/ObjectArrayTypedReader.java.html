@@ -1,0 +1,185 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ObjectArrayTypedReader.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">fastjson2</a> &gt; <a href="index.source.html" class="el_package">com.alibaba.fastjson2.reader</a> &gt; <span class="el_source">ObjectArrayTypedReader.java</span></div><h1>ObjectArrayTypedReader.java</h1><pre class="source lang-java linenums">package com.alibaba.fastjson2.reader;
+
+import com.alibaba.fastjson2.*;
+import com.alibaba.fastjson2.util.Fnv;
+import com.alibaba.fastjson2.util.TypeUtils;
+
+import java.lang.reflect.Array;
+import java.lang.reflect.Type;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Map;
+import java.util.function.Function;
+
+final class ObjectArrayTypedReader
+        extends ObjectReaderPrimitive {
+    final Class componentType;
+    final Class componentClass;
+    final long componentClassHash;
+    final String typeName;
+    final long typeNameHashCode;
+
+    ObjectArrayTypedReader(Class objectClass) {
+<span class="fc" id="L23">        super(objectClass);</span>
+<span class="fc" id="L24">        this.componentType = objectClass.getComponentType();</span>
+<span class="fc" id="L25">        String componentTypeName = TypeUtils.getTypeName(componentType);</span>
+<span class="fc" id="L26">        this.componentClassHash = Fnv.hashCode64(componentTypeName);</span>
+<span class="fc" id="L27">        this.typeName = '[' + componentTypeName;</span>
+<span class="fc" id="L28">        typeNameHashCode = Fnv.hashCode64(this.typeName);</span>
+
+<span class="fc" id="L30">        this.componentClass = TypeUtils.getClass(componentType);</span>
+<span class="fc" id="L31">    }</span>
+
+    @Override
+    public Object readObject(JSONReader jsonReader, Type fieldType, Object fieldName, long features) {
+<span class="fc bfc" id="L35" title="All 2 branches covered.">        if (jsonReader.jsonb) {</span>
+<span class="fc" id="L36">            return readJSONBObject(jsonReader, fieldType, fieldName, 0);</span>
+        }
+
+<span class="fc bfc" id="L39" title="All 2 branches covered.">        if (jsonReader.readIfNull()) {</span>
+<span class="fc" id="L40">            return null;</span>
+        }
+
+<span class="fc bfc" id="L43" title="All 2 branches covered.">        if (jsonReader.nextIfArrayStart()) {</span>
+<span class="fc" id="L44">            Object[] values = (Object[]) Array.newInstance(componentType, 16);</span>
+<span class="fc" id="L45">            int size = 0;</span>
+<span class="fc bfc" id="L46" title="All 2 branches covered.">            while (!jsonReader.nextIfArrayEnd()) {</span>
+<span class="fc" id="L47">                int minCapacity = size + 1;</span>
+<span class="fc bfc" id="L48" title="All 2 branches covered.">                if (minCapacity - values.length &gt; 0) {</span>
+<span class="fc" id="L49">                    int oldCapacity = values.length;</span>
+<span class="fc" id="L50">                    int newCapacity = oldCapacity + (oldCapacity &gt;&gt; 1);</span>
+<span class="pc bpc" id="L51" title="1 of 2 branches missed.">                    if (newCapacity - minCapacity &lt; 0) {</span>
+<span class="nc" id="L52">                        newCapacity = minCapacity;</span>
+                    }
+
+<span class="fc" id="L55">                    values = Arrays.copyOf(values, newCapacity);</span>
+                }
+
+<span class="fc" id="L58">                Object value = jsonReader.read(componentType);</span>
+<span class="fc" id="L59">                values[size++] = value;</span>
+
+<span class="fc" id="L61">                jsonReader.nextIfComma();</span>
+<span class="fc" id="L62">            }</span>
+<span class="fc" id="L63">            jsonReader.nextIfMatch(',');</span>
+
+<span class="fc" id="L65">            return Arrays.copyOf(values, size);</span>
+        }
+
+<span class="fc bfc" id="L68" title="All 2 branches covered.">        if (jsonReader.current() == '{') {</span>
+<span class="fc" id="L69">            jsonReader.next();</span>
+<span class="fc" id="L70">            long filedHash = jsonReader.readFieldNameHashCode();</span>
+<span class="pc bpc" id="L71" title="1 of 2 branches missed.">            if (filedHash == HASH_TYPE) {</span>
+<span class="fc" id="L72">                jsonReader.readString();</span>
+            }
+        }
+<span class="pc bpc" id="L75" title="1 of 2 branches missed.">        if (jsonReader.isString()) {</span>
+<span class="fc" id="L76">            String str = jsonReader.readString();</span>
+<span class="pc bpc" id="L77" title="1 of 4 branches missed.">            if (str == null || str.isEmpty()) {</span>
+<span class="fc" id="L78">                return null;</span>
+            }
+<span class="pc bpc" id="L80" title="1 of 2 branches missed.">            if (VALUE_NAME.equals(str)) {</span>
+<span class="fc" id="L81">                jsonReader.next();</span>
+<span class="fc" id="L82">                Object result = this.readObject(jsonReader, fieldType, fieldName, features);</span>
+<span class="fc" id="L83">                jsonReader.nextIfObjectEnd();</span>
+<span class="fc" id="L84">                return result;</span>
+            }
+        }
+<span class="nc" id="L87">        throw new JSONException(jsonReader.info(&quot;TODO&quot;));</span>
+    }
+
+    @Override
+    public Object readJSONBObject(JSONReader jsonReader, Type fieldType, Object fieldName, long features) {
+<span class="fc bfc" id="L92" title="All 2 branches covered.">        if (jsonReader.getType() == JSONB.Constants.BC_TYPED_ANY) {</span>
+<span class="fc" id="L93">            jsonReader.next();</span>
+<span class="fc" id="L94">            long typeHash = jsonReader.readTypeHashCode();</span>
+<span class="pc bpc" id="L95" title="1 of 4 branches missed.">            if (typeHash == ObjectArrayReader.TYPE_HASH_CODE || typeHash == typeNameHashCode) {</span>
+                // skip
+            } else {
+<span class="pc bpc" id="L98" title="1 of 2 branches missed.">                if (jsonReader.isSupportAutoType(features)) {</span>
+<span class="fc" id="L99">                    ObjectReader autoTypeObjectReader = jsonReader.getObjectReaderAutoType(typeHash, objectClass, features);</span>
+<span class="pc bpc" id="L100" title="1 of 2 branches missed.">                    if (autoTypeObjectReader == null) {</span>
+<span class="nc" id="L101">                        throw new JSONException(jsonReader.info(&quot;autoType not support : &quot; + jsonReader.getString()));</span>
+                    }
+
+<span class="fc" id="L104">                    return autoTypeObjectReader.readObject(jsonReader, fieldType, fieldName, features);</span>
+                }
+
+<span class="nc" id="L107">                throw new JSONException(jsonReader.info(&quot;not support autotype : &quot; + jsonReader.getString()));</span>
+            }
+        }
+
+<span class="fc" id="L111">        int entryCnt = jsonReader.startArray();</span>
+<span class="fc bfc" id="L112" title="All 2 branches covered.">        if (entryCnt == -1) {</span>
+<span class="fc" id="L113">            return null;</span>
+        }
+
+<span class="fc" id="L116">        Object[] values = (Object[]) Array.newInstance(componentClass, entryCnt);</span>
+<span class="fc bfc" id="L117" title="All 2 branches covered.">        for (int i = 0; i &lt; entryCnt; ++i) {</span>
+            Object value;
+
+<span class="fc bfc" id="L120" title="All 2 branches covered.">            if (jsonReader.isReference()) {</span>
+<span class="fc" id="L121">                String reference = jsonReader.readReference();</span>
+<span class="pc bpc" id="L122" title="1 of 2 branches missed.">                if (&quot;..&quot;.equals(reference)) {</span>
+<span class="nc" id="L123">                    value = values;</span>
+                } else {
+<span class="fc" id="L125">                    value = null;</span>
+<span class="fc" id="L126">                    jsonReader.addResolveTask(values, i, JSONPath.of(reference));</span>
+                }
+<span class="fc" id="L128">            } else {</span>
+<span class="fc" id="L129">                ObjectReader autoTypeReader = jsonReader.checkAutoType(componentClass, componentClassHash, features);</span>
+<span class="fc bfc" id="L130" title="All 2 branches covered.">                if (autoTypeReader != null) {</span>
+<span class="fc" id="L131">                    value = autoTypeReader.readJSONBObject(jsonReader, null, null, features);</span>
+                } else {
+<span class="fc" id="L133">                    value = jsonReader.read(componentType);</span>
+                }
+            }
+
+<span class="fc" id="L137">            values[i] = value;</span>
+        }
+<span class="fc" id="L139">        return values;</span>
+    }
+
+    @Override
+    public Object createInstance(Collection collection, long features) {
+<span class="fc" id="L144">        Object[] values = (Object[]) Array.newInstance(componentClass, collection.size());</span>
+<span class="fc" id="L145">        int index = 0;</span>
+<span class="fc bfc" id="L146" title="All 2 branches covered.">        for (Object item : collection) {</span>
+<span class="fc bfc" id="L147" title="All 2 branches covered.">            if (item != null) {</span>
+<span class="fc" id="L148">                Class&lt;?&gt; valueClass = item.getClass();</span>
+<span class="fc bfc" id="L149" title="All 2 branches covered.">                if (valueClass != componentType) {</span>
+<span class="fc" id="L150">                    ObjectReaderProvider provider = JSONFactory.getDefaultObjectReaderProvider();</span>
+<span class="fc" id="L151">                    Function typeConvert = provider.getTypeConvert(valueClass, componentType);</span>
+<span class="fc bfc" id="L152" title="All 2 branches covered.">                    if (typeConvert != null) {</span>
+<span class="fc" id="L153">                        item = typeConvert.apply(item);</span>
+                    }
+                }
+            }
+
+<span class="fc bfc" id="L158" title="All 2 branches covered.">            if (!componentType.isInstance(item)) {</span>
+<span class="fc" id="L159">                ObjectReader objectReader = JSONFactory.getDefaultObjectReaderProvider().getObjectReader(componentType);</span>
+<span class="pc bpc" id="L160" title="1 of 2 branches missed.">                if (item instanceof Map) {</span>
+<span class="nc" id="L161">                    item = objectReader.createInstance((Map) item);</span>
+<span class="fc bfc" id="L162" title="All 2 branches covered.">                } else if (item instanceof Collection) {</span>
+<span class="fc" id="L163">                    item = objectReader.createInstance((Collection) item, features);</span>
+<span class="fc bfc" id="L164" title="All 2 branches covered.">                } else if (item instanceof Object[]) {</span>
+<span class="fc" id="L165">                    item = objectReader.createInstance(JSONArray.of((Object[]) item), features);</span>
+<span class="fc bfc" id="L166" title="All 2 branches covered.">                } else if (item != null) {</span>
+<span class="fc" id="L167">                    Class&lt;?&gt; itemClass = item.getClass();</span>
+<span class="pc bpc" id="L168" title="1 of 2 branches missed.">                    if (itemClass.isArray()) {</span>
+<span class="fc" id="L169">                        int length = Array.getLength(item);</span>
+<span class="fc" id="L170">                        JSONArray array = new JSONArray(length);</span>
+<span class="fc bfc" id="L171" title="All 2 branches covered.">                        for (int i = 0; i &lt; length; i++) {</span>
+<span class="fc" id="L172">                            array.add(Array.get(item, i));</span>
+                        }
+<span class="fc" id="L174">                        item = objectReader.createInstance(array, features);</span>
+<span class="fc" id="L175">                    } else {</span>
+<span class="nc" id="L176">                        throw new JSONException(&quot;component type not match, expect &quot; + componentType.getName() + &quot;, but &quot; + itemClass);</span>
+                    }
+                }
+            }
+<span class="fc" id="L180">            values[index++] = item;</span>
+<span class="fc" id="L181">        }</span>
+<span class="fc" id="L182">        return values;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.8.202204050719</span></div></body></html>

@@ -1,0 +1,136 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>FieldReaderDateTimeCodec.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">fastjson2</a> &gt; <a href="index.source.html" class="el_package">com.alibaba.fastjson2.reader</a> &gt; <span class="el_source">FieldReaderDateTimeCodec.java</span></div><h1>FieldReaderDateTimeCodec.java</h1><pre class="source lang-java linenums">package com.alibaba.fastjson2.reader;
+
+import com.alibaba.fastjson2.JSONException;
+import com.alibaba.fastjson2.JSONReader;
+import com.alibaba.fastjson2.schema.JSONSchema;
+import com.alibaba.fastjson2.util.DateUtils;
+import com.alibaba.fastjson2.util.IOUtils;
+
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
+import java.lang.reflect.Type;
+import java.time.*;
+import java.util.Date;
+import java.util.Locale;
+
+abstract class FieldReaderDateTimeCodec&lt;T&gt;
+        extends FieldReader&lt;T&gt; {
+    final ObjectReader dateReader;
+    final boolean formatUnixTime;
+    final boolean formatMillis;
+
+    public FieldReaderDateTimeCodec(
+            String fieldName,
+            Type fieldType,
+            Class fieldClass,
+            int ordinal,
+            long features,
+            String format,
+            Locale locale,
+            Object defaultValue,
+            JSONSchema schema,
+            Method method,
+            Field field,
+            ObjectReader dateReader
+    ) {
+<span class="fc" id="L36">        super(fieldName, fieldType, fieldClass, ordinal, features, format, locale, defaultValue, schema, method, field);</span>
+<span class="fc" id="L37">        this.dateReader = dateReader;</span>
+
+<span class="fc" id="L39">        boolean formatUnixTime = false, formatMillis = false, hasDay = false, hasHour = false;</span>
+<span class="fc bfc" id="L40" title="All 2 branches covered.">        if (format != null) {</span>
+<span class="fc bfc" id="L41" title="All 3 branches covered.">            switch (format) {</span>
+                case &quot;unixtime&quot;:
+<span class="fc" id="L43">                    formatUnixTime = true;</span>
+<span class="fc" id="L44">                    break;</span>
+                case &quot;millis&quot;:
+<span class="fc" id="L46">                    formatMillis = true;</span>
+<span class="fc" id="L47">                    break;</span>
+                default:
+                    break;
+            }
+        }
+<span class="fc" id="L52">        this.formatUnixTime = formatUnixTime;</span>
+<span class="fc" id="L53">        this.formatMillis = formatMillis;</span>
+<span class="fc" id="L54">    }</span>
+
+    @Override
+    public final Object readFieldValue(JSONReader jsonReader) {
+<span class="fc" id="L58">        return dateReader.readObject(jsonReader, fieldType, fieldName, features);</span>
+    }
+
+    @Override
+    public final ObjectReader getObjectReader(JSONReader jsonReader) {
+<span class="fc" id="L63">        return dateReader;</span>
+    }
+
+    public final ObjectReader getObjectReader(JSONReader.Context context) {
+<span class="fc" id="L67">        return dateReader;</span>
+    }
+
+    protected abstract void accept(T object, Date value);
+
+    protected abstract void acceptNull(T object);
+
+    protected abstract void accept(T object, Instant value);
+
+    protected abstract void accept(T object, LocalDateTime ldt);
+
+    protected abstract void accept(T object, ZonedDateTime zdt);
+
+    protected abstract Object apply(Date value);
+
+    protected abstract Object apply(Instant value);
+
+    protected abstract Object apply(ZonedDateTime zdt);
+
+    protected abstract Object apply(LocalDateTime zdt);
+
+    protected abstract Object apply(long millis);
+
+    @Override
+    public void accept(T object, Object value) {
+<span class="fc bfc" id="L92" title="All 2 branches covered.">        if (value == null) {</span>
+<span class="fc" id="L93">            acceptNull(object);</span>
+<span class="fc" id="L94">            return;</span>
+        }
+
+<span class="fc bfc" id="L97" title="All 2 branches covered.">        if (value instanceof String) {</span>
+<span class="fc" id="L98">            String str = (String) value;</span>
+<span class="fc bfc" id="L99" title="All 4 branches covered.">            if (str.isEmpty() || &quot;null&quot;.equals(str)) {</span>
+<span class="fc" id="L100">                acceptNull(object);</span>
+<span class="fc" id="L101">                return;</span>
+            }
+
+<span class="pc bpc" id="L104" title="1 of 8 branches missed.">            if ((format == null || formatUnixTime || formatMillis) &amp;&amp; IOUtils.isNumber(str)) {</span>
+<span class="fc" id="L105">                long millis = Long.parseLong(str);</span>
+<span class="fc bfc" id="L106" title="All 2 branches covered.">                if (formatUnixTime) {</span>
+<span class="fc" id="L107">                    millis *= 1000L;</span>
+                }
+<span class="fc" id="L109">                accept(object, millis);</span>
+<span class="fc" id="L110">                return;</span>
+            } else {
+<span class="fc" id="L112">                value = DateUtils.parseDate(str, format, DateUtils.DEFAULT_ZONE_ID);</span>
+            }
+        }
+
+<span class="fc bfc" id="L116" title="All 2 branches covered.">        if (value instanceof Date) {</span>
+<span class="fc" id="L117">            accept(object, (Date) value);</span>
+<span class="fc bfc" id="L118" title="All 2 branches covered.">        } else if (value instanceof Instant) {</span>
+<span class="fc" id="L119">            accept(object, (Instant) value);</span>
+<span class="fc bfc" id="L120" title="All 2 branches covered.">        } else if (value instanceof Long) {</span>
+<span class="fc" id="L121">            accept(object, ((Long) value).longValue());</span>
+<span class="fc bfc" id="L122" title="All 2 branches covered.">        } else if (value instanceof LocalDateTime) {</span>
+<span class="fc" id="L123">            accept(object, (LocalDateTime) value);</span>
+<span class="fc bfc" id="L124" title="All 2 branches covered.">        } else if (value instanceof ZonedDateTime) {</span>
+<span class="fc" id="L125">            accept(object, (ZonedDateTime) value);</span>
+        } else {
+<span class="fc" id="L127">            throw new JSONException(&quot;not support value &quot; + value.getClass());</span>
+        }
+<span class="fc" id="L129">    }</span>
+
+    public boolean supportAcceptType(Class valueClass) {
+<span class="fc bfc" id="L132" title="All 4 branches covered.">        return valueClass == Date.class</span>
+                || valueClass == String.class;
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.8.202204050719</span></div></body></html>

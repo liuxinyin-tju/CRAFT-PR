@@ -1,0 +1,98 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>JSONPathTypedMultiNamesPrefixName2.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">fastjson2</a> &gt; <a href="index.source.html" class="el_package">com.alibaba.fastjson2</a> &gt; <span class="el_source">JSONPathTypedMultiNamesPrefixName2.java</span></div><h1>JSONPathTypedMultiNamesPrefixName2.java</h1><pre class="source lang-java linenums">package com.alibaba.fastjson2;
+
+import java.lang.reflect.Type;
+import java.time.ZoneId;
+
+public class JSONPathTypedMultiNamesPrefixName2
+        extends JSONPathTypedMultiNames {
+    final String prefixName0;
+    final long prefixNameHash0;
+
+    final String prefixName1;
+    final long prefixNameHash1;
+
+    JSONPathTypedMultiNamesPrefixName2(
+            JSONPath[] paths,
+            JSONPath prefix,
+            JSONPath[] namePaths,
+            Type[] types,
+            String[] formats,
+            long[] pathFeatures,
+            ZoneId zoneId,
+            long features) {
+<span class="fc" id="L23">        super(paths, prefix, namePaths, types, formats, pathFeatures, zoneId, features);</span>
+
+<span class="fc" id="L25">        JSONPathTwoSegment prefixTwo = (JSONPathTwoSegment) prefix;</span>
+<span class="fc" id="L26">        prefixName0 = ((JSONPathSegmentName) prefixTwo.first).name;</span>
+<span class="fc" id="L27">        prefixNameHash0 = ((JSONPathSegmentName) prefixTwo.first).nameHashCode;</span>
+
+<span class="fc" id="L29">        prefixName1 = ((JSONPathSegmentName) prefixTwo.second).name;</span>
+<span class="fc" id="L30">        prefixNameHash1 = ((JSONPathSegmentName) prefixTwo.second).nameHashCode;</span>
+<span class="fc" id="L31">    }</span>
+
+    @Override
+    public Object extract(JSONReader jsonReader) {
+<span class="fc bfc" id="L35" title="All 2 branches covered.">        if (jsonReader.nextIfNull()) {</span>
+<span class="fc" id="L36">            return new Object[paths.length];</span>
+        }
+
+<span class="fc bfc" id="L39" title="All 2 branches covered.">        if (!jsonReader.nextIfObjectStart()) {</span>
+<span class="fc" id="L40">            throw error(jsonReader);</span>
+        }
+
+        while (true) {
+<span class="fc bfc" id="L44" title="All 2 branches covered.">            if (jsonReader.nextIfObjectEnd()) {</span>
+<span class="fc" id="L45">                return new Object[paths.length];</span>
+            }
+
+<span class="fc bfc" id="L48" title="All 2 branches covered.">            if (jsonReader.isEnd()) {</span>
+<span class="fc" id="L49">                throw error(jsonReader);</span>
+            }
+
+<span class="fc bfc" id="L52" title="All 2 branches covered.">            boolean match = jsonReader.readFieldNameHashCode() == prefixNameHash0;</span>
+<span class="fc bfc" id="L53" title="All 2 branches covered.">            if (!match) {</span>
+<span class="fc" id="L54">                jsonReader.skipValue();</span>
+<span class="fc" id="L55">                continue;</span>
+            }
+
+            break;
+        }
+
+<span class="fc bfc" id="L61" title="All 2 branches covered.">        if (jsonReader.nextIfNull()) {</span>
+<span class="fc" id="L62">            return new Object[paths.length];</span>
+        }
+
+<span class="fc bfc" id="L65" title="All 2 branches covered.">        if (!jsonReader.nextIfObjectStart()) {</span>
+<span class="fc" id="L66">            throw error(jsonReader);</span>
+        }
+
+        while (true) {
+<span class="fc bfc" id="L70" title="All 2 branches covered.">            if (jsonReader.nextIfObjectEnd()) {</span>
+<span class="fc" id="L71">                return new Object[paths.length];</span>
+            }
+
+<span class="fc bfc" id="L74" title="All 2 branches covered.">            if (jsonReader.isEnd()) {</span>
+<span class="fc" id="L75">                throw error(jsonReader);</span>
+            }
+
+<span class="fc bfc" id="L78" title="All 2 branches covered.">            boolean match = jsonReader.readFieldNameHashCode() == prefixNameHash1;</span>
+<span class="fc bfc" id="L79" title="All 2 branches covered.">            if (!match) {</span>
+<span class="fc" id="L80">                jsonReader.skipValue();</span>
+<span class="fc" id="L81">                continue;</span>
+            }
+
+            break;
+        }
+
+<span class="fc bfc" id="L87" title="All 2 branches covered.">        if (jsonReader.nextIfNull()) {</span>
+<span class="fc" id="L88">            return new Object[paths.length];</span>
+        }
+
+<span class="fc" id="L91">        return objectReader.readObject(jsonReader);</span>
+    }
+
+    private static JSONException error(JSONReader jsonReader) {
+<span class="fc" id="L95">        return new JSONException(jsonReader.info(&quot;illegal input, expect '[', but &quot; + jsonReader.current()));</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.8.202204050719</span></div></body></html>

@@ -1,0 +1,366 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>FieldReaderObject.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">fastjson2</a> &gt; <a href="index.source.html" class="el_package">com.alibaba.fastjson2.reader</a> &gt; <span class="el_source">FieldReaderObject.java</span></div><h1>FieldReaderObject.java</h1><pre class="source lang-java linenums">package com.alibaba.fastjson2.reader;
+
+import com.alibaba.fastjson2.*;
+import com.alibaba.fastjson2.schema.JSONSchema;
+import com.alibaba.fastjson2.util.BeanUtils;
+import com.alibaba.fastjson2.util.TypeUtils;
+import com.alibaba.fastjson2.writer.ObjectWriter;
+
+import java.lang.reflect.Field;
+import java.lang.reflect.Member;
+import java.lang.reflect.Method;
+import java.lang.reflect.Type;
+import java.util.*;
+import java.util.function.BiConsumer;
+import java.util.function.Function;
+
+import static com.alibaba.fastjson2.util.JDKUtils.UNSAFE;
+
+public class FieldReaderObject&lt;T&gt;
+        extends FieldReader&lt;T&gt; {
+    protected ObjectReader initReader;
+    protected final BiConsumer function;
+
+    public FieldReaderObject(
+            String fieldName,
+            Type fieldType,
+            Class fieldClass,
+            int ordinal,
+            long features,
+            String format,
+            Locale locale,
+            Object defaultValue,
+            JSONSchema schema,
+            Method method,
+            Field field,
+            BiConsumer function
+    ) {
+<span class="fc" id="L38">        super(fieldName, fieldType, fieldClass, ordinal, features, format, locale, defaultValue, schema, method, field);</span>
+<span class="fc" id="L39">        this.function = function;</span>
+<span class="fc" id="L40">    }</span>
+
+    @Override
+    public ObjectReader getInitReader() {
+<span class="fc" id="L44">        return initReader;</span>
+    }
+
+    @Override
+    public ObjectReader getObjectReader(JSONReader jsonReader) {
+<span class="fc bfc" id="L49" title="All 2 branches covered.">        if (initReader != null) {</span>
+<span class="fc" id="L50">            return initReader;</span>
+        }
+
+<span class="fc bfc" id="L53" title="All 2 branches covered.">        if (reader != null) {</span>
+<span class="fc" id="L54">            return reader;</span>
+        }
+
+<span class="fc" id="L57">        ObjectReader formattedObjectReader = createFormattedObjectReader(fieldType, fieldClass, format, locale);</span>
+<span class="fc bfc" id="L58" title="All 2 branches covered.">        if (formattedObjectReader != null) {</span>
+<span class="fc" id="L59">            return reader = formattedObjectReader;</span>
+        }
+
+<span class="fc bfc" id="L62" title="All 4 branches covered.">        if (fieldClass != null &amp;&amp; Map.class.isAssignableFrom(fieldClass)) {</span>
+<span class="fc" id="L63">            return reader = ObjectReaderImplMap.of(fieldType, fieldClass, features);</span>
+<span class="fc bfc" id="L64" title="All 4 branches covered.">        } else if (fieldClass != null &amp;&amp; Collection.class.isAssignableFrom(fieldClass)) {</span>
+<span class="fc" id="L65">            return reader = ObjectReaderImplList.of(fieldType, fieldClass, features);</span>
+        }
+
+<span class="fc" id="L68">        return reader = jsonReader.getObjectReader(fieldType);</span>
+    }
+
+    public ObjectReader getObjectReader(JSONReader.Context context) {
+<span class="fc bfc" id="L72" title="All 2 branches covered.">        if (reader != null) {</span>
+<span class="fc" id="L73">            return reader;</span>
+        }
+
+<span class="fc" id="L76">        ObjectReader formattedObjectReader = createFormattedObjectReader(fieldType, fieldClass, format, locale);</span>
+<span class="pc bpc" id="L77" title="1 of 2 branches missed.">        if (formattedObjectReader != null) {</span>
+<span class="nc" id="L78">            return reader = formattedObjectReader;</span>
+        }
+
+<span class="fc bfc" id="L81" title="All 2 branches covered.">        if (Map.class.isAssignableFrom(fieldClass)) {</span>
+<span class="fc" id="L82">            return reader = ObjectReaderImplMap.of(fieldType, fieldClass, features);</span>
+<span class="fc bfc" id="L83" title="All 2 branches covered.">        } else if (Collection.class.isAssignableFrom(fieldClass)) {</span>
+<span class="fc" id="L84">            return reader = ObjectReaderImplList.of(fieldType, fieldClass, features);</span>
+        }
+
+<span class="fc" id="L87">        return reader = context.getObjectReader(fieldType);</span>
+    }
+
+    @Override
+    public void readFieldValue(JSONReader jsonReader, T object) {
+<span class="fc bfc" id="L92" title="All 2 branches covered.">        if (!fieldClassSerializable) {</span>
+<span class="fc" id="L93">            long contextFeatures = jsonReader.getContext().getFeatures();</span>
+<span class="pc bpc" id="L94" title="1 of 2 branches missed.">            if ((contextFeatures &amp; JSONReader.Feature.IgnoreNoneSerializable.mask) != 0) {</span>
+<span class="nc" id="L95">                jsonReader.skipValue();</span>
+<span class="nc" id="L96">                return;</span>
+<span class="pc bpc" id="L97" title="1 of 2 branches missed.">            } else if ((contextFeatures &amp; JSONReader.Feature.ErrorOnNoneSerializable.mask) != 0) {</span>
+<span class="nc" id="L98">                throw new JSONException(&quot;not support none-Serializable&quot;);</span>
+            }
+        }
+
+        ObjectReader objectReader;
+<span class="fc bfc" id="L103" title="All 2 branches covered.">        if (this.initReader != null) {</span>
+<span class="fc" id="L104">            objectReader = this.initReader;</span>
+        } else {
+<span class="fc" id="L106">            ObjectReader formattedObjectReader = createFormattedObjectReader(fieldType, fieldClass, format, locale);</span>
+<span class="fc bfc" id="L107" title="All 2 branches covered.">            if (formattedObjectReader != null) {</span>
+<span class="fc" id="L108">                objectReader = this.initReader = formattedObjectReader;</span>
+            } else {
+<span class="fc" id="L110">                objectReader = this.initReader = jsonReader.getContext().getObjectReader(fieldType);</span>
+            }
+        }
+
+<span class="fc bfc" id="L114" title="All 2 branches covered.">        if (jsonReader.isReference()) {</span>
+<span class="fc" id="L115">            String reference = jsonReader.readReference();</span>
+<span class="pc bpc" id="L116" title="1 of 2 branches missed.">            if (&quot;..&quot;.equals(reference)) {</span>
+<span class="nc" id="L117">                accept(object, object);</span>
+            } else {
+<span class="fc" id="L119">                addResolveTask(jsonReader, object, reference);</span>
+            }
+<span class="fc" id="L121">            return;</span>
+        }
+
+        Object value;
+        try {
+<span class="fc bfc" id="L126" title="All 2 branches covered.">            if (jsonReader.nextIfNullOrEmptyString()) {</span>
+<span class="fc bfc" id="L127" title="All 2 branches covered.">                if (defaultValue != null) {</span>
+<span class="fc" id="L128">                    value = defaultValue;</span>
+<span class="pc bpc" id="L129" title="1 of 2 branches missed.">                } else if (fieldClass == OptionalInt.class) {</span>
+<span class="nc" id="L130">                    value = OptionalInt.empty();</span>
+<span class="pc bpc" id="L131" title="1 of 2 branches missed.">                } else if (fieldClass == OptionalLong.class) {</span>
+<span class="nc" id="L132">                    value = OptionalLong.empty();</span>
+<span class="pc bpc" id="L133" title="1 of 2 branches missed.">                } else if (fieldClass == OptionalDouble.class) {</span>
+<span class="nc" id="L134">                    value = OptionalDouble.empty();</span>
+<span class="pc bpc" id="L135" title="1 of 2 branches missed.">                } else if (fieldClass == Optional.class) {</span>
+<span class="nc" id="L136">                    value = Optional.empty();</span>
+                } else {
+<span class="fc" id="L138">                    value = null;</span>
+                }
+<span class="fc bfc" id="L140" title="All 2 branches covered.">            } else if (jsonReader.jsonb) {</span>
+<span class="fc bfc" id="L141" title="All 2 branches covered.">                if (fieldClass == Object.class) {</span>
+<span class="fc" id="L142">                    ObjectReader autoTypeObjectReader = jsonReader.checkAutoType(Object.class, 0, features);</span>
+<span class="pc bpc" id="L143" title="1 of 2 branches missed.">                    if (autoTypeObjectReader != null) {</span>
+<span class="nc" id="L144">                        value = autoTypeObjectReader.readJSONBObject(jsonReader, fieldType, fieldName, features);</span>
+                    } else {
+<span class="fc" id="L146">                        value = jsonReader.readAny();</span>
+                    }
+<span class="fc" id="L148">                } else {</span>
+<span class="fc" id="L149">                    value = objectReader.readJSONBObject(jsonReader, fieldType, fieldName, features);</span>
+                }
+            } else {
+<span class="fc" id="L152">                value = objectReader.readObject(jsonReader, fieldType, fieldName, features);</span>
+            }
+<span class="nc" id="L154">        } catch (JSONSchemaValidException ex) {</span>
+<span class="nc" id="L155">            throw ex;</span>
+<span class="fc" id="L156">        } catch (Exception | IllegalAccessError ex) {</span>
+<span class="fc bfc" id="L157" title="All 2 branches covered.">            if ((features &amp; JSONReader.Feature.NullOnError.mask) == 0) {</span>
+<span class="pc bpc" id="L158" title="1 of 2 branches missed.">                Member member = this.field != null ? this.field : this.method;</span>
+                String message;
+<span class="pc bpc" id="L160" title="1 of 2 branches missed.">                if (member != null) {</span>
+<span class="fc" id="L161">                    message = &quot;read field '&quot; + member.getDeclaringClass().getName() + &quot;.&quot; + member.getName();</span>
+                } else {
+<span class="nc" id="L163">                    message = &quot;read field &quot; + fieldName + &quot; error&quot;;</span>
+                }
+<span class="fc" id="L165">                throw new JSONException(jsonReader.info(message), ex);</span>
+            }
+<span class="fc" id="L167">            value = null;</span>
+<span class="fc" id="L168">        }</span>
+
+<span class="fc" id="L170">        accept(object, value);</span>
+
+<span class="pc bpc" id="L172" title="1 of 4 branches missed.">        if (noneStaticMemberClass &amp;&amp; value != null) {</span>
+<span class="fc" id="L173">            BeanUtils.setNoneStaticMemberClassParent(value, object);</span>
+        }
+<span class="fc" id="L175">    }</span>
+
+    @Override
+    public void readFieldValueJSONB(JSONReader jsonReader, T object) {
+<span class="pc bpc" id="L179" title="1 of 4 branches missed.">        if (!fieldClassSerializable &amp;&amp; jsonReader.getType() != JSONB.Constants.BC_TYPED_ANY) {</span>
+<span class="fc" id="L180">            long contextFeatures = jsonReader.getContext().getFeatures();</span>
+<span class="pc bpc" id="L181" title="1 of 2 branches missed.">            if ((contextFeatures &amp; JSONReader.Feature.IgnoreNoneSerializable.mask) != 0) {</span>
+<span class="nc" id="L182">                jsonReader.skipValue();</span>
+<span class="nc" id="L183">                return;</span>
+<span class="pc bpc" id="L184" title="1 of 2 branches missed.">            } else if ((contextFeatures &amp; JSONReader.Feature.ErrorOnNoneSerializable.mask) != 0) {</span>
+<span class="nc" id="L185">                throw new JSONException(&quot;not support none-Serializable&quot;);</span>
+            }
+        }
+
+<span class="fc bfc" id="L189" title="All 2 branches covered.">        if (initReader == null) {</span>
+<span class="fc" id="L190">            initReader = jsonReader.getContext().getObjectReader(fieldType);</span>
+        }
+
+<span class="fc bfc" id="L193" title="All 2 branches covered.">        if (jsonReader.isReference()) {</span>
+<span class="fc" id="L194">            String reference = jsonReader.readReference();</span>
+<span class="fc bfc" id="L195" title="All 2 branches covered.">            if (&quot;..&quot;.equals(reference)) {</span>
+<span class="fc" id="L196">                accept(object, object);</span>
+            } else {
+<span class="fc" id="L198">                addResolveTask(jsonReader, object, reference);</span>
+            }
+<span class="fc" id="L200">            return;</span>
+        }
+
+<span class="fc" id="L203">        Object value = initReader.readJSONBObject(jsonReader, fieldType, fieldName, features);</span>
+<span class="fc" id="L204">        accept(object, value);</span>
+<span class="fc" id="L205">    }</span>
+
+    @Override
+    public void accept(T object, boolean value) {
+<span class="fc" id="L209">        accept(object, Boolean.valueOf(value));</span>
+<span class="fc" id="L210">    }</span>
+
+    @Override
+    public void accept(T object, byte value) {
+<span class="fc" id="L214">        accept(object, Byte.valueOf(value));</span>
+<span class="fc" id="L215">    }</span>
+
+    @Override
+    public void accept(T object, short value) {
+<span class="fc" id="L219">        accept(object, Short.valueOf(value));</span>
+<span class="fc" id="L220">    }</span>
+
+    @Override
+    public void accept(T object, int value) {
+<span class="fc" id="L224">        accept(object, Integer.valueOf(value));</span>
+<span class="fc" id="L225">    }</span>
+
+    @Override
+    public void accept(T object, long value) {
+<span class="fc" id="L229">        accept(object, Long.valueOf(value));</span>
+<span class="fc" id="L230">    }</span>
+
+    @Override
+    public void accept(T object, float value) {
+<span class="fc" id="L234">        accept(object, Float.valueOf(value));</span>
+<span class="fc" id="L235">    }</span>
+
+    @Override
+    public void accept(T object, double value) {
+<span class="nc" id="L239">        accept(object, Double.valueOf(value));</span>
+<span class="nc" id="L240">    }</span>
+
+    @Override
+    public void accept(T object, char value) {
+<span class="nc" id="L244">        accept(object, Character.valueOf(value));</span>
+<span class="nc" id="L245">    }</span>
+
+    @Override
+    public void accept(T object, Object value) {
+<span class="fc bfc" id="L249" title="All 2 branches covered.">        if (schema != null) {</span>
+<span class="fc" id="L250">            schema.assertValidate(value);</span>
+        }
+
+<span class="pc bpc" id="L253" title="1 of 4 branches missed.">        if (value == null &amp;&amp; (features &amp; JSONReader.Feature.IgnoreSetNullValue.mask) != 0) {</span>
+<span class="nc" id="L254">            return;</span>
+        }
+
+<span class="fc bfc" id="L257" title="All 2 branches covered.">        if (fieldClass == char.class) {</span>
+<span class="pc bpc" id="L258" title="1 of 2 branches missed.">            if (value instanceof String) {</span>
+<span class="nc" id="L259">                String str = (String) value;</span>
+<span class="nc bnc" id="L260" title="All 2 branches missed.">                if (str.length() &gt; 0) {</span>
+<span class="nc" id="L261">                    value = str.charAt(0);</span>
+                } else {
+<span class="nc" id="L263">                    value = '\0';</span>
+                }
+            }
+        }
+
+<span class="fc bfc" id="L268" title="All 4 branches covered.">        if (value != null &amp;&amp; !fieldClass.isInstance(value)) {</span>
+<span class="fc" id="L269">            value = TypeUtils.cast(value, fieldType);</span>
+        }
+
+        try {
+<span class="fc bfc" id="L273" title="All 2 branches covered.">            if (function != null) {</span>
+<span class="fc" id="L274">                function.accept(object, value);</span>
+<span class="fc bfc" id="L275" title="All 2 branches covered.">            } else if (method != null) {</span>
+<span class="fc" id="L276">                method.invoke(object, value);</span>
+            } else {
+<span class="fc" id="L278">                UNSAFE.putObject(object, fieldOffset, value);</span>
+            }
+<span class="nc" id="L280">        } catch (Exception e) {</span>
+<span class="nc bnc" id="L281" title="All 2 branches missed.">            throw new JSONException(&quot;set &quot; + (function != null ? super.toString() : fieldName) + &quot; error&quot;, e);</span>
+<span class="fc" id="L282">        }</span>
+<span class="fc" id="L283">    }</span>
+
+    @Override
+    public Object readFieldValue(JSONReader jsonReader) {
+<span class="fc bfc" id="L287" title="All 2 branches covered.">        if (initReader == null) {</span>
+<span class="fc" id="L288">            initReader = getObjectReader(jsonReader);</span>
+        }
+
+<span class="fc bfc" id="L291" title="All 2 branches covered.">        Object object = jsonReader.jsonb</span>
+<span class="fc" id="L292">                ? initReader.readJSONBObject(jsonReader, fieldType, fieldName, features)</span>
+<span class="fc" id="L293">                : initReader.readObject(jsonReader, fieldType, fieldName, features);</span>
+
+<span class="fc" id="L295">        Function builder = initReader.getBuildFunction();</span>
+<span class="pc bpc" id="L296" title="1 of 2 branches missed.">        if (builder != null) {</span>
+<span class="nc" id="L297">            object = builder.apply(object);</span>
+        }
+
+<span class="fc" id="L300">        return object;</span>
+    }
+
+    public void processExtra(JSONReader jsonReader, Object object) {
+<span class="fc bfc" id="L304" title="All 2 branches covered.">        if (initReader == null) {</span>
+<span class="fc" id="L305">            initReader = getObjectReader(jsonReader);</span>
+        }
+
+<span class="pc bpc" id="L308" title="2 of 4 branches missed.">        if (initReader instanceof ObjectReaderBean &amp;&amp; field != null) {</span>
+<span class="fc" id="L309">            String name = jsonReader.getFieldName();</span>
+<span class="fc" id="L310">            FieldReader extraField = initReader.getFieldReader(name);</span>
+<span class="pc bpc" id="L311" title="1 of 2 branches missed.">            if (extraField != null) {</span>
+                try {
+<span class="fc" id="L313">                    Object unwrappedFieldValue = field.get(object);</span>
+<span class="fc bfc" id="L314" title="All 2 branches covered.">                    if (unwrappedFieldValue == null) {</span>
+<span class="fc" id="L315">                        unwrappedFieldValue = initReader.createInstance(features);</span>
+<span class="fc" id="L316">                        accept((T) object, unwrappedFieldValue);</span>
+                    }
+<span class="fc" id="L318">                    extraField.readFieldValue(jsonReader, unwrappedFieldValue);</span>
+<span class="fc" id="L319">                    return;</span>
+<span class="nc" id="L320">                } catch (Exception e) {</span>
+<span class="nc" id="L321">                    throw new JSONException(&quot;read unwrapped field error&quot;, e);</span>
+                }
+            }
+        }
+
+<span class="nc" id="L326">        jsonReader.skipValue();</span>
+<span class="nc" id="L327">    }</span>
+
+    @Override
+    public BiConsumer getFunction() {
+<span class="fc" id="L331">        return function;</span>
+    }
+
+    static void arrayToMap(
+            Map object,
+            Collection values,
+            String keyName,
+            ObjectReader valueReader,
+            BiConsumer duplicateHandler
+    ) {
+<span class="fc" id="L341">        values.forEach(item -&gt; {</span>
+            Object key;
+<span class="fc bfc" id="L343" title="All 2 branches covered.">            if (item instanceof Map) {</span>
+<span class="fc" id="L344">                key = ((Map&lt;?, ?&gt;) item).get(keyName);</span>
+<span class="pc bpc" id="L345" title="1 of 2 branches missed.">            } else if (item != null) {</span>
+<span class="fc" id="L346">                ObjectWriter itemWriter = JSONFactory.getObjectWriter(item.getClass(), 0);</span>
+<span class="fc" id="L347">                key = itemWriter.getFieldValue(item, keyName);</span>
+<span class="fc" id="L348">            } else {</span>
+<span class="nc" id="L349">                throw new JSONException(&quot;key not found &quot; + keyName);</span>
+            }
+            Object mapValue;
+<span class="fc bfc" id="L352" title="All 2 branches covered.">            if (valueReader.getObjectClass().isInstance(item)) {</span>
+<span class="fc" id="L353">                mapValue = item;</span>
+<span class="pc bpc" id="L354" title="1 of 2 branches missed.">            } else if (item instanceof Map) {</span>
+<span class="fc" id="L355">                mapValue = valueReader.createInstance((Map) item);</span>
+            } else {
+<span class="nc" id="L357">                throw new JSONException(&quot;can not accept &quot; + JSON.toJSONString(item, JSONWriter.Feature.ReferenceDetection));</span>
+            }
+<span class="fc" id="L359">            Object origin = object.putIfAbsent(key, mapValue);</span>
+<span class="pc bpc" id="L360" title="1 of 6 branches missed.">            if (origin != null &amp; duplicateHandler != null) {</span>
+<span class="fc" id="L361">                duplicateHandler.accept(origin, mapValue);</span>
+            }
+<span class="fc" id="L363">        });</span>
+<span class="fc" id="L364">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.8.202204050719</span></div></body></html>

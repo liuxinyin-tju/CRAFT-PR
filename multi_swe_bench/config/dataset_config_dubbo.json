@@ -1,0 +1,25 @@
+{
+  "mode": "instance_only",
+  "workdir": "./multi_swe_bench/tmp/workdir",
+  "raw_dataset_files": [
+    "./multi_swe_bench/tmp/raw_dataset/apache__dubbo_dataset.jsonl"
+  ],
+  "force_build": false,
+  "output_dir": "./multi_swe_bench/tmp/dataset",
+  "specifics": [],
+  "skips": [],
+  "repo_dir": "./multi_swe_bench/tmp/repos",
+  "need_clone": true,
+  "global_env": [
+    "https_proxy=http://172.19.135.130:5000",
+    "http_proxy=http://172.19.135.130:5000"
+  ],
+  "clear_env": false,
+  "stop_on_error": true,
+  "max_workers": 8,
+  "max_workers_build_image": 8,
+  "max_workers_run_instance": 4,
+  "log_dir": "./multi_swe_bench/tmp/logs",
+  "log_level": "DEBUG",
+  "test_case_files": "./baseline/ours_wo_str/dubbo.json"
+}

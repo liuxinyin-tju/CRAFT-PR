@@ -1,0 +1,340 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ContextAutoTypeBeforeHandler.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">fastjson2</a> &gt; <a href="index.source.html" class="el_package">com.alibaba.fastjson2.filter</a> &gt; <span class="el_source">ContextAutoTypeBeforeHandler.java</span></div><h1>ContextAutoTypeBeforeHandler.java</h1><pre class="source lang-java linenums">package com.alibaba.fastjson2.filter;
+
+import com.alibaba.fastjson2.JSON;
+import com.alibaba.fastjson2.JSONReader;
+import com.alibaba.fastjson2.util.Fnv;
+import com.alibaba.fastjson2.util.TypeUtils;
+
+import java.math.BigDecimal;
+import java.math.BigInteger;
+import java.text.SimpleDateFormat;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.time.format.DateTimeFormatter;
+import java.util.*;
+import java.util.concurrent.*;
+import java.util.concurrent.atomic.*;
+
+import static com.alibaba.fastjson2.util.Fnv.MAGIC_HASH_CODE;
+import static com.alibaba.fastjson2.util.Fnv.MAGIC_PRIME;
+import static com.alibaba.fastjson2.util.TypeUtils.*;
+
+public class ContextAutoTypeBeforeHandler
+        implements JSONReader.AutoTypeBeforeHandler {
+    final long[] acceptHashCodes;
+<span class="fc" id="L27">    final ConcurrentMap&lt;Integer, ConcurrentHashMap&lt;Long, Class&gt;&gt; tclHashCaches = new ConcurrentHashMap&lt;&gt;();</span>
+<span class="fc" id="L28">    final Map&lt;Long, Class&gt; classCache = new ConcurrentHashMap&lt;&gt;(16, 0.75f, 1);</span>
+
+    public ContextAutoTypeBeforeHandler(Class... types) {
+<span class="fc" id="L31">        this(false, types);</span>
+<span class="fc" id="L32">    }</span>
+
+    public ContextAutoTypeBeforeHandler(boolean includeBasic, Class... types) {
+<span class="fc" id="L35">        this(</span>
+                includeBasic,
+<span class="fc" id="L37">                names(</span>
+<span class="fc" id="L38">                        Arrays.asList(types)</span>
+                )
+        );
+<span class="fc" id="L41">    }</span>
+
+    public ContextAutoTypeBeforeHandler(String... acceptNames) {
+<span class="fc" id="L44">        this(false, acceptNames);</span>
+<span class="fc" id="L45">    }</span>
+
+    public ContextAutoTypeBeforeHandler(boolean includeBasic) {
+<span class="fc" id="L48">        this(includeBasic, new String[0]);</span>
+<span class="fc" id="L49">    }</span>
+
+    static String[] names(Collection&lt;Class&gt; types) {
+<span class="fc" id="L52">        Set&lt;String&gt; nameSet = new HashSet&lt;&gt;();</span>
+<span class="fc bfc" id="L53" title="All 2 branches covered.">        for (Class type : types) {</span>
+<span class="pc bpc" id="L54" title="1 of 2 branches missed.">            if (type == null) {</span>
+<span class="nc" id="L55">                continue;</span>
+            }
+
+<span class="fc" id="L58">            String name = TypeUtils.getTypeName(type);</span>
+<span class="fc" id="L59">            nameSet.add(name);</span>
+<span class="fc" id="L60">        }</span>
+<span class="fc" id="L61">        return nameSet.toArray(new String[nameSet.size()]);</span>
+    }
+
+<span class="fc" id="L64">    public ContextAutoTypeBeforeHandler(boolean includeBasic, String... acceptNames) {</span>
+<span class="fc" id="L65">        Set&lt;String&gt; nameSet = new HashSet&lt;&gt;();</span>
+<span class="fc bfc" id="L66" title="All 2 branches covered.">        if (includeBasic) {</span>
+<span class="fc" id="L67">            Class[] basicTypes = {</span>
+                    Object.class,
+                    byte.class,
+                    Byte.class,
+                    short.class,
+                    Short.class,
+                    int.class,
+                    Integer.class,
+                    long.class,
+                    Long.class,
+                    float.class,
+                    Float.class,
+                    double.class,
+                    Double.class,
+
+                    Number.class,
+                    BigInteger.class,
+                    BigDecimal.class,
+
+                    AtomicInteger.class,
+                    AtomicLong.class,
+                    AtomicBoolean.class,
+                    AtomicIntegerArray.class,
+                    AtomicLongArray.class,
+                    AtomicReference.class,
+
+                    boolean.class,
+                    Boolean.class,
+                    char.class,
+                    Character.class,
+
+                    String.class,
+                    UUID.class,
+                    Currency.class,
+                    BitSet.class,
+                    EnumSet.class,
+                    // this is java.util.RegularEnumSet, java.util.JumboEnumSet need add manually ?
+<span class="fc" id="L104">                    EnumSet.noneOf(TimeUnit.class).getClass(),</span>
+
+                    Date.class,
+                    Calendar.class,
+                    LocalTime.class,
+                    LocalDate.class,
+                    LocalDateTime.class,
+                    Instant.class,
+                    SimpleDateFormat.class,
+                    DateTimeFormatter.class,
+                    TimeUnit.class,
+
+                    Set.class,
+                    HashSet.class,
+                    LinkedHashSet.class,
+                    TreeSet.class,
+                    List.class,
+                    ArrayList.class,
+                    LinkedList.class,
+                    ConcurrentLinkedQueue.class,
+                    ConcurrentSkipListSet.class,
+                    CopyOnWriteArrayList.class,
+
+<span class="fc" id="L127">                    Collections.emptyList().getClass(),</span>
+<span class="fc" id="L128">                    Collections.emptyMap().getClass(),</span>
+                    CLASS_SINGLE_SET,
+                    CLASS_SINGLE_LIST,
+                    CLASS_UNMODIFIABLE_COLLECTION,
+                    CLASS_UNMODIFIABLE_LIST,
+                    CLASS_UNMODIFIABLE_SET,
+                    CLASS_UNMODIFIABLE_SORTED_SET,
+                    CLASS_UNMODIFIABLE_NAVIGABLE_SET,
+<span class="fc" id="L136">                    Collections.unmodifiableMap(new HashMap&lt;&gt;()).getClass(),</span>
+<span class="fc" id="L137">                    Collections.unmodifiableNavigableMap(new TreeMap&lt;&gt;()).getClass(),</span>
+<span class="fc" id="L138">                    Collections.unmodifiableSortedMap(new TreeMap&lt;&gt;()).getClass(),</span>
+<span class="fc" id="L139">                    Arrays.asList().getClass(),</span>
+
+                    Map.class,
+                    HashMap.class,
+                    Hashtable.class,
+                    TreeMap.class,
+                    LinkedHashMap.class,
+                    WeakHashMap.class,
+                    IdentityHashMap.class,
+                    ConcurrentMap.class,
+                    ConcurrentHashMap.class,
+                    ConcurrentSkipListMap.class,
+
+                    Exception.class,
+                    IllegalAccessError.class,
+                    IllegalAccessException.class,
+                    IllegalArgumentException.class,
+                    IllegalMonitorStateException.class,
+                    IllegalStateException.class,
+                    IllegalThreadStateException.class,
+                    IndexOutOfBoundsException.class,
+                    InstantiationError.class,
+                    InstantiationException.class,
+                    InternalError.class,
+                    InterruptedException.class,
+                    LinkageError.class,
+                    NegativeArraySizeException.class,
+                    NoClassDefFoundError.class,
+                    NoSuchFieldError.class,
+                    NoSuchFieldException.class,
+                    NoSuchMethodError.class,
+                    NoSuchMethodException.class,
+                    NullPointerException.class,
+                    NumberFormatException.class,
+                    OutOfMemoryError.class,
+                    RuntimeException.class,
+                    SecurityException.class,
+                    StackOverflowError.class,
+                    StringIndexOutOfBoundsException.class,
+                    TypeNotPresentException.class,
+                    VerifyError.class,
+                    StackTraceElement.class
+            };
+
+<span class="fc bfc" id="L183" title="All 2 branches covered.">            for (int i = 0; i &lt; basicTypes.length; i++) {</span>
+<span class="fc" id="L184">                String name = TypeUtils.getTypeName(basicTypes[i]);</span>
+<span class="fc" id="L185">                nameSet.add(name);</span>
+            }
+
+<span class="fc" id="L188">            String[] basicTypeNames = {</span>
+                    &quot;javax.validation.ValidationException&quot;,
+                    &quot;javax.validation.NoProviderFoundException&quot;
+            };
+<span class="fc" id="L192">            nameSet.addAll(Arrays.asList(basicTypeNames));</span>
+        }
+
+<span class="fc bfc" id="L195" title="All 2 branches covered.">        for (int i = 0; i &lt; acceptNames.length; i++) {</span>
+<span class="fc" id="L196">            String name = acceptNames[i];</span>
+<span class="fc bfc" id="L197" title="All 4 branches covered.">            if (name == null || name.isEmpty()) {</span>
+<span class="fc" id="L198">                continue;</span>
+            }
+
+<span class="fc" id="L201">            Class mapping = TypeUtils.getMapping(name);</span>
+<span class="fc bfc" id="L202" title="All 2 branches covered.">            if (mapping != null) {</span>
+<span class="fc" id="L203">                name = TypeUtils.getTypeName(mapping);</span>
+            }
+<span class="fc" id="L205">            nameSet.add(name);</span>
+        }
+
+<span class="fc" id="L208">        long[] array = new long[nameSet.size()];</span>
+
+<span class="fc" id="L210">        int index = 0;</span>
+<span class="fc bfc" id="L211" title="All 2 branches covered.">        for (String name : nameSet) {</span>
+<span class="fc" id="L212">            long hashCode = MAGIC_HASH_CODE;</span>
+<span class="fc bfc" id="L213" title="All 2 branches covered.">            for (int j = 0; j &lt; name.length(); ++j) {</span>
+<span class="fc" id="L214">                char ch = name.charAt(j);</span>
+<span class="fc bfc" id="L215" title="All 2 branches covered.">                if (ch == '$') {</span>
+<span class="fc" id="L216">                    ch = '.';</span>
+                }
+<span class="fc" id="L218">                hashCode ^= ch;</span>
+<span class="fc" id="L219">                hashCode *= MAGIC_PRIME;</span>
+            }
+
+<span class="fc" id="L222">            array[index++] = hashCode;</span>
+<span class="fc" id="L223">        }</span>
+
+<span class="pc bpc" id="L225" title="1 of 2 branches missed.">        if (index != array.length) {</span>
+<span class="nc" id="L226">            array = Arrays.copyOf(array, index);</span>
+        }
+<span class="fc" id="L228">        Arrays.sort(array);</span>
+<span class="fc" id="L229">        this.acceptHashCodes = array;</span>
+<span class="fc" id="L230">    }</span>
+
+    public Class&lt;?&gt; apply(long typeNameHash, Class&lt;?&gt; expectClass, long features) {
+<span class="fc" id="L233">        ClassLoader tcl = Thread.currentThread().getContextClassLoader();</span>
+<span class="pc bpc" id="L234" title="2 of 4 branches missed.">        if (tcl != null &amp;&amp; tcl != JSON.class.getClassLoader()) {</span>
+<span class="fc" id="L235">            int tclHash = System.identityHashCode(tcl);</span>
+<span class="fc" id="L236">            ConcurrentHashMap&lt;Long, Class&gt; tclHashCache = tclHashCaches.get(tclHash);</span>
+<span class="fc bfc" id="L237" title="All 2 branches covered.">            if (tclHashCache != null) {</span>
+<span class="fc" id="L238">                return tclHashCache.get(typeNameHash);</span>
+            }
+        }
+
+<span class="fc" id="L242">        return classCache.get(typeNameHash);</span>
+    }
+
+    @Override
+    public Class&lt;?&gt; apply(String typeName, Class&lt;?&gt; expectClass, long features) {
+<span class="fc bfc" id="L247" title="All 2 branches covered.">        if (&quot;O&quot;.equals(typeName)) {</span>
+<span class="fc" id="L248">            typeName = &quot;Object&quot;;</span>
+        }
+
+<span class="fc" id="L251">        long hash = MAGIC_HASH_CODE;</span>
+<span class="fc bfc" id="L252" title="All 2 branches covered.">        for (int i = 0, typeNameLength = typeName.length(); i &lt; typeNameLength; ++i) {</span>
+<span class="fc" id="L253">            char ch = typeName.charAt(i);</span>
+<span class="fc bfc" id="L254" title="All 2 branches covered.">            if (ch == '$') {</span>
+<span class="fc" id="L255">                ch = '.';</span>
+            }
+<span class="fc" id="L257">            hash ^= ch;</span>
+<span class="fc" id="L258">            hash *= MAGIC_PRIME;</span>
+
+<span class="fc bfc" id="L260" title="All 2 branches covered.">            if (Arrays.binarySearch(acceptHashCodes, hash) &gt;= 0) {</span>
+<span class="fc" id="L261">                long typeNameHash = Fnv.hashCode64(typeName);</span>
+<span class="fc" id="L262">                Class clazz = apply(typeNameHash, expectClass, features);</span>
+
+<span class="fc bfc" id="L264" title="All 2 branches covered.">                if (clazz == null) {</span>
+<span class="fc" id="L265">                    clazz = loadClass(typeName);</span>
+<span class="pc bpc" id="L266" title="1 of 2 branches missed.">                    if (clazz != null) {</span>
+<span class="fc" id="L267">                        Class origin = putCacheIfAbsent(typeNameHash, clazz);</span>
+<span class="pc bpc" id="L268" title="1 of 2 branches missed.">                        if (origin != null) {</span>
+<span class="nc" id="L269">                            clazz = origin;</span>
+                        }
+                    }
+                }
+
+<span class="pc bpc" id="L274" title="1 of 2 branches missed.">                if (clazz != null) {</span>
+<span class="fc" id="L275">                    return clazz;</span>
+                }
+            }
+        }
+
+<span class="fc" id="L280">        long typeNameHash = Fnv.hashCode64(typeName);</span>
+
+<span class="pc bpc" id="L282" title="1 of 2 branches missed.">        if (typeName.length() &gt; 0</span>
+<span class="fc bfc" id="L283" title="All 2 branches covered.">                &amp;&amp; typeName.charAt(0) == '[') {</span>
+<span class="fc" id="L284">            Class clazz = apply(typeNameHash, expectClass, features);</span>
+<span class="fc bfc" id="L285" title="All 2 branches covered.">            if (clazz != null) {</span>
+<span class="fc" id="L286">                return clazz;</span>
+            }
+
+<span class="fc" id="L289">            String itemTypeName = typeName.substring(1);</span>
+<span class="fc" id="L290">            Class itemExpectClass = null;</span>
+<span class="fc bfc" id="L291" title="All 2 branches covered.">            if (expectClass != null) {</span>
+<span class="fc" id="L292">                itemExpectClass = expectClass.getComponentType();</span>
+            }
+<span class="fc" id="L294">            Class itemType = apply(itemTypeName, itemExpectClass, features);</span>
+<span class="fc bfc" id="L295" title="All 2 branches covered.">            if (itemType != null) {</span>
+                Class arrayType;
+<span class="pc bpc" id="L297" title="1 of 2 branches missed.">                if (itemType == itemExpectClass) {</span>
+<span class="nc" id="L298">                    arrayType = expectClass;</span>
+                } else {
+<span class="fc" id="L300">                    arrayType = TypeUtils.getArrayClass(itemType);</span>
+                }
+<span class="fc" id="L302">                Class origin = putCacheIfAbsent(typeNameHash, arrayType);</span>
+<span class="pc bpc" id="L303" title="1 of 2 branches missed.">                if (origin != null) {</span>
+<span class="nc" id="L304">                    arrayType = origin;</span>
+                }
+<span class="fc" id="L306">                return arrayType;</span>
+            }
+        }
+
+<span class="fc" id="L310">        Class mapping = TypeUtils.getMapping(typeName);</span>
+<span class="fc bfc" id="L311" title="All 2 branches covered.">        if (mapping != null) {</span>
+<span class="fc" id="L312">            String mappingTypeName = TypeUtils.getTypeName(mapping);</span>
+<span class="fc bfc" id="L313" title="All 2 branches covered.">            if (!typeName.equals(mappingTypeName)) {</span>
+<span class="fc" id="L314">                Class&lt;?&gt; mappingClass = apply(mappingTypeName, expectClass, features);</span>
+<span class="fc bfc" id="L315" title="All 2 branches covered.">                if (mappingClass != null) {</span>
+<span class="fc" id="L316">                    putCacheIfAbsent(typeNameHash, mappingClass);</span>
+                }
+<span class="fc" id="L318">                return mappingClass;</span>
+            }
+        }
+
+<span class="fc" id="L322">        return null;</span>
+    }
+
+    private Class putCacheIfAbsent(long typeNameHash, Class type) {
+<span class="fc" id="L326">        ClassLoader tcl = Thread.currentThread().getContextClassLoader();</span>
+<span class="pc bpc" id="L327" title="2 of 4 branches missed.">        if (tcl != null &amp;&amp; tcl != JSON.class.getClassLoader()) {</span>
+<span class="fc" id="L328">            int tclHash = System.identityHashCode(tcl);</span>
+<span class="fc" id="L329">            ConcurrentHashMap&lt;Long, Class&gt; tclHashCache = tclHashCaches.get(tclHash);</span>
+<span class="fc bfc" id="L330" title="All 2 branches covered.">            if (tclHashCache == null) {</span>
+<span class="fc" id="L331">                tclHashCaches.putIfAbsent(tclHash, new ConcurrentHashMap&lt;&gt;());</span>
+<span class="fc" id="L332">                tclHashCache = tclHashCaches.get(tclHash);</span>
+            }
+
+<span class="fc" id="L335">            return tclHashCache.putIfAbsent(typeNameHash, type);</span>
+        }
+<span class="nc" id="L337">        return classCache.putIfAbsent(typeNameHash, type);</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.8.202204050719</span></div></body></html>

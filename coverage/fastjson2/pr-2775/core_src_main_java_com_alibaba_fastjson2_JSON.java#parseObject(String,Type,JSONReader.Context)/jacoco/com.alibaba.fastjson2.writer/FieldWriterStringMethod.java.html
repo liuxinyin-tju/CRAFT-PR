@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>FieldWriterStringMethod.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">fastjson2</a> &gt; <a href="index.source.html" class="el_package">com.alibaba.fastjson2.writer</a> &gt; <span class="el_source">FieldWriterStringMethod.java</span></div><h1>FieldWriterStringMethod.java</h1><pre class="source lang-java linenums">package com.alibaba.fastjson2.writer;
+
+import com.alibaba.fastjson2.JSONException;
+import com.alibaba.fastjson2.JSONWriter;
+
+import java.lang.reflect.Field;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
+
+final class FieldWriterStringMethod&lt;T&gt;
+        extends FieldWriter&lt;T&gt; {
+    FieldWriterStringMethod(
+            String fieldName,
+            int ordinal,
+            String format,
+            String label,
+            long features,
+            Field field,
+            Method method
+    ) {
+<span class="fc" id="L21">        super(fieldName, ordinal, features, format, null, label, String.class, String.class, field, method);</span>
+<span class="fc" id="L22">    }</span>
+
+    @Override
+    public Object getFieldValue(Object object) {
+        try {
+<span class="fc" id="L27">            return method.invoke(object);</span>
+<span class="fc" id="L28">        } catch (IllegalArgumentException | IllegalAccessException | InvocationTargetException e) {</span>
+<span class="fc" id="L29">            throw new JSONException(&quot;invoke getter method error, &quot; + fieldName, e);</span>
+        }
+    }
+
+    @Override
+    public void writeValue(JSONWriter jsonWriter, T object) {
+<span class="fc" id="L35">        String value = (String) getFieldValue(object);</span>
+
+<span class="pc bpc" id="L37" title="3 of 4 branches missed.">        if (trim &amp;&amp; value != null) {</span>
+<span class="nc" id="L38">            value = value.trim();</span>
+        }
+
+<span class="pc bpc" id="L41" title="3 of 4 branches missed.">        if (symbol &amp;&amp; jsonWriter.jsonb) {</span>
+<span class="nc" id="L42">            jsonWriter.writeSymbol(value);</span>
+        } else {
+<span class="pc bpc" id="L44" title="1 of 2 branches missed.">            if (raw) {</span>
+<span class="nc" id="L45">                jsonWriter.writeRaw(value);</span>
+            } else {
+<span class="fc" id="L47">                jsonWriter.writeString(value);</span>
+            }
+        }
+<span class="fc" id="L50">    }</span>
+
+    @Override
+    public boolean write(JSONWriter jsonWriter, T object) {
+        String value;
+        try {
+<span class="fc" id="L56">            value = (String) getFieldValue(object);</span>
+<span class="fc" id="L57">        } catch (JSONException error) {</span>
+<span class="pc bpc" id="L58" title="1 of 2 branches missed.">            if ((jsonWriter.getFeatures(features) | JSONWriter.Feature.IgnoreNonFieldGetter.mask) != 0) {</span>
+<span class="fc" id="L59">                return false;</span>
+            }
+<span class="nc" id="L61">            throw error;</span>
+<span class="fc" id="L62">        }</span>
+
+<span class="fc" id="L64">        long features = this.features | jsonWriter.getFeatures();</span>
+<span class="fc bfc" id="L65" title="All 2 branches covered.">        if (value == null) {</span>
+<span class="fc bfc" id="L66" title="All 2 branches covered.">            if ((features &amp; (JSONWriter.Feature.WriteNulls.mask | JSONWriter.Feature.NullAsDefaultValue.mask | JSONWriter.Feature.WriteNullStringAsEmpty.mask)) == 0) {</span>
+<span class="fc" id="L67">                return false;</span>
+            }
+<span class="pc bpc" id="L69" title="1 of 2 branches missed.">        } else if (trim) {</span>
+<span class="nc" id="L70">            value = value.trim();</span>
+        }
+
+<span class="fc bfc" id="L73" title="All 2 branches covered.">        if (value != null</span>
+<span class="pc bpc" id="L74" title="1 of 4 branches missed.">                &amp;&amp; value.isEmpty()</span>
+                &amp;&amp; (features &amp; JSONWriter.Feature.IgnoreEmpty.mask) != 0
+        ) {
+<span class="fc" id="L77">            return false;</span>
+        }
+
+<span class="fc" id="L80">        writeString(jsonWriter, value);</span>
+<span class="fc" id="L81">        return true;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.8.202204050719</span></div></body></html>

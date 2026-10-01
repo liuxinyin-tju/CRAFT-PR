@@ -1,0 +1,33 @@
+{
+  "summary_by_stage": {
+    "repair": {
+      "prompt_tokens": 8029,
+      "completion_tokens": 1346,
+      "total_tokens": 9375,
+      "call_count": 1,
+      "total_duration": 57.5889,
+      "avg_duration": 57.5889
+    }
+  },
+  "total": {
+    "prompt_tokens": 8029,
+    "completion_tokens": 1346,
+    "total_tokens": 9375,
+    "call_count": 1,
+    "total_duration": 57.5889,
+    "avg_duration": 57.5889
+  },
+  "records": [
+    {
+      "stage": "repair",
+      "instance_id": "mswebench/alibaba_m_fastjson2:pr-2775",
+      "method_name": "core/src/main/java/com/alibaba/fastjson2/JSON.java#parseObject(String,Type,JSONReader.Context)",
+      "model": "deepseek-ai/DeepSeek-V3.2",
+      "prompt_tokens": 8029,
+      "completion_tokens": 1346,
+      "total_tokens": 9375,
+      "duration": 57.5889,
+      "timestamp": "2026-09-30 14:02:15"
+    }
+  ]
+}

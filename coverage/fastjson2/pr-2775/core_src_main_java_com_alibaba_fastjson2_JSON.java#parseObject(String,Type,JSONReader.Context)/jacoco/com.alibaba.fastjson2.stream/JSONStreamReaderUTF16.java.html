@@ -1,0 +1,173 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>JSONStreamReaderUTF16.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">fastjson2</a> &gt; <a href="index.source.html" class="el_package">com.alibaba.fastjson2.stream</a> &gt; <span class="el_source">JSONStreamReaderUTF16.java</span></div><h1>JSONStreamReaderUTF16.java</h1><pre class="source lang-java linenums">package com.alibaba.fastjson2.stream;
+
+import com.alibaba.fastjson2.JSONException;
+import com.alibaba.fastjson2.JSONFactory;
+import com.alibaba.fastjson2.JSONReader;
+import com.alibaba.fastjson2.reader.ObjectReaderAdapter;
+
+import java.io.IOException;
+import java.io.Reader;
+import java.lang.reflect.Type;
+
+public class JSONStreamReaderUTF16&lt;T&gt;
+        extends JSONStreamReader&lt;T&gt; {
+    char[] buf;
+    final Reader input;
+    final JSONReader.Context context;
+
+    JSONStreamReaderUTF16(Reader input, ObjectReaderAdapter objectReader) {
+<span class="nc" id="L19">        super(objectReader);</span>
+<span class="nc" id="L20">        this.input = input;</span>
+<span class="nc" id="L21">        this.context = JSONFactory.createReadContext();</span>
+<span class="nc" id="L22">    }</span>
+
+    JSONStreamReaderUTF16(Reader input, Type[] types) {
+<span class="fc" id="L25">        super(types);</span>
+<span class="fc" id="L26">        this.input = input;</span>
+<span class="fc" id="L27">        this.context = JSONFactory.createReadContext();</span>
+<span class="fc" id="L28">    }</span>
+
+    @Override
+    protected boolean seekLine() throws IOException {
+<span class="fc bfc" id="L32" title="All 2 branches covered.">        if (buf == null) {</span>
+<span class="pc bpc" id="L33" title="1 of 2 branches missed.">            if (input != null) {</span>
+<span class="fc" id="L34">                buf = new char[SIZE_512K];</span>
+<span class="fc" id="L35">                int cnt = input.read(buf);</span>
+<span class="pc bpc" id="L36" title="1 of 2 branches missed.">                if (cnt == -1) {</span>
+<span class="nc" id="L37">                    inputEnd = true;</span>
+<span class="nc" id="L38">                    return false;</span>
+                }
+<span class="fc" id="L40">                this.end = cnt;</span>
+            }
+        }
+
+<span class="pc bpc" id="L44" title="1 of 2 branches missed.">        for (int k = 0; k &lt; 3; ++k) {</span>
+<span class="fc" id="L45">            lineTerminated = false;</span>
+
+<span class="fc bfc" id="L47" title="All 2 branches covered.">            for (int i = off; i &lt; end; i++) {</span>
+<span class="fc bfc" id="L48" title="All 2 branches covered.">                if (i + 4 &lt; end) {</span>
+<span class="fc" id="L49">                    char b0 = buf[i];</span>
+<span class="fc" id="L50">                    char b1 = buf[i + 1];</span>
+<span class="fc" id="L51">                    char b2 = buf[i + 2];</span>
+<span class="fc" id="L52">                    char b3 = buf[i + 3];</span>
+<span class="pc bpc" id="L53" title="2 of 8 branches missed.">                    if (b0 &gt; '&quot;' &amp;&amp; b1 &gt; '&quot;' &amp;&amp; b2 &gt; '&quot;' &amp;&amp; b3 &gt; '&quot;') {</span>
+<span class="fc" id="L54">                        lineSize += 4;</span>
+<span class="fc" id="L55">                        i += 3;</span>
+<span class="fc" id="L56">                        continue;</span>
+                    }
+                }
+
+<span class="fc" id="L60">                char ch = buf[i];</span>
+
+<span class="fc bfc" id="L62" title="All 2 branches covered.">                if (ch == '\n') {</span>
+<span class="pc bpc" id="L63" title="3 of 4 branches missed.">                    if (lineSize &gt; 0 || (features &amp; Feature.IgnoreEmptyLine.mask) == 0) {</span>
+<span class="fc" id="L64">                        rowCount++;</span>
+                    }
+<span class="fc" id="L66">                    lineTerminated = true;</span>
+<span class="fc" id="L67">                    lineSize = 0;</span>
+<span class="fc" id="L68">                    lineEnd = i;</span>
+<span class="fc" id="L69">                    lineStart = lineNextStart;</span>
+<span class="fc" id="L70">                    lineNextStart = off = i + 1;</span>
+
+<span class="fc" id="L72">                    break;</span>
+<span class="pc bpc" id="L73" title="1 of 2 branches missed.">                } else if (ch == '\r') {</span>
+<span class="nc bnc" id="L74" title="All 4 branches missed.">                    if (lineSize &gt; 0 || (features &amp; Feature.IgnoreEmptyLine.mask) == 0) {</span>
+<span class="nc" id="L75">                        rowCount++;</span>
+                    }
+
+<span class="nc" id="L78">                    lineTerminated = true;</span>
+<span class="nc" id="L79">                    lineSize = 0;</span>
+<span class="nc" id="L80">                    lineEnd = i;</span>
+
+<span class="nc" id="L82">                    int n = i + 1;</span>
+<span class="nc bnc" id="L83" title="All 2 branches missed.">                    if (n &gt;= end) {</span>
+<span class="nc" id="L84">                        break;</span>
+                    }
+<span class="nc bnc" id="L86" title="All 2 branches missed.">                    if (buf[n] == '\n') {</span>
+<span class="nc" id="L87">                        i++;</span>
+                    }
+
+<span class="nc" id="L90">                    lineStart = lineNextStart;</span>
+<span class="nc" id="L91">                    lineNextStart = off = i + 1;</span>
+
+<span class="nc" id="L93">                    break;</span>
+                } else {
+<span class="fc" id="L95">                    lineSize++;</span>
+                }
+            }
+
+<span class="fc bfc" id="L99" title="All 2 branches covered.">            if (!lineTerminated) {</span>
+<span class="pc bpc" id="L100" title="2 of 4 branches missed.">                if (input != null &amp;&amp; !inputEnd) {</span>
+<span class="fc" id="L101">                    int len = end - off;</span>
+<span class="pc bpc" id="L102" title="1 of 2 branches missed.">                    if (off &gt; 0) {</span>
+<span class="pc bpc" id="L103" title="1 of 2 branches missed.">                        if (len &gt; 0) {</span>
+<span class="fc" id="L104">                            System.arraycopy(buf, off, buf, 0, len);</span>
+                        }
+<span class="fc" id="L106">                        lineStart = lineNextStart = 0;</span>
+<span class="fc" id="L107">                        off = 0;</span>
+<span class="fc" id="L108">                        end = len;</span>
+                    }
+
+<span class="fc" id="L111">                    int cnt = input.read(buf, end, buf.length - end);</span>
+<span class="pc bpc" id="L112" title="1 of 2 branches missed.">                    if (cnt == -1) {</span>
+<span class="fc" id="L113">                        inputEnd = true;</span>
+<span class="pc bpc" id="L114" title="1 of 2 branches missed.">                        if (off == end) {</span>
+<span class="nc" id="L115">                            return false;</span>
+                        }
+                    } else {
+<span class="nc" id="L118">                        end += cnt;</span>
+<span class="nc" id="L119">                        continue;</span>
+                    }
+                }
+
+<span class="fc" id="L123">                lineStart = lineNextStart;</span>
+<span class="fc" id="L124">                lineEnd = end;</span>
+<span class="fc" id="L125">                rowCount++;</span>
+<span class="fc" id="L126">                lineSize = 0;</span>
+<span class="fc" id="L127">                off = end;</span>
+            }
+
+<span class="fc bfc" id="L130" title="All 2 branches covered.">            lineTerminated = off == end;</span>
+<span class="fc" id="L131">            break;</span>
+        }
+
+<span class="fc" id="L134">        return true;</span>
+    }
+
+    @Override
+    public &lt;T&gt; T readLineObject() {
+        try {
+<span class="pc bpc" id="L140" title="1 of 2 branches missed.">            if (inputEnd) {</span>
+<span class="nc" id="L141">                return null;</span>
+            }
+
+<span class="pc bpc" id="L144" title="1 of 2 branches missed.">            if (input == null) {</span>
+<span class="nc bnc" id="L145" title="All 2 branches missed.">                if (off &gt;= end) {</span>
+<span class="nc" id="L146">                    return null;</span>
+                }
+            }
+
+<span class="fc" id="L150">            boolean result = seekLine();</span>
+
+<span class="pc bpc" id="L152" title="1 of 2 branches missed.">            if (!result) {</span>
+<span class="nc" id="L153">                return null;</span>
+            }
+<span class="nc" id="L155">        } catch (IOException e) {</span>
+<span class="nc" id="L156">            throw new JSONException(&quot;seekLine error&quot;, e);</span>
+<span class="fc" id="L157">        }</span>
+
+<span class="fc" id="L159">        JSONReader reader = JSONReader.of(buf, lineStart, lineEnd - lineStart, context);</span>
+
+        Object object;
+<span class="pc bpc" id="L162" title="1 of 2 branches missed.">        if (objectReader != null) {</span>
+<span class="nc" id="L163">            object = objectReader.readObject(reader, null, null, features);</span>
+<span class="pc bpc" id="L164" title="2 of 6 branches missed.">        } else if (reader.isArray() &amp;&amp; types != null &amp;&amp; types.length != 0) {</span>
+<span class="fc" id="L165">            object = reader.readList(types);</span>
+        } else {
+<span class="fc" id="L167">            object = reader.readAny();</span>
+        }
+
+<span class="fc" id="L170">        return (T) object;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.8.202204050719</span></div></body></html>

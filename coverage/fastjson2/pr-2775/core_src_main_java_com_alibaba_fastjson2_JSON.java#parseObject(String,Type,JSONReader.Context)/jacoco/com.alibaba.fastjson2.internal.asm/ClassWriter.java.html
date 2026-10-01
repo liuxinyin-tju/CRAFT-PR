@@ -1,0 +1,295 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ClassWriter.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">fastjson2</a> &gt; <a href="index.source.html" class="el_package">com.alibaba.fastjson2.internal.asm</a> &gt; <span class="el_source">ClassWriter.java</span></div><h1>ClassWriter.java</h1><pre class="source lang-java linenums">// ASM: a very small and fast Java bytecode manipulation framework
+// Copyright (c) 2000-2011 INRIA, France Telecom
+// All rights reserved.
+//
+// Redistribution and use in source and binary forms, with or without
+// modification, are permitted provided that the following conditions
+// are met:
+// 1. Redistributions of source code must retain the above copyright
+//    notice, this list of conditions and the following disclaimer.
+// 2. Redistributions in binary form must reproduce the above copyright
+//    notice, this list of conditions and the following disclaimer in the
+//    documentation and/or other materials provided with the distribution.
+// 3. Neither the name of the copyright holders nor the names of its
+//    contributors may be used to endorse or promote products derived from
+//    this software without specific prior written permission.
+//
+// THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS &quot;AS IS&quot;
+// AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+// IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+// ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE
+// LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+// CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+// SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+// INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+// CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+// ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF
+// THE POSSIBILITY OF SUCH DAMAGE.
+package com.alibaba.fastjson2.internal.asm;
+
+import com.alibaba.fastjson2.JSONException;
+import com.alibaba.fastjson2.util.TypeUtils;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.function.Function;
+
+public class ClassWriter {
+    private final Function&lt;String, Class&gt; typeProvider;
+    /**
+     * The minor_version and major_version fields of the JVMS ClassFile structure. minor_version is
+     * stored in the 16 most significant bits, and major_version in the 16 least significant bits.
+     */
+    private int version;
+
+    /**
+     * The symbol table for this class (contains the constant_pool and the BootstrapMethods).
+     */
+    private final SymbolTable symbolTable;
+
+    private int accessFlags;
+
+    /**
+     * The this_class field of the JVMS ClassFile structure.
+     */
+    private int thisClass;
+
+    /**
+     * The super_class field of the JVMS ClassFile structure.
+     */
+    private int superClass;
+
+    /**
+     * The interface_count field of the JVMS ClassFile structure.
+     */
+    private int interfaceCount;
+
+    /**
+     * The 'interfaces' array of the JVMS ClassFile structure.
+     */
+    private int[] interfaces;
+
+    /**
+     * The fields of this class, stored in a linked list of {@link FieldWriter} linked via their
+     * {@link FieldWriter#fv} field. This field stores the first element of this list.
+     */
+    private FieldWriter firstField;
+
+    /**
+     * The fields of this class, stored in a linked list of {@link FieldWriter} linked via their
+     * {@link FieldWriter#fv} field. This field stores the last element of this list.
+     */
+    private FieldWriter lastField;
+
+    private MethodWriter firstMethod;
+
+    private MethodWriter lastMethod;
+
+<span class="fc" id="L88">    public ClassWriter(Function&lt;String, Class&gt; typeProvider) {</span>
+<span class="fc" id="L89">        symbolTable = new SymbolTable(this);</span>
+<span class="fc" id="L90">        this.typeProvider = typeProvider;</span>
+<span class="fc" id="L91">    }</span>
+
+    public final void visit(
+            final int version,
+            final int access,
+            final String name,
+            final String superName,
+            final String[] interfaces) {
+<span class="fc" id="L99">        this.version = version;</span>
+<span class="fc" id="L100">        this.accessFlags = access;</span>
+<span class="fc" id="L101">        this.thisClass = symbolTable.setMajorVersionAndClassName(version &amp; 0xFFFF, name);</span>
+<span class="pc bpc" id="L102" title="1 of 2 branches missed.">        this.superClass = superName == null ? 0 : symbolTable.addConstantUtf8Reference(/*CONSTANT_CLASS_TAG*/ 7, superName).index;</span>
+<span class="pc bpc" id="L103" title="1 of 4 branches missed.">        if (interfaces != null &amp;&amp; interfaces.length &gt; 0) {</span>
+<span class="fc" id="L104">            interfaceCount = interfaces.length;</span>
+<span class="fc" id="L105">            this.interfaces = new int[interfaceCount];</span>
+<span class="fc bfc" id="L106" title="All 2 branches covered.">            for (int i = 0; i &lt; interfaceCount; ++i) {</span>
+<span class="fc" id="L107">                this.interfaces[i] = symbolTable.addConstantUtf8Reference(/*CONSTANT_CLASS_TAG*/ 7, interfaces[i]).index;</span>
+            }
+        }
+<span class="fc" id="L110">    }</span>
+
+    public final FieldWriter visitField(
+            final int access,
+            final String name,
+            final String descriptor) {
+<span class="fc" id="L116">        FieldWriter fieldWriter =</span>
+                new FieldWriter(symbolTable, access, name, descriptor);
+<span class="fc bfc" id="L118" title="All 2 branches covered.">        if (firstField == null) {</span>
+<span class="fc" id="L119">            firstField = fieldWriter;</span>
+        } else {
+<span class="fc" id="L121">            lastField.fv = fieldWriter;</span>
+        }
+<span class="fc" id="L123">        return lastField = fieldWriter;</span>
+    }
+
+    public final MethodWriter visitMethod(
+            int access,
+            String name,
+            String descriptor,
+            int codeInitCapacity
+    ) {
+<span class="fc" id="L132">        MethodWriter methodWriter =</span>
+                new MethodWriter(symbolTable, access, name, descriptor, codeInitCapacity);
+<span class="fc bfc" id="L134" title="All 2 branches covered.">        if (firstMethod == null) {</span>
+<span class="fc" id="L135">            firstMethod = methodWriter;</span>
+        } else {
+<span class="fc" id="L137">            lastMethod.mv = methodWriter;</span>
+        }
+<span class="fc" id="L139">        return lastMethod = methodWriter;</span>
+    }
+
+    /**
+     * Returns the content of the class file that was built by this ClassWriter.
+     *
+     * @return the binary content of the JVMS ClassFile structure that was built by this ClassWriter.
+     */
+    public byte[] toByteArray() {
+        // First step: compute the size in bytes of the ClassFile structure.
+        // The magic field uses 4 bytes, 10 mandatory fields (minor_version, major_version,
+        // constant_pool_count, access_flags, this_class, super_class, interfaces_count, fields_count,
+        // methods_count and attributes_count) use 2 bytes each, and each interface uses 2 bytes too.
+<span class="fc" id="L152">        int size = 24 + 2 * interfaceCount;</span>
+<span class="fc" id="L153">        int fieldsCount = 0;</span>
+<span class="fc" id="L154">        FieldWriter fieldWriter = firstField;</span>
+<span class="fc bfc" id="L155" title="All 2 branches covered.">        while (fieldWriter != null) {</span>
+<span class="fc" id="L156">            ++fieldsCount;</span>
+<span class="fc" id="L157">            size += 8;</span>
+<span class="fc" id="L158">            fieldWriter = fieldWriter.fv;</span>
+        }
+<span class="fc" id="L160">        int methodsCount = 0;</span>
+<span class="fc" id="L161">        MethodWriter methodWriter = firstMethod;</span>
+<span class="fc bfc" id="L162" title="All 2 branches covered.">        while (methodWriter != null) {</span>
+<span class="fc" id="L163">            ++methodsCount;</span>
+<span class="fc" id="L164">            size += methodWriter.computeMethodInfoSize();</span>
+<span class="fc" id="L165">            methodWriter = methodWriter.mv;</span>
+        }
+
+        // For ease of reference, we use here the same attribute order as in Section 4.7 of the JVMS.
+<span class="fc" id="L169">        int attributesCount = 0;</span>
+//        if (symbolTable.computeBootstrapMethodsSize() &gt; 0) {
+//            ++attributesCount;
+//            size += symbolTable.computeBootstrapMethodsSize();
+//        }
+
+        // IMPORTANT: this must be the last part of the ClassFile size computation, because the previous
+        // statements can add attribute names to the constant pool, thereby changing its size!
+<span class="fc" id="L177">        size += symbolTable.constantPool.length;</span>
+<span class="fc" id="L178">        int constantPoolCount = symbolTable.constantPoolCount;</span>
+<span class="pc bpc" id="L179" title="1 of 2 branches missed.">        if (constantPoolCount &gt; 0xFFFF) {</span>
+<span class="nc" id="L180">            throw new JSONException(&quot;Class too large: &quot; + symbolTable.className + &quot;, constantPoolCount &quot; + constantPoolCount);</span>
+        }
+
+        // Second step: allocate a ByteVector of the correct size (in order to avoid any array copy in
+        // dynamic resizes) and fill it with the ClassFile content.
+<span class="fc" id="L185">        ByteVector result = new ByteVector(size);</span>
+<span class="fc" id="L186">        result.putInt(0xCAFEBABE).putInt(version);</span>
+<span class="fc" id="L187">        result.putShort(constantPoolCount)</span>
+<span class="fc" id="L188">                .putByteArray(</span>
+                        symbolTable.constantPool.data,
+                        0,
+                        symbolTable.constantPool.length
+                ); // symbolTable.putConstantPool(result);
+<span class="fc" id="L193">        int mask = 0;</span>
+<span class="fc" id="L194">        result.putShort(accessFlags &amp; ~mask).putShort(thisClass).putShort(superClass);</span>
+<span class="fc" id="L195">        result.putShort(interfaceCount);</span>
+<span class="fc bfc" id="L196" title="All 2 branches covered.">        for (int i = 0; i &lt; interfaceCount; ++i) {</span>
+<span class="fc" id="L197">            result.putShort(interfaces[i]);</span>
+        }
+<span class="fc" id="L199">        result.putShort(fieldsCount);</span>
+<span class="fc" id="L200">        fieldWriter = firstField;</span>
+<span class="fc bfc" id="L201" title="All 2 branches covered.">        while (fieldWriter != null) {</span>
+<span class="fc" id="L202">            fieldWriter.putFieldInfo(result);</span>
+<span class="fc" id="L203">            fieldWriter = fieldWriter.fv;</span>
+        }
+<span class="fc" id="L205">        result.putShort(methodsCount);</span>
+<span class="fc" id="L206">        boolean hasFrames = false;</span>
+<span class="fc" id="L207">        boolean hasAsmInstructions = false;</span>
+<span class="fc" id="L208">        methodWriter = firstMethod;</span>
+<span class="fc bfc" id="L209" title="All 2 branches covered.">        while (methodWriter != null) {</span>
+<span class="fc bfc" id="L210" title="All 2 branches covered.">            hasFrames |= methodWriter.stackMapTableNumberOfEntries &gt; 0;</span>
+<span class="fc" id="L211">            hasAsmInstructions |= methodWriter.hasAsmInstructions;</span>
+<span class="fc" id="L212">            methodWriter.putMethodInfo(result);</span>
+<span class="fc" id="L213">            methodWriter = methodWriter.mv;</span>
+        }
+        // For ease of reference, we use here the same attribute order as in Section 4.7 of the JVMS.
+<span class="fc" id="L216">        result.putShort(attributesCount);</span>
+//        symbolTable.putBootstrapMethods(result);
+
+        // Third step: replace the ASM specific instructions, if any.
+<span class="pc bpc" id="L220" title="1 of 2 branches missed.">        if (hasAsmInstructions) {</span>
+<span class="nc" id="L221">            throw new UnsupportedOperationException();</span>
+        } else {
+<span class="fc" id="L223">            return result.data;</span>
+        }
+    }
+
+    protected Class loadClass(String type) {
+<span class="fc bfc" id="L228" title="All 4 branches covered.">        switch (type) {</span>
+            case &quot;java/util/List&quot;:
+<span class="fc" id="L230">                return List.class;</span>
+            case &quot;java/util/ArrayList&quot;:
+<span class="fc" id="L232">                return ArrayList.class;</span>
+            case &quot;java/lang/Object&quot;:
+<span class="fc" id="L234">                return Object.class;</span>
+            default:
+                break;
+        }
+
+<span class="fc" id="L239">        String className1 = type.replace('/', '.');</span>
+
+<span class="fc" id="L241">        Class clazz = null;</span>
+<span class="fc bfc" id="L242" title="All 2 branches covered.">        if (typeProvider != null) {</span>
+<span class="fc" id="L243">            clazz = typeProvider.apply(className1);</span>
+        }
+
+<span class="fc bfc" id="L246" title="All 2 branches covered.">        if (clazz == null) {</span>
+<span class="fc" id="L247">            clazz = TypeUtils.loadClass(className1);</span>
+        }
+
+<span class="fc" id="L250">        return clazz;</span>
+    }
+
+    /**
+     * Returns the common super type of the two given types. The default implementation of this method
+     * &lt;i&gt;loads&lt;/i&gt; the two given classes and uses the java.lang.Class methods to find the common
+     * super class. It can be overridden to compute this common super type in other ways, in
+     * particular without actually loading any class, or to take into account the class that is
+     * currently being generated by this ClassWriter, which can of course not be loaded since it is
+     * under construction.
+     *
+     * @param type1 the internal name of a class.
+     * @param type2 the internal name of another class.
+     * @return the internal name of the common super class of the two given classes.
+     */
+    protected String getCommonSuperClass(final String type1, final String type2) {
+<span class="fc" id="L266">        Class&lt;?&gt; class1 = loadClass(type1);</span>
+
+<span class="pc bpc" id="L268" title="1 of 2 branches missed.">        if (class1 == null) {</span>
+<span class="nc" id="L269">            throw new JSONException(&quot;class not found &quot; + type1);</span>
+        }
+
+<span class="fc" id="L272">        Class&lt;?&gt; class2 = loadClass(type2);</span>
+
+<span class="pc bpc" id="L274" title="1 of 2 branches missed.">        if (class2 == null) {</span>
+<span class="nc" id="L275">            return &quot;java/lang/Object&quot;;</span>
+        }
+
+<span class="fc bfc" id="L278" title="All 2 branches covered.">        if (class1.isAssignableFrom(class2)) {</span>
+<span class="fc" id="L279">            return type1;</span>
+        }
+<span class="fc bfc" id="L281" title="All 2 branches covered.">        if (class2.isAssignableFrom(class1)) {</span>
+<span class="fc" id="L282">            return type2;</span>
+        }
+<span class="pc bpc" id="L284" title="3 of 4 branches missed.">        if (class1.isInterface() || class2.isInterface()) {</span>
+<span class="fc" id="L285">            return &quot;java/lang/Object&quot;;</span>
+        } else {
+            do {
+<span class="nc" id="L288">                class1 = class1.getSuperclass();</span>
+<span class="nc bnc" id="L289" title="All 2 branches missed.">            } while (!class1.isAssignableFrom(class2));</span>
+
+<span class="nc" id="L291">            return class1.getName().replace('.', '/');</span>
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.8.202204050719</span></div></body></html>

@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ObjectWriterImplClass.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">fastjson2</a> &gt; <a href="index.source.html" class="el_package">com.alibaba.fastjson2.writer</a> &gt; <span class="el_source">ObjectWriterImplClass.java</span></div><h1>ObjectWriterImplClass.java</h1><pre class="source lang-java linenums">package com.alibaba.fastjson2.writer;
+
+import com.alibaba.fastjson2.JSONWriter;
+
+import java.lang.reflect.Type;
+
+<span class="fc" id="L7">final class ObjectWriterImplClass</span>
+        extends ObjectWriterPrimitiveImpl {
+<span class="fc" id="L9">    static final ObjectWriterImplClass INSTANCE = new ObjectWriterImplClass();</span>
+
+    @Override
+    public void writeJSONB(JSONWriter jsonWriter, Object object, Object fieldName, Type fieldType, long features) {
+<span class="pc bpc" id="L13" title="1 of 2 branches missed.">        if (object == null) {</span>
+<span class="nc" id="L14">            jsonWriter.writeNull();</span>
+<span class="nc" id="L15">            return;</span>
+        }
+
+<span class="fc bfc" id="L18" title="All 2 branches covered.">        if (jsonWriter.isWriteTypeInfo(object, fieldType, features)) {</span>
+<span class="fc" id="L19">            jsonWriter.writeTypeName(&quot;java.lang.Class&quot;);</span>
+        }
+
+<span class="fc" id="L22">        Class clazz = (Class) object;</span>
+<span class="fc" id="L23">        jsonWriter.writeString(clazz.getName());</span>
+<span class="fc" id="L24">    }</span>
+
+    @Override
+    public void write(JSONWriter jsonWriter, Object object, Object fieldName, Type fieldType, long features) {
+<span class="pc bpc" id="L28" title="1 of 2 branches missed.">        if (object == null) {</span>
+<span class="nc" id="L29">            jsonWriter.writeNull();</span>
+<span class="nc" id="L30">            return;</span>
+        }
+<span class="fc" id="L32">        Class clazz = (Class) object;</span>
+<span class="fc" id="L33">        jsonWriter.writeString(</span>
+<span class="fc" id="L34">                clazz.getName());</span>
+<span class="fc" id="L35">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.8.202204050719</span></div></body></html>

@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ObjectReaderImplValueString.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">fastjson2</a> &gt; <a href="index.source.html" class="el_package">com.alibaba.fastjson2.reader</a> &gt; <span class="el_source">ObjectReaderImplValueString.java</span></div><h1>ObjectReaderImplValueString.java</h1><pre class="source lang-java linenums">package com.alibaba.fastjson2.reader;
+
+import com.alibaba.fastjson2.JSONException;
+import com.alibaba.fastjson2.JSONReader;
+import com.alibaba.fastjson2.schema.JSONSchema;
+
+import java.lang.reflect.Type;
+import java.util.function.Function;
+
+public class ObjectReaderImplValueString&lt;T&gt;
+        implements ObjectReader&lt;T&gt; {
+    final long features;
+    final Function&lt;String, T&gt; function;
+    final JSONSchema schema;
+
+    public ObjectReaderImplValueString(
+            Class&lt;T&gt; objectClass,
+            long features,
+            JSONSchema schema,
+            Function&lt;String, T&gt; function
+<span class="fc" id="L21">    ) {</span>
+<span class="fc" id="L22">        this.features = features;</span>
+<span class="fc" id="L23">        this.schema = schema;</span>
+<span class="fc" id="L24">        this.function = function;</span>
+<span class="fc" id="L25">    }</span>
+
+    @Override
+    public T readJSONBObject(JSONReader jsonReader, Type fieldType, Object fieldName, long features) {
+<span class="nc" id="L29">        return readObject(jsonReader, fieldType, fieldName, features);</span>
+    }
+
+    @Override
+    public T readObject(JSONReader jsonReader, Type fieldType, Object fieldName, long features) {
+<span class="pc bpc" id="L34" title="1 of 2 branches missed.">        if (jsonReader.nextIfNullOrEmptyString()) {</span>
+<span class="nc" id="L35">            return null;</span>
+        }
+
+<span class="fc" id="L38">        String value = jsonReader.readString();</span>
+
+<span class="pc bpc" id="L40" title="1 of 2 branches missed.">        if (schema != null) {</span>
+<span class="nc" id="L41">            schema.validate(value);</span>
+        }
+
+        T object;
+        try {
+<span class="fc" id="L46">            object = function.apply(value);</span>
+<span class="nc" id="L47">        } catch (Exception ex) {</span>
+<span class="nc" id="L48">            throw new JSONException(jsonReader.info(&quot;create object error&quot;), ex);</span>
+<span class="fc" id="L49">        }</span>
+
+<span class="fc" id="L51">        return object;</span>
+    }
+
+    public static &lt;T&gt; ObjectReaderImplValueString&lt;T&gt; of(
+            Class&lt;T&gt; objectClass,
+            Function&lt;String, T&gt; function
+    ) {
+<span class="nc" id="L58">        return new ObjectReaderImplValueString(</span>
+                objectClass,
+                0,
+                null,
+                function
+        );
+    }
+
+    public static &lt;T&gt; ObjectReaderImplValueString&lt;T&gt; of(
+            Class&lt;T&gt; objectClass,
+            long features,
+            JSONSchema schema,
+            Function&lt;String, T&gt; function
+    ) {
+<span class="fc" id="L72">        return new ObjectReaderImplValueString(</span>
+                objectClass,
+                features,
+                schema,
+                function
+        );
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.8.202204050719</span></div></body></html>
